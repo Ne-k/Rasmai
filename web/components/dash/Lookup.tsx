@@ -16,6 +16,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
   const [browseTag, setBrowseTag] = useState("");
   const timer = useRef<number | null>(null);
   const opened = useRef<string>("");
+  const opening = useRef(0);      // a lookup that a newer search or lookup has overtaken must not land on the page
 
   // a trait on a chart page opens the browser on that trait, so "what else asks this of me" is one click
   const browseTrait = (key: string) => {
@@ -29,6 +30,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
     getJSON<{ songs: SearchHit[] }>(`/api/me/search?q=${encodeURIComponent(wanted)}`);
 
   const open = (title: string, type?: string, difficulty?: string, cover?: string) => {
+    const mine = ++opening.current;
     setBusy(true);
     setError("");
     const params = new URLSearchParams(cover ? { cover } : { title });
@@ -36,6 +38,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
     if (difficulty) params.set("difficulty", difficulty);
     getJSON<SongLookup>(`/api/me/chart?${params}`)
       .then((d) => {
+        if (mine !== opening.current) return;
         setSong(d);
         setSelected(d.selected);
         setHits(null);
@@ -48,6 +51,8 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
         );
       })
       .catch((e: ApiError) => {
+        if (mine !== opening.current) return;
+        setHits(null);
         if (e.status === 404 && e.code === "unknown_song") {
           const rows = (e.body.charts as { level: string; difficulty: string; accuracy: number }[] | undefined) ?? [];
           const yours = rows.map((c) => `${c.difficulty} ${c.level} at ${c.accuracy.toFixed(4)}%`).join(", ");
@@ -56,7 +61,9 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           );
         } else setError(e.status === 404 ? `Nothing in the chart database matches "${title}".` : e.message);
       })
-      .finally(() => setBusy(false));
+      .finally(() => {
+        if (mine === opening.current) setBusy(false);
+      });
   };
 
   // a title handed over from another tab, or from the address bar
@@ -71,6 +78,10 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
   const [searchError, setSearchError] = useState("");
   const search = (text: string) => {
     setQuery(text);
+    opening.current++;      // a lookup still in flight belongs to the old query
+    setSong(null);          // a new search is a new page: whatever chart was open goes with the old query
+    setError("");
+    setBusy(false);
     if (timer.current) window.clearTimeout(timer.current);
     const wanted = text.trim();
     if (wanted.length < 1) {

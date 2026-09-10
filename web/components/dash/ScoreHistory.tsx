@@ -38,8 +38,10 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
   const values = sorted.map((p) => p.achievement);
   const t0 = new Date(sorted[0].when).getTime();
   const t1 = Math.max(new Date(sorted[sorted.length - 1].when).getTime(), t0 + 1);
-  let lo = Math.min(...values) - 0.4;
+  // a run dropped far under the best would stretch the axis until every real play sat on one line;
+  // the range follows the plays within five points of the best and the rest sit on the floor
   let hi = Math.max(...values) + 0.4;
+  let lo = Math.min(...values.filter((v) => v >= hi - 5.4)) - 0.4;
   if (hi - lo < 1.5) {
     const mid = (hi + lo) / 2;
     lo = mid - 0.75;
@@ -50,7 +52,7 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
   const spread = t1 - t0 < 10 * 60 * 1000;
   const x = (t: number, i: number) =>
     padL + (spread ? i / (sorted.length - 1) : (t - t0) / (t1 - t0)) * (W - padL - padR);
-  const y = (v: number) => padT + ((hi - v) / (hi - lo)) * (H - padT - padB);
+  const y = (v: number) => padT + ((hi - Math.max(lo, Math.min(hi, v))) / (hi - lo)) * (H - padT - padB);
   let best = 0;
   const steps: string[] = [];
   const bests: number[] = [];
