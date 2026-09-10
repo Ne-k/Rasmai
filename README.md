@@ -75,7 +75,7 @@ The dashboard installs as a home screen app: it opens full screen with its own i
 
 Sign-in is remembered for 30 days; the app reads nothing without it and stores no scores on the phone.
 
-| iPhone, the Account tab with the install note | Android, What to play |
+| iPhone, the Account tab | Android, What to play |
 |---|---|
 | ![The dashboard on an iPhone](docs/screenshots/phone-ios.png) | ![The dashboard on an Android phone](docs/screenshots/phone-android.png) |
 
