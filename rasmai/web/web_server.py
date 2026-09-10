@@ -19,6 +19,7 @@ from rasmai.config import (
 )
 from rasmai.storage.db import (
     consume_login_code,
+    get_database_connection,
     get_connected_account,
     login_code_expiry,
     login_code_issued_at,
@@ -121,6 +122,14 @@ class InternalApiServer:
                 route = urlparse(self.path)
                 query = parse_qs(route.query)
                 if route.path in ("/health", "/api/health"):
+                    # a bot whose database has gone is not healthy, however well it answers: the container's
+                    # health check reads this, so a stale bind mount shows up in docker ps instead of in every command
+                    try:
+                        get_database_connection().close()
+                    except Exception as error:
+                        logger.error("the health check could not open the database: %s", error)
+                        self._send_json(503, {"ok": False, "error": "database"})
+                        return
                     self._send_json(200, {"ok": True, "time": datetime.now().isoformat()})
                     return
                 if not self._authorized():
