@@ -1,3 +1,5 @@
+<p align="center"><img src="brand/rasmai-avatar-transparent.png" width="128" alt="Rasmai"></p>
+
 # Rasmai
 
 Discord bot for maimai DX. It reads your scores from maimai DX NET and tells you what to play for the most rating, based on how you actually play. Comes with a web dashboard at [rasmai.nguyen.ink](https://rasmai.nguyen.ink).
