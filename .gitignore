@@ -1,0 +1,25 @@
+# secrets and per-user data
+.env
+data/
+brand/
+
+# analysis exports (may contain score data)
+debug/
+
+# caches
+otoge_cache/
+__pycache__/
+*.pyc
+
+# environments and editors
+.venv/
+.idea/
+.qodo/
+
+# next.js build artifacts
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/*.tsbuildinfo
+cover_cache/

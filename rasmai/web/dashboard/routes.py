@@ -1,0 +1,142 @@
+from datetime import datetime
+from typing import Dict, List, Any
+import json
+import re
+
+from rasmai.security import refresh_limiter
+from rasmai.storage.db import delete_connected_account, get_connected_account
+from rasmai.bot.state.cache import forget_analysis
+from rasmai.web.dashboard.analysis import analysis_for_user
+from rasmai.web.dashboard.areas import areas_payload
+from rasmai.web.dashboard.lookup import chart_payload, patterns_payload, search_payload, video_payload
+from rasmai.web.dashboard.overview import overview_payload
+from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
+from rasmai.web.dashboard.refresh import refresh_jobs
+from rasmai.web.dashboard.scores import charts_payload, export_payload, recent_payload
+
+
+def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
+    """Dashboard reads for the signed-in person, as the web server authenticated them; True when answered.
+
+    :param handler: The request being answered.
+    :type handler: Any
+    :param path: The file to read or write.
+    :type path: str
+    :param query: What the player typed.
+    :type query: Dict[str, List[str]]
+    :param user: The signed-in person.
+    :type user: Dict[str, Any]
+    :rtype: bool
+    """
+    account = get_connected_account(user["id"])
+
+    if path in ("/internal/me", "/internal/me/"):
+        handler._send_json(200, overview_payload(user, account))
+        return True
+    if path == "/internal/me/refresh":
+        handler._send_json(200, refresh_jobs.status(user["id"]))
+        return True
+    if account is None:
+        handler._send_json(404, {"ok": False, "error": "not_linked"})
+        return True
+
+    cached = analysis_for_user(user["id"], account)
+    if path == "/internal/me/charts":
+        handler._send_json(200, {"charts": charts_payload(cached) if cached else []})
+        return True
+    if path == "/internal/me/picks":
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
+        handler._send_json(200, picks_payload(cached, (query.get("challenge") or ["balanced"])[0][:12], (query.get("level") or [""])[0][:24]))
+        return True
+    if path == "/internal/me/new":
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
+        handler._send_json(200, new_charts_payload(cached, (query.get("challenge") or ["balanced"])[0][:12],
+                                                   (query.get("difficulty") or ["any"])[0], (query.get("level") or [""])[0][:4],
+                                                   (query.get("focus") or [""])[0][:6]))
+        return True
+    if path == "/internal/me/recent":
+        handler._send_json(200, {"plays": recent_payload(user["id"], cached)})
+        return True
+    if path == "/internal/me/areas":
+        handler._send_json(200, areas_payload(user["id"], account, cached))
+        return True
+    if path == "/internal/me/search":
+        handler._send_json(200, {"songs": search_payload(cached, (query.get("q") or [""])[0][:80])})
+        return True
+    if path == "/internal/me/patterns":
+        handler._send_json(200, patterns_payload(cached, (query.get("tag") or [""])[0][:60].strip(), (query.get("level") or [""])[0][:4].strip(),
+                                                 (query.get("difficulty") or [""])[0][:10].strip().lower()))
+        return True
+    if path == "/internal/me/video":
+        handler._send_json(200, video_payload(cached, (query.get("title") or [""])[0][:200].strip()))
+        return True
+    if path == "/internal/me/chart":
+        title = (query.get("title") or [""])[0][:200].strip()
+        cover = (query.get("cover") or [""])[0][:80].strip()
+        if not title and not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", cover):
+            handler._send_json(400, {"ok": False, "error": "no_title"})
+            return True
+        detail = chart_payload(cached, title, (query.get("type") or [""])[0][:8].lower(), (query.get("difficulty") or [""])[0][:12].lower(), cover=cover)
+        if detail is None:
+            # the player may hold scores on a song the database has not learned yet
+            mine = [s for s in (cached.analyzer.songs if cached else []) if str(s.name).casefold() == title.casefold()] if title else []
+            if mine:
+                handler._send_json(404, {"ok": False, "error": "unknown_song", "title": mine[0].name, "charts": [
+                    {"chart_type": s.chart_type or "std", "difficulty": str(s.difficulty_type).lower(), "level": s.level,
+                     "constant": round(float(s.difficulty or 0), 2), "accuracy": round(float(s.accuracy or 0), 4), "rating": int(s.rating or 0)}
+                    for s in mine]})
+                return True
+            handler._send_json(404, {"ok": False, "error": "no_song"})
+            return True
+        handler._send_json(200, detail)
+        return True
+    if path == "/internal/me/export":
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
+        body = json.dumps(export_payload(cached), ensure_ascii=False, indent=2).encode("utf-8")
+        handler.send_response(200)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Disposition", f'attachment; filename="rasmai-scores-{datetime.now().strftime("%Y%m%d-%H%M")}.json"')
+        handler.send_header("Content-Length", str(len(body)))
+        handler.end_headers()
+        handler.wfile.write(body)
+        return True
+    return False
+
+
+def handle_post(handler: Any, path: str, user: Dict[str, Any]) -> bool:
+    """Dashboard writes for the signed-in person: start a score read, or unlink; True when answered.
+
+    :param handler: The request being answered.
+    :type handler: Any
+    :param path: The file to read or write.
+    :type path: str
+    :param user: The signed-in person.
+    :type user: Dict[str, Any]
+    :rtype: bool
+    """
+    if path not in ("/internal/me/refresh", "/internal/me/unlink"):
+        return False
+    account = get_connected_account(user["id"])
+    if account is None:
+        handler._send_json(404, {"ok": False, "error": "not_linked"})
+        return True
+    if path == "/internal/me/refresh":
+        running = refresh_jobs.status(user["id"])
+        if not running.get("running") and not refresh_limiter.allow(user["id"]):
+            handler._send_json(429, {"ok": False, "error": "refresh_cooldown",
+                                     "message": "Three reads per quarter hour from the site; Discord commands still work."})
+            return True
+        handler._send_json(202, refresh_jobs.start(user["id"], account))
+        return True
+    if path == "/internal/me/unlink":
+        delete_connected_account(user["id"])
+        forget_analysis(user["id"])
+        handler._send_json(200, {"ok": True})
+        return True
+    return False

@@ -1,0 +1,15 @@
+.venv/
+.idea/
+.qodo/
+__pycache__/
+*.pyc
+.env
+data/
+debug/
+otoge_cache/
+.git/
+*.md
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts

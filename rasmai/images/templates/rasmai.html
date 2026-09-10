@@ -1,0 +1,322 @@
+<!-- @page -->  <!-- shared page shell: header, body slot, footer -->
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><style>{css}</style></head>
+<body class="{body_class}">
+<div class="image">
+  <header>
+    {avatar}
+    <div class="who"><div class="eyebrow">{eyebrow}</div><h1>{name}</h1></div>
+    <div class="counters">{counters}</div>
+    <div class="headline"><div class="value">{headline_value}</div><div class="caption">{headline_caption}</div></div>
+  </header>
+  {body}
+  <footer><span>{foot_left}</span><span>{foot_right}</span></footer>
+</div>
+</body>
+</html>
+
+<!-- @counter -->  <!-- one figure in the header strip -->
+<div class="counter"><dt>{label}</dt><dd>{value}</dd></div>
+
+<!-- @avatar -->
+<img src="data:image/png;base64,{data}" class="avatar" />
+
+<!-- @avatar-none -->
+<div class="avatar no-cover"></div>
+
+<!-- @empty-note -->  <!-- stands in for a section with nothing to show -->
+<div class="section-label">{message}</div>
+
+<!-- @poster -->  <!-- /analyze - its own full page, two columns -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>{css}</style>
+</head>
+<body>
+<div class="image">
+  <header>
+    {avatar}
+    <div class="who">
+      <div class="eyebrow">What to play next</div>
+      <h1>{name}</h1>
+    </div>
+    <div class="counters">
+      <div class="counter"><dt>Rating</dt><dd>{rating}</dd></div>
+      {counters}
+    </div>
+    <div class="headline-figure">
+      <div class="value">+{total_gain}</div>
+      <div class="caption">rating on this image</div>
+    </div>
+  </header>
+
+  <div class="columns">
+  <div class="col">
+  <div class="section-label">Grind these &middot; {chart_count} charts &middot; +{total_gain}</div>
+  <div class="heroes">{heroes}</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
+        <th style="text-align:right">Gain</th>
+      </tr>
+    </thead>
+    <tbody>{rows}</tbody>
+  </table>
+
+  </div>
+  <div class="col">
+  {road}
+  </div>
+  </div>
+  {near}
+  <footer><span>{foot_left}</span><span>{foot_right}</span></footer>
+</div>
+</body>
+</html>
+
+<!-- @poster-hero -->
+<article class="hero" style="--tier:{ink}; --wash:{wash};">
+    <div class="hero-rank">{position}</div>
+    {cover}
+    <div class="hero-body">
+        <div class="tier">{tier_label} <span class="lv">{level}</span></div>
+        <h2 class="hero-title">{title}</h2>
+        <div class="hero-move">
+            <span class="from">{current:.2f}%</span>
+            <span class="arrow">&rarr;</span>
+            <span class="to">{target:.2f}%</span>
+            <span class="ranks">{current_rank} &rarr; {target_rank}</span>
+        </div>
+        <div class="hero-meta">{plays} &middot; you usually score ~{expected:.1f}% here</div>
+    </div>
+    <div class="hero-gain">
+        <div class="plus">+{gain}</div>
+        <div class="unit">rating</div>
+        <div class="odds">{odds:.0f}% likely</div>
+    </div>
+</article>
+
+<!-- @poster-row -->
+<tr style="--tier:{ink};">
+    <td class="c-rank">{position}</td>
+    <td class="c-cover">{cover}</td>
+    <td class="c-song">
+        <span class="row-title">{title}</span>
+        <span class="row-tier">{tier_label} {level}</span>
+        <span class="row-meta">{plays}</span>
+    </td>
+    <td class="c-acc">{current:.2f} <span class="arrow">&rarr;</span> <b>{target:.2f}</b></td>
+    <td class="c-rank-move">{current_rank} <span class="arrow">&rarr;</span> <b>{target_rank}</b></td>
+    <td class="c-odds">{odds:.0f}%</td>
+    <td class="c-gain">+{gain}</td>
+</tr>
+
+<!-- @poster-road -->
+<section class="road">
+    <div class="road-head">
+        <div>
+            <div class="section-label">Road to {goal_rating}</div>
+            <div class="road-verdict">{verdict}</div>
+        </div>
+        <div class="road-stretch">
+            <div class="value">{stretch:+.1f}%</div>
+            <div class="caption">above your usual score</div>
+        </div>
+    </div>
+    <table>
+        <thead><tr>
+            <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
+            <th style="text-align:right">Gain</th><th style="text-align:right">Total</th>
+        </tr></thead>
+        <tbody>{rows}</tbody>
+    </table>
+</section>
+
+<!-- @poster-road-row -->
+<tr style="--tier:{ink};">
+    <td class="c-rank">{position}</td>
+    <td class="c-cover">{cover}</td>
+    <td class="c-song">
+        <span class="row-title">{title}</span>
+        <span class="row-tier">{tier_label} {level}</span>
+        <span class="row-meta">{plays}</span>
+    </td>
+    <td class="c-acc">{now} <span class="arrow">&rarr;</span> <b>{target:.2f}</b></td>
+    <td class="c-rank-move">{current_rank} <span class="arrow">&rarr;</span> <b>{target_rank}</b></td>
+    <td class="c-odds">{odds:.0f}%</td>
+    <td class="c-gain">+{gain}</td>
+    <td class="c-cum">{cumulative}</td>
+</tr>
+
+<!-- @poster-near -->
+<section class="near">
+    <h3>Just outside your best 50</h3>
+    <p>These pay nothing yet. Reach the score shown and they start counting.</p>
+    <ul>{items}</ul>
+</section>
+
+<!-- @poster-near-item -->
+<li><span class="near-name">{title}</span><span class="near-need">{needed:.2f}%</span></li>
+
+<!-- @recent-body -->  <!-- /recent: plays flow down columns so the image stays wide -->
+<div class="recent-flow">{items}</div>
+
+<!-- @recent-head -->
+<div class="recent-head"><b>{label}</b><span>{count} plays</span></div>
+
+<!-- @recent-play -->
+<div class="play" style="--tier:{ink};">
+  {cover}
+  <div>
+    <div class="p-title">{title}{flags}</div>
+    <div class="p-meta">{time} &middot; <span class="p-diff">{tier_label} {level}</span> &middot; <b>{achievement}</b> {rank}{extra}</div>
+  </div>
+  <div class="p-rating">{chart_rating}</div>
+</div>
+
+<!-- @plan-body -->  <!-- /plan -->
+<div class="progress">
+  <div class="bar"><div class="fill{stretch_class}" style="width:{fill:.1f}%"></div><div class="goal"></div></div>
+  <div class="bar-labels"><span>now <b>{start_rating}</b></span><span>{verdict}</span><span>goal <b>{goal_rating}</b></span></div>
+</div>
+<div class="section-label">Route &middot; {step_count} steps &middot; {target_kind}{limit_note}</div>
+{bolder_note}
+{columns}
+
+<!-- @plan-bolder -->  <!-- a bolder target level would cover the whole goal -->
+<div class="bolder">{label} targets cover the full +{needed} on charts you already play</div>
+
+<!-- @plan-columns -->
+<div class="columns">
+  <div><table>{head}<tbody>{left}</tbody></table></div>
+  <div><table>{head}<tbody>{right}</tbody></table></div>
+</div>
+
+<!-- @plan-head -->
+<thead><tr><th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th>
+<th style="text-align:right">Odds</th><th style="text-align:right">Gain</th><th style="text-align:right">Total</th></tr></thead>
+
+<!-- @new-flag -->  <!-- marks a chart the player has never touched -->
+<span class="new-flag">New</span>
+
+<!-- @plan-row -->
+<tr class="{row_class}" style="--tier:{ink};">
+  <td class="c-rank">{position}</td>
+  <td class="c-cover">{cover}</td>
+  <td><span class="row-title">{title}{flag}</span><span class="row-tier">{tier_label} {level}</span>
+      <span class="row-meta">{plays} &middot; usually ~{expected:.1f}%</span></td>
+  <td class="num">{now} <span class="arrow">&rarr;</span> <b>{target:.2f}</b></td>
+  <td class="num">{current_rank} <span class="arrow">&rarr;</span> <b>{target_rank}</b></td>
+  <td class="num" style="text-align:right">{odds:.0f}%</td>
+  <td class="c-gain">+{gain}</td>
+  <td class="c-cum">{cumulative}</td>
+</tr>
+
+<!-- @session-body -->  <!-- /session: tonight's credits, best use first -->
+<div class="session-line"><b>{credits}</b> credits &middot; worth about <b>+{expected:.0f}</b> rating &middot; <b>{any_lands:.0f}%</b> chance at least one target lands{limit_note}</div>
+<div class="section-label">Play order &middot; warm-ups first &middot; {target_kind}</div>
+{columns}
+
+<!-- @session-head -->
+<thead><tr><th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th>
+<th style="text-align:right">Odds</th><th style="text-align:right">If it lands</th><th style="text-align:right">Worth</th></tr></thead>
+
+<!-- @retry-flag -->  <!-- a second or third credit on the same chart -->
+<span class="retry-flag">try {attempt}</span>
+
+<!-- @new-body -->  <!-- /new -->
+<div class="section-label">Never played &middot; lv {lower:.1f} to {upper:.1f} &middot; first pass should land AAA or better</div>
+<div class="grid">{cards}</div>
+
+<!-- @new-card -->
+<div class="card" style="--tier:{ink};">
+  {cover}
+  <div>
+    <div class="rank">{position}</div>
+    <div class="tier">{tier_label} {level} <span>&middot; {chart_type}</span></div>
+    <div class="title">{title}</div>
+    <div class="est">first try ~<b>{expected:.1f}%</b> ({expected_rank})<br />
+         <b>{odds_of_s:.0f}%</b> odds of S</div>
+    {worth}
+    <div class="genre">{genre}</div>
+  </div>
+</div>
+
+<!-- @ladder -->  <!-- /chart: what every rank above the current score is worth -->
+<div class="section-label">If you push {label} &middot; what each rank pays</div>
+{forecast}
+<table class="ladder">
+  <thead><tr><th>Rank</th><th>Need</th><th>Rating</th>
+  <th>Best-50</th><th>Odds</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+
+<!-- @ladder-row -->
+<tr>
+  <td class="lr-rank">{rank}</td>
+  <td class="lr-need">{need:.2f}%</td>
+  <td class="lr-rating">{rating}</td>
+  <td class="lr-gain">{gain}</td>
+  <td class="lr-odds">{odds:.0f}%</td>
+</tr>
+
+<!-- @new-worth -->
+<div class="worth">+{gain} if it lands</div>
+
+<!-- @new-worth-none -->
+<div class="worth dim">banks for later</div>
+
+<!-- @profile-body -->  <!-- /profile -->
+<div class="columns" style="grid-template-columns: 1520px 1fr; gap: 40px; margin-top: 26px;">
+  <div>
+    <div class="section-label" style="margin-top:0">Skill curve &middot; every chart you have a score on</div>
+    <div class="chart-wrap">{chart}
+      <div class="legend"><span><i style="background:#f0c04a"></i>what you usually score, &plusmn;{consistency}</span>
+      <span><i style="background:#5cd3e8"></i>comfort (SS) / reach (S)</span>{legend}</div></div>
+  </div>
+  <div>
+    <div class="section-label" style="margin-top:0">How you play</div>
+    <div class="tiles">
+      <div class="tile wide"><div class="k">Style</div><div class="v">{style}<small>leans {chart_type} &middot; {genre}</small></div>
+        <div class="s">{fc_rate:.0f}% FC &middot; {ap_rate:.0f}% AP &middot; {dx_rate:.0f}% DX score</div></div>
+      <div class="tile"><div class="k">Comfort</div><div class="v">{comfort}</div><div class="s">SS territory</div></div>
+      <div class="tile"><div class="k">Reach</div><div class="v">{reach}</div><div class="s">S territory</div></div>
+      <div class="tile"><div class="k">Hardest S</div><div class="v">{hardest_s}</div><div class="s">played up to {ceiling}</div></div>
+      <div class="tile"><div class="k">Usual on 13s</div><div class="v">{at13}<small>%</small></div><div class="s">&plusmn;{consistency}</div></div>
+      <div class="tile"><div class="k">Usual on 14s</div><div class="v">{at14}<small>%</small></div><div class="s">&plusmn;{consistency}</div></div>
+      <div class="tile"><div class="k">Recent</div><div class="v">{recent_count}<small>plays</small></div><div class="s">{active_days} active day(s) &middot; {play_counts_known} play counts known</div></div>
+      <div class="tile wide"><div class="k">Best-50</div><div class="v">{best50}<small>{new_total} new + {old_total} old</small></div>
+        <div class="s">cutoffs {new_cutoff} / {old_cutoff}{slots}</div></div>
+      {model_tile}
+    </div>
+    <div class="section-label">Where you lose and gain points &middot; vs your own curve, in points</div>
+    <div class="bars">{trait_bars}</div>
+    <div class="section-label">Genres you gravitate to &middot; vs your average</div>
+    <div class="bars">{genre_bars}</div>
+  </div>
+</div>
+
+<!-- @profile-model -->  <!-- the model's check of itself against recorded plays -->
+<div class="tile wide"><div class="k">Model check &middot; {plays} recorded plays</div>
+  <div class="v">{coverage:.0f}%<small>of plays inside the predicted range</small></div>
+  <div class="s">new-best odds said {predicted:.0f}%, {actual:.0f}% happened &middot; spread scaled &times;{scale:.2f} &middot; centre shifted {shift:+.2f}</div></div>
+
+<!-- @profile-slots -->
+ &middot; <b style="color:#f0c04a">{slots} slots empty</b>
+
+<!-- @bar-row -->
+<div class="barrow"><span>{label}</span><span class="track"><i class="{negative}" style="width:{width:.0f}%"></i></span><span class="pct">{percent:+.0f}%</span></div>
+
+<!-- @trait-row -->  <!-- a chart trait the player scores above or below their own curve on, in points -->
+<div class="barrow"><span>{label}</span><span class="track"><i class="pts {negative}" style="width:{width:.0f}%"></i></span><span class="pct">{value:+.1f}</span></div>
+
+<!-- @bar-empty -->
+<div class="barrow"><span>not enough recent plays</span><span></span><span></span></div>
+
+<!-- @legend-swatch -->
+<span><i style="background:{ink}"></i>{label}</span>

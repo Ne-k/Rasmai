@@ -1,0 +1,88 @@
+from typing import Any, Dict, List, Tuple
+
+from rasmai.engine.analysis import ChartRef
+
+
+def chart_traits(chart: ChartRef) -> List[Tuple[str, str]]:
+    """The attributes a chart is judged on: tempo, note count, era, genre, designer, chart type.
+
+    When mai-notes has been read, the chart's note mix (break-heavy, slide-light) and the pattern
+    tags its editors gave it (streams, hard slides) join the list, so a weakness can be named as a
+    pattern rather than only as a property of the song.
+
+    :param chart: The chart being judged.
+    :type chart: ChartRef
+    :rtype: List[Tuple[str, str]]
+    """
+    traits: List[Tuple[str, str]] = [("type", "DX charts" if chart.chart_type == "dx" else "standard charts")]
+    try:
+        from rasmai.scraping import mai_notes
+        row = mai_notes.cached_facts().get(chart.key)
+    except Exception:                     # the model must never fail because a fan site is unreadable
+        row = None
+    if row:
+        traits.extend(mai_notes.note_traits(row))
+        traits.extend(mai_notes.pattern_traits(row))
+    if chart.bpm > 0:
+        if chart.bpm <= 120:
+            tempo = "slow songs (up to 120 BPM)"
+        elif chart.bpm <= 160:
+            tempo = "mid-tempo songs (121 to 160 BPM)"
+        elif chart.bpm <= 200:
+            tempo = "fast songs (161 to 200 BPM)"
+        else:
+            tempo = "very fast songs (over 200 BPM)"
+        traits.append(("tempo", tempo))
+    if chart.notes > 0:
+        density = "light charts (under 550 notes)" if chart.notes < 550 else "medium charts (550 to 800 notes)" if chart.notes < 800 else "dense charts (800+ notes)"
+        traits.append(("density", density))
+    if chart.version:
+        era = "maimai-era songs (before DX)" if chart.version < 20 else "DX to FESTiVAL songs" if chart.version < 24 else "BUDDiES and newer songs"
+        traits.append(("era", era))
+    if chart.genre:
+        traits.append(("genre", chart.genre))
+    if chart.designer:
+        traits.append(("designer", f"charts by {chart.designer}"))
+    return traits
+
+
+# a chart page prints these in its own header, so the tag row does not repeat them
+NOT_A_DEMAND = {"type", "era", "genre", "designer"}
+
+
+def chart_tags(chart: ChartRef) -> List[Dict[str, Any]]:
+    """What a chart asks of you, for showing on its page: the community's pattern tags first, then what its own numbers say.
+
+    mai-notes' editors have tagged about one chart in ten, almost all of them Master and above,
+    so a page that shows only those is blank for most charts. The note mix, tempo band and note
+    density are measured from the chart itself and cover nearly all of them, so they fill the row
+    out. They are marked as measured rather than community-written, because the two are not the
+    same kind of claim.
+
+    :param chart: The chart being shown.
+    :type chart: ChartRef
+    :rtype: List[Dict[str, Any]]
+    """
+    tags = [{"dimension": dimension, "label": label, "community": dimension == "pattern"}
+            for dimension, label in chart_traits(chart) if dimension not in NOT_A_DEMAND]
+    tags.sort(key=lambda tag: not tag["community"])     # the editors' words lead, the measured ones follow
+    return tags
+
+
+NON_TECHNIQUE = {"notorious", "good to practice on", "a maimai standard", "one hard section", "hard throughout", "hard to score"}
+
+
+# what a chart is rather than what it asks of the hands: measured and listed, but never drawn on the wheel
+NOT_ON_RADAR = {"type", "era", "genre", "designer"}
+
+
+def _is_technique(dimension: str, label: str) -> bool:
+    """Whether a tag says something about play rather than about fame or difficulty shape."""
+    if dimension != "pattern":
+        return True
+    try:
+        from rasmai.scraping.mai_notes import english_label
+        gloss = english_label(label)
+    except Exception:
+        gloss = label
+    return gloss not in NON_TECHNIQUE and label not in NON_TECHNIQUE

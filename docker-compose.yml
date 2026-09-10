@@ -1,0 +1,45 @@
+services:
+  # the Discord bot and its internal API; reachable only from the compose network
+  bot:
+    image: ghcr.io/ne-k/rasmai:latest
+    build:
+      context: .
+      target: bot
+      cache_from:
+        - ghcr.io/ne-k/rasmai:latest
+    container_name: rasmai
+    env_file: .env
+    environment:
+      MAIMAI_WEBSERVER_HOST: 0.0.0.0
+      MAIMAI_DATABASE_PATH: /app/data/maimai.sqlite3
+      MAIMAI_TUNNEL_ORIGIN: http://web:3000
+    expose:
+      - "8765"
+    volumes:
+      - ./data:/app/data
+      - ./otoge_cache:/app/otoge_cache
+    init: true
+    shm_size: "1gb"
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+  # the website: pages, Discord sign-in, the Turnstile check, and the API the pages call.
+  # point your https front (Cloudflare tunnel, Caddy, nginx) at 127.0.0.1:8765, the same port the old single container used
+  web:
+    image: ghcr.io/ne-k/rasmai-web:latest
+    build:
+      context: .
+      target: web
+      cache_from:
+        - ghcr.io/ne-k/rasmai-web:latest
+    container_name: rasmai-web
+    env_file: .env
+    environment:
+      MAIMAI_INTERNAL_URL: http://bot:8765
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:8765:3000"
+    depends_on:
+      - bot
+    init: true
+    restart: unless-stopped

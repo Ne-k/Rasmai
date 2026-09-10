@@ -1,0 +1,76 @@
+name: Checks
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md", "brand/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bot:
+    name: Bot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pyflakes
+
+      - name: Verification sweep
+        run: python tools/check.py
+
+      - name: The bot starts and serves its internal API
+        env:
+          # a token Discord will refuse, which is all this needs: everything up to the login has to work
+          DISCORD_TOKEN: not-a-real-token
+          MAIMAI_WEBSERVER_PORT: "8765"
+          MAIMAI_NEWS: "false"
+          MAIMAI_PRESENCE: "false"
+        run: |
+          timeout 90 python -m rasmai > start.log 2>&1 || true
+          if ! grep -q "Internal API for the website listening" start.log; then
+            echo "The bot did not get as far as serving its internal API:"
+            cat start.log
+            exit 1
+          fi
+          if grep -qE "NameError|ImportError|ModuleNotFoundError" start.log; then
+            echo "A name or import failed while starting:"
+            grep -E "NameError|ImportError|ModuleNotFoundError" -B 8 start.log
+            exit 1
+          fi
+          echo "Started cleanly and stopped at the login, as expected."
+
+  web:
+    name: Website
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
