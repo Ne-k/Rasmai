@@ -19,7 +19,7 @@ function Connected() {
   const rating = params.get("rating") ?? "-";
 
   return (
-    <Shell tag="done" lit={3} done footLeft="all eight lit" footRight="you can close this tab">
+    <Shell tag="done" lit={3} done footLeft="not affiliated with SEGA">
       <h1>
         Linked. <em>Go play.</em>
       </h1>
