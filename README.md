@@ -76,6 +76,19 @@ npm run dev                     # http://localhost:3000, set MAIMAI_PUBLIC_URL t
 
 The bot keeps an internal JSON API on `127.0.0.1:8765` that the site calls with `RASMAI_INTERNAL_SECRET`. Nothing in the bot process listens to the internet.
 
+### Developing
+
+`dev.py` does the steps above for you and runs both halves with reloading:
+
+```bash
+python dev.py setup             # .venv, pip and npm installs, Chromium, a starter .env
+python dev.py run               # bot + site together; --bot-only / --web-only for one half
+python dev.py check             # the verification sweep CI runs, plus the site's type-check
+python dev.py sample export.json   # run a /export file through the model without a Discord account
+```
+
+Put your `DISCORD_TOKEN` in `.env` after `setup`; for the site's sign-in you also need `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` from the Developer Portal with `http://localhost:3000/auth/callback` as a redirect. `MAIMAI_GUILD_ID` set to your server makes new slash commands appear there at once instead of after Discord's global delay. Edits to the site reload in the browser; the bot is restarted by hand (`python dev.py bot`).
+
 ### Docker
 
 Two containers from one Dockerfile, `bot` and `web`. Only the site is published, on `127.0.0.1:8765` of the host. Put your https in front of it (Cloudflare tunnel, Caddy, nginx).
