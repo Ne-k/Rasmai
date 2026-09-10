@@ -36,7 +36,6 @@ jobs:
           # a token Discord will refuse, which is all this needs: everything up to the login has to work
           DISCORD_TOKEN: not-a-real-token
           MAIMAI_WEBSERVER_PORT: "8765"
-          MAIMAI_NEWS: "false"
           MAIMAI_PRESENCE: "false"
         run: |
           timeout 90 python -m rasmai > start.log 2>&1 || true
