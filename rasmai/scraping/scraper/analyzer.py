@@ -26,10 +26,8 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.page = None
         self.playwright = None
         self.debug = debug
+        # the weekly refresh runs from the bot's own upkeep, never inside the request that happens to come first
         self.otoge_db = CachedOtogeDB(debug=debug)
-        if self.debug:
-            print("DEBUG: Enabling debug mode for otoge-db")
-        self.otoge_db.update_if_needed()
         self.jacket_path = str(self.otoge_db.jacket_dir) + "/"
         self._chart_index: Optional[ChartIndex] = None
         self.recent_songs: List[Dict[str, Any]] = []

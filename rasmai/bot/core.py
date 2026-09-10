@@ -1,6 +1,6 @@
 from discord import app_commands
 from discord.app_commands.installs import AppCommandContext, AppInstallationType
-from discord.ext import commands
+from discord.ext import commands, tasks
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional, Any
 import asyncio
@@ -220,13 +220,26 @@ def _crawl_wiki_areas() -> None:
         logger.exception("wiki area crawl failed")
 
 
-def _warm_chart_index() -> None:
-    """Build the shared chart index once at start, so the first /chart keystroke does not build it inside autocomplete."""
+def _chart_db_upkeep() -> None:
+    """Fetch the chart database when it is due and build the shared index from it.
+
+    Runs at start and once a day. The fetch used to happen inside whichever analysis came first
+    after the refresh interval, which put a full clone of otoge-db in front of someone's /login.
+    """
     try:
-        from rasmai.bot.builders.charts.index import shared_index
-        shared_index()
+        from rasmai.bot.builders.charts.index import refresh_shared_index, shared_index
+        from rasmai.scraping.otoge import CachedOtogeDB
+        if CachedOtogeDB().update_if_needed():
+            refresh_shared_index()
+        else:
+            shared_index()
     except Exception:
-        logger.exception("chart index warm-up failed")
+        logger.exception("chart database upkeep failed")
+
+
+@tasks.loop(hours=24)
+async def _chart_db_daily() -> None:
+    await asyncio.get_running_loop().run_in_executor(None, _chart_db_upkeep)
 
 
 def _crawl_wiki_titles() -> None:
@@ -263,7 +276,8 @@ async def on_ready():
     watch.start()
     history_watch.start()
     await sync_application_emojis(bot)
-    asyncio.get_running_loop().run_in_executor(None, _warm_chart_index)
+    if not _chart_db_daily.is_running():
+        _chart_db_daily.start()      # on_ready fires again after a reconnect; the loop must not
     if WIKI_VIDEOS:
         # the wiki's song list gives every Japanese song its English name for search; one crawl a week, off the loop
         asyncio.get_running_loop().run_in_executor(None, _crawl_wiki_titles)

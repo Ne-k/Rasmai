@@ -166,14 +166,18 @@ class CachedOtogeDB:
             _forced_ok = self._fetch()
             return _forced_ok
 
-    def update_if_needed(self):
+    def update_if_needed(self) -> bool:
+        """Fetch the database when the copy held is older than the refresh interval; True when it was fetched.
+
+        :rtype: bool
+        """
         with _update_lock:
             if not self._should_update():
                 self._log("Using cached otoge-db data", "info")
                 if self.repo_path.exists():
                     self._discard_repo()
-                return
-            self._fetch()
+                return False
+            return self._fetch()
 
     def _fetch(self) -> bool:
         """Clone otoge-db, read the songs, keep the jackets, drop the checkout. Runs under ``_update_lock``.
