@@ -55,7 +55,29 @@ English titles and romaji come from [SilentBlue RemyWiki](https://silentblue.rem
 
 ## Dashboard
 
-`/me/` on the site has everything the bot has read: rating over time, best 50, every scored chart with filters, full play history, what to play at each target, new charts, traits, area travel, and a look up tab that shows any chart the way `/chart` does. Sign in is Discord (`identify` only). It's a home screen app too: add from Safari's share sheet on iOS, or Chrome's install prompt on Android. Light/dark switch in the header, saved in the browser.
+`/me/` on the site has everything the bot has read: rating over time, best 50, every scored chart with filters, full play history, what to play at each target, new charts, traits, area travel, and a look up tab that shows any chart the way `/chart` does. Sign in is Discord (`identify` only). Light/dark switch in the header, saved in the browser.
+
+### On your phone
+
+The dashboard installs as a home screen app: it opens full screen with its own icon, and the shortcuts on the icon jump straight to What to play, Best 50, Recent plays and Traits.
+
+**iPhone and iPad** (Safari, the only browser iOS lets do this)
+
+1. Open [rasmai.nguyen.ink/me](https://rasmai.nguyen.ink/me/) and sign in.
+2. Tap **Share** (the square with an arrow) in the toolbar.
+3. Scroll the sheet and tap **Add to Home Screen**, then **Add**.
+
+**Android** (Chrome, Edge, Samsung Internet)
+
+1. Open [rasmai.nguyen.ink/me](https://rasmai.nguyen.ink/me/) and sign in.
+2. Tap **install the app** when the dashboard offers it, or the browser's **⋮** menu → **Add to Home screen** / **Install app**.
+3. Confirm with **Install**.
+
+Sign-in is remembered for 30 days; the app reads nothing without it and stores no scores on the phone.
+
+| iPhone, the Account tab with the install note | Android, What to play |
+|---|---|
+| ![The dashboard on an iPhone](docs/screenshots/phone-ios.png) | ![The dashboard on an Android phone](docs/screenshots/phone-android.png) |
 
 ## Running it
 
