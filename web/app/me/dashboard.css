@@ -96,12 +96,45 @@
 :root[data-theme="dark"] .tag-b50 { color: var(--gold); border-color: var(--gold); }
 .lamp-text { font-family: var(--font-mono), monospace; font-size: 12.5px; letter-spacing: .5px; }
 .more { display: flex; justify-content: center; padding: 18px 0; }
-.judge-btn { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--pink); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline dotted; }
-.tbl tr.judge-row td { padding: 4px 8px 14px 56px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); }
-.tbl.judge { width: auto; min-width: 360px; }
-.tbl.judge td.lost { color: var(--pink); }
-.tbl.judge tr.total td { font-weight: 700; }
-.tbl.judge + .hint { margin-top: 8px; }
+/* judgements: the tag is cut like the new-best tag; the panel is a festival stall, a 紅白幕 band across the top,
+   and the judgement columns wear the colours maimai gives them (critical gold, perfect orange, great pink, good green) */
+.judge-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border: 1.5px solid var(--pink-edge); border-radius: 4px; background: transparent; color: var(--pink-edge); font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: 1px; cursor: pointer; vertical-align: 2px; line-height: 1.5; transition: background .12s, color .12s; }
+.judge-tag:hover { background: color-mix(in srgb, var(--pink) 14%, transparent); }
+.judge-tag[aria-expanded="true"] { background: var(--pink); border-color: var(--pink); color: #fff; }
+.judge-tag:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+:root[data-theme="dark"] .judge-tag { color: var(--pink); border-color: var(--pink); }
+:root[data-theme="dark"] .judge-tag[aria-expanded="true"] { color: var(--paper); }
+.tbl tr.judge-row td { padding: 6px 0 16px 48px; background: none; }
+.tbl tr.judge-row + tr td { border-top: 1px solid var(--line); }
+.judge-panel { position: relative; overflow: hidden; padding: 18px 18px 14px; border: 2px solid var(--edge); border-radius: 12px; background: var(--paper-2); }
+.judge-panel::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 7px; background: repeating-linear-gradient(90deg, var(--pink) 0 18px, var(--paper) 18px 36px); }
+.judge-wait { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+.judge-wait .lamp { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--edge); background: var(--pink); animation: throb 1.3s ease-in-out infinite; }
+.judge-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.judge-scroll { overflow-x: auto; margin-top: 4px; }
+.tbl.judge { width: auto; min-width: 0; }
+.tbl.judge th, .tbl.judge td { padding: 7px 12px; }
+.tbl.judge th:first-child, .tbl.judge td:first-child { padding-left: 0; }
+.tbl.judge td.kind { text-transform: uppercase; letter-spacing: 1.2px; font-size: 12px; color: var(--ink-2); }
+.tbl.judge th.j-critical { color: var(--gold-edge); }
+.tbl.judge th.j-perfect { color: #cf6a12; }
+.tbl.judge th.j-great { color: var(--pink-edge); }
+.tbl.judge th.j-good { color: var(--ok); }
+.tbl.judge th.j-miss { color: var(--muted); }
+:root[data-theme="dark"] .tbl.judge th.j-critical { color: var(--gold); }
+:root[data-theme="dark"] .tbl.judge th.j-perfect { color: #ff9a45; }
+:root[data-theme="dark"] .tbl.judge th.j-great { color: var(--pink); }
+.tbl.judge td.j-critical { font-weight: 700; }
+.tbl.judge td.zero { color: var(--muted); opacity: .5; }
+.tbl.judge td.j-miss:not(.zero) { color: var(--pink-edge); font-weight: 700; }
+.tbl.judge td.lost { color: var(--pink-edge); font-weight: 700; }
+:root[data-theme="dark"] .tbl.judge td.j-miss:not(.zero), :root[data-theme="dark"] .tbl.judge td.lost { color: var(--pink); }
+.tbl.judge tr.total td { border-top: 2px solid var(--edge); border-bottom: 0; font-weight: 700; }
+.judge-lost { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.judge-lost .label { margin-right: 4px; }
+.lost-tag { padding: 2px 9px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--paper); font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+.lost-tag b { color: var(--pink-edge); }
+:root[data-theme="dark"] .lost-tag b { color: var(--pink); }
 
 /* the jacket keeps its pixel size: a table squeezed for room must not shrink it away (the global img max-width would) */
 .jacket { display: inline-block; max-width: none; flex: 0 0 auto; border-radius: 4px; object-fit: cover; background: var(--paper-2); border: 1px solid var(--line); vertical-align: middle; }
@@ -203,6 +236,18 @@
   .tbl:not(.keep) td.c-num { text-align: left; white-space: normal; }
   .tbl:not(.keep) td.c-time { width: auto; }
   .tbl:not(.keep) td.c-wide { grid-column: 2 / -1; }
+  .tbl:not(.keep) tr.judge-row { display: block; padding: 0 0 12px; }
+  .tbl:not(.keep) tr.judge-row td { padding: 0; }
+  .judge-panel { padding: 16px 14px 12px; }
+  /* the judgement table is nested inside a collapsed table; it stays a table and scrolls sideways instead */
+  .tbl:not(.keep) .tbl.judge { display: table; }
+  .tbl:not(.keep) .tbl.judge thead { display: table-header-group; }
+  .tbl:not(.keep) .tbl.judge tbody { display: table-row-group; }
+  .tbl:not(.keep) .tbl.judge tr { display: table-row; padding: 0; border: 0; background: none; }
+  .tbl:not(.keep) .tbl.judge th, .tbl:not(.keep) .tbl.judge td { display: table-cell; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .tbl:not(.keep) .tbl.judge th:first-child, .tbl:not(.keep) .tbl.judge td:first-child { padding-left: 0; }
+  .tbl:not(.keep) .tbl.judge .c-num { text-align: right; white-space: nowrap; }
+  .tbl:not(.keep) .tbl.judge tr.total td { border-top: 2px solid var(--edge); border-bottom: 0; }
   .tbl:not(.keep) td[data-l]::before {
     content: attr(data-l); display: block; margin-bottom: 1px;
     font-family: var(--font-mono), monospace; font-weight: 500; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted);

@@ -10,54 +10,72 @@ const JUDGES = ["critical", "perfect", "great", "good", "miss"] as const;
 
 type Opened = PlayDetail | "loading" | { error: string };
 
-function Judgements({ detail }: { detail: PlayDetail }) {
+/** One play's judgement page, laid out like the site's other panels; the judgement columns wear the colours maimai gives them. */
+function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: number | null }) {
   const kinds = NOTE_ORDER.filter((k) => detail.notes[k]);
   const total = (j: (typeof JUDGES)[number]) => kinds.reduce((sum, k) => sum + detail.notes[k][j], 0);
-  const lostAll = Object.values(detail.lost).reduce((a, b) => a + b, 0);
-  const cost = (v: number | undefined) => (v && v >= 0.005 ? `-${v.toFixed(2)}%` : "");
+  const lost = Object.entries(detail.lost)
+    .filter(([, v]) => v >= 0.005)
+    .sort((a, b) => b[1] - a[1]);
+  const lostAll = lost.reduce((sum, [, v]) => sum + v, 0);
+  const cell = (n: number, j: string) => (
+    <td key={j} className={`c-num mono j-${j}${n === 0 ? " zero" : ""}`}>
+      {num(n)}
+    </td>
+  );
   return (
-    <>
-      <table className="tbl compact judge">
-        <thead>
-          <tr>
-            <th>notes</th>
-            {JUDGES.map((j) => (
-              <th key={j} className="c-num">
-                {j}
-              </th>
-            ))}
-            <th className="c-num">lost</th>
-          </tr>
-        </thead>
-        <tbody>
-          {kinds.map((k) => (
-            <tr key={k}>
-              <td className="mono">{k}</td>
+    <div className="judge-panel">
+      <div className="judge-head">
+        <span className="label">
+          判定 <b>judgements</b>
+        </span>
+        <span className="mono hint">
+          {achievement !== null ? `${pct(achievement, 4)} · ` : ""}fast {detail.fast} · late {detail.late} · combo {num(detail.combo)} / {num(detail.max_combo)}
+          {detail.max_sync ? ` · sync ${num(detail.sync)} / ${num(detail.max_sync)}` : ""}
+        </span>
+      </div>
+      <div className="judge-scroll">
+        <table className="tbl compact judge keep">
+          <thead>
+            <tr>
+              <th>notes</th>
               {JUDGES.map((j) => (
-                <td key={j} className={`c-num mono${j === "miss" && detail.notes[k][j] ? " lost" : ""}`}>
-                  {detail.notes[k][j]}
-                </td>
+                <th key={j} className={`c-num j-${j}`}>
+                  {j}
+                </th>
               ))}
-              <td className={`c-num mono${(detail.lost[k] ?? 0) >= 0.5 ? " lost" : ""}`}>{cost(detail.lost[k])}</td>
+              <th className="c-num">lost</th>
             </tr>
-          ))}
-          <tr className="total">
-            <td className="mono">all</td>
-            {JUDGES.map((j) => (
-              <td key={j} className="c-num mono">
-                {total(j)}
-              </td>
+          </thead>
+          <tbody>
+            {kinds.map((k) => (
+              <tr key={k}>
+                <td className="mono kind">{k}</td>
+                {JUDGES.map((j) => cell(detail.notes[k][j], j))}
+                <td className={`c-num mono${(detail.lost[k] ?? 0) >= 0.005 ? " lost" : " zero"}`}>
+                  {(detail.lost[k] ?? 0) >= 0.005 ? `−${detail.lost[k].toFixed(2)}%` : "·"}
+                </td>
+              </tr>
             ))}
-            <td className="c-num mono">{cost(lostAll)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="hint">
-        fast {detail.fast} · late {detail.late} · combo {num(detail.combo)} / {num(detail.max_combo)}
-        {detail.max_sync ? ` · sync ${num(detail.sync)} / ${num(detail.max_sync)}` : ""}
-        {lostAll >= 0.005 ? ` · ${(101 - lostAll).toFixed(4)}% after what each note type cost` : ""}
-      </p>
-    </>
+            <tr className="total">
+              <td className="mono kind">all</td>
+              {JUDGES.map((j) => cell(total(j), j))}
+              <td className={`c-num mono${lostAll >= 0.005 ? " lost" : " zero"}`}>{lostAll >= 0.005 ? `−${lostAll.toFixed(2)}%` : "·"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {lost.length > 0 && (
+        <div className="judge-lost">
+          <span className="label">what it cost</span>
+          {lost.map(([k, v]) => (
+            <span key={k} className="lost-tag">
+              {k} <b>−{v.toFixed(2)}%</b>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -130,8 +148,8 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
                     <Chip difficulty={p.difficulty} level={p.level} constant={p.constant} type={p.chart_type} />
                     {p.pb && <span className="tag-b50">new best</span>}
                     {p.idx && (
-                      <button type="button" className="judge-btn" aria-expanded={Boolean(open[p.idx])} onClick={() => toggle(p.idx!)}>
-                        {open[p.idx] ? "hide judgements" : "judgements"}
+                      <button type="button" className="judge-tag" aria-expanded={Boolean(open[p.idx])} onClick={() => toggle(p.idx!)}>
+                        判定
                       </button>
                     )}
                   </td>
@@ -148,11 +166,13 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
                   <tr className="judge-row">
                     <td colSpan={7}>
                       {open[p.idx] === "loading" ? (
-                        <p className="hint">reading the play from maimai DX NET…</p>
+                        <div className="judge-panel judge-wait">
+                          <span className="lamp" /> reading the play from maimai DX NET…
+                        </div>
                       ) : "error" in (open[p.idx] as object) ? (
-                        <p className="hint">{(open[p.idx] as { error: string }).error}</p>
+                        <div className="judge-panel judge-wait">{(open[p.idx] as { error: string }).error}</div>
                       ) : (
-                        <Judgements detail={open[p.idx] as PlayDetail} />
+                        <Judgements detail={open[p.idx] as PlayDetail} achievement={p.achievement} />
                       )}
                     </td>
                   </tr>
