@@ -318,9 +318,9 @@ async def show_results(interaction: discord.Interaction, cached: CachedAnalysis,
 
 
 async def run_view_command(interaction: discord.Interaction, mode: str, failure: str, **state) -> None:
+    await interaction.response.defer(ephemeral=private_only(interaction))
     if not await ensure_linked(interaction):
         return
-    await interaction.response.defer(ephemeral=private_only(interaction))
     force = bool(state.pop("force", False))
     try:
         cached = await load_analysis(interaction, force=force)
@@ -345,9 +345,9 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
 
     :param build: Builds the reply.
     """
+    await interaction.response.defer(ephemeral=ephemeral or private_only(interaction))
     if not await ensure_linked(interaction):
         return
-    await interaction.response.defer(ephemeral=ephemeral or private_only(interaction))
     try:
         cached = await load_analysis(interaction)
         if cached is None:

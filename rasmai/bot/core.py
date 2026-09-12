@@ -136,6 +136,12 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         except discord.HTTPException:
             pass
         return
+    original = getattr(error, "original", error)
+    if isinstance(original, discord.NotFound) and original.code == 10062:
+        age = (discord.utils.utcnow() - interaction.created_at).total_seconds()
+        logger.error("Discord no longer knew the %s interaction %.1fs after it arrived: %s", interaction.command.name if interaction.command else "?",
+                     age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
+        return
     logger.error("Command failed", exc_info=error)
 
 
