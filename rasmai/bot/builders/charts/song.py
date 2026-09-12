@@ -6,7 +6,7 @@ import logging
 
 from rasmai.engine.analysis import ChartRef, loose_title, rank_for
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_NAMES, _fit, today
+from rasmai.bot.ui.formatting import TIER_NAMES, _fit, stamp, today
 from rasmai.web.links import chart_url
 from rasmai.bot.state.snapshots import chart_key
 from rasmai.storage.db import save_play_counts
@@ -208,7 +208,28 @@ def _default_page(rows: List[Dict[str, Any]]) -> int:
     return played[-1] if played else max(0, len(rows) - 1)
 
 
-def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: ChartRef, row: Dict[str, Any]) -> None:
+def last_play(cached: Optional[CachedAnalysis], ref: ChartRef) -> Optional[Dict[str, Any]]:
+    """The newest play of this chart still on the recent list, or None.
+
+    :param cached: The player's analysis, held in memory.
+    :type cached: Optional[CachedAnalysis]
+    :param ref: The chart being shown.
+    :type ref: ChartRef
+    :rtype: Optional[Dict[str, Any]]
+    """
+    if cached is None:
+        return None
+    from rasmai.bot.builders.history import recent_plays
+    from rasmai.bot.builders.charts.index import loose_key
+    wanted = loose_key(ref.title, ref.chart_type, ref.difficulty)
+    for play in recent_plays(cached):
+        if loose_key(play["title"], play["chart_type"], play["difficulty"]) == wanted:
+            return play
+    return None
+
+
+def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: ChartRef, row: Dict[str, Any],
+                 play: Optional[Dict[str, Any]] = None, detail: Optional[Dict[str, Any]] = None) -> None:
     """One chart, laid out as inline fields.
 
     :param embed: The embed being built.
@@ -248,6 +269,12 @@ def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: Ch
     plays = row.get("plays") or 0
     embed.add_field(name="Plays", value=str(plays) if plays else "-# unknown", inline=True)
     embed.add_field(name="Best-50", value=row.get("note") or "-", inline=True)
+    if play:
+        from rasmai.bot.builders.history import lost_text
+        when = stamp(play["when"], "R") if play.get("when") else play["day"]
+        score = f"**{play['achievement']:.4f}%** {emoji.rank(play['rank'], play['rank'])}" if play.get("achievement") is not None else "—"
+        cost = lost_text(detail) if detail else ""
+        embed.add_field(name="Last play", value=f"{score} · {when}" + (f"\n-# lost to {cost}" if cost else ""), inline=True)
     prediction = prediction_for(cached, ref, row)
     if prediction:
         prediction["tier"] = TIER_NAMES.get(ref.difficulty, ref.difficulty.upper()).title()
@@ -320,6 +347,14 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
         page = difficulty_page(refs, rows, difficulty)
     page = _default_page(rows) if page is None else max(0, min(page, len(refs) - 1))
     ref, row = refs[page], rows[page]
+    play = last_play(cached, ref) if row.get("played") else None
+    detail = None
+    if play and play.get("idx"):
+        from rasmai.bot.builders.history import play_detail
+        try:
+            detail = await asyncio.to_thread(play_detail, cached, play["idx"])
+        except Exception as error:      # the judgement page is a bonus here; the chart page stands without it
+            logger.info("last play detail skipped for %s: %s", title, error)
 
     embed = discord.Embed(
         title=f"{title}",
@@ -331,7 +366,7 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
         name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
         value=f"const **{ref.constant:.1f}**" + (f" · {ref.notes:,} notes" if ref.notes else "") + _note_split(ref), inline=False,
     )
-    _page_fields(embed, cached, ref, row)
+    _page_fields(embed, cached, ref, row, play, detail)
     _pattern_field(embed, cached, ref)
 
     files: List[discord.File] = []
@@ -364,7 +399,7 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
     if (ref.chart_type, ref.difficulty) in videos:
         footer += " · video via SilentBlue RemyWiki"
     embed.set_footer(text=footer)
-    view = SongView(owner_id, title, refs, rows, page, videos=videos) if owner_id is not None else None
+    view = SongView(owner_id, title, refs, rows, page, videos=videos, last_play=play["position"] if play else None) if owner_id is not None else None
     return embed, files, view
 
 

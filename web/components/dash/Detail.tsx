@@ -3,6 +3,12 @@ import { getJSON, type ChartDetail, type SongLookup, type UnlockArea } from "./a
 import { Chip, Empty, Jacket, Label, Lamp, num, pct } from "./bits";
 import { ScoreHistory } from "./ScoreHistory";
 
+/** A constant revised since the first recorded play: the history was scored against the old number until then. */
+function constNote(chart: { history: { when: string; constant: number }[]; constant: number }): string {
+  const first = chart.history.reduce((a, b) => (a.when < b.when ? a : b));
+  return Math.abs(first.constant - chart.constant) >= 0.05 ? ` · const ${first.constant.toFixed(1)} when first recorded` : "";
+}
+
 const TIER: Record<string, string> = { basic: "Basic", advanced: "Advanced", expert: "Expert", master: "Master", remaster: "Re:Master" };
 
 export const RANK_LINES: [string, number][] = [["S", 97], ["S+", 98], ["SS", 99], ["SS+", 99.5], ["SSS", 100], ["SSS+", 100.5]];
@@ -210,7 +216,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
       <section className="ledger">
         <div className="ledger-head">
           <Label info="Every play of this chart the bot has seen. Each dot is a play and the line is your best so far.">score history</Label>
-          <span className="mono hint">{chart.history.length ? `${chart.history.length} points · plays as dots, best so far as the line` : ""}</span>
+          <span className="mono hint">{chart.history.length ? `${chart.history.length} points · plays as dots, best so far as the line${constNote(chart)}` : ""}</span>
         </div>
         <ScoreHistory points={chart.history} />
       </section>

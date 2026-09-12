@@ -1,12 +1,31 @@
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 
 from rasmai.bot.state.cache import CachedAnalysis
+from rasmai.engine.losses import note_losses
 from rasmai.bot.state.snapshots import compact_snapshot
 from rasmai.engine import analysis
 from rasmai.engine.analysis import rank_for
 from rasmai.storage.db import load_play_history, load_rating_history
 from rasmai.util import _json_safe
 from rasmai.web.dashboard.analysis import _chart_key
+
+
+def play_payload(cached: CachedAnalysis, idx: str) -> Optional[Dict[str, Any]]:
+    """One play's judgement page with what each note type cost; None when the id is not on the player's recent list.
+
+    :param cached: The player's analysis, held in memory.
+    :type cached: CachedAnalysis
+    :param idx: The site's own id for the play.
+    :type idx: str
+    :rtype: Optional[Dict[str, Any]]
+    """
+    from rasmai.bot.builders.history import play_detail
+    if not any(str(record.get("idx", "")) == idx for record in cached.analyzer.recent_songs or []):
+        return None
+    detail = dict(play_detail(cached, idx))
+    detail["lost"] = note_losses(detail.get("notes") or {}, float(detail.get("achievement") or 0))
+    return _json_safe(detail)
 
 
 def charts_payload(cached: CachedAnalysis) -> List[Dict[str, Any]]:
@@ -52,9 +71,17 @@ def recent_payload(user_id: str, cached: Optional[CachedAnalysis], limit: int = 
         return []
     a = cached.analyzer if cached else None
     by_key: Dict[Tuple[str, str, str], Any] = {}
+    # the site's id for a play, while it is still on the fifty-play recent list: that is what its judgement page is read by
+    idx_of: Dict[Tuple[Tuple[str, str, str], str], str] = {}
     if a is not None:
         for song in a.songs:
             by_key[_chart_key(song)] = song
+        from rasmai.bot.builders.history import recent_key
+        for record in a.recent_songs or []:
+            when = record.get("playedAt", "")
+            when = when.isoformat(timespec="seconds") if isinstance(when, datetime) else str(when)
+            if record.get("idx"):
+                idx_of[(recent_key(a, record), when)] = str(record["idx"])
     out: List[Dict[str, Any]] = []
     for position, play in enumerate(plays):
         parts = play["key"].split("|")
@@ -67,7 +94,7 @@ def recent_payload(user_id: str, cached: Optional[CachedAnalysis], limit: int = 
         in_b50 = bool(a and a.best50) and key in a.best50.pool_for(is_new).in_pool
         played_at = str(play["played_at"])
         out.append({
-            "position": position + 1, "key": key,
+            "position": position + 1, "key": key, "idx": idx_of.get((key, played_at), ""),
             "title": song.name if song else (ref.title if ref else key[0]),
             "difficulty": key[2], "chart_type": key[1], "level": str(song.level if song else (ref.level if ref else "")),
             "constant": round(constant, 1),

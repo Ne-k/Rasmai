@@ -123,7 +123,7 @@ async def recent(interaction: discord.Interaction, play: Optional[app_commands.R
     if play:
         await run_simple_command(interaction, "Something went wrong reading that play.", lambda cached: build_lastplay(cached, owner, play))
         return
-    await run_simple_command(interaction, "Something went wrong reading your recent plays.", build_recent)
+    await run_simple_command(interaction, "Something went wrong reading your recent plays.", lambda cached: build_recent(cached, owner))
 
 
 @bot.tree.command(name="area", description="Area travel: your distance in each area, the next reward, and how many plays away it is")

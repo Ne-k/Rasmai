@@ -96,6 +96,12 @@
 :root[data-theme="dark"] .tag-b50 { color: var(--gold); border-color: var(--gold); }
 .lamp-text { font-family: var(--font-mono), monospace; font-size: 12.5px; letter-spacing: .5px; }
 .more { display: flex; justify-content: center; padding: 18px 0; }
+.judge-btn { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--pink); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline dotted; }
+.tbl tr.judge-row td { padding: 4px 8px 14px 56px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); }
+.tbl.judge { width: auto; min-width: 360px; }
+.tbl.judge td.lost { color: var(--pink); }
+.tbl.judge tr.total td { font-weight: 700; }
+.tbl.judge + .hint { margin-top: 8px; }
 
 /* the jacket keeps its pixel size: a table squeezed for room must not shrink it away (the global img max-width would) */
 .jacket { display: inline-block; max-width: none; flex: 0 0 auto; border-radius: 4px; object-fit: cover; background: var(--paper-2); border: 1px solid var(--line); vertical-align: middle; }

@@ -65,7 +65,7 @@ class SongView(OwnerOnlyView):
     row-4 toggle flips between the chart page and its history."""
 
     def __init__(self, owner_id: int, title: str, refs: List[ChartRef], rows: List[Dict[str, Any]], page: int,
-                 history: bool = False, videos: Optional[Dict[Tuple[str, str], str]] = None):
+                 history: bool = False, videos: Optional[Dict[Tuple[str, str], str]] = None, last_play: Optional[int] = None):
         super().__init__(owner_id, timeout=600)
         self.title = title
         self.history = history
@@ -96,6 +96,11 @@ class SongView(OwnerOnlyView):
         overview = discord.ui.Button(label="Song", row=4, style=discord.ButtonStyle.secondary)
         overview.callback = self._overview
         self.add_item(overview)
+        if last_play:
+            # the chart's newest run on the recent list: judgements, timing, what each note type cost
+            recent = discord.ui.Button(label="Last play", row=4, style=discord.ButtonStyle.secondary)
+            recent.callback = self._last_play(last_play)
+            self.add_item(recent)
         # a link button needs no callback; it opens the chart's video, or a search for one
         self.add_item(video_button(refs[page], self.videos, both_types))
 
@@ -134,6 +139,26 @@ class SongView(OwnerOnlyView):
     def _switcher(self, page: int):
         async def callback(interaction: discord.Interaction) -> None:
             await self._show(interaction, page, self.history)
+        return callback
+
+    def _last_play(self, position: int):
+        async def callback(interaction: discord.Interaction) -> None:
+            from rasmai.bot.state.cache import cache_get
+            from rasmai.bot.builders.history import build_lastplay
+            await interaction.response.defer()
+            cached = cache_get(str(self.owner_id))
+            if cached is None:
+                await interaction.followup.send("Those results have expired - run the command again.", ephemeral=True)
+                return
+            try:
+                embed, files, view = await build_lastplay(cached, self.owner_id, position)
+            except Exception as error:
+                logger.exception("last play button failed")
+                await interaction.followup.send(f"Couldn't read that play: {public_reason(error)}", ephemeral=True)
+                return
+            await interaction.edit_original_response(embed=embed, attachments=files, view=view)
+            if view is not None:
+                view.message = self.message
         return callback
 
     async def _toggle(self, interaction: discord.Interaction) -> None:

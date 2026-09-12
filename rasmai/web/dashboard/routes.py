@@ -3,7 +3,7 @@ from typing import Dict, List, Any
 import json
 import re
 
-from rasmai.security import refresh_limiter
+from rasmai.security import public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account
 from rasmai.bot.state.cache import forget_analysis
 from rasmai.web.dashboard.analysis import analysis_for_user
@@ -12,7 +12,7 @@ from rasmai.web.dashboard.lookup import chart_payload, patterns_payload, search_
 from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
-from rasmai.web.dashboard.scores import charts_payload, export_payload, recent_payload
+from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -60,6 +60,18 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         return True
     if path == "/internal/me/recent":
         handler._send_json(200, {"plays": recent_payload(user["id"], cached)})
+        return True
+    if path == "/internal/me/play":
+        idx = (query.get("idx") or [""])[0][:64].strip()
+        try:
+            detail = play_payload(cached, idx) if cached and idx else None
+        except Exception as error:      # the site refused the sign-in or the page; the rest of the tab stands
+            handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error)})
+            return True
+        if detail is None:
+            handler._send_json(404, {"ok": False, "error": "no_play"})
+            return True
+        handler._send_json(200, detail)
         return True
     if path == "/internal/me/areas":
         handler._send_json(200, areas_payload(user["id"], account, cached))

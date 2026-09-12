@@ -10,6 +10,7 @@ from rasmai.web.dashboard.overview import (  # noqa: F401
 from rasmai.web.dashboard.scores import (  # noqa: F401
     charts_payload,
     recent_payload,
+    play_payload,
     export_payload,
 )
 from rasmai.web.dashboard.picks import (  # noqa: F401

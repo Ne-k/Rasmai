@@ -9,13 +9,13 @@ from rasmai.engine.analysis import calculate_rating, rank_for
 from rasmai.engine.losses import note_losses
 from rasmai.engine.insights import plan_credits, rating_forecast
 from rasmai.bot.state.cache import CachedAnalysis, cache_get
-from rasmai.bot.builders.charts import build_song, charts_for, jacket_file, page_index, songs_by_key
+from rasmai.bot.builders.charts import build_song, build_song_history, charts_for, jacket_file, page_index, songs_by_key
 from rasmai.bot.ui.formatting import TIER_NAMES, TIER_SHORT, _fit, chart_link, level_text, message_files, stamp, today
 from rasmai.web.links import chart_url
 from rasmai.bot.ui import emoji
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.security import public_reason
-from rasmai.storage.db import count_play_history, load_rating_history
+from rasmai.storage.db import count_play_history, get_connected_account, load_rating_history
 from rasmai.bot.core import try_render
 from rasmai.images.cards import play_card_html
 from rasmai.images.render import cover_html_factory
@@ -92,7 +92,8 @@ def _day_label(day: str) -> str:
 
 # ---------------------------------------------------------------- /recent
 
-async def build_recent(cached: CachedAnalysis) -> Tuple[discord.Embed, List[discord.File], None]:
+async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None
+                       ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
     from rasmai.bot.builders.results import _image
     a = cached.analyzer
     player = a.player
@@ -137,12 +138,81 @@ async def build_recent(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     stored = count_play_history(cached.user_id)
     kept = f" · {stored} plays kept in your history" if stored else ""
     embed.set_footer(text=f"PB = matches your current best · B50 = counts toward your rating · days are JST · every play in the image{kept}")
-    return embed, files, None
+    return embed, files, RecentView(owner_id, plays) if owner_id is not None else None
+
+
+class RecentView(OwnerOnlyView):
+    """A menu under the recent list: pick a play to open it in full, judgements and all."""
+
+    def __init__(self, owner_id: int, plays: List[Dict[str, Any]]):
+        super().__init__(owner_id, timeout=600)
+        options = []
+        for p in plays[:25]:
+            short = TIER_SHORT.get(p["difficulty"], p["difficulty"][:3].upper())
+            score = f"{p['achievement']:.4f}% {p['rank']}" if p["achievement"] is not None else "—"
+            options.append(discord.SelectOption(label=f"{p['position']}. {p['title']}"[:100], value=str(p["position"]),
+                                                description=f"{short} {p['level']} · {score} · {p['day']} {p['time']}"[:100]))
+        menu = discord.ui.Select(placeholder="Open a play in full: judgements and what each note type cost", options=options)
+        menu.callback = self._open(menu)
+        self.add_item(menu)
+
+    def _open(self, menu: discord.ui.Select):
+        async def callback(interaction: discord.Interaction) -> None:
+            await interaction.response.defer()
+            cached = cache_get(str(self.owner_id))
+            if cached is None:
+                await interaction.followup.send("Those results have expired - run the command again.", ephemeral=True)
+                return
+            try:
+                embed, files, view = await build_lastplay(cached, self.owner_id, int(menu.values[0]))
+            except Exception as error:
+                logger.exception("playlog detail failed")
+                await interaction.followup.send(f"Couldn't read that play: {public_reason(error)}", ephemeral=True)
+                return
+            await interaction.edit_original_response(embed=embed, attachments=files, view=view)
+            if view is not None:
+                view.message = self.message
+        return callback
 
 
 # ---------------------------------------------------------------- /lastplay
 
 NOTE_ORDER = ("tap", "hold", "slide", "touch", "break")
+
+
+def lost_text(detail: Dict[str, Any]) -> str:
+    """What each note type cost the play, largest first: "break **1.23%** · tap **0.97%**", or "" without judgements.
+
+    :param detail: The play's judgement page.
+    :type detail: Dict[str, Any]
+    :rtype: str
+    """
+    lost = note_losses(detail.get("notes") or {}, float(detail.get("achievement") or 0))
+    return " · ".join(f"{kind} **{value:.2f}%**" for kind, value in sorted(lost.items(), key=lambda kv: -kv[1]) if value >= 0.005)
+
+
+def play_detail(cached: CachedAnalysis, idx: str) -> Dict[str, Any]:
+    """The judgement page for one play on the recent list, read once and kept with the analysis.
+
+    :param cached: The player's analysis, held in memory.
+    :type cached: CachedAnalysis
+    :param idx: The site's own id for the play.
+    :type idx: str
+    :rtype: Dict[str, Any]
+    """
+    slot = f"playlog:{idx}"
+    detail = cached.extras.get(slot)
+    if detail is None:
+        a = cached.analyzer
+        if getattr(a, "_official_session", None) is None:
+            # an analysis loaded from the stored copy has never signed in; the play page needs a session
+            account = get_connected_account(cached.user_id)
+            if not account or not account.get("token"):
+                raise ValueError("Not signed in")
+            a.fetch_official_player_profile(str(account["token"]), cached.region)
+        detail = a.fetch_playlog_detail(idx, cached.region)
+        cached.extras[slot] = detail
+    return detail
 
 
 async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
@@ -154,11 +224,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
         return embed, [], None
     position = max(1, min(position, len(plays)))
     play = plays[position - 1]
-    slot = f"playlog:{play['idx']}"
-    detail = cached.extras.get(slot)
-    if detail is None:
-        detail = await asyncio.to_thread(a.fetch_playlog_detail, play["idx"], cached.region)
-        cached.extras[slot] = detail
+    detail = await asyncio.to_thread(play_detail, cached, play["idx"])
 
     card_key = f"playcard:{play['idx']}"
     if card_key not in cached.images:
@@ -207,8 +273,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
             for k in totals:
                 totals[k] += n.get(k, 0)
         rows.append(f"{'ALL':7s}{totals['critical']:>6}{totals['perfect']:>6}{totals['great']:>6}{totals['good']:>6}{totals['miss']:>6}")
-        lost = note_losses(notes, achievement)
-        cost = " · ".join(f"{kind} **{value:.2f}%**" for kind, value in sorted(lost.items(), key=lambda kv: -kv[1]) if value >= 0.005)
+        cost = lost_text(detail)
         embed.add_field(name="Judgements", value="```\n" + "\n".join(rows) + "\n```" + (f"\n-# lost to {cost}" if cost else ""), inline=False)
     embed.set_footer(text=f"play {position} of {len(plays)} · newest first")
     refs = charts_for(play["title"], a.chart_index)
@@ -228,22 +293,25 @@ class LastPlayView(OwnerOnlyView):
         older.callback = self._mover(1)
         self.add_item(older)
         if title:
-            details = discord.ui.Button(label="Chart details", style=discord.ButtonStyle.secondary)
-            details.callback = self._details
-            self.add_item(details)
+            for label, build in (("Chart details", build_song), ("Score history", build_song_history)):
+                jump = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary)
+                jump.callback = self._jump(build)
+                self.add_item(jump)
 
-    async def _details(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-        cached = cache_get(str(self.owner_id))
-        try:
-            embed, files, view = await build_song(cached, self.title, self.page, self.owner_id)
-        except Exception as error:
-            logger.exception("lastplay details failed")
-            await interaction.followup.send(f"Couldn't open that chart: {public_reason(error)}", ephemeral=True)
-            return
-        await interaction.edit_original_response(embed=embed, attachments=files, view=view)
-        if view is not None:
-            view.message = self.message
+    def _jump(self, build):
+        async def callback(interaction: discord.Interaction) -> None:
+            await interaction.response.defer()
+            cached = cache_get(str(self.owner_id))
+            try:
+                embed, files, view = await build(cached, self.title, self.page, self.owner_id)
+            except Exception as error:
+                logger.exception("lastplay jump failed")
+                await interaction.followup.send(f"Couldn't open that chart: {public_reason(error)}", ephemeral=True)
+                return
+            await interaction.edit_original_response(embed=embed, attachments=files, view=view)
+            if view is not None:
+                view.message = self.message
+        return callback
 
     def _mover(self, delta: int):
         async def callback(interaction: discord.Interaction) -> None:

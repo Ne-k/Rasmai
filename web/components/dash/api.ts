@@ -164,8 +164,21 @@ export type Picks = {
   newWindow: [number, number];
 };
 
+export type PlayDetail = {
+  fast: number;
+  late: number;
+  combo: number;
+  max_combo: number;
+  sync: number;
+  max_sync: number;
+  achievement: number;
+  notes: Record<string, { critical: number; perfect: number; great: number; good: number; miss: number }>;
+  lost: Record<string, number>;
+};
+
 export type RecentPlay = {
   position: number;
+  idx?: string;
   title: string;
   difficulty: string;
   chart_type: string;

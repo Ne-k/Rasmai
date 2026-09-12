@@ -15,7 +15,7 @@ from rasmai.bot.ui import emoji
 from rasmai.bot.core import try_render
 from rasmai.images.render import cover_html_factory
 from rasmai.bot.builders.charts.index import charts_for, jacket_file, song_for_chart, songs_by_loose_key
-from rasmai.bot.builders.charts.song import DIFFICULTY_COLOUR, _chart_rows, song_videos
+from rasmai.bot.builders.charts.song import DIFFICULTY_COLOUR, _chart_rows, last_play, song_videos
 
 
 def _history_points(cached: CachedAnalysis, ref: ChartRef) -> List[Dict[str, Any]]:
@@ -123,5 +123,7 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
         files.append(thumb)
         embed.set_thumbnail(url=f"attachment://{thumb.filename}")
     embed.set_footer(text=f"chart {page + 1} of {len(refs)} · a point per play seen and per best that moved")
-    view = SongView(owner_id, title, refs, rows, page, history=True, videos=await song_videos(title, refs)) if owner_id is not None else None
+    newest = last_play(cached, ref)
+    view = SongView(owner_id, title, refs, rows, page, history=True, videos=await song_videos(title, refs),
+                    last_play=newest["position"] if newest else None) if owner_id is not None else None
     return embed, files, view
