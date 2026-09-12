@@ -27,7 +27,7 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
     <div className="judge-panel">
       <div className="judge-head">
         <span className="label">
-          判定 <b>judgements</b>
+          <b>judgements</b>
         </span>
         <span className="mono hint">
           {achievement !== null ? `${pct(achievement, 4)} · ` : ""}fast {detail.fast} · late {detail.late} · combo {num(detail.combo)} / {num(detail.max_combo)}
@@ -149,7 +149,7 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
                     {p.pb && <span className="tag-b50">new best</span>}
                     {p.idx && (
                       <button type="button" className="judge-tag" aria-expanded={Boolean(open[p.idx])} onClick={() => toggle(p.idx!)}>
-                        判定
+                        judgements
                       </button>
                     )}
                   </td>

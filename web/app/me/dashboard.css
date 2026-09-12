@@ -98,7 +98,7 @@
 .more { display: flex; justify-content: center; padding: 18px 0; }
 /* judgements: the tag is cut like the new-best tag; the panel is a festival stall, a 紅白幕 band across the top,
    and the judgement columns wear the colours maimai gives them (critical gold, perfect orange, great pink, good green) */
-.judge-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border: 1.5px solid var(--pink-edge); border-radius: 4px; background: transparent; color: var(--pink-edge); font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: 1px; cursor: pointer; vertical-align: 2px; line-height: 1.5; transition: background .12s, color .12s; }
+.judge-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border: 1.5px solid var(--pink-edge); border-radius: 4px; background: transparent; color: var(--pink-edge); font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; vertical-align: 2px; line-height: 1.5; transition: background .12s, color .12s; }
 .judge-tag:hover { background: color-mix(in srgb, var(--pink) 14%, transparent); }
 .judge-tag[aria-expanded="true"] { background: var(--pink); border-color: var(--pink); color: #fff; }
 .judge-tag:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
