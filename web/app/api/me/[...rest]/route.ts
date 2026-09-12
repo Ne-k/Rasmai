@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ rest: string[] }> };
 
 const SAFE = /^[a-z-]{1,32}$/;
+const IMPORT_BYTES = 4 * 1024 * 1024;
 
 function tail(rest: string[]): string | null {
   const parts = rest.filter(Boolean);
@@ -39,11 +40,15 @@ export async function POST(request: Request, { params }: Params) {
   if (!path || !["refresh", "unlink", "import"].includes(path)) return json(404, { ok: false, error: "not_found" });
   let body: unknown = {};
   if (path === "import") {
+    if (Number(request.headers.get("content-length") ?? 0) > IMPORT_BYTES) return json(413, { ok: false, error: "too_large" });
+    const text = await request.text();
+    if (text.length > IMPORT_BYTES) return json(413, { ok: false, error: "too_large" });
     try {
-      body = await request.json();
+      body = JSON.parse(text);
     } catch {
       return json(400, { ok: false, error: "bad_json" });
     }
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json(400, { ok: false, error: "bad_export" });
   }
   try {
     return passthrough(await internal(`/internal/me/${path}`, { method: "POST", user, client: clientKey(request), body }));

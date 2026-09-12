@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import json
+import logging
 import re
 
-from rasmai.security import public_reason, refresh_limiter
+from rasmai.security import import_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account
 from rasmai.bot.state.cache import forget_analysis
 from rasmai.web.dashboard.analysis import analysis_for_user
@@ -14,6 +15,8 @@ from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 from rasmai.web.dashboard.imports import import_payload
+
+logger = logging.getLogger(__name__)
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -148,12 +151,21 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         handler._send_json(202, refresh_jobs.start(user["id"], account))
         return True
     if path == "/internal/me/import":
+        from rasmai.bot.builders.charts import shared_index
         from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+        if not import_limiter.allow(user["id"]):
+            handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five imports per quarter hour."})
+            return True
         cached = analysis_for_user(user["id"], account)
         try:
-            result = import_payload(user["id"], payload or {}, cached.analyzer if cached else MaimaiRatingAnalyzer())
+            result = import_payload(user["id"], payload or {}, cached.analyzer if cached else MaimaiRatingAnalyzer(),
+                                    cached.analyzer.chart_index if cached else shared_index())
         except ValueError as error:
             handler._send_json(400, {"ok": False, "error": "bad_export", "message": str(error)})
+            return True
+        except Exception:      # a shape nobody exported: the file is refused, not the server
+            logger.exception("import refused")
+            handler._send_json(400, {"ok": False, "error": "bad_export", "message": "That file could not be read as a Rasmai export."})
             return True
         forget_analysis(user["id"])       # the recorded plays feed the model; the next look rebuilds with them
         handler._send_json(200, {"ok": True, **result})

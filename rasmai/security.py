@@ -109,6 +109,7 @@ class RateLimiter:
 
 _login_limiter = RateLimiter(LOGIN_ATTEMPTS_PER_WINDOW, LOGIN_ATTEMPT_WINDOW.total_seconds())
 refresh_limiter = RateLimiter(3, 900)         # score reads started from the site per account
+import_limiter = RateLimiter(5, 900)          # exports merged back from the site per account
 
 
 def login_attempt_allowed(client_key: str) -> bool:

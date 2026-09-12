@@ -105,10 +105,10 @@ class InternalApiServer:
                 self.end_headers()
                 self.wfile.write(body)
 
-            def _parse_payload(self) -> Dict[str, Any]:
+            def _parse_payload(self, limit: int = 65536) -> Dict[str, Any]:
                 content_type = self.headers.get("Content-Type", "")
                 length = int(self.headers.get("Content-Length", "0"))
-                if length > 4 * 1024 * 1024:      # an export of a big account is a few hundred KB
+                if length > limit:
                     raise ValueError("request body too large")
                 raw_body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
                 if "application/json" in content_type:
@@ -218,7 +218,8 @@ class InternalApiServer:
                     self._send_json(401, {"ok": False, "error": "unauthorized"})
                     return
                 try:
-                    payload = self._parse_payload()
+                    # an export of a big account is a few hundred KB; nothing else posted here comes near 64 KB
+                    payload = self._parse_payload(limit=4 * 1024 * 1024 if path == "/internal/me/import" else 65536)
                 except Exception as error:
                     self._send_json(400, {"ok": False, "error": f"invalid_request: {error}"})
                     return
