@@ -9,7 +9,7 @@ from rasmai.bot.core import fetch_snapshot_limited
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.bot.ui.formatting import stamp, NOT_CONNECTED_MESSAGE
 from rasmai.bot.ui.progress import Progress
-from rasmai.bot.state.snapshots import persist_progress
+from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
 from rasmai.config import DEBUG_EXPORT_JSON, DEBUG_MODE, MAIMAI_BASE_URLS
 from rasmai.storage.db import get_connected_account, load_play_counts, load_recorded_plays, save_play_counts
@@ -173,4 +173,6 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
                             recommendations=recommendations, value_charts=value_charts)
     cache_put(cached)
     persist_progress(user_id, analyzer)
+    # the judgement pages of the plays just read, fetched behind the reply so the results are not held for them
+    asyncio.get_running_loop().run_in_executor(None, collect_judgements, user_id, analyzer, analyzer.recent_songs, region)
     return cached

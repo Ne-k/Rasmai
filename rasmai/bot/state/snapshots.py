@@ -130,10 +130,10 @@ def judgement_key(analyzer: Any, record: Dict[str, Any]) -> Tuple[str, str]:
     return key, played_at.isoformat(timespec="seconds") if isinstance(played_at, datetime) else str(played_at)
 
 
-def collect_judgements(user_id: str, analyzer: Any, recent: List[Dict[str, Any]], region: str = "intl", limit: int = 20) -> int:
+def collect_judgements(user_id: str, analyzer: Any, recent: List[Dict[str, Any]], region: str = "intl", limit: int = 50) -> int:
     """Read and store the judgement page of every recent play not stored yet, newest first, up to `limit`; never raises.
 
-    A page is one request, so a session's worth is read per call and the rest wait for the next read.
+    The recent list holds fifty plays, so the first read after linking fetches every page once and later reads only the new ones.
 
     :param user_id: The Discord user id.
     :type user_id: str

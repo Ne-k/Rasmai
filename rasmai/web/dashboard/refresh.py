@@ -4,7 +4,7 @@ import logging
 import threading
 
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.state.snapshots import persist_progress
+from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.config import MAIMAI_BASE_URLS, MAX_CONCURRENT_SCRAPES
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
@@ -75,6 +75,8 @@ class RefreshJobs:
                                          recommendations=recommendations, value_charts=value_charts))
             with self._lock:
                 job.update({"running": False, "stage": "done", "finishedAt": datetime.now().isoformat(timespec="seconds")})
+            # the judgement pages of the plays just read, after the page has been told the read is done
+            collect_judgements(user_id, analyzer, analyzer.recent_songs, region)
         except Exception as error:
             logger.exception("Dashboard refresh failed")
             with self._lock:
