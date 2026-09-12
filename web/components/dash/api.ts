@@ -398,6 +398,6 @@ export async function getJSON<T>(path: string): Promise<T> {
   return fetchJSON<T>(path, {});
 }
 
-export async function postJSON<T>(path: string): Promise<T> {
-  return fetchJSON<T>(path, { method: "POST" });
+export async function postJSON<T>(path: string, body?: unknown): Promise<T> {
+  return fetchJSON<T>(path, body === undefined ? { method: "POST" } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }

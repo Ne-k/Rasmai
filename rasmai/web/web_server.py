@@ -108,7 +108,7 @@ class InternalApiServer:
             def _parse_payload(self) -> Dict[str, Any]:
                 content_type = self.headers.get("Content-Type", "")
                 length = int(self.headers.get("Content-Length", "0"))
-                if length > 65536:
+                if length > 4 * 1024 * 1024:      # an export of a big account is a few hundred KB
                     raise ValueError("request body too large")
                 raw_body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
                 if "application/json" in content_type:
@@ -228,7 +228,7 @@ class InternalApiServer:
                         if user is None:
                             self._send_json(401, {"ok": False, "error": "signed_out"})
                             return
-                        if dashboard.handle_post(self, path, user):
+                        if dashboard.handle_post(self, path, user, payload):
                             return
                         self._send_json(404, {"ok": False, "error": "not_found"})
                         return

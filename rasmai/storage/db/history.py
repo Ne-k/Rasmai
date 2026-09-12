@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 
 from rasmai.security import decrypt_token
 from rasmai.storage.db.connection import _load_json_column, get_database_connection
@@ -41,6 +41,26 @@ def record_rating_point(user_id: str, rating: int, best50: int, new_total: int, 
                 (user_id, now.isoformat(timespec="seconds"), rating, best50, new_total, old_total, charts, plays),
             )
         return True
+    finally:
+        connection.close()
+
+
+def import_rating_points(user_id: str, points: List[Tuple[Any, ...]]) -> int:
+    """Add (recorded_at, rating, best50, new_total, old_total, charts, plays) points as dated; ones already held are skipped.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param points: The points to add.
+    :type points: List[Tuple[Any, ...]]
+    :returns: How many were new.
+    :rtype: int
+    """
+    connection = get_database_connection()
+    try:
+        with connection:
+            cursor = connection.executemany("INSERT OR IGNORE INTO rating_history VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                            [(user_id, *point) for point in points])
+            return cursor.rowcount
     finally:
         connection.close()
 

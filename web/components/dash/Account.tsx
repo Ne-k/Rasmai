@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { InstallHint } from "@/components/Pwa";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
@@ -22,6 +22,23 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
       .then(() => window.location.reload())
       .catch((e: Error) => setNote(e.message))
       .finally(() => setBusy(false));
+  };
+  const picker = useRef<HTMLInputElement>(null);
+  const importFile = (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    file
+      .text()
+      .then((text) => postJSON<{ bests: number; plays: number; ratingPoints: number; playCounts: number }>("/api/me/import", JSON.parse(text)))
+      .then((r) => {
+        setNote(`Imported ${r.plays} plays, ${r.bests} bests, ${r.ratingPoints} rating points and ${r.playCounts} play counts. Reloading…`);
+        setTimeout(() => window.location.reload(), 1500);
+      })
+      .catch((e: Error) => setNote(e instanceof SyntaxError ? "That file is not JSON." : e.message))
+      .finally(() => {
+        setBusy(false);
+        if (picker.current) picker.current.value = "";
+      });
   };
   const s = me.settings ?? {};
   const label = (v: unknown, map: Record<string, string>) => map[String(v)] ?? String(v);
@@ -48,6 +65,10 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
           <a className="button ghost" href="/api/me/export">
             download JSON
           </a>
+          <button type="button" className="button ghost" onClick={() => picker.current?.click()} disabled={busy}>
+            import an export
+          </button>
+          <input ref={picker} type="file" accept="application/json,.json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
         </div>
         {refresh?.stage === "failed" && <p className="hint">Last read failed: {refresh.error}</p>}
         {refresh?.stage === "done" && !refresh.running && (
@@ -57,6 +78,10 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         )}
         {note && <p className="hint">{note}</p>}
         <p className="hint">A read takes about a minute and is the same thing the Discord commands do. Recommendations here update from it.</p>
+        <p className="hint">
+          An export you downloaded earlier can be imported back: its plays, rating points and play counts are added, nothing already stored is
+          touched. Import the oldest file first so each best lands on the day it was set.
+        </p>
         <InstallHint />
       </section>
       <section className="ledger">

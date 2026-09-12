@@ -43,6 +43,7 @@ from rasmai.web.dashboard.files import (  # noqa: F401
     _send_file,
     jacket,
 )
+from rasmai.web.dashboard.imports import import_payload  # noqa: F401
 from rasmai.web.dashboard.routes import (  # noqa: F401
     handle_get,
     handle_post,

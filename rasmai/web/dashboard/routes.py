@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import json
 import re
 
@@ -13,6 +13,7 @@ from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
+from rasmai.web.dashboard.imports import import_payload
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -121,8 +122,8 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     return False
 
 
-def handle_post(handler: Any, path: str, user: Dict[str, Any]) -> bool:
-    """Dashboard writes for the signed-in person: start a score read, or unlink; True when answered.
+def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional[Dict[str, Any]] = None) -> bool:
+    """Dashboard writes for the signed-in person: start a score read, import an export, or unlink; True when answered.
 
     :param handler: The request being answered.
     :type handler: Any
@@ -132,7 +133,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any]) -> bool:
     :type user: Dict[str, Any]
     :rtype: bool
     """
-    if path not in ("/internal/me/refresh", "/internal/me/unlink"):
+    if path not in ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import"):
         return False
     account = get_connected_account(user["id"])
     if account is None:
@@ -145,6 +146,17 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any]) -> bool:
                                      "message": "Three reads per quarter hour from the site; Discord commands still work."})
             return True
         handler._send_json(202, refresh_jobs.start(user["id"], account))
+        return True
+    if path == "/internal/me/import":
+        from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+        cached = analysis_for_user(user["id"], account)
+        try:
+            result = import_payload(user["id"], payload or {}, cached.analyzer if cached else MaimaiRatingAnalyzer())
+        except ValueError as error:
+            handler._send_json(400, {"ok": False, "error": "bad_export", "message": str(error)})
+            return True
+        forget_analysis(user["id"])       # the recorded plays feed the model; the next look rebuilds with them
+        handler._send_json(200, {"ok": True, **result})
         return True
     if path == "/internal/me/unlink":
         delete_connected_account(user["id"])

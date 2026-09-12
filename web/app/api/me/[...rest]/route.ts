@@ -36,9 +36,17 @@ export async function POST(request: Request, { params }: Params) {
   const user = currentUser(request);
   if (!user) return json(401, { ok: false, error: "signed_out" });
   const path = tail((await params).rest);
-  if (!path || !["refresh", "unlink"].includes(path)) return json(404, { ok: false, error: "not_found" });
+  if (!path || !["refresh", "unlink", "import"].includes(path)) return json(404, { ok: false, error: "not_found" });
+  let body: unknown = {};
+  if (path === "import") {
+    try {
+      body = await request.json();
+    } catch {
+      return json(400, { ok: false, error: "bad_json" });
+    }
+  }
   try {
-    return passthrough(await internal(`/internal/me/${path}`, { method: "POST", user, client: clientKey(request), body: {} }));
+    return passthrough(await internal(`/internal/me/${path}`, { method: "POST", user, client: clientKey(request), body }));
   } catch {
     return unavailable();
   }

@@ -12,7 +12,7 @@ from rasmai.storage.db.scores import (
     load_recorded_plays, delete_chart_scores,
 )
 from rasmai.storage.db.history import (
-    record_rating_point, load_play_history, count_play_history, quiet_reads_due, quiet_read_done, quiet_read_status,
+    record_rating_point, import_rating_points, load_play_history, count_play_history, quiet_reads_due, quiet_read_done, quiet_read_status,
     load_rating_history, since_last_look,
 )
 from rasmai.storage.db.settings import (
