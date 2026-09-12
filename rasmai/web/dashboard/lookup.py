@@ -177,7 +177,8 @@ def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str 
             item["ladder"] = chart_ladder(cached, ref, row)
             item["history"] = [
                 {"when": point["when"].isoformat(), "achievement": point["achievement"], "dx": point["dx"],
-                 "fc": point["fc"], "fs": point["fs"], "source": point["source"]}
+                 "fc": point["fc"], "fs": point["fs"], "source": point["source"],
+                 "constant": point["constant"], "rating": point["rating"]}
                 for point in _history_points(cached, ref)
             ]
         item["video"] = None            # filled in by /internal/me/video, which may wait on the wiki

@@ -96,7 +96,9 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
               cx={x(new Date(p.when).getTime(), i)}
               cy={y(p.achievement)}
               r={isBest ? 4.5 : 3}
-            />
+            >
+              <title>{`${pct(p.achievement, 4)} on ${new Date(p.when).toLocaleDateString()} · const ${p.constant.toFixed(1)} · rating ${p.rating}`}</title>
+            </circle>
           );
         })}
         <text className="axis" x={padL} y={H - 6}>

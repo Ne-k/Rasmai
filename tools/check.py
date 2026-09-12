@@ -405,6 +405,26 @@ def _forget():
     return problems
 
 
+@check("what a play lost per note type adds up to what was missing from 101%")
+def _losses():
+    from rasmai.engine.losses import note_losses
+    tap = {"critical": 95, "perfect": 0, "great": 5, "good": 0, "miss": 0}
+    breaks = {"critical": 10, "perfect": 0, "great": 0, "good": 0, "miss": 0}
+    # 100 taps + 10 breaks: 150 shares, so one tap is 2/3 of a point and five greats cost one fifth each
+    lost = note_losses({"tap": tap, "break": breaks}, 101 - 100 / 150)
+    problems = []
+    if abs(lost.get("tap", 0) - 100 / 150) > 1e-9 or lost.get("break", 0) > 1e-9:
+        problems.append(f"five tap greats among 150 shares: {lost}")
+    # a break miss loses its five shares and its slice of the 1% bonus; a break perfect's bonus loss lands on breaks too
+    breaks = {"critical": 8, "perfect": 1, "great": 0, "good": 0, "miss": 1}
+    lost = note_losses({"tap": {"critical": 100, "perfect": 0, "great": 0, "good": 0, "miss": 0}, "break": breaks}, 101 - (500 / 150 + 0.1) - 0.25)
+    if abs(lost.get("break", 0) - (500 / 150 + 0.1 + 0.25)) > 1e-9 or lost.get("tap", 0) > 1e-9:
+        problems.append(f"one break miss and one break perfect: {lost}")
+    if note_losses({}, 100.0):
+        problems.append("no judgements should cost nothing")
+    return problems
+
+
 def main() -> None:
     """Run every check and exit non-zero if any of them complained."""
     if FAILURES:

@@ -283,7 +283,7 @@ export type ChartDetail = {
   usual: number | null;
   prediction: { expected: number; sigma: number; rank: string; low: number; high: number; new_best: number | null; plays: number; tier_offset: number; tier: string } | null;
   ladder: LadderStep[];
-  history: { when: string; achievement: number; dx: number; fc: string; fs: string; source: string }[];
+  history: { when: string; achievement: number; dx: number; fc: string; fs: string; source: string; constant: number; rating: number }[];
   video: string | null;
   youtube: string;
   noteSplit: Record<string, number> | null;

@@ -11,7 +11,7 @@ from rasmai.romaji import loanword, skeleton
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.state.snapshots import chart_key
 from rasmai.scraping.otoge import CachedOtogeDB
-from rasmai.scraping import wiki
+from rasmai.scraping import dxdata, wiki
 from rasmai.config import WIKI_VIDEOS
 
 
@@ -150,6 +150,9 @@ def _build_search(songs_data: Dict[str, Dict[str, Any]]) -> None:
             aliases[title] = alias
             keys.update({loose_title(alias), skeleton(alias)})
             bones.add(loanword(alias))
+        # the community's short names from dxrating: "lk" for Latent Kingdom
+        for short in dxdata.aliases_for(title):
+            keys.update({loose_title(short), skeleton(short)})
         table[title] = tuple(k for k in keys if k)
         bones_table[title] = tuple(b for b in bones if len(b) >= 4)
     _search = table

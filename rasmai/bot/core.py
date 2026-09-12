@@ -229,7 +229,9 @@ def _chart_db_upkeep() -> None:
     try:
         from rasmai.bot.builders.charts.index import refresh_shared_index, shared_index
         from rasmai.scraping.otoge import CachedOtogeDB
-        if CachedOtogeDB().update_if_needed():
+        from rasmai.scraping import dxdata
+        fetched = CachedOtogeDB().update_if_needed()
+        if dxdata.refresh() or fetched:
             refresh_shared_index()
         else:
             shared_index()

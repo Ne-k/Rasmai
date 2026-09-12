@@ -4,7 +4,8 @@ import io
 import discord
 import asyncio
 
-from rasmai.engine.analysis import ChartRef, rank_for
+from rasmai.engine.analysis import ChartRef, calculate_rating, rank_for
+from rasmai.scraping import dxdata
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_NAMES, stamp, today
 from rasmai.bot.state.snapshots import chart_key
@@ -43,8 +44,11 @@ def _history_points(cached: CachedAnalysis, ref: ChartRef) -> List[Dict[str, Any
         if mark in seen:
             continue
         seen.add(mark)
+        # a constant revised since then: the play scored against the number of its day, not today's
+        constant = dxdata.constant_at(ref.title, ref.chart_type, ref.difficulty, when, cached.region) or ref.constant
         points.append({"when": when, "achievement": float(row["achievement"]), "dx": int(row["dx_score"] or 0),
-                       "fc": row["fc"], "fs": row["fs"], "source": row["source"]})
+                       "fc": row["fc"], "fs": row["fs"], "source": row["source"],
+                       "constant": constant, "rating": calculate_rating(constant, float(row["achievement"]))})
     points.sort(key=lambda p: p["when"])
     return points
 
@@ -81,8 +85,10 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
         title=f"{title} · score history",
         color=discord.Color.from_rgb(*DIFFICULTY_COLOUR.get(ref.difficulty, (162, 102, 232))),
     )
+    was = points[0]["constant"] if points else ref.constant
     embed.add_field(name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
-                    value=f"const **{ref.constant:.1f}**", inline=False)
+                    value=f"const **{ref.constant:.1f}**" + (f" · {was:.1f} when first recorded" if abs(was - ref.constant) >= 0.05 else ""),
+                    inline=False)
     if points:
         values = [p["achievement"] for p in points]
         best = max(values)

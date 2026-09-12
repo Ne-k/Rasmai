@@ -6,6 +6,7 @@ import logging
 import discord
 
 from rasmai.engine.analysis import calculate_rating, rank_for
+from rasmai.engine.losses import note_losses
 from rasmai.engine.insights import plan_credits, rating_forecast
 from rasmai.bot.state.cache import CachedAnalysis, cache_get
 from rasmai.bot.builders.charts import build_song, charts_for, jacket_file, page_index, songs_by_key
@@ -206,7 +207,9 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
             for k in totals:
                 totals[k] += n.get(k, 0)
         rows.append(f"{'ALL':7s}{totals['critical']:>6}{totals['perfect']:>6}{totals['great']:>6}{totals['good']:>6}{totals['miss']:>6}")
-        embed.add_field(name="Judgements", value="```\n" + "\n".join(rows) + "\n```", inline=False)
+        lost = note_losses(notes, achievement)
+        cost = " · ".join(f"{kind} **{value:.2f}%**" for kind, value in sorted(lost.items(), key=lambda kv: -kv[1]) if value >= 0.005)
+        embed.add_field(name="Judgements", value="```\n" + "\n".join(rows) + "\n```" + (f"\n-# lost to {cost}" if cost else ""), inline=False)
     embed.set_footer(text=f"play {position} of {len(plays)} · newest first")
     refs = charts_for(play["title"], a.chart_index)
     return embed, files, LastPlayView(owner_id, position, len(plays), play["title"], page_index(refs, play["chart_type"], play["difficulty"]))

@@ -208,10 +208,12 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
     dx = int(detail.get("dx_score") or play.get("dx") or 0)
     max_dx = int(detail.get("max_dx_score") or play.get("max_dx") or 0)
     from rasmai.images.pages import stars_for
+    from rasmai.engine.losses import note_losses
     stars = stars_for(dx / max_dx) if max_dx else 0
     notes = detail.get("notes") or {}
     order = ("tap", "hold", "slide", "touch", "break")
     totals = {"critical": 0, "perfect": 0, "great": 0, "good": 0, "miss": 0}
+    lost = note_losses(notes, achievement)
     judge_rows = ""
     for kind in order:
         n = notes.get(kind)
@@ -219,12 +221,14 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
             continue
         for k in totals:
             totals[k] += int(n.get(k, 0))
+        cost = lost.get(kind, 0.0)
         judge_rows += (f'<tr><td>{kind.upper()}</td><td class="crit">{n["critical"]}</td><td>{n["perfect"]}</td>'
-                       f'<td>{n["great"]}</td><td>{n["good"]}</td><td class="miss">{n["miss"]}</td></tr>')
+                       f'<td>{n["great"]}</td><td>{n["good"]}</td><td class="miss">{n["miss"]}</td>'
+                       f'<td class="{"miss" if cost >= 0.5 else ""}">{f"-{cost:.2f}%" if cost >= 0.005 else ""}</td></tr>')
     judge = f"""
     <table class="judge">
-      <thead><tr><th>Notes</th><th>Critical</th><th>Perfect</th><th>Great</th><th>Good</th><th>Miss</th></tr></thead>
-      <tbody>{judge_rows}<tr class="total"><td>ALL</td><td class="crit">{totals["critical"]}</td><td>{totals["perfect"]}</td><td>{totals["great"]}</td><td>{totals["good"]}</td><td class="miss">{totals["miss"]}</td></tr></tbody>
+      <thead><tr><th>Notes</th><th>Critical</th><th>Perfect</th><th>Great</th><th>Good</th><th>Miss</th><th>Lost</th></tr></thead>
+      <tbody>{judge_rows}<tr class="total"><td>ALL</td><td class="crit">{totals["critical"]}</td><td>{totals["perfect"]}</td><td>{totals["great"]}</td><td>{totals["good"]}</td><td class="miss">{totals["miss"]}</td><td>{f"-{sum(lost.values()):.2f}%" if lost else ""}</td></tr></tbody>
     </table>""" if judge_rows else ""
     change = int(detail.get("rating_change") or 0)
     tiles = [
