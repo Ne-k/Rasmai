@@ -15,7 +15,9 @@ from rasmai.bot.ui import emoji
 from rasmai.bot.core import try_render
 from rasmai.images.render import cover_html_factory
 from rasmai.bot.builders.charts.index import charts_for, jacket_file, song_for_chart, songs_by_loose_key
-from rasmai.bot.builders.charts.song import DIFFICULTY_COLOUR, _chart_rows, last_play, song_videos
+from rasmai.bot.builders.charts.page import DIFFICULTY_COLOUR, last_play
+from rasmai.bot.builders.charts.rows import _chart_rows
+from rasmai.bot.builders.charts.song import song_videos
 
 
 def _history_points(cached: CachedAnalysis, ref: ChartRef) -> List[Dict[str, Any]]:

@@ -89,6 +89,9 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
         payload["analysis"] = _json_safe({"profile": _englished(summary.get("profile")), "best50": summary.get("best50"),
                                           "reachableGain": summary.get("reachableGain"), "traitPractice": trait_practice(cached)})
     payload["playHistory"] = count_play_history(user["id"])
+    from rasmai.engine.judgements import judgement_profile
+    from rasmai.storage.db import load_judgements
+    payload["judgements"] = judgement_profile(load_judgements(user["id"]))
     try:
         payload["sinceLast"] = since_last_look(user["id"], int(profile.get("rating") or 0), int(profile.get("totalPlayCount") or 0))
     except Exception:

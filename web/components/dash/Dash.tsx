@@ -7,7 +7,7 @@ import { ApiError, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type Look
 import { Lookup } from "./Lookup";
 import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
-import { Traits } from "./Traits";
+import { JudgementProfile, Traits } from "./Traits";
 import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
@@ -321,6 +321,7 @@ export function Dash() {
               practice={me.analysis?.traitPractice ?? []}
               onOpen={openChart}
             />
+            <JudgementProfile data={me.judgements ?? null} />
           </div>
         )}
         {visited.has("areas") && (

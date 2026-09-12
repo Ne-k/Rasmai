@@ -13,11 +13,7 @@ from rasmai.storage.db import source_state_get, source_state_set
 
 logger = logging.getLogger(__name__)
 
-# dxrating (github.com/gekichumai/dxrating, MIT, (c) 2024 Gekichumai) publishes one JSON file
-# describing every song. Two parts of it are kept: the community's search aliases ("lk" for
-# Latent Kingdom), and the constant each chart had in every version, since constants get
-# revised and a play from last year scored against last year's number. See THIRD_PARTY_NOTICES.md.
-URL = "https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json"
+URL = "https://raw.githubusercontent.com/gekichumai/dxrating/main/packages/dxdata/dxdata.json"      # dxrating, MIT; THIRD_PARTY_NOTICES.md
 SOURCE = "dxrating_dxdata"
 TTL = timedelta(days=1)
 TIMEOUT = 60
@@ -32,6 +28,9 @@ _lock = threading.Lock()
 
 def distil(payload: Dict[str, Any]) -> Dict[str, Any]:
     """The file reduced to what is used: aliases by folded title, constants per version by chart key, the version dates.
+
+    The aliases are the community's short names ("lk" for Latent Kingdom). The constants are kept per
+    version because they get revised, and a play from last year scored against last year's number.
 
     :param payload: The data to store or send.
     :type payload: Dict[str, Any]

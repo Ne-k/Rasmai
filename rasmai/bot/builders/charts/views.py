@@ -7,7 +7,8 @@ from rasmai.bot.ui.formatting import TIER_SHORT, level_text
 from rasmai.bot.ui import emoji
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping import wiki
-from rasmai.bot.builders.charts.song import DIFFICULTY_STYLE, build_song, build_song_details
+from rasmai.bot.builders.charts.page import DIFFICULTY_STYLE
+from rasmai.bot.builders.charts.song import build_song, build_song_details
 from rasmai.bot.builders.charts.details import video_button
 from rasmai.bot.builders.charts.song_history import build_song_history
 from rasmai.security import public_reason

@@ -9,7 +9,9 @@ from rasmai.bot.ui.formatting import TIER_NAMES
 from rasmai.web.links import chart_url
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.bot.builders.charts.index import charts_for, jacket_file, song_for_chart, songs_by_loose_key
-from rasmai.bot.builders.charts.song import _chart_rows, _song_card, build_song, page_index
+from rasmai.bot.builders.charts.rows import _chart_rows, _song_card
+from rasmai.bot.builders.charts.page import page_index
+from rasmai.bot.builders.charts.song import build_song
 from rasmai.bot.builders.charts.ladder import entry_note
 
 

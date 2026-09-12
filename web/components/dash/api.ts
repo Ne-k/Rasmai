@@ -31,6 +31,7 @@ export type Overview = {
   settings?: Record<string, string | boolean>;
   refresh?: RefreshStatus;
   playHistory?: number;
+  judgements?: JudgementProfileData | null;
   sinceLast?: { since: string; ratingDelta: number; plays: number; newBests: number } | null;
   analysis?: {
     profile?: {
@@ -55,6 +56,16 @@ export type Overview = {
     };
     reachableGain?: number;
   };
+};
+
+export type JudgementProfileData = {
+  plays: number;
+  types: { kind: string; notes: number; share: number; lossShare: number; per100: number; clean: number; tilt: number }[];
+  weak: string | null;
+  fast: number;
+  late: number;
+  lateShare: number | null;
+  lostPerPlay: number;
 };
 
 export type ChartRow = {

@@ -9,7 +9,7 @@ from rasmai.bot.core import watch
 from rasmai.bot.tasks.chart_db import resolve_unknown_later
 from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.ui.formatting import stamp
-from rasmai.bot.state.snapshots import analyzer_from_snapshot, record_plays
+from rasmai.bot.state.snapshots import analyzer_from_snapshot, collect_judgements, record_plays
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
 from rasmai.config import DEBUG_MODE, MAIMAI_BASE_URLS, SNAPSHOT_MAX_AGE
 from rasmai.security import public_reason
@@ -124,6 +124,8 @@ async def _light_check(user_id: str, account: Dict[str, Any], token: str, region
     probe = await asyncio.to_thread(lambda: MaimaiRatingAnalyzer(debug=DEBUG_MODE))
     player, plays = await asyncio.to_thread(probe.fetch_official_check, token, region)
     added = await asyncio.to_thread(record_plays, user_id, probe, plays)
+    # the judgement pages of new plays are read behind the command, not in front of it
+    asyncio.get_running_loop().run_in_executor(None, collect_judgements, user_id, probe, plays, region)
     if probe.events_read_at is not None:
         # every reading of the map, paired with the play count, sharpens the plays-to-next-reward estimate
         await asyncio.to_thread(record_area_progress, user_id, probe.events_data, int(player.total_play_count or 0))

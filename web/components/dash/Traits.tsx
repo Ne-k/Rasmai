@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Trait, TraitPractice } from "./api";
+import type { JudgementProfileData, Trait, TraitPractice } from "./api";
 import { Empty, Info, Jacket, Label, TitleLink, type OpenChart } from "./bits";
 
 const NOT_ON_RADAR = new Set(["type", "era", "genre", "designer"]);
@@ -285,6 +285,85 @@ export function Traits({ traits, axes, charts, practice, onOpen }: { traits: Tra
         {even.length ? <EvenLine even={even} /> : null}
       </section>
     </>
+  );
+}
+
+/** What the judgement pages of the recent plays say, measured rather than inferred: where the points go, and early or late. */
+export function JudgementProfile({ data }: { data: JudgementProfileData | null }) {
+  const weak = data?.types.find((t) => t.kind === data.weak);
+  const share = data?.lateShare ?? null;
+  const timing =
+    share === null
+      ? ""
+      : share >= 0.6
+        ? `Your off-timing hits land late ${Math.round(share * 100)}% of the time: a touch behind the beat.`
+        : share <= 0.4
+          ? `Your off-timing hits land early ${Math.round((1 - share) * 100)}% of the time: a touch ahead of the beat.`
+          : "Your off-timing hits split evenly between fast and late.";
+  return (
+    <section className="ledger">
+      <div className="ledger-head">
+        <Label info="Measured from the judgement pages of your recent plays, not inferred from scores: how many notes of each type you hit, what each type cost, and whether your hits land early or late. Every read collects the pages for new plays, so this grows as you play.">
+          judgements
+        </Label>
+        <span className="mono hint">{data ? `${data.plays} plays read · ${data.lostPerPlay.toFixed(2)} points lost per play` : ""}</span>
+      </div>
+      {!data ? (
+        <Empty>
+          Needs the judgement pages of three plays. Open a play&apos;s judgements on the Recent tab, or let a read collect them: every command and the daily
+          read pick up the pages for new plays.
+        </Empty>
+      ) : (
+        <div className="two-up">
+          <table className="tbl compact keep judge-profile">
+            <thead>
+              <tr>
+                <th>notes</th>
+                <th className="c-num">of the notes</th>
+                <th className="c-num">of the loss</th>
+                <th className="c-num">lost per 100</th>
+                <th className="c-num">clean</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.types.map((t) => (
+                <tr key={t.kind} className={t.kind === data.weak ? "weak" : ""}>
+                  <td className="mono kind">{t.kind}</td>
+                  <td className="c-num mono">{Math.round(t.share * 100)}%</td>
+                  <td className="c-num mono">{Math.round(t.lossShare * 100)}%</td>
+                  <td className="c-num mono">{t.per100.toFixed(2)}</td>
+                  <td className="c-num mono dim">{Math.round(t.clean * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div>
+            <p className="hint">
+              {weak
+                ? `${weak.kind[0].toUpperCase()}${weak.kind.slice(1)} notes carry ${Math.round(weak.lossShare * 100)}% of what you lose while being ${Math.round(weak.share * 100)}% of the notes: that is the type costing you most.`
+                : "No note type costs you out of proportion to its share of the notes."}
+            </p>
+            <ul className="bars">
+              <li>
+                <span>fast</span>
+                <span className="bar">
+                  <span style={{ width: `${data.fast + data.late ? (100 * data.fast) / (data.fast + data.late) : 0}%` }} />
+                </span>
+                <span className="v">{data.fast}</span>
+              </li>
+              <li>
+                <span>late</span>
+                <span className="bar">
+                  <span style={{ width: `${data.fast + data.late ? (100 * data.late) / (data.fast + data.late) : 0}%` }} />
+                </span>
+                <span className="v">{data.late}</span>
+              </li>
+            </ul>
+            {timing ? <p className="hint">{timing}</p> : null}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

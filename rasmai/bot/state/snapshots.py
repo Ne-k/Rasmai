@@ -115,6 +115,63 @@ def record_plays(user_id: str, analyzer: Any, recent: List[Dict[str, Any]]) -> i
     return added
 
 
+def judgement_key(analyzer: Any, record: Dict[str, Any]) -> Tuple[str, str]:
+    """The chart key and time a recent-plays record is stored under, the way play_rows keys it.
+
+    :param analyzer: The scraper and the analysis it holds.
+    :type analyzer: Any
+    :param record: One entry of the recent-plays list.
+    :type record: Dict[str, Any]
+    :rtype: Tuple[str, str]
+    """
+    name = analyzer._normalize_official_song_name(str(record.get("songName", ""))).casefold()
+    key = "|".join((name, str(record.get("musicType") or "std").lower(), str(record.get("difficulty") or "").lower()))
+    played_at = record.get("playedAt", "")
+    return key, played_at.isoformat(timespec="seconds") if isinstance(played_at, datetime) else str(played_at)
+
+
+def collect_judgements(user_id: str, analyzer: Any, recent: List[Dict[str, Any]], region: str = "intl", limit: int = 20) -> int:
+    """Read and store the judgement page of every recent play not stored yet, newest first, up to `limit`; never raises.
+
+    A page is one request, so a session's worth is read per call and the rest wait for the next read.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param analyzer: The scraper and the analysis it holds, signed in.
+    :type analyzer: Any
+    :param recent: The recent-plays list from maimai DX NET.
+    :type recent: List[Dict[str, Any]]
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
+    :param limit: Most pages to read this time.
+    :type limit: int
+    :returns: How many pages were stored.
+    :rtype: int
+    """
+    from rasmai.storage.db import judged_ids, save_judgement
+    try:
+        done = judged_ids(user_id)
+    except Exception:
+        logger.exception("Could not read stored judgements")
+        return 0
+    stored = 0
+    for record in recent or []:
+        idx = str(record.get("idx") or "")
+        if not idx or idx in done:
+            continue
+        if stored >= limit:
+            break
+        try:
+            detail = analyzer.fetch_playlog_detail(idx, region)
+            key, played_at = judgement_key(analyzer, record)
+            save_judgement(user_id, idx, key, played_at, detail)
+            stored += 1
+        except Exception as error:       # the site or the session gave out; what is stored so far stands
+            logger.info("judgement pages stopped after %d: %s", stored, error)
+            break
+    return stored
+
+
 def store_recent(user_id: str, recent: List[Dict[str, Any]]) -> None:
     """Keep the recent-plays list just read with the stored snapshot, so an analysis rebuilt after a restart still holds the play ids.
 

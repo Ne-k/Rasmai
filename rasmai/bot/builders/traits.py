@@ -5,6 +5,8 @@ import discord
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, message_files
 from rasmai.engine import insights
+from rasmai.engine.judgements import judgement_profile
+from rasmai.storage.db import load_judgements
 from rasmai.images.pages import traits_image_html
 from rasmai.scraping.mai_notes import english_label
 
@@ -97,5 +99,31 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
         embed.add_field(name="Level with the rest",
                         value=f"{', '.join(names)}{more}.\n-# measured over enough charts and within ±{insights.TRAIT_LEAN_OFFSET:.1f} of your usual score: not a weakness, not a strength",
                         inline=False)
+    judged = judgement_profile(load_judgements(cached.user_id))
+    if judged:
+        embed.add_field(name="Judgements, measured", value=_judgement_lines(judged), inline=False)
     embed.set_footer(text="points against your own curve · patterns and note mix via maiノーツ · hollow point on the wheel = leaning · middle ring = your own average")
     return embed, files, None
+
+
+def _judgement_lines(judged: Dict[str, Any]) -> str:
+    """What the judgement pages say: the note types the points go to, and whether the hits land early or late.
+
+    :param judged: The judgement profile.
+    :type judged: Dict[str, Any]
+    :rtype: str
+    """
+    lines = []
+    for t in sorted(judged["types"], key=lambda t: -t["lossShare"])[:2]:
+        mark = " · **costs you most**" if t["kind"] == judged.get("weak") else ""
+        lines.append(f"**{t['kind']}** {t['lossShare'] * 100:.0f}% of what you lose on {t['share'] * 100:.0f}% of the notes · {t['per100']:.2f} pts per 100{mark}")
+    share = judged.get("lateShare")
+    if share is not None:
+        if share >= 0.6:
+            lines.append(f"off-timing hits land **late {share * 100:.0f}%** of the time: a touch behind the beat")
+        elif share <= 0.4:
+            lines.append(f"off-timing hits land **early {(1 - share) * 100:.0f}%** of the time: a touch ahead of the beat")
+        else:
+            lines.append("off-timing hits split evenly between fast and late")
+    lines.append(f"-# read from {judged['plays']} plays' judgement pages, not inferred from scores · every read collects the pages for new plays")
+    return "\n".join(lines)

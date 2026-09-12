@@ -425,6 +425,26 @@ def _losses():
     return problems
 
 
+@check("the judgement profile names the note type carrying more than its share of the loss")
+def _judgements():
+    from rasmai.engine.judgements import judgement_profile
+    clean = {"critical": 100, "perfect": 0, "great": 0, "good": 0, "miss": 0}
+    # 900 taps clean, 100 breaks with a miss each play: the breaks are a tenth of the notes and nearly all of the loss
+    play = {"notes": {"tap": dict(clean, critical=900), "break": dict(clean, critical=98, miss=2)}, "fast": 3, "late": 9}
+    play["achievement"] = 101 - 2 * (5 * 100 / 1400 + 1 / 100)
+    problems = []
+    if judgement_profile([play, play]) is not None:
+        problems.append("two plays should not be enough")
+    profile = judgement_profile([play, play, play])
+    if not profile or profile["weak"] != "break":
+        problems.append(f"breaks should be the weak type: {profile and profile['weak']}")
+    if profile and profile["lateShare"] != 0.75:
+        problems.append(f"late share should be 0.75: {profile['lateShare']}")
+    if profile and abs(profile["lostPerPlay"] - (101 - play["achievement"])) > 1e-3:
+        problems.append(f"loss per play should match what the plays lost: {profile['lostPerPlay']}")
+    return problems
+
+
 def main() -> None:
     """Run every check and exit non-zero if any of them complained."""
     if FAILURES:

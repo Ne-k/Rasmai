@@ -180,6 +180,21 @@ def get_database_connection() -> sqlite3.Connection:
                         setup.execute(f"ALTER TABLE chart_scores ADD COLUMN {column}")
                     except sqlite3.OperationalError:
                         pass      # already there
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS play_judgements (   -- one play's judgement page: counts per note type, timing split
+                        user_id     TEXT NOT NULL,
+                        idx         TEXT NOT NULL,
+                        chart_key   TEXT NOT NULL,
+                        played_at   TEXT NOT NULL,
+                        achievement REAL NOT NULL,
+                        fast        INTEGER NOT NULL DEFAULT 0,
+                        late        INTEGER NOT NULL DEFAULT 0,
+                        notes       TEXT NOT NULL,
+                        PRIMARY KEY (user_id, idx)
+                    )
+                    """
+                )
             _database_ready = True
 
     connection = sqlite3.connect(DATABASE_PATH, timeout=10)
