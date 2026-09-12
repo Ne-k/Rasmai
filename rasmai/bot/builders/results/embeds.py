@@ -13,7 +13,9 @@ from rasmai.bot.ui.formatting import (
     format_plan_markdown, format_plan_verdict, format_try_markdown, level_text, message_files, progress_bar,
 )
 from rasmai.images.render import cover_html_factory, generate_poster_html
-from rasmai.storage.db import since_last_look
+from rasmai.storage.db import load_judgements, since_last_look
+from rasmai.engine.judgements import judgement_profile
+from rasmai.bot.builders.traits import judgement_summary
 
 
 async def _image(cached: CachedAnalysis, key: str, html_factory) -> Optional[bytes]:
@@ -261,6 +263,9 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
     if strong:
         embed.add_field(name="Where you shine",
                         value="\n".join(f"- **{float(tr['offset']):+.1f}** on {tr['label']} · {tr['count']} charts" for tr in strong), inline=False)
+    judged = judgement_profile(load_judgements(cached.user_id))
+    if judged:
+        embed.add_field(name="Judgements, measured", value=judgement_summary(judged), inline=False)
     calibration = (summary.get("profile") or {}).get("calibration") or {}
     if calibration.get("plays", 0) >= 15:
         predicted = calibration.get("newBestPredicted")

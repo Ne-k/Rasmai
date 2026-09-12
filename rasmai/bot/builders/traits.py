@@ -106,6 +106,21 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     return embed, files, None
 
 
+def judgement_summary(judged: Dict[str, Any]) -> str:
+    """One line of the judgement profile for /profile: the type costing most, and early or late.
+
+    :param judged: The judgement profile.
+    :type judged: Dict[str, Any]
+    :rtype: str
+    """
+    top = max(judged["types"], key=lambda t: t["lossShare"])
+    parts = [f"**{top['kind']}s** carry {top['lossShare'] * 100:.0f}% of what you lose on {top['share'] * 100:.0f}% of the notes"]
+    share = judged.get("lateShare")
+    if share is not None and (share >= 0.6 or share <= 0.4):
+        parts.append(f"hits land **{'late' if share >= 0.6 else 'early'} {max(share, 1 - share) * 100:.0f}%** of the time")
+    return " · ".join(parts) + f"\n-# read from {judged['plays']} plays' judgement pages · the Traits button has the full table"
+
+
 def _judgement_lines(judged: Dict[str, Any]) -> str:
     """What the judgement pages say: the note types the points go to, and whether the hits land early or late.
 
