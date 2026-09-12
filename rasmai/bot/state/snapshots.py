@@ -54,6 +54,9 @@ def compact_snapshot(analyzer: Any) -> Dict[str, Any]:
         "areas": _json_safe(getattr(analyzer, "events_data", None) or {"areaEvents": [], "eventAreaEvents": []}),
         "areasReadAt": (analyzer.events_read_at.isoformat(timespec="seconds")
                         if isinstance(getattr(analyzer, "events_read_at", None), datetime) else None),
+        # the recent-plays list as last read: the site's play ids on it are what a judgement page is fetched by,
+        # so an analysis rebuilt from the stored copy after a restart can still open one
+        "recent": _json_safe([r for r in (analyzer.recent_songs or []) if r.get("idx")]),
     }
 
 
@@ -174,6 +177,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
     ]
     analyzer.play_counts = load_play_counts(user_id)
     analyzer.recorded_plays = load_recorded_plays(user_id)
+    analyzer.recent_songs = list(snapshot.get("recent") or [])
     analyzer.events_data = snapshot.get("areas") or {"areaEvents": [], "eventAreaEvents": []}
     try:
         analyzer.events_read_at = datetime.fromisoformat(str(snapshot.get("areasReadAt") or "")) if snapshot.get("areasReadAt") else None
