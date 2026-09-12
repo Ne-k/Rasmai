@@ -7,7 +7,7 @@ import discord
 
 from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.state.prefs import get_prefs
-from rasmai.bot.state.snapshots import play_rows
+from rasmai.bot.state.snapshots import play_rows, store_recent
 from rasmai.bot.ui.formatting import stamp
 from rasmai.bot.ui.login import dm_login_card
 from rasmai.config import MAIMAI_BASE_URLS
@@ -55,6 +55,7 @@ class HistoryWatch:
             if row[2] > before + 0.00005 and row[2] > bests.get(row[0], {}).get("now", 0.0):
                 bests[row[0]] = {"key": row[0], "before": before, "now": row[2], "difficulty": row[0].rsplit("|", 1)[-1]}
         added = record_chart_scores(user_id, rows)
+        store_recent(user_id, plays)
         return {"added": added, "bests": list(bests.values()), "rating": int(player.rating or 0)}
 
     async def _note(self, user_id: str, found: Dict[str, Any]) -> None:

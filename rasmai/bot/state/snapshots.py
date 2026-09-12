@@ -110,7 +110,25 @@ def record_plays(user_id: str, analyzer: Any, recent: List[Dict[str, Any]]) -> i
     :type recent: List[Dict[str, Any]]
     :rtype: int
     """
-    return record_chart_scores(user_id, play_rows(analyzer, recent))
+    added = record_chart_scores(user_id, play_rows(analyzer, recent))
+    store_recent(user_id, recent)
+    return added
+
+
+def store_recent(user_id: str, recent: List[Dict[str, Any]]) -> None:
+    """Keep the recent-plays list just read with the stored snapshot, so an analysis rebuilt after a restart still holds the play ids.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param recent: The recent-plays list from maimai DX NET.
+    :type recent: List[Dict[str, Any]]
+    """
+    from rasmai.storage.db import get_connected_account, update_account_snapshot
+    snapshot = (get_connected_account(user_id) or {}).get("latestSnapshot")
+    if not snapshot:
+        return
+    snapshot["recent"] = _json_safe([r for r in recent if r.get("idx")])
+    update_account_snapshot(user_id, None, snapshot)
 
 
 def record_scores(user_id: str, analyzer: Any) -> int:
