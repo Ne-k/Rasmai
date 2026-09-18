@@ -1,10 +1,11 @@
 import { ImageResponse } from "next/og";
+import { clientKey } from "@/lib/http";
 import { internal } from "@/lib/internal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SLUG = /^[A-Za-z0-9_-]{16,64}$/;
+const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 const SIZE = { width: 1200, height: 630 };
 
 type Shared = { name?: string; rating?: number; region?: string; charts?: number; plays?: number; dan?: string };
@@ -15,12 +16,12 @@ type Shared = { name?: string; rating?: number; region?: string; charts?: number
  * Only the header the page shows anyone holding the link. A profile that is switched off answers as
  * if it never existed, the same as the page does.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   if (!SLUG.test(slug ?? "")) return new Response("not found", { status: 404 });
   let shared: Shared;
   try {
-    const answer = await internal(`/internal/public/${slug}`);
+    const answer = await internal(`/internal/public/${slug}`, { client: clientKey(request) });
     if (!answer.ok) return new Response("not found", { status: 404 });
     shared = (await answer.json()) as Shared;
   } catch {

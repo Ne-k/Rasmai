@@ -108,6 +108,11 @@ class RateLimiter:
 
 
 _login_limiter = RateLimiter(LOGIN_ATTEMPTS_PER_WINDOW, LOGIN_ATTEMPT_WINDOW.total_seconds())
+# a shared profile being read. The strict limit below it is what stops somebody trying addresses
+# until one answers; reading a profile whose address is already known is an ordinary page view, and
+# a page view costs more than one call: the page, the picture Discord shows above it, and whoever
+# opens the link afterwards.
+public_limiter = RateLimiter(120, 60)         # shared profiles read per client
 refresh_limiter = RateLimiter(3, 900)         # score reads started from the site per account
 import_limiter = RateLimiter(5, 900)          # exports merged back from the site per account
 

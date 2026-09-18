@@ -236,7 +236,7 @@ def account_by_share_slug(slug: str) -> Optional[Dict[str, Any]]:
     :type slug: str
     :rtype: Optional[Dict[str, Any]]
     """
-    if not slug or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", slug):
+    if not slug or not re.fullmatch(r"[A-Za-z0-9_-]{10,64}", slug):
         return None
     connection = get_database_connection()
     try:

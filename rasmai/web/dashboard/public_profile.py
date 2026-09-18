@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 import secrets
+import string
 
 from rasmai.bot.state.prefs import PUBLIC_SECTIONS, get_prefs, update_prefs
 from rasmai.bot.state.snapshots import snapshot_charts
@@ -12,6 +13,28 @@ from rasmai.util import _json_safe
 logger = logging.getLogger(__name__)
 
 RECENT_ON_SHOW = 20
+
+
+# Ten characters out of the letters and digits, which is 62^10 addresses: eighty-four quadrillion,
+# so every player who will ever use this can have one and nobody can find another by guessing. Letters
+# and digits only, no - or _, so a link can be read out or picked out of a message without trouble.
+# The older 24-character slugs still answer; only new ones are short.
+SLUG_CHARS = string.ascii_letters + string.digits
+SLUG_LENGTH = 10
+
+
+def _fresh_slug() -> str:
+    """An address no account already has.
+
+    :rtype: str
+    """
+    for _ in range(5):
+        slug = "".join(secrets.choice(SLUG_CHARS) for _ in range(SLUG_LENGTH))
+        if account_by_share_slug(slug) is None:
+            return slug
+    # five collisions in a row is not chance; take the long form rather than hand out a used address
+    logger.warning("five share slugs in a row were taken; falling back to a long one")
+    return secrets.token_urlsafe(18)
 
 
 def share_url(slug: str) -> str:
@@ -71,7 +94,7 @@ def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, A
         update_prefs(user_id, **changes)
     slug = str((account or {}).get("shareSlug") or "")
     if rotate or (on and not slug):
-        slug = set_share_slug(user_id, secrets.token_urlsafe(18)) or ""
+        slug = set_share_slug(user_id, _fresh_slug()) or ""
     return sharing_payload(user_id, {**(account or {}), "shareSlug": slug})
 
 

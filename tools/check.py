@@ -520,7 +520,8 @@ def _public_profile():
             problems.append("a fresh account is already sharing; the profile must be opt-in")
         state = set_sharing("u1", True, {"best50": True}, account=account)
         slug = state["url"].rsplit("/", 1)[-1]
-        if not state["on"] or len(slug) < 16:
+        from rasmai.web.dashboard.public_profile import SLUG_LENGTH
+        if not state["on"] or len(slug) < SLUG_LENGTH:
             problems.append(f"turning sharing on gave no usable link: {state}")
             return problems
 
@@ -2717,6 +2718,52 @@ def _shared_profile():
     elif "NOT_A_SKILL" not in inside[1].split(chr(10) + "}", 1)[0]:
         problems.append("twoSides does not drop the traits that are not skills, so a charter's name "
                         "can be named as something a player is good at")
+
+    # a short address, and every door it has to pass through agreeing on what one looks like. A link
+    # already passed around is 24 characters and has to keep working, so the bound was widened rather
+    # than moved.
+    from rasmai.web.dashboard.public_profile import SLUG_CHARS, SLUG_LENGTH, _fresh_slug
+    import re as _re
+
+    if SLUG_LENGTH > 12:
+        problems.append(f"a share address is {SLUG_LENGTH} characters, which is no longer short")
+    if len(SLUG_CHARS) ** SLUG_LENGTH < 10 ** 15:
+        problems.append(f"only {len(SLUG_CHARS) ** SLUG_LENGTH:,} addresses exist, which is guessable")
+    fresh = _fresh_slug()
+    # the file holds other addresses of its own, so read the bound out of the slug lookup itself
+    lookup = (ROOT / "rasmai" / "storage" / "db" / "accounts.py").read_text(encoding="utf-8")
+    bot = _re.search(r'\[A-Za-z0-9_-\]\{(\d+),(\d+)\}', lookup.split("def account_by_share_slug", 1)[-1])
+    if not bot or int(bot.group(1)) > SLUG_LENGTH or int(bot.group(2)) < 24:
+        problems.append("the bot and the site disagree about what a share address looks like")
+    for name, path in (("the public API", ROOT / "web" / "app" / "api" / "public" / "[slug]" / "route.ts"),
+                       ("the page", ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx"),
+                       ("the card", ROOT / "web" / "app" / "p" / "[slug]" / "card.png" / "route.tsx")):
+        text = path.read_text(encoding="utf-8")
+        bounds = _re.search(r"const SLUG = /\^\[A-Za-z0-9_-\]\{(\d+),(\d+)\}\$/", text)
+        if not bounds:
+            problems.append(f"{name} does not say what a share address looks like")
+            continue
+        low, high = int(bounds.group(1)), int(bounds.group(2))
+        if low > SLUG_LENGTH:
+            problems.append(f"{name} refuses a {SLUG_LENGTH}-character address, which is what is handed out")
+        if high < 24:
+            problems.append(f"{name} refuses the 24-character addresses already passed around")
+    if not _re.fullmatch(r"[A-Za-z0-9]{%d}" % SLUG_LENGTH, fresh):
+        problems.append(f"a fresh share address is not letters and digits: {fresh!r}")
+
+    # reading a profile is an ordinary page view and costs several calls between the page, its
+    # picture and whoever opens the link. Counting those against the sign-in allowance shut the
+    # preview out after ten of them.
+    from rasmai.security import public_limiter, _login_limiter
+    if public_limiter.limit <= _login_limiter.limit:
+        problems.append("a shared profile is read on the sign-in allowance, which a single link "
+                        "preview can exhaust on its own")
+    served = (ROOT / "rasmai" / "web" / "web_server.py").read_text(encoding="utf-8")
+    if "public_limiter.allow" not in served:
+        problems.append("shared profiles are not read on their own allowance")
+    for page in ("web/app/p/[slug]/page.tsx", "web/app/p/[slug]/card.png/route.tsx"):
+        if "client" not in (ROOT / page).read_text(encoding="utf-8"):
+            problems.append(f"{page} asks the bot without saying who for, so every reader shares one allowance")
 
     del _traits_on_show
     return problems

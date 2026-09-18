@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { cache } from "react";
 import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { PublicProfile } from "@/components/PublicProfile";
 import { buttons, embed, gallery, headline, type Embed } from "@/lib/embed";
@@ -9,16 +11,24 @@ import "../../me/dashboard.css";
 // one visitor's profile is never another's, so nothing here is held
 export const dynamic = "force-dynamic";
 
-const SLUG = /^[A-Za-z0-9_-]{16,64}$/;
+const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 const SITE = env.publicUrl();
 
 type Shared = { name?: string; rating?: number; region?: string; charts?: number };
 
-/** The profile as anyone holding the link may read it, or nothing when the link is not in use. */
-async function shared(slug: string): Promise<Shared | null> {
+/**
+ * The profile as anyone holding the link may read it, or nothing when the link is not in use.
+ *
+ * Cached for the render, because the page and the card above it both want it and the bot counts
+ * every read against whoever asked. The visitor's address goes with the call for the same reason:
+ * without it every reader of every profile shares one allowance, which is one shut door away from
+ * no link preview at all.
+ */
+const shared = cache(async (slug: string): Promise<Shared | null> => {
   if (!SLUG.test(slug)) return null;
   try {
-    const answer = await internal(`/internal/public/${slug}`);
+    const client = (await headers()).get("cf-connecting-ip") ?? (await headers()).get("x-forwarded-for") ?? "";
+    const answer = await internal(`/internal/public/${slug}`, { client: client.split(",")[0].trim() || "local" });
     if (!answer.ok) return null;
     const payload = (await answer.json()) as Shared;
     return String(payload.name || "").trim() ? payload : null;
@@ -26,7 +36,7 @@ async function shared(slug: string): Promise<Shared | null> {
     // the bot is unreachable: the page's own card still stands
     return null;
   }
-}
+});
 
 // a shared link is for the people it was sent to, not for search engines. The picture is the one
 // Discord shows above the link, so the two agree wherever a component embed cannot be used.

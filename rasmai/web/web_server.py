@@ -31,7 +31,8 @@ from rasmai.storage.db import (
 from rasmai.web import dashboard
 from rasmai.web.links import build_login_link_payload
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
-from rasmai.security import decode_opaque_user_id, login_attempt_allowed, normalize_login_token, public_reason
+from rasmai.security import (decode_opaque_user_id, login_attempt_allowed, normalize_login_token,
+                             public_limiter, public_reason)
 from rasmai.util import _json_safe, export_debug_payload
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ class InternalApiServer:
                     # no sign-in: the slug is the whole credential, and the payload carries only
                     # what its owner opted into. A profile switched off answers as if it never existed.
                     slug = route.path[len("/internal/public/"):]
-                    if not login_attempt_allowed(self._client_key()):
+                    if not public_limiter.allow(self._client_key()):
                         self._send_json(429, {"ok": False, "error": "rate_limited"})
                         return
                     try:
@@ -172,6 +173,11 @@ class InternalApiServer:
                         self._send_json(502, {"ok": False, "error": "unavailable"})
                         return
                     if shared is None:
+                        # an address answering to nothing is a typo or somebody working through
+                        # addresses, and that is what the strict limit is for. Counting every read
+                        # against it instead shut the page, its picture and the link preview out
+                        # after ten views between them.
+                        login_attempt_allowed(self._client_key())
                         self._send_json(404, {"ok": False, "error": "not_found"})
                         return
                     self._send_json(200, shared)
