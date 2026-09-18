@@ -2821,6 +2821,13 @@ def _link_embeds():
     if "accessory" not in built:
         problems.append("headline builds a section without an accessory, which Discord refuses")
 
+    # Discord keeps its own copy of every picture, keyed on the address and held far longer than the
+    # preview is. A card address that never changes goes on showing last week's rating.
+    profile = (ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx").read_text(encoding="utf-8")
+    if "card.png?v=" not in profile:
+        problems.append("the card address carries nothing that moves when the profile does, so "
+                        "Discord's copy of it never gets replaced")
+
     # a button may only be a link, and only ever carry these keys
     button = re.search(r"type: 2, style: LINK, label: [^}]+}", source)
     if not button:

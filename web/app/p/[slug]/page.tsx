@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 const SITE = env.publicUrl();
 
-type Shared = { name?: string; rating?: number; region?: string; charts?: number };
+type Shared = { name?: string; rating?: number; region?: string; charts?: number; updatedAt?: string };
 
 /**
  * The profile as anyone holding the link may read it, or nothing when the link is not in use.
@@ -49,10 +49,23 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description: name ? `${name}'s maimai DX rating and charts, shared with Rasmai.` : undefined,
     robots: { index: false, follow: false },
     openGraph: name
-      ? { title: `${name} · a maimai profile`, images: [{ url: `${SITE}/p/${slug}/card.png`, width: 1200, height: 630 }] }
+      ? { title: `${name} · a maimai profile`, images: [{ url: card(slug, profile!), width: 1200, height: 630 }] }
       : undefined,
     twitter: name ? { card: "summary_large_image" } : undefined,
   };
+}
+
+/**
+ * Where the picture lives, with a stamp that moves when the profile does.
+ *
+ * Discord serves images through a proxy of its own that holds a copy far longer than it holds the
+ * preview, and the copy is keyed on this address. Without something in it that changes, a rating
+ * that has moved keeps showing last week's card and no amount of resharing helps.
+ */
+function card(slug: string, profile: Shared): string {
+  const moved = Date.parse(String(profile.updatedAt || "")) || 0;
+  const stamp = moved ? Math.floor(moved / 1000) : Number(profile.rating || 0);
+  return `${SITE}/p/${slug}/card.png?v=${stamp}`;
 }
 
 /**
@@ -75,7 +88,7 @@ function unfurl(slug: string, profile: Shared): Embed | null {
   const scored = charts ? ` · ${charts.toLocaleString("en")} charts scored` : "";
   const here = `${SITE}/p/${slug}`;
   return embed("#ff3d8f", [
-    gallery([{ url: `${here}/card.png`, description: `${name}, ${rating.toLocaleString("en")} rating` }]),
+    gallery([{ url: card(slug, profile), description: `${name}, ${rating.toLocaleString("en")} rating` }]),
     headline(name, here, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`],
       { image: `${SITE}/app/icon-512.png` }),
     buttons(
