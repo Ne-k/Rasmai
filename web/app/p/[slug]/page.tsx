@@ -93,7 +93,7 @@ function unfurl(slug: string, profile: Shared): Embed | null {
       { image: `${SITE}/app/icon-512.png` }),
     buttons(
       { label: "See the profile", url: here },
-      { label: "What Rasmai is", url: `${SITE}/` },
+      // { label: "What Rasmai is", url: `${SITE}/` },
     ),
   ]);
 }
