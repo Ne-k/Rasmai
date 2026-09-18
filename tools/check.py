@@ -2670,6 +2670,48 @@ def _search_aliases():
     return problems
 
 
+@check("the key behind every login code is written for its owner and nobody else")
+def _secret_file():
+    import os
+    import pathlib
+    import stat
+    import tempfile
+
+    import rasmai.security as sec
+
+    problems = []
+    # POSIX modes are not a thing on Windows, where os.chmod only moves the read-only bit, so the
+    # bits are asserted where they exist and the primitive is asserted everywhere.
+    source = (ROOT / "rasmai" / "security.py").read_text(encoding="utf-8")
+    if "secret_path.write_text" in source:
+        problems.append("the login secret is written under the umask, which on a normal host leaves "
+                        "it readable by everyone on the machine")
+    if "os.O_CREAT, 0o600" not in source.replace("os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600",
+                                                 "os.O_CREAT, 0o600"):
+        problems.append("the login secret is not created owner-only")
+
+    was_path, was_cache = sec.DATABASE_PATH, sec._master_secret_cache
+    was_env = os.environ.pop("MAIMAI_TOTP_SECRET", None)
+    try:
+        home = pathlib.Path(tempfile.mkdtemp())
+        sec.DATABASE_PATH = home / "maimai.sqlite3"
+        sec._master_secret_cache = None
+        if len(sec.get_master_secret()) < 32:
+            problems.append("the login secret is too short to sign anything with")
+        key = home / "secret.key"
+        if not key.is_file():
+            problems.append("no login secret was written")
+        elif os.name != "nt":
+            mode = stat.S_IMODE(key.stat().st_mode)
+            if mode & (stat.S_IRGRP | stat.S_IROTH):
+                problems.append(f"the login secret is readable beyond its owner: {oct(mode)}")
+    finally:
+        sec.DATABASE_PATH, sec._master_secret_cache = was_path, was_cache
+        if was_env:
+            os.environ["MAIMAI_TOTP_SECRET"] = was_env
+    return problems
+
+
 @check("a shared profile shows what the dashboard shows: the same traits, the same wheel, the same jackets")
 def _shared_profile():
     from rasmai.engine.analysis import ChartIndex, ChartRef

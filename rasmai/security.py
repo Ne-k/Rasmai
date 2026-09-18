@@ -28,6 +28,14 @@ LOGIN_ATTEMPT_WINDOW = timedelta(minutes=10)
 _master_secret_cache: Optional[str] = None
 
 
+def _own_only(path) -> None:
+    """Narrow a file to its owner, where the system has the notion. Never raises."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def get_master_secret() -> str:
     """The HMAC key behind one-time codes and opaque user ids.
 
@@ -45,11 +53,16 @@ def get_master_secret() -> str:
         if secret_path.exists():
             stored = secret_path.read_text(encoding="utf-8").strip()
             if stored:
+                _own_only(secret_path)      # a key written before this was owner-only is narrowed now
                 _master_secret_cache = stored
                 return stored
         secret_path.parent.mkdir(parents=True, exist_ok=True)
         generated = secrets.token_urlsafe(48)
-        secret_path.write_text(generated, encoding="utf-8")
+        # every login code and every opaque id is signed with this, so it is written owner-only from
+        # the start rather than created under the umask and narrowed a moment later
+        handle = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(generated)
         _master_secret_cache = generated
         return generated
     except OSError as error:
