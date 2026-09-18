@@ -115,7 +115,7 @@ const SITE = env.publicUrl();
 // what a link to the front page turns into in Discord, which is where nearly every link to this site
 // gets pasted
 const UNFURL = embed("#ff3d8f", [
-  headline("Rasmai", `${SITE}/`, ["Know what to play next."], `${SITE}/app/icon-512.png`),
+  headline("Rasmai", `${SITE}/`, ["Know what to play next."], { image: `${SITE}/app/icon-512.png` }),
   say(
     "Reads your maimai DX NET scores and works out which charts to grind for the most rating, "
     + "picked for how you actually play.\n\n"

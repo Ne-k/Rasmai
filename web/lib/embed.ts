@@ -21,7 +21,10 @@ type Text = { type: 10; content: string };
 type Thumbnail = { type: 11; media: { url: string } };
 type Button = { type: 2; style: typeof LINK; label: string; url: string };
 type Row = { type: 1; components: Button[] };
-type Section = { type: 9; components: Text[]; accessory?: Thumbnail | Button };
+// a section's accessory is not optional. Leave it out and Discord refuses the whole payload with
+// BASE_TYPE_REQUIRED and shows nothing at all, so the type demands one rather than trusting a caller
+// to remember.
+type Section = { type: 9; components: Text[]; accessory: Thumbnail | Button };
 type Gallery = { type: 12; items: { media: { url: string }; description?: string }[] };
 type Rule = { type: 14; spacing?: 1 | 2 };
 export type Piece = Text | Section | Gallery | Rule | Row;
@@ -42,12 +45,22 @@ export function say(content: string): Text {
   return { type: 10, content };
 }
 
-/** The headline: a linked title, whatever lines follow it, and a picture off to the side. */
-export function headline(title: string, url: string, lines: string[] = [], image?: string): Section {
+/**
+ * The headline: a linked title, whatever lines follow it, and a picture or a button off to the side.
+ *
+ * The thing off to the side is required, so it is an argument rather than an option.
+ */
+export function headline(
+  title: string,
+  url: string,
+  lines: string[],
+  aside: { image: string } | { label: string; url: string },
+): Section {
   const heading = `# **[${plain(title)}](${href(url)})**`;
-  const section: Section = { type: 9, components: [say([heading, ...lines].join("\n"))] };
-  if (image) section.accessory = { type: 11, media: { url: image } };
-  return section;
+  const accessory: Thumbnail | Button = "image" in aside
+    ? { type: 11, media: { url: aside.image } }
+    : { type: 2, style: LINK, label: plain(aside.label), url: aside.url };
+  return { type: 9, components: [say([heading, ...lines].join("\n"))], accessory };
 }
 
 /** A row of link buttons. Discord fits five to a row. */

@@ -2812,6 +2812,15 @@ def _link_embeds():
         if wanted not in tag:
             problems.append(f"the embed tag is missing {wanted}, and Discord matches both exactly")
 
+    # a section without something off to the side is refused outright, and Discord says so only in its
+    # own debugger: BASE_TYPE_REQUIRED, and the link shows no card at all. The type carries the rule.
+    if "accessory?: " in source:
+        problems.append("a section's accessory is optional in the types, and Discord requires one: "
+                        "leave it out and the whole embed is refused")
+    built = source.split("export function headline", 1)[-1].split(chr(10) + "}", 1)[0]
+    if "accessory" not in built:
+        problems.append("headline builds a section without an accessory, which Discord refuses")
+
     # a button may only be a link, and only ever carry these keys
     button = re.search(r"type: 2, style: LINK, label: [^}]+}", source)
     if not button:

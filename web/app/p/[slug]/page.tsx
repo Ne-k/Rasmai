@@ -76,7 +76,8 @@ function unfurl(slug: string, profile: Shared): Embed | null {
   const here = `${SITE}/p/${slug}`;
   return embed("#ff3d8f", [
     gallery([{ url: `${here}/card.png`, description: `${name}, ${rating.toLocaleString("en")} rating` }]),
-    headline(name, here, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`]),
+    headline(name, here, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`],
+      { image: `${SITE}/app/icon-512.png` }),
     buttons(
       { label: "See the profile", url: here },
       { label: "What Rasmai is", url: `${SITE}/` },
