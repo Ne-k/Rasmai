@@ -29,3 +29,9 @@ cover_cache/
 docs/*.gif
 docs/*.mov
 docs/*.mp4
+
+# raw screenshot captures; only the framed ones the README shows are committed
+docs/screenshots/raw/
+
+# local helper, not part of the project
+tools/frame_shots.py

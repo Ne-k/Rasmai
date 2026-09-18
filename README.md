@@ -14,8 +14,15 @@ The dashboard has the same analysis with every tab the bot's commands cover.
 
 | | |
 |---|---|
-| ![Overview](docs/screenshots/dashboard-overview.png) | ![What to play](docs/screenshots/dashboard-picks.png) |
-| ![Traits](docs/screenshots/dashboard-traits.png) | ![Look up](docs/screenshots/dashboard-lookup.png) |
+| **Overview**<br>Rating over time, and every chart you have scored plotted against your own curve.<br><br>![The overview tab: rating over time and the accuracy curve](docs/screenshots/dashboard-overview.png) | **How you play**<br>Where you are comfortable, what your best 50 costs to enter, and every rank you hold.<br><br>![The lower overview: how you play, best 50 cutoffs and ranks by band](docs/screenshots/dashboard-profile.png) |
+| **What to play**<br>Charts ranked by the rating a run would actually bank, with the odds of landing it.<br><br>![The what-to-play tab: picks ranked by the rating a run would bank](docs/screenshots/dashboard-picks.png) | **New charts**<br>Charts you have never played, in the window your level searches reach.<br><br>![The new-charts tab: unplayed charts worth a first run](docs/screenshots/dashboard-new.png) |
+| **Traits**<br>What your own scores say you are good at and what costs you points, and charts to practise on.<br><br>![The traits tab: strengths, weaknesses and charts to practise each on](docs/screenshots/dashboard-traits.png) | **Look up**<br>Any chart: your score, the prediction, what each rank is worth, and what it asks of you.<br><br>![The look-up tab: one chart in full, with its pattern tags and region](docs/screenshots/dashboard-lookup.png) |
+| **Best 50**<br>The fifteen new and thirty-five old charts your rating is made of.<br><br>![The best-50 tab: the new and old pools side by side](docs/screenshots/dashboard-best50.png) | **All charts**<br>Everything you have scored, filtered by level, difficulty, rank or lamp.<br><br>![The all-charts tab: every scored chart with filters](docs/screenshots/dashboard-charts.png) |
+| **Recent plays**<br>Every play the bot has seen, kept for as long as the account is linked.<br><br>![The recent tab: play history with new bests marked](docs/screenshots/dashboard-recent.png) | **Browse by pattern**<br>Every pattern in the game, in Japanese or English, and the charts that ask it.<br><br>![The pattern browser: every tag and the charts that carry it](docs/screenshots/dashboard-patterns.png) |
+
+Any play opens what it actually cost, note by note:
+
+![A play's judgement breakdown: criticals, perfects, greats and what each cost](docs/screenshots/dashboard-judgements.png)
 
 ## Commands
 
@@ -47,15 +54,15 @@ A few things the model does that most trackers don't:
 - Expert and Master 13s are scored separately, since the same constant doesn't land the same on both
 - The curve is capped at what you've actually scored at your hardest level, so it can't promise a 13+ score off your 12+ results. New-chart searches reach up from your hardest S, not from the hardest chart you ever attempted, so one failed 15 doesn't get a 12,000 player offered 15s
 - Every recorded play is checked against the prediction made before it. With 15+ plays the model corrects its own spread and centre. `/profile` shows how well it's been predicting you
-- Chart traits (streams, jacks, slides, tempo changes, note mix) come from [maiノーツ](https://mai-notes.com). Every tag is fitted together over your bests and every recorded play, with play count and difficulty held fixed, and a trait is only named once it beats what shuffled tags produce and keeps its sign in both halves of your own charts. Most players will see few confirmed traits at first; more plays sharpen it. The Traits view also shows the groups that lean one way but have not passed yet, marked as such, names charts in your own band to practise each weak pattern on, and lists the groups you play no differently from the rest. Only the confirmed ones feed `/new focus:` and the picks. Pattern tags are also a reading aid on their own: `/chart` lists what a chart asks of you and `/charts pattern:` finds every chart that asks it, so you can practice a pattern on purpose. maiノーツ has tagged about one chart in ten, nearly all Master and above, so every chart also carries what its own numbers say: note mix, tempo band and density, marked as measured rather than written by an editor
+- Chart traits (streams, jacks, slides, tempo changes, note mix) come from [maiノーツ](https://mai-notes.com). Every tag is fitted together over your bests and every recorded play, with play count and difficulty held fixed, and a trait is only named once it beats what shuffled tags produce and keeps its sign in both halves of your own charts. Most players will see few confirmed traits at first; more plays sharpen it. The Traits view also shows the groups that lean one way but have not passed yet, marked as such, names charts in your own band to practise each weak pattern on, and lists the groups you play no differently from the rest. Only the confirmed ones feed `/new focus:` and the picks. Pattern tags are also a reading aid on their own: `/chart` lists what a chart asks of you and `/charts pattern:` finds every chart that asks it, so you can practice a pattern on purpose. maiノーツ has tagged about one chart in ten, nearly all Master and above, so every chart also carries what its own numbers say: note mix, tempo band and density, marked as measured rather than written by an editor. Where the chart's own notation is available the notes themselves are read for the techniques the community has names for - trills on the spot, against a held button and across the screen, jacks, streams, walks round the ring, delayed slides, fans, a trill over a slide, slides fired from one spot, a slide traced straight back - so a trait can be found on a chart no editor has tagged. Every one of those measures has to rise with a chart's level, and run higher on the charts the editors did tag for it, before it is named at all
 
 It only reads maimai DX NET when something changed. A command signs in, checks the profile and recent plays (a few seconds), and rebuilds from the stored copy unless a new play, play count or rating shows up. A full read happens when it does, when the stored copy is a week old, or on `/refresh`. A read that meets a song the chart database doesn't know fetches the database again on the spot, so a new song gets its constants the first time you play it. Link your account and the first read starts in the background. `/settings history:true` reads your recent plays once a day so nothing falls off the 50-play list between commands, and `notify:true` DMs you what it found: new bests and a moved rating. Commands answer from the stored copy during maintenance instead of failing, and `/analyze` opens with what moved since your last read.
 
-English titles and romaji come from [SilentBlue RemyWiki](https://silentblue.remywiki.com/), along with chart videos, unlock notes and area names. Search accepts either language: "telepathy" finds テレパシ.
+English titles and romaji come from [SilentBlue RemyWiki](https://silentblue.remywiki.com/), along with chart videos, unlock notes and area names. Search accepts either language: "telepathy" finds テレパシ. It also accepts the names people type instead of a title, so "+boy" finds `+♂`.
 
 ## Dashboard
 
-`/me/` on the site has everything the bot has read: rating over time, best 50, every scored chart with filters, full play history, what to play at each target, new charts, traits, area travel, and a look up tab that shows any chart the way `/chart` does. Sign in is Discord (`identify` only). Light/dark switch in the header, saved in the browser.
+`/me/` on the site has everything the bot has read: rating over time, best 50, every scored chart with filters, full play history, what to play at each target, new charts, traits, area travel, and a look up tab that shows any chart the way `/chart` does. Sign in is Discord (`identify` only). Light/dark switch in the header, saved in the browser. Charts your region has not had yet are left out of everything that suggests something to play; the look up searches every region and says where a chart it finds is playable.
 
 ### On your phone
 
@@ -74,10 +81,6 @@ The dashboard installs as a home screen app: it opens full screen with its own i
 3. Confirm with **Install**.
 
 Sign-in is remembered for 30 days; the app reads nothing without it and stores no scores on the phone.
-
-| iPhone, the Account tab | Android, What to play |
-|---|---|
-| ![The dashboard on an iPhone](docs/screenshots/phone-ios.png) | ![The dashboard on an Android phone](docs/screenshots/phone-android.png) |
 
 ## Running it
 
