@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
 import { ServersNotice } from "@/components/Servers";
 import { Ring } from "@/components/Ring";
+import { buttons, embed, headline, rule, say } from "@/lib/embed";
+import { env } from "@/lib/env";
 import "./landing.css";
 
 const FEATURES: { mark: string; title: string; body: string; command: string }[] = [
@@ -107,9 +110,31 @@ const STRUCTURED = {
   author: { "@type": "Person", name: "nek_ng" },
 };
 
+const SITE = env.publicUrl();
+
+// what a link to the front page turns into in Discord, which is where nearly every link to this site
+// gets pasted
+const UNFURL = embed("#ff3d8f", [
+  headline("Rasmai", `${SITE}/`, ["Know what to play next."], `${SITE}/app/icon-512.png`),
+  say(
+    "Reads your maimai DX NET scores and works out which charts to grind for the most rating, "
+    + "picked for how you actually play.\n\n"
+    + "- **What to play** with the odds on every target\n"
+    + "- **A route** to your next thousand rating\n"
+    + "- **Traits** read from your own scores and from the charts themselves",
+  ),
+  rule(),
+  buttons(
+    { label: "Add to Discord", url: `${SITE}/invite` },
+    { label: "Open the dashboard", url: `${SITE}/me/` },
+    { label: "Link your account", url: `${SITE}/link/` },
+  ),
+]);
+
 export default function LandingPage() {
   return (
     <>
+      <DiscordEmbed embed={UNFURL} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED) }} />
     <div className="frame landing">
       <header className="masthead">

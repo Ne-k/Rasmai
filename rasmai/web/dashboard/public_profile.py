@@ -12,7 +12,6 @@ from rasmai.util import _json_safe
 logger = logging.getLogger(__name__)
 
 RECENT_ON_SHOW = 20
-TRAITS_ON_SHOW = 6
 
 
 def share_url(slug: str) -> str:
@@ -110,7 +109,7 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
         "shows": shows,
     }
 
-    covers = _covers() if (shows["best50"] or shows["recent"]) else {}
+    covers = _covers() if (shows["best50"] or shows["recent"]) else None
     if shows["best50"]:
         pool = sorted((c for c in charts if c.get("rating")), key=lambda c: -int(c.get("rating") or 0))
         payload["best50"] = {
@@ -138,24 +137,31 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
     return _json_safe(payload)
 
 
-def _covers() -> Dict[Any, str]:
-    """Jacket file per chart, from the shared index. Empty when the database has not loaded yet.
+def _covers() -> Optional[Any]:
+    """The chart database, for looking a jacket up. ``None`` when it has not loaded yet.
 
-    :rtype: Dict[Any, str]
+    The index itself rather than a table taken off it: maimai stores a title with its spaces removed
+    ("NewYorkBackRaise", "CustomizedJustice") and the database keeps them, so an exact lookup misses
+    every song whose title has a space in it. The index falls back to a folded title, which matches.
+
+    :rtype: Optional[Any]
     """
     try:
         from rasmai.bot.builders.charts.index import shared_index
-        return {key: chart.cover for key, chart in shared_index().items() if chart.cover}
+        return shared_index()
     except Exception:
         logger.info("no chart index for a public profile's jackets", exc_info=False)
-        return {}
+        return None
 
 
-def _cover_for(covers: Dict[Any, str], title: str, chart_type: str, difficulty: str) -> str:
-    return covers.get((str(title).casefold(), (chart_type or "std").lower(), (difficulty or "").lower()), "")
+def _cover_for(covers: Optional[Any], title: str, chart_type: str, difficulty: str) -> str:
+    if covers is None:
+        return ""
+    chart = covers.get((str(title), (chart_type or "std").lower(), (difficulty or "").lower()))
+    return str(getattr(chart, "cover", "") or "") if chart else ""
 
 
-def _charts_on_show(rows: List[Dict[str, Any]], covers: Dict[Any, str]) -> List[Dict[str, Any]]:
+def _charts_on_show(rows: List[Dict[str, Any]], covers: Optional[Any]) -> List[Dict[str, Any]]:
     return [{
         "title": str(row.get("name") or ""), "difficulty": str(row.get("difficulty_type") or "").lower(),
         "type": str(row.get("chart_type") or "std"), "level": str(row.get("level") or ""),
@@ -173,8 +179,15 @@ def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[st
     :rtype: Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]
     """
     def shape(trait: Dict[str, Any]) -> Dict[str, Any]:
-        return {"label": english_label(str(trait["label"])), "offset": round(float(trait["offset"]), 2),
-                "count": int(trait["count"]), "kind": str(trait["dimension"])}
+        # the label stays as it was written and the English reading rides beside it, exactly as the
+        # dashboard is given it: two traits can share an English name, and folding them together here
+        # would quietly drop one
+        return {"label": str(trait["label"]), "english": english_label(str(trait["label"])),
+                "offset": round(float(trait["offset"]), 2),
+                "count": int(trait["count"]), "plays": int(trait.get("plays") or 0),
+                "kind": str(trait["dimension"]), "dimension": str(trait["dimension"]),
+                "verified": bool(trait.get("verified")), "leaning": bool(trait.get("leaning")),
+                "p": float(trait.get("p") or 0)}
 
     try:
         from rasmai.engine import insights
@@ -182,11 +195,10 @@ def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[st
         from rasmai.web.dashboard.analysis import analysis_for_user
         cached = analysis_for_user(user_id, account)
         axes = list(getattr(getattr(cached, "analyzer", None), "play_profile", None).trait_axes or []) if cached else []
-        shown = insights.notable(axes) + insights.leaning(axes)
-        shown.sort(key=lambda trait: float(trait["offset"]))
-        picked = shown[:TRAITS_ON_SHOW // 2] + shown[-(TRAITS_ON_SHOW // 2):]
-        named = [shape(t) for t in {id(t): t for t in picked}.values()]
-        return named, [shape(a) for a in insights.radar_axes(axes)]
+        # the confirmed traits and every axis behind them, which is what the dashboard is handed. The
+        # page picks and draws from these itself, with the rules the dashboard uses, so one player
+        # reads the same on both. Picking here as well is how the two came to disagree.
+        return [shape(t) for t in insights.notable(axes)], [shape(a) for a in axes]
     except Exception:
         logger.info("could not build traits for a public profile", exc_info=False)
         return [], []

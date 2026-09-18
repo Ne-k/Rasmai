@@ -4,13 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Ring } from "@/components/Ring";
 import { ThemeToggle } from "@/components/Theme";
 import { Chip, Empty, Jacket, Label, num, pct, when } from "./dash/bits";
-import { Radar, radarAxes } from "./dash/Traits";
+import { Radar, radarAxes, twoSides } from "./dash/Traits";
 
 type Chart = {
   title: string; difficulty: string; type: string; level: string; constant: number;
   accuracy: number; rank: string; rating: number; fc: string; fs: string; cover: string;
 };
-type SharedTrait = { label: string; offset: number; count: number; kind: string };
+type SharedTrait = {
+  label: string; offset: number; count: number; plays: number; kind: string;
+  // the wheel and the two lists are built from these, the same way the dashboard builds them
+  dimension: string; verified: boolean; leaning: boolean; p: number; english: string;
+};
 type Shared = {
   name: string; title: string; dan: string; region: string; rating: number; plays: number; charts: number;
   updatedAt: string;
@@ -153,10 +157,12 @@ export function PublicProfile({ slug }: { slug: string }) {
     );
   }
 
-  const weak = (data.traits ?? []).filter((t) => t.offset < 0).sort((a, b) => a.offset - b.offset);
-  const strong = (data.traits ?? []).filter((t) => t.offset > 0).sort((a, b) => b.offset - a.offset);
+  // every axis the player has, ranked the way the dashboard ranks them, so a profile reads the same
+  // on both pages
+  const axes = (data.traitAxes ?? []) as never[];
+  const { weak, strong } = twoSides((data.traits ?? []) as never[], axes);
   const best = data.best50 ? [...data.best50.new, ...data.best50.old].sort((a, b) => b.rating - a.rating)[0] : undefined;
-  const wheel = radarAxes((data.traitAxes ?? []) as never);
+  const wheel = radarAxes(axes);
 
   return (
     <Shell name={data.name}>
@@ -254,7 +260,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                     {weak.map((t) => (
                       <li key={`w${t.label}`}>
                         <span className="mono trait-offset down">{t.offset.toFixed(2)}</span>
-                        <span className="trait-label">{t.label}</span>
+                        <span className="trait-label">{t.english || t.label}</span>
                         <span className="mono dim">{t.count}</span>
                       </li>
                     ))}
@@ -270,7 +276,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                     {strong.map((t) => (
                       <li key={`s${t.label}`}>
                         <span className="mono trait-offset up">+{t.offset.toFixed(2)}</span>
-                        <span className="trait-label">{t.label}</span>
+                        <span className="trait-label">{t.english || t.label}</span>
                         <span className="mono dim">{t.count}</span>
                       </li>
                     ))}

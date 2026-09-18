@@ -24,6 +24,35 @@ const isWatch = (a: Trait) => !a.verified && !isLean(a) && a.count >= CONFIRM_CH
 // how many to show a side, so the tab answers "what should I work on" with something either way
 const BASELINE = 3;
 
+/**
+ * The two lists the traits tab shows, as the dashboard and a shared profile both show them.
+ *
+ * Both are filled from one order, confirmed then leaning then worth watching, so the strongest
+ * evidence always leads and the rest is there to give the tab a shape. A confirmed trait is never
+ * dropped to make the two sides match: they are levelled up, never down. They are then shown by
+ * size, because a list headed by the gap in points reads as broken when the numbers do not run in
+ * order.
+ *
+ * One function for both pages, because two copies of this rule is how a shared profile came to name
+ * different traits from the dashboard it was shared from.
+ */
+export function twoSides(confirmed: Trait[], all: Trait[]): { weak: Trait[]; strong: Trait[] } {
+  const seen = new Set<string>();
+  const ranked = [...confirmed, ...all.filter(isLean), ...all.filter(isWatch)].filter((t) => {
+    const key = `${t.dimension}:${t.label}`;
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+  const rank = (t: Trait) => (t.verified ? 0 : isLean(t) ? 1 : 2);
+  const side = (want: number) =>
+    ranked.filter((t) => (want < 0 ? t.offset < 0 : t.offset > 0))
+      .sort((a, b) => rank(a) - rank(b) || Math.abs(b.offset) - Math.abs(a.offset));
+  const below = side(-1);
+  const above = side(1);
+  const room = Math.max(BASELINE, below.filter((t) => t.verified).length, above.filter((t) => t.verified).length);
+  const bySize = (a: Trait, b: Trait) => Math.abs(b.offset) - Math.abs(a.offset);
+  return { weak: below.slice(0, room).sort(bySize), strong: above.slice(0, room).sort(bySize) };
+}
+
 /** Pick the axes the wheel is drawn on: confirmed and leaning traits about play, both halves so the shape has contrast.
  *  A wheel with fewer than six is rounded out with the groups the player plays evenly, which sit on the middle ring. */
 export function radarAxes(axes: Trait[], limit = 8): Axis[] {
@@ -282,21 +311,6 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
   // Both lists are filled from the same order - confirmed, then leaning, then worth watching - so
   // the strongest evidence always leads and the rest is there to give the tab a shape. A confirmed
   // trait is never dropped to make the two sides match: they are levelled up, never down.
-  const seen = new Set<string>();
-  const ranked = [...confirmed, ...leaning, ...watch].filter((t) => {
-    const key = `${t.dimension}:${t.label}`;
-    return seen.has(key) ? false : (seen.add(key), true);
-  });
-  const rank = (t: Trait) => (t.verified ? 0 : isLean(t) ? 1 : 2);
-  const side = (want: number) =>
-    ranked.filter((t) => (want < 0 ? t.offset < 0 : t.offset > 0))
-      .sort((a, b) => rank(a) - rank(b) || Math.abs(b.offset) - Math.abs(a.offset));
-  const below = side(-1);
-  const above = side(1);
-  const room = Math.max(BASELINE, below.filter((t) => t.verified).length, above.filter((t) => t.verified).length);
-  // picked by evidence so a confirmed trait always makes the cut, then shown by size, because a list
-  // headed by the gap in points reads as broken when the numbers do not run in order
-  const bySize = (a: Trait, b: Trait) => Math.abs(b.offset) - Math.abs(a.offset);
   // A lean is a trait shuffled tags matched less than one time in twenty. Over the couple of dozen
   // groups a player has enough charts for, that alone produces about one, and the reader deserves
   // to know how much of the list to discount. It is an upper estimate: a lean also has to sit a way
@@ -304,8 +318,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
   const byChance = Math.round(
     (confirmed.length + leaning.length + watch.length + even.length) * LEAN_P,
   );
-  const weak = below.slice(0, room).sort(bySize);
-  const strong = above.slice(0, room).sort(bySize);
+  const { weak, strong } = twoSides(confirmed, all);
   const largest = [...all].filter((t) => t.count >= CONFIRM_CHARTS)
     .sort((a, b) => Math.abs(b.offset) - Math.abs(a.offset)).slice(0, 4);
   const gate =

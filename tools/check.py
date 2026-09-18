@@ -2669,6 +2669,99 @@ def _search_aliases():
     return problems
 
 
+@check("a shared profile shows what the dashboard shows: the same traits, the same wheel, the same jackets")
+def _shared_profile():
+    from rasmai.engine.analysis import ChartIndex, ChartRef
+    from rasmai.web.dashboard.public_profile import _cover_for, _traits_on_show
+
+    problems = []
+
+    # maimai stores a title with its spaces taken out, so an exact lookup finds a jacket for the
+    # Japanese titles and none of the English ones. Two thirds of a best 50 came out blank.
+    index = ChartIndex()
+    index.add(ChartRef(title="New York Back Raise", chart_type="dx", difficulty="expert", constant=12.6,
+                       level="12+", notes=0, genre="", artist="", cover="jacket.png", version=25, bpm=0.0))
+    if _cover_for(index, "NewYorkBackRaise", "dx", "expert") != "jacket.png":
+        problems.append("a title stored without its spaces found no jacket; the index matches it loosely and this did not")
+    if _cover_for(index, "New York Back Raise", "dx", "expert") != "jacket.png":
+        problems.append("a title stored as the database spells it found no jacket")
+    if _cover_for(None, "New York Back Raise", "dx", "expert"):
+        problems.append("a jacket was produced with no chart database loaded")
+
+    # the page ranks and draws with the dashboard's own rules, which read these off every axis. Send
+    # a trait without them and the wheel filters everything out and shows nothing at all.
+    source = (ROOT / "rasmai" / "web" / "dashboard" / "public_profile.py").read_text(encoding="utf-8")
+    for field in ("dimension", "verified", "leaning", "count", "offset", "english"):
+        if f'"{field}"' not in source:
+            problems.append(f"a shared trait does not carry {field}, which the site reads to rank and draw it")
+    if "insights.notable(axes)" not in source:
+        problems.append("the shared page is not handed the confirmed traits the dashboard is handed")
+
+    # and one rule, in one place: picking again on the server is how the two pages came to disagree
+    page = (ROOT / "web" / "components" / "PublicProfile.tsx").read_text(encoding="utf-8")
+    if "twoSides" not in page:
+        problems.append("the shared profile picks its own traits instead of using the dashboard's rule")
+    if "radarAxes(axes)" not in page:
+        problems.append("the shared profile draws its wheel from something other than the axes it was sent")
+
+    del _traits_on_show
+    return problems
+
+
+@check("a link to the site unfurls in Discord as the card we wrote, and never as somebody's own markup")
+def _link_embeds():
+    import json
+    import re
+
+    problems = []
+    source = (ROOT / "web" / "lib" / "embed.ts").read_text(encoding="utf-8")
+
+    # Discord reads 3,000 bytes and renders 40 components, and refuses the payload without saying so.
+    # https://discord.com/developers/docs/link-previews/component-embeds
+    for name, wanted in (("LIMIT", 3000), ("PIECES", 40), ("LINK", 5)):
+        found = re.search(rf"^const {name} = (\d+);", source, re.M)
+        if not found or int(found.group(1)) != wanted:
+            problems.append(f"{name} in embed.ts is {found and found.group(1)}, and Discord's rule is {wanted}")
+
+    # the payload sits inside a script tag, so a title carrying "</script>" would end the tag early
+    if r"\u003c" not in source:
+        problems.append("the JSON is not escaping '<', so text in an embed could close its own script tag")
+
+    # and a name is text, not markup: a player called "[x](http://evil)" must not plant a link
+    if "replace(/([" not in source:
+        problems.append("nothing is escaping markdown, so a player's name could carry formatting or a link")
+
+    # the pages that should carry one, and the fallback that stands whenever this payload cannot
+    for page, why in ((ROOT / "web" / "app" / "page.tsx", "the front page"),
+                      (ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx", "a shared profile")):
+        text = page.read_text(encoding="utf-8")
+        if "DiscordEmbed" not in text:
+            problems.append(f"{why} has no component embed, so its links unfurl as the plain card")
+
+    # a shared profile card says no more than the page's own header does to anyone holding the link
+    shared = (ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx").read_text(encoding="utf-8")
+    for section in ("best50", "recent"):
+        if f'"{section}"' in shared or f".{section}" in shared:
+            problems.append(f"the shared-profile card reaches for {section}; a card in a channel is "
+                            "seen by everyone there, and that section belongs on the page")
+
+    # the tag Discord actually looks for, spelled exactly
+    tag = (ROOT / "web" / "components" / "DiscordEmbed.tsx").read_text(encoding="utf-8")
+    for wanted in ('id="discord:component-embed"', 'type="application/json"'):
+        if wanted not in tag:
+            problems.append(f"the embed tag is missing {wanted}, and Discord matches both exactly")
+
+    # a button may only be a link, and only ever carry these keys
+    button = re.search(r"type: 2, style: LINK, label: [^}]+}", source)
+    if not button:
+        problems.append("buttons are not built as link buttons; any other style invalidates the payload")
+    elif set(re.findall(r"(\w+):", button.group(0))) - {"type", "style", "label", "url", "emoji", "disabled"}:
+        problems.append(f"a button carries a key Discord refuses: {button.group(0)}")
+
+    del json
+    return problems
+
+
 def main() -> None:
     """Run every check and exit non-zero if any of them complained."""
     if FAILURES:
