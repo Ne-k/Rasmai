@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { PublicProfile } from "@/components/PublicProfile";
-import { buttons, embed, headline, type Embed } from "@/lib/embed";
+import { buttons, embed, gallery, headline, type Embed } from "@/lib/embed";
 import { env } from "@/lib/env";
 import { internal } from "@/lib/internal";
 import "../../me/dashboard.css";
-
-// a shared link is for the people it was sent to, not for search engines
-export const metadata: Metadata = { title: "A maimai profile · Rasmai", robots: { index: false, follow: false } };
 
 // one visitor's profile is never another's, so nothing here is held
 export const dynamic = "force-dynamic";
@@ -17,46 +14,70 @@ const SITE = env.publicUrl();
 
 type Shared = { name?: string; rating?: number; region?: string; charts?: number };
 
-/**
- * The card a shared profile unfurls into when its link is pasted in Discord.
- *
- * Only what the page's own header shows to anyone holding the link: the name, the rating, the region
- * and how many charts are behind it. The sections a player opted into, their best 50 and their recent
- * plays, stay on the page. Opening a link is a choice; a card in a channel is seen by everyone there.
- *
- * A profile that is switched off answers as if it never existed, so it gets no card either.
- */
-async function unfurl(slug: string): Promise<Embed | null> {
+/** The profile as anyone holding the link may read it, or nothing when the link is not in use. */
+async function shared(slug: string): Promise<Shared | null> {
   if (!SLUG.test(slug)) return null;
-  let shared: Shared;
   try {
     const answer = await internal(`/internal/public/${slug}`);
     if (!answer.ok) return null;
-    shared = (await answer.json()) as Shared;
+    const payload = (await answer.json()) as Shared;
+    return String(payload.name || "").trim() ? payload : null;
   } catch {
-    // the bot is unreachable: the page's Open Graph card still works
+    // the bot is unreachable: the page's own card still stands
     return null;
   }
-  const name = String(shared.name || "").trim();
-  const rating = Number(shared.rating || 0);
+}
+
+// a shared link is for the people it was sent to, not for search engines. The picture is the one
+// Discord shows above the link, so the two agree wherever a component embed cannot be used.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const profile = await shared(slug);
+  const name = String(profile?.name || "").trim();
+  return {
+    title: name ? `${name} · a maimai profile` : "A maimai profile · Rasmai",
+    description: name ? `${name}'s maimai DX rating and charts, shared with Rasmai.` : undefined,
+    robots: { index: false, follow: false },
+    openGraph: name
+      ? { title: `${name} · a maimai profile`, images: [{ url: `${SITE}/p/${slug}/card.png`, width: 1200, height: 630 }] }
+      : undefined,
+    twitter: name ? { card: "summary_large_image" } : undefined,
+  };
+}
+
+/**
+ * The card a shared profile unfurls into when its link is pasted in Discord.
+ *
+ * Only what the page's own header shows to anyone holding the link: the picture, the name, the
+ * rating, the region and how many charts are behind it. The sections a player opted into, their
+ * best 50 and their recent plays, stay on the page. Opening a link is a choice; a card in a channel
+ * is seen by everyone there.
+ *
+ * A profile that is switched off answers as if it never existed, so it gets no card either.
+ */
+function unfurl(slug: string, profile: Shared): Embed | null {
+  const name = String(profile.name || "").trim();
+  const rating = Number(profile.rating || 0);
   if (!name || !rating) return null;
 
-  const region = String(shared.region || "").toUpperCase() === "JP" ? "Japan" : "international";
-  const charts = Number(shared.charts || 0);
+  const region = String(profile.region || "").toUpperCase() === "JP" ? "Japan" : "international";
+  const charts = Number(profile.charts || 0);
   const scored = charts ? ` · ${charts.toLocaleString("en")} charts scored` : "";
+  const here = `${SITE}/p/${slug}`;
   return embed("#ff3d8f", [
-    headline(name, `${SITE}/p/${slug}`, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`],
-      `${SITE}/app/icon-512.png`),
+    gallery([{ url: `${here}/card.png`, description: `${name}, ${rating.toLocaleString("en")} rating` }]),
+    headline(name, here, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`]),
     buttons(
-      { label: "See the profile", url: `${SITE}/p/${slug}` },
-      { label: "Get your own", url: `${SITE}/invite` },
+      { label: "See the profile", url: here },
+      { label: "What Rasmai is", url: `${SITE}/` },
     ),
   ]);
 }
 
 export default async function SharedProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const card = await unfurl(slug);
+  const profile = await shared(slug);
+  const card = profile ? unfurl(slug, profile) : null;
   return (
     <>
       {card ? <DiscordEmbed embed={card} /> : null}

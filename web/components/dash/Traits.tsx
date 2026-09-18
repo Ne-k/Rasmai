@@ -36,9 +36,14 @@ const BASELINE = 3;
  * One function for both pages, because two copies of this rule is how a shared profile came to name
  * different traits from the dashboard it was shared from.
  */
-export function twoSides(confirmed: Trait[], all: Trait[]): { weak: Trait[]; strong: Trait[] } {
+export function twoSides(confirmed: Trait[], everything: Trait[]): { weak: Trait[]; strong: Trait[] } {
+  // who charted a song and what era it is from are not skills anyone can work on, so they are never
+  // named. Filtered here rather than by the caller, because a caller that forgets says a player is
+  // good at a charter's name.
+  const all = everything.filter((t) => !NOT_A_SKILL.has(t.dimension));
   const seen = new Set<string>();
-  const ranked = [...confirmed, ...all.filter(isLean), ...all.filter(isWatch)].filter((t) => {
+  const ranked = [...confirmed.filter((t) => !NOT_A_SKILL.has(t.dimension)),
+                  ...all.filter(isLean), ...all.filter(isWatch)].filter((t) => {
     const key = `${t.dimension}:${t.label}`;
     return seen.has(key) ? false : (seen.add(key), true);
   });

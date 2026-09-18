@@ -127,7 +127,7 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
                            "cover": _cover_for(covers, parts[0], parts[1], parts[2])})
         payload["recent"] = recent
     if shows["traits"]:
-        payload["traits"], payload["traitAxes"] = _traits_on_show(user_id, account)
+        payload["traits"], payload["traitAxes"], payload["traitFamilies"] = _traits_on_show(user_id, account)
     if shows["areas"]:
         payload["areas"] = _areas_on_show(user_id)
     payload["history"] = [
@@ -172,11 +172,11 @@ def _charts_on_show(rows: List[Dict[str, Any]], covers: Optional[Any]) -> List[D
     } for row in rows]
 
 
-def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """The traits worth naming, and the axes the wheel is drawn on.
+def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], ...]:
+    """Everything the traits tab is built from, exactly as the dashboard is handed it.
 
-    :returns: ``(named traits, wheel axes)``, both empty when there is not enough to say.
-    :rtype: Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]
+    :returns: ``(confirmed traits, every axis, the families)``, all empty when there is nothing to say.
+    :rtype: Tuple[List[Dict[str, Any]], ...]
     """
     def shape(trait: Dict[str, Any]) -> Dict[str, Any]:
         # the label stays as it was written and the English reading rides beside it, exactly as the
@@ -198,10 +198,17 @@ def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[st
         # the confirmed traits and every axis behind them, which is what the dashboard is handed. The
         # page picks and draws from these itself, with the rules the dashboard uses, so one player
         # reads the same on both. Picking here as well is how the two came to disagree.
-        return [shape(t) for t in insights.notable(axes)], [shape(a) for a in axes]
+        # and the families the wheel is really drawn on: the dashboard draws those in preference to
+        # single traits, so a shared profile drawing traits was a different picture of the same player
+        families = [{"key": str(f["key"]), "label": str(f["label"]), "note": str(f.get("note") or ""),
+                     "offset": round(float(f["offset"]), 2), "charts": int(f["charts"]),
+                     "traits": int(f["traits"]), "plays": int(f.get("plays") or 0),
+                     "verified": bool(f.get("verified"))}
+                    for f in insights.family_axes(axes)]
+        return [shape(t) for t in insights.notable(axes)], [shape(a) for a in axes], families
     except Exception:
         logger.info("could not build traits for a public profile", exc_info=False)
-        return [], []
+        return [], [], []
 
 
 def _areas_on_show(user_id: str) -> List[Dict[str, Any]]:

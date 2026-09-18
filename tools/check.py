@@ -2697,12 +2697,26 @@ def _shared_profile():
     if "insights.notable(axes)" not in source:
         problems.append("the shared page is not handed the confirmed traits the dashboard is handed")
 
+    if "insights.family_axes(axes)" not in source:
+        problems.append("the shared page is sent no families, so its wheel is a different picture "
+                        "of the same player from the dashboard's")
+
     # and one rule, in one place: picking again on the server is how the two pages came to disagree
     page = (ROOT / "web" / "components" / "PublicProfile.tsx").read_text(encoding="utf-8")
     if "twoSides" not in page:
         problems.append("the shared profile picks its own traits instead of using the dashboard's rule")
-    if "radarAxes(axes)" not in page:
-        problems.append("the shared profile draws its wheel from something other than the axes it was sent")
+    if "traitFamilies" not in page:
+        problems.append("the shared profile ignores the families, so its wheel is drawn on single traits")
+
+    # who charted a song is not a skill, and the filter belongs with the rule rather than beside every
+    # call to it: the shared profile forgot it and told a player they were good at a charter's name
+    rules = (ROOT / "web" / "components" / "dash" / "Traits.tsx").read_text(encoding="utf-8")
+    inside = rules.split("export function twoSides", 1)
+    if len(inside) < 2:
+        problems.append("twoSides is gone; the two pages will drift apart again")
+    elif "NOT_A_SKILL" not in inside[1].split(chr(10) + "}", 1)[0]:
+        problems.append("twoSides does not drop the traits that are not skills, so a charter's name "
+                        "can be named as something a player is good at")
 
     del _traits_on_show
     return problems

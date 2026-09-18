@@ -23,6 +23,8 @@ type Shared = {
   recent?: { title: string; difficulty: string; type: string; achievement: number; rank: string; day: string; cover: string }[];
   traits?: SharedTrait[];
   traitAxes?: SharedTrait[];
+  traitFamilies?: { key: string; label: string; note: string; offset: number; charts: number;
+                    traits: number; plays: number; verified: boolean }[];
   areas?: { name: string; english: string; distance: number; state: string }[];
   history?: { recordedAt: string; rating: number }[];
 };
@@ -162,7 +164,13 @@ export function PublicProfile({ slug }: { slug: string }) {
   const axes = (data.traitAxes ?? []) as never[];
   const { weak, strong } = twoSides((data.traits ?? []) as never[], axes);
   const best = data.best50 ? [...data.best50.new, ...data.best50.old].sort((a, b) => b.rating - a.rating)[0] : undefined;
-  const wheel = radarAxes(axes);
+  // the wheel is drawn on the families where there are enough of them, as the dashboard draws it,
+  // and falls back to single traits otherwise
+  const onFamilies = (data.traitFamilies ?? []).map((f) => ({
+    dimension: "family", label: f.label, english: f.label, offset: f.offset,
+    count: f.charts, plays: f.plays, p: 0, verified: f.verified, leaning: !f.verified,
+  })) as never[];
+  const wheel = onFamilies.length >= 3 ? onFamilies : radarAxes(axes);
 
   return (
     <Shell name={data.name}>
