@@ -9,7 +9,13 @@ const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 
 // shorter than the 1200x630 a link preview usually is. Discord gives a picture the full width of
 // the card whatever shape it is, so a tall one pushes the text and the buttons down the screen.
-const SIZE = { width: 1100, height: 420 };
+const CARD = { width: 1100, height: 420 };
+
+// Discord shows the picture at about half this across, and on a good screen at twice that again, so
+// it is drawn at double and comes down to size rather than being blown up from it
+const SCALE = 2;
+const u = (n: number) => n * SCALE;
+const SIZE = { width: CARD.width * SCALE, height: CARD.height * SCALE };
 
 // the plot, inside the card
 const PLOT = { left: 64, top: 226, width: 972, height: 118 };
@@ -166,11 +172,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   };
 
   const figure = (label: string, value: string, ink = tint) => (
-    <div style={{ display: "flex", flexDirection: "column", marginRight: 54 }}>
-      <div style={{ display: "flex", fontSize: 18, letterSpacing: 4, color: "#8d88a8", textTransform: "uppercase" }}>
+    <div style={{ display: "flex", flexDirection: "column", marginRight: u(54) }}>
+      <div style={{ display: "flex", fontSize: u(18), letterSpacing: u(4), color: "#8d88a8", textTransform: "uppercase" }}>
         {label}
       </div>
-      <div style={{ display: "flex", fontSize: 50, fontWeight: 800, color: ink, marginTop: 2 }}>{value}</div>
+      <div style={{ display: "flex", fontSize: u(50), fontWeight: 800, color: ink, marginTop: u(2) }}>{value}</div>
     </div>
   );
 
@@ -193,7 +199,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           <svg
             width={SIZE.width}
             height={SIZE.height}
-            viewBox={`0 0 ${SIZE.width} ${SIZE.height}`}
+            viewBox={`0 0 ${CARD.width} ${CARD.height}`}
             style={{ position: "absolute", left: 0, top: 0, width: SIZE.width, height: SIZE.height }}
           >
             {marks()}
@@ -210,12 +216,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
                 <div
                   key={row.label}
                   style={{
-                    display: "flex", position: "absolute", top: y - 10, fontSize: 15, color: "#8d88a8",
+                    display: "flex", position: "absolute", top: u(y - 10), fontSize: u(15), color: "#8d88a8",
                     ...(middle
-                      ? { left: x - 80, width: 160, justifyContent: "center" }
+                      ? { left: u(x - 80), width: u(160), justifyContent: "center" }
                       : right
-                        ? { left: x }
-                        : { right: SIZE.width - x }),
+                        ? { left: u(x) }
+                        : { right: u(CARD.width - x) }),
                   }}
                 >
                   {row.label}
@@ -227,18 +233,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
         {/* with no line to draw there is nothing holding the lower half, so the figures take the
             middle rather than sitting above an empty space */}
         <div style={{ display: "flex", flexDirection: "column", width: "100%",
-                      padding: drawable ? "36px 64px 0" : "0 64px",
+                      padding: drawable ? `${u(36)}px ${u(64)}px 0` : `0 ${u(64)}px`,
                       justifyContent: drawable ? "flex-start" : "center" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", fontSize: 20, letterSpacing: 5, color: "#918ba6", textTransform: "uppercase" }}>
+            <div style={{ display: "flex", fontSize: u(20), letterSpacing: u(5), color: "#918ba6", textTransform: "uppercase" }}>
               {region} · {name}
             </div>
-            <div style={{ display: "flex", fontSize: 30, fontWeight: 800 }}>
+            <div style={{ display: "flex", fontSize: u(30), fontWeight: 800 }}>
               Ras<span style={{ color: tint }}>mai</span>
             </div>
           </div>
 
-          <div style={{ display: "flex", marginTop: 20 }}>
+          <div style={{ display: "flex", marginTop: u(20) }}>
             {figure("rating", rating.toLocaleString("en"))}
             {wants.charts !== false ? figure("charts", charts.toLocaleString("en")) : null}
             {wants.plays ? figure("plays", plays.toLocaleString("en")) : null}
@@ -248,8 +254,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           </div>
 
           {drawable ? (
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: PLOT.height + 56,
-                          fontSize: 19, color: "#8d88a8" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: u(PLOT.height + 56),
+                          fontSize: u(19), color: "#8d88a8" }}>
               <div style={{ display: "flex" }}>{visual === "curve" ? day(points[0].at) : ""}</div>
               <div style={{ display: "flex" }}>
                 {visual === "curve" ? "rating over time"

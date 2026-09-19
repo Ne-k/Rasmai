@@ -18,6 +18,7 @@ type Shared = {
   name?: string; rating?: number; region?: string; charts?: number; updatedAt?: string;
   // what its owner chose for the card, set in the Account tab
   card?: { on?: boolean }; embed?: { region?: boolean; charts?: boolean }; colour?: string;
+  visual?: string;
 };
 
 /**
@@ -68,8 +69,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
  */
 function card(slug: string, profile: Shared): string {
   const moved = Date.parse(String(profile.updatedAt || "")) || 0;
-  const stamp = moved ? Math.floor(moved / 1000) : Number(profile.rating || 0);
-  return `${SITE}/p/${slug}/card.png?v=${stamp}`;
+  const when = moved ? Math.floor(moved / 1000) : Number(profile.rating || 0);
+  // the settings go in as well. A rating is read every few days, but a picture changes the moment
+  // somebody picks a different one, and without this the proxy keeps handing out the old one.
+  const chosen = JSON.stringify([profile.card, profile.embed, profile.colour, profile.visual]);
+  let hash = 0;
+  for (let i = 0; i < chosen.length; i += 1) hash = (Math.imul(hash, 31) + chosen.charCodeAt(i)) | 0;
+  return `${SITE}/p/${slug}/card.png?v=${when}-${(hash >>> 0).toString(36)}`;
 }
 
 /**

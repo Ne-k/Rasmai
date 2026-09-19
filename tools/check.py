@@ -2887,6 +2887,20 @@ def _card_choices():
         if "#[0-9a-f]{6}" not in source:
             problems.append(f"{what} takes a colour from the payload without checking it is one")
 
+    # Discord keeps its own copy of a picture, keyed on the address. A rating is read every few days
+    # but a picture changes the moment somebody picks a different one, so the address has to carry
+    # the choices as well: without them the proxy went on serving the old picture and only the
+    # accent colour, which lives in the payload rather than the picture, appeared to change.
+    stamp = page.split("function card(", 1)[-1].split(chr(10) + "}", 1)[0]
+    for field in ("profile.card", "profile.embed", "profile.colour", "profile.visual"):
+        if field not in stamp:
+            problems.append(f"the card address does not move when {field.split('.')[-1]} changes, "
+                            "so Discord keeps showing the old picture")
+
+    # and the picture is drawn larger than it is shown, or it arrives blown up from half the size
+    if "SCALE" not in picture or "const u = " not in picture:
+        problems.append("the picture is drawn at the size it is shown, which reads as soft")
+
     # the window asks this site for the preview rather than the address the bot publishes: those can
     # differ, and the page only allows pictures from itself
     sheet = (ROOT / "web" / "components" / "dash" / "EmbedCard.tsx").read_text(encoding="utf-8")
@@ -2904,10 +2918,14 @@ def _card_choices():
     if "profile.embed" not in page or "card?.on === false" not in page:
         problems.append("the unfurl ignores what its owner chose to put on it")
 
-    # a picture Discord gives the full width to should not be taller than it needs to be
-    size = re.search(r"const SIZE = \{ width: (\d+), height: (\d+) \}", picture)
-    if not size or int(size.group(2)) > 460:
-        problems.append(f"the card picture is {size and size.group(2)} tall, which pushes the text off the screen")
+    # a picture Discord gives the full width to should not be tall beside it. Measured in the card's
+    # own units, which is the shape: the file itself is drawn at a multiple of them.
+    size = re.search(r"const CARD = \{ width: (\d+), height: (\d+) \}", picture)
+    if not size:
+        problems.append("the picture does not say what shape it is")
+    elif int(size.group(2)) > 460:
+        problems.append(f"the card picture is {size.group(2)} tall beside {size.group(1)} wide, "
+                        "which pushes the text off the screen")
     return problems
 
 
