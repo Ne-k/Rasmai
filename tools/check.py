@@ -2838,6 +2838,15 @@ def _card_choices():
         if again["card"] != state["card"] or again["embed"] != state["embed"]:
             problems.append("the Account tab is shown something other than what was saved")
 
+        # the colour is the one field that is not a yes or a no, and it is drawn straight into the
+        # markup of a picture, so anything that is not a colour has to come back as the one they had
+        for bad in ("red", "#12345", "javascript:alert(1)", "", "#gggggg"):
+            kept = set_sharing("u1", None, None, False, {"shareSlug": "abcdefghij"}, colour=bad)["colour"]
+            if not re.fullmatch(r"#[0-9a-f]{6}", kept):
+                problems.append(f"{bad!r} was accepted as a colour and came back as {kept!r}")
+        if set_sharing("u1", None, None, False, {"shareSlug": "abcdefghij"}, colour="#21C3E3")["colour"] != "#21c3e3":
+            problems.append("a colour the browser sent in capitals was refused")
+
         # the name and the rating are what makes it their profile, so neither is a switch
         for banned in ("name", "rating"):
             if banned in CARD_FIELDS or banned in EMBED_FIELDS:
@@ -2856,6 +2865,17 @@ def _card_choices():
     page = (ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx").read_text(encoding="utf-8")
     if "shared.card" not in picture:
         problems.append("the picture ignores what its owner chose to put on it")
+    for source, what in ((picture, "the picture"), (page, "the unfurl")):
+        if "#[0-9a-f]{6}" not in source:
+            problems.append(f"{what} takes a colour from the payload without checking it is one")
+
+    # the window asks this site for the preview rather than the address the bot publishes: those can
+    # differ, and the page only allows pictures from itself
+    sheet = (ROOT / "web" / "components" / "dash" / "EmbedCard.tsx").read_text(encoding="utf-8")
+    if "`/p/${slug}/card.png" not in sheet:
+        problems.append("the preview asks another address for the picture, which the page will refuse")
+    if "showModal" not in sheet:
+        problems.append("the customiser is not a window of its own")
     if "profile.embed" not in page or "card?.on === false" not in page:
         problems.append("the unfurl ignores what its owner chose to put on it")
 

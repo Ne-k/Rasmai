@@ -27,6 +27,8 @@ export type Sharing = {
   // what the link turns into when it is pasted in Discord
   card: { on: boolean; chart: boolean; gain: boolean; charts: boolean; plays: boolean };
   embed: { region: boolean; charts: boolean };
+  colour: string;
+  colours: string[];
 };
 
 export type TraitFamily = {

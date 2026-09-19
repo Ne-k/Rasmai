@@ -2,138 +2,174 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Sharing as SharingState } from "./api";
-import { Label } from "./bits";
 
-type Toggle<G extends "card" | "embed"> = { group: G; key: keyof SharingState[G]; label: string; note: string };
+type Toggle<G extends "card" | "embed"> = { key: keyof SharingState[G]; label: string; note: string };
 
 // the name and the rating are the card, so they are not here. Everything else is the owner's.
 const PICTURE: Toggle<"card">[] = [
-  { group: "card", key: "chart", label: "Rating over time", note: "the curve across the bottom" },
-  { group: "card", key: "gain", label: "What it moved", note: "how far the rating has come, and since when" },
-  { group: "card", key: "charts", label: "Charts scored", note: "how many charts you have a score on" },
-  { group: "card", key: "plays", label: "Play count", note: "how many credits you have put in" },
+  { key: "chart", label: "Rating over time", note: "the curve across the bottom" },
+  { key: "gain", label: "What it moved", note: "how far the rating has come, and since when" },
+  { key: "charts", label: "Charts scored", note: "how many charts you have a score on" },
+  { key: "plays", label: "Play count", note: "how many credits you have put in" },
 ];
 
 const TEXT: Toggle<"embed">[] = [
-  { group: "embed", key: "region", label: "Region", note: "international or Japan, beside the rating" },
-  { group: "embed", key: "charts", label: "Charts scored", note: "the count, beside the rating" },
+  { key: "region", label: "Region", note: "international or Japan, beside the rating" },
+  { key: "charts", label: "Charts scored", note: "the count, beside the rating" },
 ];
 
 /**
- * What a shared link turns into in Discord, and the switches for it.
+ * What a shared link turns into in Discord, and the switches for it, in a window of its own.
  *
- * The preview is the real picture from the real address, not a drawing of one, so what you are
- * looking at is what gets posted. Discord keeps its own copy of a picture for a long while, so the
- * address carries the moment the profile last changed; here it carries a counter as well, because
- * a toggle changes the picture without changing the profile.
+ * The preview is the real picture from the real address rather than a drawing of one, so what is on
+ * screen is what gets posted. It is asked for on this site's own address rather than the one the
+ * bot publishes: the two can differ, and the page only allows pictures from itself.
  */
-export function EmbedCard({ state, onSave, busy }: {
+export function EmbedCard({ state, onSave, busy, onClose }: {
   state: SharingState;
   onSave: (body: Record<string, unknown>) => void;
   busy: boolean;
+  onClose: () => void;
 }) {
+  const box = useRef<HTMLDialogElement>(null);
   const [drawn, setDrawn] = useState(0);
   const [failed, setFailed] = useState(false);
-  const first = useRef(true);
+  const [colour, setColour] = useState(state.colour);
+  const settled = useRef<number | null>(null);
 
-  // the saved state is what the picture is drawn from, so it is redrawn once a save lands
+  // opened once, on the way in. The caller usually passes a fresh arrow every render, and running
+  // this again would reopen the window the moment somebody closed it.
+  const shut = useRef(onClose);
+  shut.current = onClose;
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    const dialog = box.current;
+    if (!dialog) return;
+    dialog.showModal();
+    const closed = () => shut.current();
+    dialog.addEventListener("close", closed);
+    return () => dialog.removeEventListener("close", closed);
+  }, []);
+
+  // a save lands as new state, and the picture is drawn from what was saved
+  const drawnFrom = JSON.stringify([state.card, state.embed, state.colour]);
+  useEffect(() => {
     setDrawn((n) => n + 1);
     setFailed(false);
-  }, [state.card, state.embed]);
+    setColour(state.colour);
+  }, [drawnFrom, state.colour]);
 
-  if (!state.on || !state.url) return null;
-  const picture = `${state.url}/card.png?p=${drawn}`;
-  const bits = [`13,551 rating`];
+  // the colour well fires on every drag, so it is saved once the hand stops moving
+  const pick = (next: string) => {
+    setColour(next);
+    if (settled.current) window.clearTimeout(settled.current);
+    settled.current = window.setTimeout(() => onSave({ colour: next }), 320);
+  };
+
+  const slug = state.url.split("/p/")[1] ?? "";
+  const picture = `/p/${slug}/card.png?p=${drawn}`;
+  const bits = ["13,551 rating"];
   if (state.embed.region) bits.push("international");
   if (state.embed.charts) bits.push("551 charts scored");
 
+  const rows = <G extends "card" | "embed">(group: G, list: Toggle<G>[]) => (
+    <ul className="share-toggles">
+      {list.map((row) => (
+        <li key={String(row.key)}>
+          <label>
+            <input
+              type="checkbox"
+              checked={Boolean((state[group] as Record<string, boolean>)[row.key as string])}
+              disabled={busy}
+              onChange={(e) => onSave({ [group]: { [row.key]: e.target.checked } })}
+            />
+            <span>
+              <b>{row.label}</b>
+              <span className="dim">{row.note}</span>
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <div className="embed-card">
-      <div className="ledger-head">
-        <Label info="Discord reads this off the page when somebody pastes your link. The picture and the line under your name are yours to set; your name and rating are always on it, because without them it is not your profile.">
-          the card in Discord
-        </Label>
+    <dialog className="sheet" ref={box} aria-label="the card your link shows in Discord">
+      <div className="sheet-head">
+        <b>The card in Discord</b>
+        <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label="close">
+          ×
+        </button>
       </div>
 
-      <div className="embed-preview" aria-label="what the card looks like">
-        {state.card.on && !failed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={picture} alt="the picture above your card" onError={() => setFailed(true)} />
-        ) : null}
-        <div className="embed-body">
-          <b className="embed-title">your name</b>
-          <span className="embed-line">{bits.join(" · ")}</span>
-          <span className="embed-btn">See the profile</span>
+      <div className="sheet-body">
+        <p className="hint">
+          What Discord shows when somebody pastes your link. Your name and rating are always on it. Everything else
+          here is yours.
+        </p>
+
+        <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label="what the card looks like">
+          {state.card.on && !failed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={picture} alt="the picture above your card" onError={() => setFailed(true)} />
+          ) : null}
+          <div className="embed-body">
+            <b className="embed-title" style={{ color: colour }}>
+              your name
+            </b>
+            <span className="embed-line">{bits.join(" · ")}</span>
+            <span className="embed-btn">See the profile</span>
+          </div>
         </div>
+        {failed && <p className="hint">The picture is not ready yet. It will be there when Discord reads the card.</p>}
+
+        <p className="embed-group">colour</p>
+        <div className="swatches">
+          {state.colours.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`swatch${option.toLowerCase() === colour.toLowerCase() ? " on" : ""}`}
+              style={{ background: option }}
+              aria-label={option}
+              aria-pressed={option.toLowerCase() === colour.toLowerCase()}
+              disabled={busy}
+              onClick={() => pick(option)}
+            />
+          ))}
+          <label className="swatch-own">
+            <input type="color" value={colour} disabled={busy} onChange={(e) => pick(e.target.value)} />
+            <span>your own</span>
+          </label>
+        </div>
+
+        <label className="embed-main">
+          <input
+            type="checkbox"
+            checked={state.card.on}
+            disabled={busy}
+            onChange={(e) => onSave({ card: { on: e.target.checked } })}
+          />
+          <span>
+            <b>Show a picture</b>
+            <span className="dim">off leaves the name, the rating and the button</span>
+          </span>
+        </label>
+
+        {state.card.on && (
+          <>
+            <p className="embed-group">on the picture</p>
+            {rows("card", PICTURE)}
+          </>
+        )}
+
+        <p className="embed-group">under your name</p>
+        {rows("embed", TEXT)}
+
+        <p className="hint">
+          Discord holds on to a card for about half an hour after it first reads it, so a change shows up on the next
+          link you post rather than on one already sent.
+        </p>
       </div>
-      {failed && <p className="hint">The picture could not be drawn just now. It will be there when the card is read.</p>}
-
-      <label className="embed-main">
-        <input
-          type="checkbox"
-          checked={state.card.on}
-          disabled={busy}
-          onChange={(e) => onSave({ card: { on: e.target.checked } })}
-        />
-        <span>
-          <b>Show a picture</b>
-          <span className="dim">off leaves the name, the rating and the button</span>
-        </span>
-      </label>
-
-      {state.card.on && (
-        <>
-          <p className="embed-group">on the picture</p>
-          <ul className="share-toggles">
-            {PICTURE.map((row) => (
-              <li key={row.key}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(state.card[row.key])}
-                    disabled={busy}
-                    onChange={(e) => onSave({ card: { [row.key]: e.target.checked } })}
-                  />
-                  <span>
-                    <b>{row.label}</b>
-                    <span className="dim">{row.note}</span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <p className="embed-group">under your name</p>
-      <ul className="share-toggles">
-        {TEXT.map((row) => (
-          <li key={row.key}>
-            <label>
-              <input
-                type="checkbox"
-                checked={Boolean(state.embed[row.key])}
-                disabled={busy}
-                onChange={(e) => onSave({ embed: { [row.key]: e.target.checked } })}
-              />
-              <span>
-                <b>{row.label}</b>
-                <span className="dim">{row.note}</span>
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-
-      <p className="hint">
-        Discord holds on to a card for about half an hour after it first reads it, so a change shows up on the next link
-        you post rather than on one already sent.
-      </p>
-    </div>
+    </dialog>
   );
 }

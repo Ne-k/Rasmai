@@ -1,4 +1,5 @@
 from typing import Dict, Any
+import re
 
 from rasmai.storage.db import get_user_settings, set_user_settings
 
@@ -25,6 +26,7 @@ DEFAULTS: Dict[str, Any] = {
     "card_plays": False,         # the play count
     "embed_region": True,        # "international" or "Japan" beside the rating
     "embed_charts": True,        # the chart count beside the rating
+    "card_colour": "#ff3d8f",    # the stripe down the card, and the figures on the picture
 }
 
 # what a public profile may carry, beyond the name and rating that are the point of having one
@@ -34,6 +36,11 @@ PUBLIC_SECTIONS = ("best50", "traits", "recent", "areas")
 # everything else here is the owner's to switch off.
 CARD_FIELDS = ("on", "chart", "gain", "charts", "plays")
 EMBED_FIELDS = ("region", "charts")
+
+# the stripe down the side of the card and the figures on the picture. Anything a browser's colour
+# well can produce is allowed; these are only the ones offered as a starting point.
+CARD_COLOURS = ("#ff3d8f", "#21c3e3", "#5ad18f", "#f0c04a", "#a78bfa", "#f4f0e6")
+COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 LAYOUTS = ("both", "embed", "image")
 NEW_DIFFICULTIES = ("any", "master", "remaster", "expert", "advanced", "basic")
@@ -52,6 +59,17 @@ def get_prefs(user_id: str) -> Dict[str, Any]:
     if prefs["challenge"] not in CHALLENGES:
         prefs["challenge"] = "balanced"
     return prefs
+
+
+def clean_colour(value: Any, fallback: str = "#ff3d8f") -> str:
+    """A colour the card can actually be drawn in, or the one it had.
+
+    :param value: What the browser sent.
+    :type value: Any
+    :rtype: str
+    """
+    text = str(value or "").strip()
+    return text.lower() if COLOUR.fullmatch(text) else fallback
 
 
 def update_prefs(user_id: str, **changes: Any) -> Dict[str, Any]:

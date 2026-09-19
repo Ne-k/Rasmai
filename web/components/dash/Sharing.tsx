@@ -15,6 +15,7 @@ const SECTIONS: { key: keyof SharingState["sections"]; label: string; note: stri
 /** The public profile: a link anyone can open, carrying only the sections that are switched on. */
 export function Sharing({ state, onChange }: { state: SharingState; onChange: (next: SharingState) => void }) {
   const [busy, setBusy] = useState(false);
+  const [customising, setCustomising] = useState(false);
   const [copied, setCopied] = useState(false);
   const [note, setNote] = useState("");
 
@@ -91,7 +92,16 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
         </ul>
       )}
 
-      {state.on && <EmbedCard state={state} onSave={save} busy={busy} />}
+      {state.on && (
+        <div className="btn-row">
+          <button type="button" className="button ghost" onClick={() => setCustomising(true)}>
+            customise the Discord card
+          </button>
+        </div>
+      )}
+      {state.on && customising && (
+        <EmbedCard state={state} onSave={save} busy={busy} onClose={() => setCustomising(false)} />
+      )}
 
       {note && <p className="hint">{note}</p>}
       {state.on && <p className="hint">A new link stops the old one working, so anything already passed around goes dead.</p>}

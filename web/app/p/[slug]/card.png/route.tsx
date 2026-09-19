@@ -21,7 +21,7 @@ type Point = { recordedAt?: string; rating?: number };
 type Card = { on?: boolean; chart?: boolean; gain?: boolean; charts?: boolean; plays?: boolean };
 type Shared = {
   name?: string; rating?: number; region?: string; charts?: number; plays?: number;
-  history?: Point[]; card?: Card;
+  history?: Point[]; card?: Card; colour?: string;
 };
 
 /** A date as the card says it: "Sep 3". */
@@ -57,6 +57,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   if (!name) return new Response("not found", { status: 404 });
 
   const wants: Card = { on: true, chart: true, gain: true, charts: true, plays: false, ...(shared.card ?? {}) };
+  // the owner's colour, or the brand's when there is not one. Checked again here because this is
+  // drawn straight into the markup and a colour is the one field that is not a yes or a no.
+  const tint = /^#[0-9a-f]{6}$/i.test(String(shared.colour ?? "")) ? String(shared.colour) : "#ff3d8f";
   const region = String(shared.region || "intl").toUpperCase();
   const rating = Number(shared.rating || 0);
   const charts = Number(shared.charts || 0);
@@ -81,12 +84,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const gain = points.length > 1 ? last.rating - points[0].rating : 0;
   const drawable = wants.chart !== false && points.length >= ENOUGH;
 
-  const figure = (label: string, value: string, tint = "#45d6f2") => (
+  const figure = (label: string, value: string, ink = tint) => (
     <div style={{ display: "flex", flexDirection: "column", marginRight: 54 }}>
       <div style={{ display: "flex", fontSize: 18, letterSpacing: 4, color: "#8d88a8", textTransform: "uppercase" }}>
         {label}
       </div>
-      <div style={{ display: "flex", fontSize: 50, fontWeight: 800, color: tint, marginTop: 2 }}>{value}</div>
+      <div style={{ display: "flex", fontSize: 50, fontWeight: 800, color: ink, marginTop: 2 }}>{value}</div>
     </div>
   );
 
@@ -112,14 +115,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
             viewBox={`0 0 ${SIZE.width} ${SIZE.height}`}
             style={{ position: "absolute", left: 0, top: 0, width: SIZE.width, height: SIZE.height }}
           >
-            <polygon points={area} fill="#45d6f2" fillOpacity="0.14" />
-            <polyline points={line} fill="none" stroke="#45d6f2" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />
+            <polygon points={area} fill={tint} fillOpacity="0.14" />
+            <polyline points={line} fill="none" stroke={tint} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />
             {points.map((p, i) => {
               const [x, y] = at(i, p.rating);
               const tip = i === points.length - 1;
               return (
-                <circle key={i} cx={x} cy={y} r={tip ? 8 : 4} fill={tip ? "#ff5c9f" : "#14121c"}
-                        stroke={tip ? "#ff5c9f" : "#45d6f2"} strokeWidth="3" />
+                <circle key={i} cx={x} cy={y} r={tip ? 8 : 4} fill={tip ? "#f4f0e6" : "#14121c"}
+                        stroke={tip ? "#f4f0e6" : tint} strokeWidth="3" />
               );
             })}
           </svg>
@@ -135,7 +138,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
               {region} · {name}
             </div>
             <div style={{ display: "flex", fontSize: 30, fontWeight: 800 }}>
-              Ras<span style={{ color: "#ff5c9f" }}>mai</span>
+              Ras<span style={{ color: tint }}>mai</span>
             </div>
           </div>
 

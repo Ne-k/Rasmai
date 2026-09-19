@@ -17,7 +17,7 @@ const SITE = env.publicUrl();
 type Shared = {
   name?: string; rating?: number; region?: string; charts?: number; updatedAt?: string;
   // what its owner chose for the card, set in the Account tab
-  card?: { on?: boolean }; embed?: { region?: boolean; charts?: boolean };
+  card?: { on?: boolean }; embed?: { region?: boolean; charts?: boolean }; colour?: string;
 };
 
 /**
@@ -93,7 +93,8 @@ function unfurl(slug: string, profile: Shared): Embed | null {
   const parts = [`**${rating.toLocaleString("en")}** rating`];
   if (wants.region) parts.push(String(profile.region || "").toUpperCase() === "JP" ? "Japan" : "international");
   if (wants.charts && charts) parts.push(`${charts.toLocaleString("en")} charts scored`);
-  return embed("#ff3d8f", [
+  const tint = /^#[0-9a-f]{6}$/i.test(String(profile.colour ?? "")) ? String(profile.colour) : "#ff3d8f";
+  return embed(tint, [
     // the picture is the owner's to leave off, and then the card is the headline and the buttons
     profile.card?.on === false
       ? null
