@@ -7,6 +7,7 @@ const STEPS = ["Get your link", "Sign in", "Connect"];
 const NAV: [string, string][] = [
   ["home", "/"],
   ["link", "/link/"],
+  ["commands", "/commands/"],
   ["dashboard", "/me/"],
   ["invite", "/invite"],
 ];

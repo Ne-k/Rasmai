@@ -188,6 +188,37 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 .doc ul { margin: 0 0 12px 22px; padding: 0; }
 .doc li { margin: 6px 0; }
 .doc b { color: var(--ink); }
+/* the commands page: what you type on the left, what comes back on the right */
+.cmds { margin: 0 0 18px; border-top: 1px solid var(--line); }
+.cmd { display: grid; grid-template-columns: 210px 1fr; gap: 18px; padding: 14px 0;
+       border-bottom: 1px solid var(--line); }
+.cmd-name { display: flex; flex-direction: column; gap: 4px; }
+.cmd-name code { font-family: var(--font-mono), monospace; font-size: 14px; color: var(--ink);
+                 background: none; padding: 0; }
+.cmd-args { font-family: var(--font-mono), monospace; font-size: 12px; color: var(--muted); }
+.cmd-what { color: var(--ink-2); font-size: 15.5px; line-height: 1.65; }
+.cmd-what code { font-family: var(--font-mono), monospace; font-size: 13px; }
+@media (max-width: 640px) {
+  .cmd { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* a word you can hover for what it means, and tap for the same on a phone */
+.term { position: relative; display: inline-block; }
+.term-word { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: help;
+             border-bottom: 1px dotted var(--muted); }
+.term-word:hover, .term-word:focus-visible { border-bottom-color: var(--pink); color: var(--pink); }
+.term-word:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 2px; }
+.term-pop { position: absolute; left: 0; bottom: calc(100% + 9px); z-index: 30; width: max-content;
+            max-width: min(320px, 78vw); padding: 9px 12px; font-family: var(--font-body), sans-serif;
+            font-size: 13.5px; line-height: 1.5; font-weight: 400; text-transform: none; letter-spacing: 0;
+            color: var(--ink-2); background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16); opacity: 0; visibility: hidden;
+            transition: opacity 120ms ease; }
+.term-pop.on { opacity: 1; visibility: visible; }
+/* near the right edge the box would run off the page, so it hangs from the right instead */
+.term:nth-last-child(-n + 2) .term-pop { left: auto; right: 0; }
+@media (prefers-reduced-motion: reduce) { .term-pop { transition: none; } }
+
 .doc-date { font-family: var(--font-mono), monospace; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin: -16px 0 8px; }
 .foot a { color: var(--muted); text-decoration: none; }
 .foot a:hover { color: var(--ink); text-decoration: underline; }

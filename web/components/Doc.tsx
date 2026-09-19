@@ -15,9 +15,9 @@ export function Contact() {
 }
 export const EFFECTIVE_DATE = "5 September 2026";
 
-type DocProps = { tag: string; title: React.ReactNode; intro: string; children: React.ReactNode };
+type DocProps = { tag: string; title: React.ReactNode; intro: string; dated?: boolean; children: React.ReactNode };
 
-export function Doc({ tag, title, intro, children }: DocProps) {
+export function Doc({ tag, title, intro, dated = true, children }: DocProps) {
   return (
     <div className="frame">
       <header className="masthead">
@@ -33,7 +33,7 @@ export function Doc({ tag, title, intro, children }: DocProps) {
       <main className="doc">
         <h1>{title}</h1>
         <p className="lede">{intro}</p>
-        <p className="doc-date">Effective {EFFECTIVE_DATE}</p>
+        {dated ? <p className="doc-date">Effective {EFFECTIVE_DATE}</p> : null}
         {children}
       </main>
       <footer className="foot">
