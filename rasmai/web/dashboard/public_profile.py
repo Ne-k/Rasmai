@@ -3,8 +3,9 @@ import logging
 import secrets
 import string
 
-from rasmai.bot.state.prefs import (CARD_COLOURS, CARD_FIELDS, EMBED_FIELDS, PUBLIC_SECTIONS,
-                                    clean_colour, get_prefs, update_prefs)
+from rasmai.bot.state.prefs import (CARD_COLOURS, CARD_FIELDS, CARD_VISUALS, EMBED_FIELDS,
+                                    PUBLIC_SECTIONS, VISUAL_NEEDS, clean_colour, clean_visual,
+                                    get_prefs, update_prefs)
 from rasmai.bot.state.snapshots import snapshot_charts
 from rasmai.config import get_public_base_url
 from rasmai.engine.analysis import rank_for
@@ -67,13 +68,19 @@ def sharing_payload(user_id: str, account: Optional[Dict[str, Any]]) -> Dict[str
         "embed": {name: bool(prefs.get(f"embed_{name}")) for name in EMBED_FIELDS},
         "colour": clean_colour(prefs.get("card_colour")),
         "colours": list(CARD_COLOURS),
+        "visual": clean_visual(prefs.get("card_visual")),
+        # a picture that needs a section the profile is not carrying cannot be drawn, so the window
+        # says so rather than letting somebody choose an empty frame
+        "visuals": [{"key": name, "needs": VISUAL_NEEDS.get(name, ""),
+                     "ready": not VISUAL_NEEDS.get(name) or bool(prefs.get(f"public_{VISUAL_NEEDS[name]}"))}
+                    for name in CARD_VISUALS],
     }
 
 
 def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, Any]] = None,
                 rotate: bool = False, account: Optional[Dict[str, Any]] = None,
                 card: Optional[Dict[str, Any]] = None, embed: Optional[Dict[str, Any]] = None,
-                colour: Optional[str] = None) -> Dict[str, Any]:
+                colour: Optional[str] = None, visual: Optional[str] = None) -> Dict[str, Any]:
     """Turn the public profile on or off, choose what it carries, or issue a fresh link.
 
     Turning it off leaves the slug in place but stops answering on it; asking for a new link
@@ -104,6 +111,8 @@ def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, A
     if colour is not None:
         # anything that is not a colour leaves the one they had, rather than drawing nothing
         changes["card_colour"] = clean_colour(colour, str(get_prefs(user_id).get("card_colour") or "#ff3d8f"))
+    if visual is not None:
+        changes["card_visual"] = clean_visual(visual, str(get_prefs(user_id).get("card_visual") or "curve"))
     if changes:
         update_prefs(user_id, **changes)
     slug = str((account or {}).get("shareSlug") or "")
@@ -148,6 +157,7 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
         "card": {name: bool(prefs.get(f"card_{name}")) for name in CARD_FIELDS},
         "embed": {name: bool(prefs.get(f"embed_{name}")) for name in EMBED_FIELDS},
         "colour": clean_colour(prefs.get("card_colour")),
+        "visual": clean_visual(prefs.get("card_visual")),
     }
 
     covers = _covers() if (shows["best50"] or shows["recent"]) else None

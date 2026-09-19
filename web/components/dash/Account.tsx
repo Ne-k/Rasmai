@@ -18,6 +18,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
     card: { on: true, chart: true, gain: true, charts: true, plays: false },
     embed: { region: true, charts: true },
     colour: "#ff3d8f", colours: ["#ff3d8f"],
+    visual: "curve", visuals: [{ key: "curve", needs: "", ready: true }],
   });
   const [beta, setBeta] = useState(me.beta ?? { on: {}, features: [] });
   const start = () => {

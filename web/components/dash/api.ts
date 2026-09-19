@@ -29,6 +29,8 @@ export type Sharing = {
   embed: { region: boolean; charts: boolean };
   colour: string;
   colours: string[];
+  visual: string;
+  visuals: { key: string; needs: string; ready: boolean }[];
 };
 
 export type TraitFamily = {

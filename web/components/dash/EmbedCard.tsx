@@ -13,6 +13,14 @@ const PICTURE: Toggle<"card">[] = [
   { key: "plays", label: "Play count", note: "how many credits you have put in" },
 ];
 
+// what the picture can be a picture of. Two of them need a section the profile may not be sharing.
+const VISUALS: Record<string, { label: string; note: string }> = {
+  curve: { label: "Rating over time", note: "where your rating has been going" },
+  best50: { label: "Your best 50", note: "the fifty charts it is made of, tallest first" },
+  traits: { label: "How you play", note: "the wheel of what each part of your play asks" },
+  figures: { label: "Just the figures", note: "no chart, the numbers on their own" },
+};
+
 const TEXT: Toggle<"embed">[] = [
   { key: "region", label: "Region", note: "international or Japan, beside the rating" },
   { key: "charts", label: "Charts scored", note: "the count, beside the rating" },
@@ -51,7 +59,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   }, []);
 
   // a save lands as new state, and the picture is drawn from what was saved
-  const drawnFrom = JSON.stringify([state.card, state.embed, state.colour]);
+  const drawnFrom = JSON.stringify([state.card, state.embed, state.colour, state.visual]);
   useEffect(() => {
     setDrawn((n) => n + 1);
     setFailed(false);
@@ -121,6 +129,33 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           </div>
         </div>
         {failed && <p className="hint">The picture is not ready yet. It will be there when Discord reads the card.</p>}
+
+        <p className="embed-group">the picture</p>
+        <ul className="visuals">
+          {state.visuals.map((option) => {
+            const about = VISUALS[option.key];
+            if (!about) return null;
+            return (
+              <li key={option.key}>
+                <label className={option.ready ? "" : "off"}>
+                  <input
+                    type="radio"
+                    name="visual"
+                    checked={state.visual === option.key}
+                    disabled={busy || !option.ready}
+                    onChange={() => onSave({ visual: option.key })}
+                  />
+                  <span>
+                    <b>{about.label}</b>
+                    <span className="dim">
+                      {option.ready ? about.note : `turn ${option.needs === "best50" ? "Best 50" : "Traits"} on above first`}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
 
         <p className="embed-group">colour</p>
         <div className="swatches">

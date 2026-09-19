@@ -18,10 +18,14 @@ const PLOT = { left: 64, top: 226, width: 972, height: 118 };
 const ENOUGH = 3;
 
 type Point = { recordedAt?: string; rating?: number };
+type Chart = { rating?: number };
+type Family = { label?: string; offset?: number };
 type Card = { on?: boolean; chart?: boolean; gain?: boolean; charts?: boolean; plays?: boolean };
 type Shared = {
   name?: string; rating?: number; region?: string; charts?: number; plays?: number;
-  history?: Point[]; card?: Card; colour?: string;
+  history?: Point[]; card?: Card; colour?: string; visual?: string;
+  best50?: { new?: Chart[]; old?: Chart[] };
+  traitFamilies?: Family[];
 };
 
 /** A date as the card says it: "Sep 3". */
@@ -82,7 +86,84 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const area = `${PLOT.left},${PLOT.top + PLOT.height} ${line} ${PLOT.left + PLOT.width},${PLOT.top + PLOT.height}`;
   const last = points[points.length - 1];
   const gain = points.length > 1 ? last.rating - points[0].rating : 0;
-  const drawable = wants.chart !== false && points.length >= ENOUGH;
+
+  // the fifty charts the rating is made of, tallest first: a skyline of where the rating comes from
+  const best = [...(shared.best50?.new ?? []), ...(shared.best50?.old ?? [])]
+    .map((row) => Number(row.rating ?? 0))
+    .filter((value) => value > 0)
+    .sort((a, b) => b - a);
+  const skyline = () => {
+    const top = Math.max(...best);
+    const foot = Math.min(...best);
+    const reach = top - foot || 1;
+    const step = PLOT.width / best.length;
+    return best.map((value, i) => {
+      // a bar is never nothing, so the shortest still reads as a bar rather than a gap
+      const tall = 16 + ((value - foot) / reach) * (PLOT.height - 16);
+      return (
+        <rect key={i} x={PLOT.left + i * step} y={PLOT.top + PLOT.height - tall}
+              width={Math.max(2, step - 3)} height={tall} fill={tint}
+              fillOpacity={i < 15 ? 0.95 : 0.55} />
+      );
+    });
+  };
+
+  // the five or six groups the traits roll up into, as a wheel. The middle ring is their own
+  // average, so a point outside it is a group they beat themselves on.
+  const families = (shared.traitFamilies ?? [])
+    .map((row) => ({ label: String(row.label ?? ""), offset: Number(row.offset ?? 0) }))
+    .filter((row) => row.label)
+    .slice(0, 8);
+  // left of centre and a little smaller, so the longest group name still has room to sit beside it
+  const wheel = { x: 818, y: 226, r: 94 };
+  const corner = (i: number, scale: number) => {
+    const turn = (i / families.length) * Math.PI * 2 - Math.PI / 2;
+    return [wheel.x + Math.cos(turn) * wheel.r * scale, wheel.y + Math.sin(turn) * wheel.r * scale];
+  };
+  // the widest gap sets the edge, so a wheel is never all rim or all centre
+  const widest = Math.max(0.35, ...families.map((row) => Math.abs(row.offset)));
+  const ring = (scale: number) => families.map((_, i) => corner(i, scale).join(",")).join(" ");
+  const shape = families.map((row, i) => corner(i, 0.45 + (row.offset / widest) * 0.45).join(",")).join(" ");
+
+  // the owner's pick, unless the thing it draws is not there, in which case the figures stand alone
+  const asked = String(shared.visual ?? "curve");
+  const visual = asked === "curve" && points.length < ENOUGH ? "figures"
+    : asked === "best50" && best.length < 5 ? "figures"
+    : asked === "traits" && families.length < 3 ? "figures"
+    : asked;
+  const drawable = wants.chart !== false && visual !== "figures";
+
+  // every picture is a flat list of marks rather than a fragment: Satori draws an array inside an
+  // svg and chokes on a fragment there, which is a blank card and no error anybody would see
+  const marks = (): React.ReactNode[] => {
+    if (visual === "curve") {
+      return [
+        <polygon key="fill" points={area} fill={tint} fillOpacity="0.14" />,
+        <polyline key="line" points={line} fill="none" stroke={tint} strokeWidth="4"
+                  strokeLinejoin="round" strokeLinecap="round" />,
+        ...points.map((p, i) => {
+          const [x, y] = at(i, p.rating);
+          const tip = i === points.length - 1;
+          return (
+            <circle key={`p${i}`} cx={x} cy={y} r={tip ? 8 : 4} fill={tip ? "#f4f0e6" : "#14121c"}
+                    stroke={tip ? "#f4f0e6" : tint} strokeWidth="3" />
+          );
+        }),
+      ];
+    }
+    if (visual === "best50") return skyline();
+    if (visual === "traits") {
+      return [
+        ...[1, 0.66, 0.33].map((scale) => (
+          <polygon key={`r${scale}`} points={ring(scale)} fill="none" stroke="#2b2742" strokeWidth="1.5" />
+        )),
+        <polygon key="mid" points={ring(0.45)} fill="none" stroke="#3d3857" strokeWidth="2" strokeDasharray="4 4" />,
+        <polygon key="them" points={shape} fill={tint} fillOpacity="0.2" stroke={tint} strokeWidth="3"
+                 strokeLinejoin="round" />,
+      ];
+    }
+    return [];
+  };
 
   const figure = (label: string, value: string, ink = tint) => (
     <div style={{ display: "flex", flexDirection: "column", marginRight: 54 }}>
@@ -115,18 +196,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
             viewBox={`0 0 ${SIZE.width} ${SIZE.height}`}
             style={{ position: "absolute", left: 0, top: 0, width: SIZE.width, height: SIZE.height }}
           >
-            <polygon points={area} fill={tint} fillOpacity="0.14" />
-            <polyline points={line} fill="none" stroke={tint} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />
-            {points.map((p, i) => {
-              const [x, y] = at(i, p.rating);
-              const tip = i === points.length - 1;
-              return (
-                <circle key={i} cx={x} cy={y} r={tip ? 8 : 4} fill={tip ? "#f4f0e6" : "#14121c"}
-                        stroke={tip ? "#f4f0e6" : tint} strokeWidth="3" />
-              );
-            })}
+            {marks()}
           </svg>
         ) : null}
+
+        {/* Satori draws no text inside an svg, so the wheel's labels sit over it as their own layer */}
+        {visual === "traits"
+          ? families.map((row, i) => {
+              const [x, y] = corner(i, 1.26);
+              const right = x > wheel.x + 6;
+              const middle = Math.abs(x - wheel.x) <= 6;
+              return (
+                <div
+                  key={row.label}
+                  style={{
+                    display: "flex", position: "absolute", top: y - 10, fontSize: 15, color: "#8d88a8",
+                    ...(middle
+                      ? { left: x - 80, width: 160, justifyContent: "center" }
+                      : right
+                        ? { left: x }
+                        : { right: SIZE.width - x }),
+                  }}
+                >
+                  {row.label}
+                </div>
+              );
+            })
+          : null}
 
         {/* with no line to draw there is nothing holding the lower half, so the figures take the
             middle rather than sitting above an empty space */}
@@ -154,9 +250,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           {drawable ? (
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: PLOT.height + 56,
                           fontSize: 19, color: "#8d88a8" }}>
-              <div style={{ display: "flex" }}>{day(points[0].at)}</div>
-              <div style={{ display: "flex" }}>rating over time</div>
-              <div style={{ display: "flex" }}>{day(last.at)}</div>
+              <div style={{ display: "flex" }}>{visual === "curve" ? day(points[0].at) : ""}</div>
+              <div style={{ display: "flex" }}>
+                {visual === "curve" ? "rating over time"
+                  : visual === "best50" ? `the ${best.length} charts your rating is made of`
+                  : "what each part of your play asks"}
+              </div>
+              <div style={{ display: "flex" }}>{visual === "curve" ? day(last.at) : ""}</div>
             </div>
           ) : null}
         </div>

@@ -2817,7 +2817,7 @@ def _card_choices():
     import re
     import tempfile
 
-    from rasmai.bot.state.prefs import CARD_FIELDS, EMBED_FIELDS
+    from rasmai.bot.state.prefs import CARD_FIELDS, CARD_VISUALS, EMBED_FIELDS
     from rasmai.storage.db import connection as store
     from rasmai.web.dashboard.public_profile import set_sharing, sharing_payload
 
@@ -2846,6 +2846,24 @@ def _card_choices():
                 problems.append(f"{bad!r} was accepted as a colour and came back as {kept!r}")
         if set_sharing("u1", None, None, False, {"shareSlug": "abcdefghij"}, colour="#21C3E3")["colour"] != "#21c3e3":
             problems.append("a colour the browser sent in capitals was refused")
+
+        # a picture nobody drew is a blank card, and anything unknown falls back rather than failing
+        for bad in ("rainbow", "", "<script>", None):
+            kept = set_sharing("u1", None, None, False, {"shareSlug": "abcdefghij"}, visual=bad)["visual"]
+            if kept not in CARD_VISUALS:
+                problems.append(f"{bad!r} was accepted as a picture and came back as {kept!r}")
+        if set_sharing("u1", None, None, False, {"shareSlug": "abcdefghij"}, visual="best50")["visual"] != "best50":
+            problems.append("a picture the window offered was refused")
+
+        # two of them need a section the profile may not be carrying, and the window has to say so
+        offered = {row["key"]: row for row in set_sharing("u1", None, {"traits": False}, False,
+                                                          {"shareSlug": "abcdefghij"})["visuals"]}
+        if set(offered) != set(CARD_VISUALS):
+            problems.append(f"the window is offered {sorted(offered)}, not the pictures that exist")
+        if offered["traits"]["ready"]:
+            problems.append("the traits wheel is offered while the profile does not carry its traits")
+        if not offered["curve"]["ready"] or not offered["figures"]["ready"]:
+            problems.append("a picture that needs nothing was marked unavailable")
 
         # the name and the rating are what makes it their profile, so neither is a switch
         for banned in ("name", "rating"):
@@ -2876,6 +2894,13 @@ def _card_choices():
         problems.append("the preview asks another address for the picture, which the page will refuse")
     if "showModal" not in sheet:
         problems.append("the customiser is not a window of its own")
+
+    # Satori draws neither a fragment nor a text node inside an svg. Both fail as a blank card with
+    # nothing said anywhere a reader would look, so the pictures are arrays and the labels are html.
+    if "<text" in picture:
+        problems.append("a picture draws an svg text node, which Satori refuses outright")
+    if "<>" in picture.split("<svg", 1)[-1].split("</svg>", 1)[0]:
+        problems.append("a picture puts a fragment inside its svg, which Satori refuses outright")
     if "profile.embed" not in page or "card?.on === false" not in page:
         problems.append("the unfurl ignores what its owner chose to put on it")
 

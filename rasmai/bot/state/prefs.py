@@ -27,6 +27,7 @@ DEFAULTS: Dict[str, Any] = {
     "embed_region": True,        # "international" or "Japan" beside the rating
     "embed_charts": True,        # the chart count beside the rating
     "card_colour": "#ff3d8f",    # the stripe down the card, and the figures on the picture
+    "card_visual": "curve",      # what the picture is a picture of
 }
 
 # what a public profile may carry, beyond the name and rating that are the point of having one
@@ -40,6 +41,11 @@ EMBED_FIELDS = ("region", "charts")
 # the stripe down the side of the card and the figures on the picture. Anything a browser's colour
 # well can produce is allowed; these are only the ones offered as a starting point.
 CARD_COLOURS = ("#ff3d8f", "#21c3e3", "#5ad18f", "#f0c04a", "#a78bfa", "#f4f0e6")
+
+# what the picture can be. Two of them need a section the profile may not be carrying, and the card
+# falls back to the figures rather than drawing an empty frame.
+CARD_VISUALS = ("curve", "best50", "traits", "figures")
+VISUAL_NEEDS = {"best50": "best50", "traits": "traits"}
 COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 LAYOUTS = ("both", "embed", "image")
@@ -70,6 +76,17 @@ def clean_colour(value: Any, fallback: str = "#ff3d8f") -> str:
     """
     text = str(value or "").strip()
     return text.lower() if COLOUR.fullmatch(text) else fallback
+
+
+def clean_visual(value: Any, fallback: str = "curve") -> str:
+    """One of the pictures the card knows how to draw, or the one it had.
+
+    :param value: What the browser sent.
+    :type value: Any
+    :rtype: str
+    """
+    text = str(value or "").strip().lower()
+    return text if text in CARD_VISUALS else fallback
 
 
 def update_prefs(user_id: str, **changes: Any) -> Dict[str, Any]:
