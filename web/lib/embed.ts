@@ -56,7 +56,7 @@ export function headline(
   lines: string[],
   aside: { image: string } | { label: string; url: string },
 ): Section {
-  const heading = `### **[${plain(title)}](${href(url)})**`;
+  const heading = `## **[${plain(title)}](${href(url)})**`;
   const accessory: Thumbnail | Button = "image" in aside
     ? { type: 11, media: { url: aside.image } }
     : { type: 2, style: LINK, label: plain(aside.label), url: aside.url };
