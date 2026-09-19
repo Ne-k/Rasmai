@@ -11,7 +11,13 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [note, setNote] = useState("");
-  const [sharing, setSharing] = useState(me.sharing ?? { on: false, url: "", sections: { best50: true, traits: false, recent: false, areas: false } });
+  // the same shape the bot sends, for the moment before it has said anything
+  const [sharing, setSharing] = useState(me.sharing ?? {
+    on: false, url: "",
+    sections: { best50: true, traits: false, recent: false, areas: false },
+    card: { on: true, chart: true, gain: true, charts: true, plays: false },
+    embed: { region: true, charts: true },
+  });
   const [beta, setBeta] = useState(me.beta ?? { on: {}, features: [] });
   const start = () => {
     setBusy(true);

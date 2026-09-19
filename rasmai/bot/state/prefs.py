@@ -17,10 +17,23 @@ DEFAULTS: Dict[str, Any] = {
     "public_traits": False,      # what they lose points on and what they shine at
     "public_recent": False,      # the plays the bot has seen, newest first
     "public_areas": False,       # area travel and its rewards
+    # and what its link turns into when somebody pastes it in Discord
+    "card_on": True,             # the picture above the card at all
+    "card_chart": True,          # the rating curve drawn on it
+    "card_gain": True,           # how much the rating moved, and since when
+    "card_charts": True,         # how many charts are scored
+    "card_plays": False,         # the play count
+    "embed_region": True,        # "international" or "Japan" beside the rating
+    "embed_charts": True,        # the chart count beside the rating
 }
 
 # what a public profile may carry, beyond the name and rating that are the point of having one
 PUBLIC_SECTIONS = ("best50", "traits", "recent", "areas")
+
+# what the Discord card may carry. The name and the rating are the card, so they are not optional;
+# everything else here is the owner's to switch off.
+CARD_FIELDS = ("on", "chart", "gain", "charts", "plays")
+EMBED_FIELDS = ("region", "charts")
 
 LAYOUTS = ("both", "embed", "image")
 NEW_DIFFICULTIES = ("any", "master", "remaster", "expert", "advanced", "basic")

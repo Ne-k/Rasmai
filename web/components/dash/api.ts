@@ -24,6 +24,9 @@ export type Sharing = {
   on: boolean;
   url: string;
   sections: { best50: boolean; traits: boolean; recent: boolean; areas: boolean };
+  // what the link turns into when it is pasted in Discord
+  card: { on: boolean; chart: boolean; gain: boolean; charts: boolean; plays: boolean };
+  embed: { region: boolean; charts: boolean };
 };
 
 export type TraitFamily = {

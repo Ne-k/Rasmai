@@ -14,7 +14,11 @@ export const dynamic = "force-dynamic";
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 const SITE = env.publicUrl();
 
-type Shared = { name?: string; rating?: number; region?: string; charts?: number; updatedAt?: string };
+type Shared = {
+  name?: string; rating?: number; region?: string; charts?: number; updatedAt?: string;
+  // what its owner chose for the card, set in the Account tab
+  card?: { on?: boolean }; embed?: { region?: boolean; charts?: boolean };
+};
 
 /**
  * The profile as anyone holding the link may read it, or nothing when the link is not in use.
@@ -83,14 +87,18 @@ function unfurl(slug: string, profile: Shared): Embed | null {
   const rating = Number(profile.rating || 0);
   if (!name || !rating) return null;
 
-  const region = String(profile.region || "").toUpperCase() === "JP" ? "Japan" : "international";
-  const charts = Number(profile.charts || 0);
-  const scored = charts ? ` · ${charts.toLocaleString("en")} charts scored` : "";
   const here = `${SITE}/p/${slug}`;
+  const wants = { region: true, charts: true, ...(profile.embed ?? {}) };
+  const charts = Number(profile.charts || 0);
+  const parts = [`**${rating.toLocaleString("en")}** rating`];
+  if (wants.region) parts.push(String(profile.region || "").toUpperCase() === "JP" ? "Japan" : "international");
+  if (wants.charts && charts) parts.push(`${charts.toLocaleString("en")} charts scored`);
   return embed("#ff3d8f", [
-    gallery([{ url: card(slug, profile), description: `${name}, ${rating.toLocaleString("en")} rating` }]),
-    headline(name, here, [`**${rating.toLocaleString("en")}** rating · ${region}${scored}`],
-      { image: `${SITE}/app/icon-512.png` }),
+    // the picture is the owner's to leave off, and then the card is the headline and the buttons
+    profile.card?.on === false
+      ? null
+      : gallery([{ url: card(slug, profile), description: `${name}, ${rating.toLocaleString("en")} rating` }]),
+    headline(name, here, [parts.join(" · ")], { image: `${SITE}/app/icon-512.png` }),
     buttons(
       { label: "See the profile", url: here },
       // { label: "What Rasmai is", url: `${SITE}/` },

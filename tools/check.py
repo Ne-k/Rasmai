@@ -2811,6 +2811,61 @@ def _shared_profile():
     return problems
 
 
+@check("what a shared link turns into in Discord is the owner's to set, and the card reads the setting")
+def _card_choices():
+    import pathlib as _pathlib
+    import re
+    import tempfile
+
+    from rasmai.bot.state.prefs import CARD_FIELDS, EMBED_FIELDS
+    from rasmai.storage.db import connection as store
+    from rasmai.web.dashboard.public_profile import set_sharing, sharing_payload
+
+    was, store.DATABASE_PATH = store.DATABASE_PATH, _pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    problems = []
+    try:
+        # the switches round-trip, and the ones left alone are left alone
+        state = set_sharing("u1", True, None, False, {"shareSlug": "abcdefghij"},
+                            card={"chart": False, "plays": True}, embed={"region": False})
+        if state["card"]["chart"] is not False or state["card"]["plays"] is not True:
+            problems.append(f"a card switch did not stick: {state['card']}")
+        if state["embed"]["region"] is not False:
+            problems.append(f"an embed switch did not stick: {state['embed']}")
+        if state["card"]["gain"] is not True:
+            problems.append("switching one thing off switched another off with it")
+        again = sharing_payload("u1", {"shareSlug": "abcdefghij"})
+        if again["card"] != state["card"] or again["embed"] != state["embed"]:
+            problems.append("the Account tab is shown something other than what was saved")
+
+        # the name and the rating are what makes it their profile, so neither is a switch
+        for banned in ("name", "rating"):
+            if banned in CARD_FIELDS or banned in EMBED_FIELDS:
+                problems.append(f"{banned} can be switched off, and then the card is nobody's profile")
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+    # a profile that answers has to say what it chose, or the card falls back for everybody
+    shared = (ROOT / "rasmai" / "web" / "dashboard" / "public_profile.py").read_text(encoding="utf-8")
+    if '"card": {name: bool' not in shared.replace("'", '"'):
+        problems.append("a shared profile does not carry its card choices, so the card cannot read them")
+
+    # and both halves of the site have to read them
+    picture = (ROOT / "web" / "app" / "p" / "[slug]" / "card.png" / "route.tsx").read_text(encoding="utf-8")
+    page = (ROOT / "web" / "app" / "p" / "[slug]" / "page.tsx").read_text(encoding="utf-8")
+    if "shared.card" not in picture:
+        problems.append("the picture ignores what its owner chose to put on it")
+    if "profile.embed" not in page or "card?.on === false" not in page:
+        problems.append("the unfurl ignores what its owner chose to put on it")
+
+    # a picture Discord gives the full width to should not be taller than it needs to be
+    size = re.search(r"const SIZE = \{ width: (\d+), height: (\d+) \}", picture)
+    if not size or int(size.group(2)) > 460:
+        problems.append(f"the card picture is {size and size.group(2)} tall, which pushes the text off the screen")
+    return problems
+
+
 @check("a link to the site unfurls in Discord as the card we wrote, and never as somebody's own markup")
 def _link_embeds():
     import json

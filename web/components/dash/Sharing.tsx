@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { postJSON, type Sharing as SharingState } from "./api";
 import { Label } from "./bits";
+import { EmbedCard } from "./EmbedCard";
 
 const SECTIONS: { key: keyof SharingState["sections"]; label: string; note: string }[] = [
   { key: "best50", label: "Best 50", note: "the fifty charts your rating is made of" },
@@ -89,6 +90,8 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
           ))}
         </ul>
       )}
+
+      {state.on && <EmbedCard state={state} onSave={save} busy={busy} />}
 
       {note && <p className="hint">{note}</p>}
       {state.on && <p className="hint">A new link stops the old one working, so anything already passed around goes dead.</p>}

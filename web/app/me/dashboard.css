@@ -686,3 +686,21 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .save-image:hover:not(:disabled) { color: var(--ink); border-color: var(--pink-edge); }
 .save-image:disabled { opacity: 0.6; cursor: progress; }
 .save-image:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+/* the Discord card customiser: a preview shaped like the real thing, and the switches under it */
+.embed-card { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.embed-preview { margin: 10px 0 16px; max-width: 420px; padding: 12px 14px 14px;
+                 background: var(--readout-bg); border-left: 4px solid var(--pink); border-radius: 6px; }
+.embed-preview img { display: block; width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px; }
+.embed-body { display: flex; flex-direction: column; gap: 5px; }
+.embed-title { font-family: var(--font-display), sans-serif; font-size: 17px; color: #45d6f2; }
+.embed-line { font-size: 13.5px; color: #c6c0d4; }
+.embed-btn { align-self: flex-start; margin-top: 4px; padding: 5px 11px; font-size: 12.5px;
+             color: #f4f0e6; background: var(--readout-inset); border: 1px solid var(--edge);
+             border-radius: 5px; }
+.embed-main { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 6px; cursor: pointer; }
+.embed-main span { display: flex; flex-direction: column; }
+.embed-main b { font-size: 14px; }
+.embed-group { font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 2px;
+               text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+@media (max-width: 560px) { .embed-preview { max-width: none; } }

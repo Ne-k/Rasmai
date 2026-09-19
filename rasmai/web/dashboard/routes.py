@@ -201,7 +201,8 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         return True
     if path == "/internal/me/sharing":
         body = payload or {}
-        state = set_sharing(user["id"], body.get("on"), body.get("sections"), bool(body.get("rotate")), account)
+        state = set_sharing(user["id"], body.get("on"), body.get("sections"), bool(body.get("rotate")), account,
+                            body.get("card"), body.get("embed"))
         handler._send_json(200, state)
         return True
     if path == "/internal/me/refresh":

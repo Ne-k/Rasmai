@@ -3,7 +3,8 @@ import logging
 import secrets
 import string
 
-from rasmai.bot.state.prefs import PUBLIC_SECTIONS, get_prefs, update_prefs
+from rasmai.bot.state.prefs import (CARD_FIELDS, EMBED_FIELDS, PUBLIC_SECTIONS, get_prefs,
+                                    update_prefs)
 from rasmai.bot.state.snapshots import snapshot_charts
 from rasmai.config import get_public_base_url
 from rasmai.engine.analysis import rank_for
@@ -62,11 +63,14 @@ def sharing_payload(user_id: str, account: Optional[Dict[str, Any]]) -> Dict[str
         "on": bool(prefs.get("public")) and bool(slug),
         "url": share_url(slug) if prefs.get("public") else "",
         "sections": {name: bool(prefs.get(f"public_{name}")) for name in PUBLIC_SECTIONS},
+        "card": {name: bool(prefs.get(f"card_{name}")) for name in CARD_FIELDS},
+        "embed": {name: bool(prefs.get(f"embed_{name}")) for name in EMBED_FIELDS},
     }
 
 
 def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, Any]] = None,
-                rotate: bool = False, account: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                rotate: bool = False, account: Optional[Dict[str, Any]] = None,
+                card: Optional[Dict[str, Any]] = None, embed: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Turn the public profile on or off, choose what it carries, or issue a fresh link.
 
     Turning it off leaves the slug in place but stops answering on it; asking for a new link
@@ -90,6 +94,10 @@ def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, A
     for name in PUBLIC_SECTIONS:
         if sections is not None and name in sections:
             changes[f"public_{name}"] = bool(sections[name])
+    for group, fields, prefix in ((card, CARD_FIELDS, "card_"), (embed, EMBED_FIELDS, "embed_")):
+        for name in fields:
+            if group is not None and name in group:
+                changes[f"{prefix}{name}"] = bool(group[name])
     if changes:
         update_prefs(user_id, **changes)
     slug = str((account or {}).get("shareSlug") or "")
@@ -130,6 +138,9 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
         "charts": len(charts),
         "updatedAt": str(profile.get("updatedAt") or snapshot.get("recordedAt") or account.get("updatedAt") or ""),
         "shows": shows,
+        # what its owner chose for the Discord card and the picture above it
+        "card": {name: bool(prefs.get(f"card_{name}")) for name in CARD_FIELDS},
+        "embed": {name: bool(prefs.get(f"embed_{name}")) for name in EMBED_FIELDS},
     }
 
     covers = _covers() if (shows["best50"] or shows["recent"]) else None
