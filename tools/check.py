@@ -1626,67 +1626,59 @@ def _simai_trust():
     return problems
 
 
-@check("reading the charts themselves is off until its owner turns it on")
-def _simai_beta():
+@check("the charts are read for everyone, and the tags they replaced are parked rather than gone")
+def _simai_is_the_source():
     import pathlib
     import tempfile
 
     from rasmai.engine.analysis import ChartRef
     from rasmai.engine.insights.tags import chart_traits
+    from rasmai.engine.simai import DEMANDS
+    from rasmai.scraping import simai
     from rasmai.storage.db import connection as store
-    from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta, wants
+    from rasmai.web.dashboard.beta import FEATURES, set_beta, wants
 
+    problems = []
     was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
     store._database_ready = False
-    problems = []
-    user = "beta-check-user"
-    if wants(user, "simai"):
-        problems.append("a feature nobody switched on was reported as on")
-    state = beta_state(user)
-    if set(state["on"]) != set(FEATURES) or any(state["on"].values()):
-        problems.append(f"a fresh account should have every beta off, got {state['on']}")
-    if set_beta(user, {"simai": True})["on"].get("simai") is not True:
-        problems.append("switching a beta on did not take")
-    if not wants(user, "simai"):
-        problems.append("a beta switched on was not seen as on")
-    if set_beta(user, {"nonsense": True})["on"].get("nonsense") is not None:
-        problems.append("a feature that does not exist was stored anyway")
-    set_beta(user, {"simai": False})
-    if wants(user, "simai"):
-        problems.append("switching a beta off did not take")
-
-    # and with it off, nothing measured from the notes reaches the model
-    chart = ChartRef(title="anything", chart_type="dx", difficulty="master", constant=13.0, level="13",
-                     notes=800, genre="", artist="", cover="", version=26, bpm=170.0)
-    from rasmai.engine.simai import DEMANDS
-    named = {demand[2] for demand in DEMANDS}
-    if {label for _dimension, label in chart_traits(chart, False)} & named:
-        problems.append("a trait read from the notes appeared for someone who never asked for it")
-
-    # the numbers the progress bar is drawn from have to add up, or it shows a wrong time left
-    from rasmai.scraping import simai
-    from rasmai.web.dashboard.beta import _simai_status
-    held_cached, held_pending, held_pace = simai.cached, simai._pending, simai.pace
     try:
-        # sixty read, ten that could not be trusted, and nine hundred still to go at two a second
-        rows = {f"c{n}|dx|master": ({"spins": 0.1, "lv": 13.0} if n < 60 else {}) for n in range(70)}
-        simai.cached = lambda: (rows, {"spins": 0.01})
-        simai._pending = lambda known: [None] * 900
-        simai.pace = lambda: 2.0
-        state = _simai_status()
-        want = {"done": 70, "total": 970, "read": 60, "waiting": 900, "eta": 450, "ready": True}
-        for field, value in want.items():
-            if state.get(field) != value:
-                problems.append(f"the progress bar would read {field}={state.get(field)!r}, expected {value!r}")
-        if abs(float(state["percent"]) - 7.2) > 0.05:
-            problems.append(f"70 of 970 charts is 7.2 per cent, shown as {state['percent']}")
-        simai.pace = lambda: 0.0
-        if _simai_status()["eta"] != 0:
-            problems.append("a time left was given before the pace had been measured")
+        # chart reading is how traits are measured now, so it is nobody's switch to flip
+        if "simai" in FEATURES:
+            problems.append("chart reading is back in the beta picker, so it is off for anyone who never found it")
+        user = "promotion-check-user"
+        if wants(user, "simai"):
+            problems.append("a switch that no longer exists reported as on")
+        if set_beta(user, {"simai": True})["on"].get("simai") is not None:
+            problems.append("a feature that is no longer a beta was stored as one anyway")
+
+        chart = ChartRef(title="anything", chart_type="dx", difficulty="master", constant=13.0, level="13",
+                         notes=800, genre="", artist="", cover="", version=26, bpm=170.0)
+        named = {demand[2] for demand in DEMANDS}
+        held = simai.cached
+        try:
+            # a chart the reader found demanding: its demands have to reach the model with nothing switched on
+            # the store keys a row by a string, not by the tuple the index uses
+            simai.cached = lambda: ({"anything|dx|master": {"circles": 0.9, "lv": 13.0}}, {"circles": 0.01})
+            simai._forget()
+            labels = {label for _dimension, label in chart_traits(chart)}
+            if not labels & named:
+                problems.append("a chart the reader measured gave the model no trait at all")
+        finally:
+            simai.cached = held
+            simai._forget()
     finally:
-        simai.cached, simai._pending, simai.pace = held_cached, held_pending, held_pace
-    store.DATABASE_PATH = was
-    store._database_ready = False
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+    # the tags simai replaced stay in the tree, commented out, so putting them back is uncommenting
+    source = (ROOT / "rasmai" / "engine" / "insights" / "tags.py").read_text(encoding="utf-8")
+    for call in ("mai_notes.note_traits(row)", "mai_notes.pattern_traits(row)"):
+        if call not in source:
+            problems.append(f"{call} is gone from tags.py rather than parked, so it cannot be put back")
+        elif not any(line.strip().startswith("#") and call in line for line in source.splitlines()):
+            problems.append(f"{call} is live again in tags.py, so both sources are naming traits at once")
+    if not (ROOT / "rasmai" / "scraping" / "mai_notes.py").exists():
+        problems.append("mai_notes.py is gone, and the charts are still measured against its manifest")
     return problems
 
 
@@ -1751,10 +1743,7 @@ def _simai_model():
     simai.cached = lambda: (measured, {"circles": 0.01})
     problems = []
     try:
-        off = build_play_profile(songs, [], index, 26, reading=False)
-        if any(axis["label"] == "spinning round the ring" for axis in off.trait_axes):
-            problems.append("a trait from the notes was measured for a player who never switched it on")
-        on = build_play_profile(songs, [], index, 26, reading=True)
+        on = build_play_profile(songs, [], index, 26)
         found = next((a for a in on.trait_axes if a["label"] == "spinning round the ring"), None)
         if found is None:
             problems.append(f"the weakness planted on {spun} charts was not measured at all")
@@ -1870,7 +1859,7 @@ def _simai_remeasure():
     return problems
 
 
-@check("traits read from the charts are searchable, and only for whoever switched that on")
+@check("traits read from the charts are searchable by everyone")
 def _read_tags_searchable():
     from rasmai.engine import patterns
     from rasmai.engine.analysis import ChartIndex, ChartRef
@@ -1893,37 +1882,25 @@ def _read_tags_searchable():
         spun = index.get(("chart 0", "dx", "master"))
         quiet = index.get(("chart 1", "dx", "master"))
 
-        off = {tag["label"] for tag in chart_tags(spun, False)}
-        on = {tag["label"] for tag in chart_tags(spun, True)}
-        if "spinning round the ring" in off:
-            problems.append("a trait read from the chart was shown to someone who never switched it on")
-        if "spinning round the ring" not in on:
-            problems.append("a chart that walks you round the ring was not tagged as one with the feature on")
-        if "spinning round the ring" in {tag["label"] for tag in chart_tags(quiet, True)}:
+        if "spinning round the ring" not in {tag["label"] for tag in chart_tags(spun)}:
+            problems.append("a chart that walks you round the ring was not tagged as one")
+        if "spinning round the ring" in {tag["label"] for tag in chart_tags(quiet)}:
             problems.append("a chart that stays put was tagged as walking you round the ring")
-        if not any(tag.get("read") for tag in chart_tags(spun, True)):
+        if not any(tag.get("read") for tag in chart_tags(spun)):
             problems.append("a trait read from the chart was not marked as read rather than written by hand")
 
         # the catalogue, and searching it
         patterns._catalogue_memo.clear()
-        if any(item["label"] == "spinning round the ring" for item in patterns.catalogue(index, False)):
-            problems.append("a trait read from the charts was listed for someone who never switched it on")
-        patterns._catalogue_memo.clear()
-        if not any(item["label"] == "spinning round the ring" for item in patterns.catalogue(index, True)):
+        if not any(item["label"] == "spinning round the ring" for item in patterns.catalogue(index)):
             problems.append("a trait read from the charts was missing from the list to search")
         patterns._catalogue_memo.clear()
-        if patterns.resolve("spinning round", index, False) is not None:
-            problems.append("searching found a trait the searcher had not switched on")
-        patterns._catalogue_memo.clear()
-        found = patterns.resolve("spinning round", index, True)
+        found = patterns.resolve("spinning round", index)
         if found != "spinning round the ring":
             problems.append(f"searching for the walk round the ring found {found!r}")
         else:
-            charts = patterns.charts_with(index, found, reading=True)
+            charts = patterns.charts_with(index, found)
             if len(charts) != 10:
                 problems.append(f"ten of the thirty charts walk you round the ring, search returned {len(charts)}")
-            if patterns.charts_with(index, found, reading=False):
-                problems.append("charts came back for a trait the searcher had not switched on")
     finally:
         simai.cached = held
         patterns._catalogue_memo.clear()
@@ -2090,7 +2067,7 @@ def _read_traits_practice():
     simai.cached = lambda: (measured, {"circles": 0.01})
     problems = []
     try:
-        profile = build_play_profile(songs, [], index, 26, reading=True)
+        profile = build_play_profile(songs, [], index, 26)
         axis = next((a for a in profile.trait_axes if a["label"] == "spinning round the ring"), None)
         if axis is None:
             problems.append("the trait was not measured, so there was nothing to practise")

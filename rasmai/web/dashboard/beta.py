@@ -4,43 +4,45 @@ from rasmai.storage.db import get_user_settings, set_user_settings
 
 # Features that are finished enough to use and not finished enough to be on by default. Each one
 # is off until its owner turns it on, and turning it off puts everything back exactly as it was.
-FEATURES: Dict[str, Dict[str, str]] = {
-    "simai": {
-        "label": "Simai Chart Reading",
-        "note": "Traits measured from the chart Simai sheet music data, note by note, rather than from the tags. "
-    },
-}
+FEATURES: Dict[str, Dict[str, str]] = {}
 
 
-def _simai_status() -> Dict[str, Any]:
-    """Whether chart reading can say anything yet, how far along it is, and how long is left.
+# Chart reading left this picker when it became how traits are measured for everyone. Its
+# readiness probe is parked rather than deleted, so putting the feature back behind a switch is
+# uncommenting rather than rewriting. The developer page has its own progress read in admin.py.
+# def _simai_status() -> Dict[str, Any]:
+#     """Whether chart reading can say anything yet, how far along it is, and how long is left.
+#
+#     The charts are read a batch at a time over the first hour or so a bot is up, and nothing can be
+#     measured until enough of them are in to know what a demanding chart looks like. Without this a
+#     tester switches the feature on, sees their traits sit exactly as they were, and reasonably
+#     concludes it is broken.
+#     """
+#     try:
+#         from rasmai.scraping import simai
+#         rows, levels = simai.cached()
+#         read = sum(1 for row in rows.values() if row)
+#         dropped = len(rows) - read
+#         waiting = len(simai._pending(rows))
+#         done = read + dropped
+#         total = done + waiting
+#         rate = simai.pace()
+#         return {
+#             "ready": bool(levels),
+#             "done": done, "total": total, "read": read, "waiting": waiting,
+#             "percent": round(done / total * 100, 1) if total else 0.0,
+#             "eta": int(waiting / rate) if rate and waiting else 0,
+#             "status": f"{read:,} charts read" if not waiting else f"{read:,} of {total:,} charts read",
+#         }
+#     except Exception:
+#         return {"ready": False, "status": ""}
+#
+#
+# # chart reading left the picker when it became how traits are measured for everyone. Its readiness
+# # probe is kept because the developer page still reports how much of the game has been read.
 
-    The charts are read a batch at a time over the first hour or so a bot is up, and nothing can be
-    measured until enough of them are in to know what a demanding chart looks like. Without this a
-    tester switches the feature on, sees their traits sit exactly as they were, and reasonably
-    concludes it is broken.
-    """
-    try:
-        from rasmai.scraping import simai
-        rows, levels = simai.cached()
-        read = sum(1 for row in rows.values() if row)
-        dropped = len(rows) - read
-        waiting = len(simai._pending(rows))
-        done = read + dropped
-        total = done + waiting
-        rate = simai.pace()
-        return {
-            "ready": bool(levels),
-            "done": done, "total": total, "read": read, "waiting": waiting,
-            "percent": round(done / total * 100, 1) if total else 0.0,
-            "eta": int(waiting / rate) if rate and waiting else 0,
-            "status": f"{read:,} charts read" if not waiting else f"{read:,} of {total:,} charts read",
-        }
-    except Exception:
-        return {"ready": False, "status": ""}
 
-
-READINESS = {"simai": _simai_status}
+READINESS: Dict[str, Any] = {}     # nothing is behind a switch, so nothing has a readiness probe
 
 
 def beta_state(user_id: str) -> Dict[str, Any]:

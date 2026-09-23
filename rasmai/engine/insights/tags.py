@@ -3,38 +3,35 @@ from typing import Any, Dict, List, Tuple
 from rasmai.engine.analysis import ChartRef
 
 
-def chart_traits(chart: ChartRef, reading: bool = False) -> List[Tuple[str, str]]:
+def chart_traits(chart: ChartRef) -> List[Tuple[str, str]]:
     """The attributes a chart is judged on: tempo, note count, era, genre, designer, chart type.
 
-    When mai-notes has been read, the chart's note mix (break-heavy, slide-heavy) and the pattern
-    tags its editors gave it (streams, hard slides) join the list, so a weakness can be named as a
-    pattern rather than only as a property of the song.
-
-    With `reading` on, what the chart's own notes say joins them: how long its holds run, how fast
-    its slides travel, whether it keeps both hands working. That comes from parsing the chart rather
-    than from anyone's tag, so it reaches charts nobody has written about.
+    What the chart's own notes say joins them: how long its holds run, how fast its slides travel,
+    whether it keeps both hands working. That comes from parsing the chart rather than from anyone's
+    tag, so it reaches every chart that has been read rather than the third of them somebody wrote
+    about.
 
     :param chart: The chart being judged.
     :type chart: ChartRef
-    :param reading: Whether traits measured from the notes themselves are included.
-    :type reading: bool
     :rtype: List[Tuple[str, str]]
     """
     traits: List[Tuple[str, str]] = [("type", "DX charts" if chart.chart_type == "dx" else "standard charts")]
-    if reading:
-        try:
-            from rasmai.scraping import simai
-            traits.extend(simai.chart_traits(chart.key))
-        except Exception:            # the model must never fail because a chart would not parse
-            pass
     try:
-        from rasmai.scraping import mai_notes
-        row = mai_notes.cached_facts().get(chart.key)
-    except Exception:                     # the model must never fail because a fan site is unreadable
-        row = None
-    if row:
-        traits.extend(mai_notes.note_traits(row))
-        traits.extend(mai_notes.pattern_traits(row))
+        from rasmai.scraping import simai
+        traits.extend(simai.chart_traits(chart.key))
+    except Exception:            # the model must never fail because a chart would not parse
+        pass
+    # mai-notes' own tags used to be the trait source, and are parked here rather than deleted in
+    # case reading the charts turns out worse in the wild. It is still read for the manifest every
+    # chart is measured against (its level and published note count), so only the tags are off.
+    # try:
+    #     from rasmai.scraping import mai_notes
+    #     row = mai_notes.cached_facts().get(chart.key)
+    # except Exception:                 # the model must never fail because a fan site is unreadable
+    #     row = None
+    # if row:
+    #     traits.extend(mai_notes.note_traits(row))
+    #     traits.extend(mai_notes.pattern_traits(row))
     # only the tails of tempo and density are named. A band holding a third of the game sits on the
     # player's own average by construction, so it can never say anything, and it takes a place on the
     # wheel that a trait with something to say would have had. These are the deciles and the quartiles
@@ -72,25 +69,20 @@ def _read_traits(chart: ChartRef) -> List[Tuple[str, str]]:
         return []
 
 
-def chart_tags(chart: ChartRef, reading: bool = False) -> List[Dict[str, Any]]:
-    """What a chart asks of you, for showing on its page: the community's pattern tags first, then what its own numbers say.
+def chart_tags(chart: ChartRef) -> List[Dict[str, Any]]:
+    """What a chart asks of you, for showing on its page, measured from the chart's own notes.
 
-    mai-notes' editors have tagged a third of the Master charts and half the Re:MASTERs, and
-    almost nothing below Expert, so a page that shows only those is blank for most charts. The
-    note mix, tempo band and note density are measured from the chart itself and cover nearly all
-    of them, so they fill the row out. They are marked as measured rather than community-written, because the two are not the
-    same kind of claim.
+    The note mix, tempo band and note density are measured from the chart itself, so nearly every
+    chart has a row rather than the third of them an editor has written about.
 
     :param chart: The chart being shown.
     :type chart: ChartRef
-    :param reading: Whether what the chart's own notes say joins the row.
-    :type reading: bool
     :rtype: List[Dict[str, Any]]
     """
-    read = {label for _dimension, label in _read_traits(chart)} if reading else set()
+    read = {label for _dimension, label in _read_traits(chart)}
     tags = [{"dimension": dimension, "label": label,
              "community": dimension == "pattern" and label not in read, "read": label in read}
-            for dimension, label in chart_traits(chart, reading) if dimension not in NOT_A_DEMAND]
+            for dimension, label in chart_traits(chart) if dimension not in NOT_A_DEMAND]
     tags.sort(key=lambda tag: not tag["community"])     # the editors' words lead, the measured ones follow
     return tags
 

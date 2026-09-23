@@ -68,7 +68,7 @@ class _TraitDesign:
     CONTROLS = 5      # intercept, is a play, log plays, constant, carries a pattern tag an editor wrote
 
     def __init__(self, observations: Sequence[Dict[str, Any]], tags: Sequence[Tuple[str, str]], profile: PlayProfile,
-                 reading: bool = False):
+                 ):
         import math
         import numpy as np
         self.np = np
@@ -89,8 +89,8 @@ class _TraitDesign:
             # tagging, which is a reason it might play hard on its own. A measure taken off the
             # notation is not that, and counting it here let an unpenalised control swallow the
             # whole of a trait the notes had found.
-            written = {label for _dimension, label in _read_traits(o["chart"])} if reading else set()
-            for tag in chart_traits(o["chart"], reading):
+            written = {label for _dimension, label in _read_traits(o["chart"])}
+            for tag in chart_traits(o["chart"]):
                 if tag[0] == "pattern" and tag[1] not in written:
                     self.has_pattern[row] = 1.0
                 col = index.get(tag)
@@ -137,7 +137,7 @@ TRAIT_P = 0.02               # a trait's offset has to be rarer than this under 
 
 def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: PlayProfile,
                     recorded_plays: Optional[Sequence[Dict[str, Any]]] = None,
-                    reading: bool = False) -> List[Dict[str, Any]]:
+                    ) -> List[Dict[str, Any]]:
     """How far the player's scores sit from their own curve, per chart attribute, from every score they made.
 
     All tags are fitted together, so tags that ride on the same charts stop counting several
@@ -155,8 +155,6 @@ def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: Pla
     :type scored: Sequence[Any]
     :param recorded_plays: Every stored play, as the history table returns them.
     :type recorded_plays: Optional[Sequence[Dict[str, Any]]]
-    :param reading: Whether traits measured from the charts themselves join the community's tags.
-    :type reading: bool
     :rtype: List[Dict[str, Any]]
     """
     import numpy as np
@@ -166,7 +164,7 @@ def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: Pla
     charts_by_tag: Dict[Tuple[str, str], set] = {}
     plays_by_tag: Dict[Tuple[str, str], int] = {}
     for o in observations:
-        for tag in chart_traits(o["chart"], reading):
+        for tag in chart_traits(o["chart"]):
             if not _is_technique(*tag):
                 continue
             charts_by_tag.setdefault(tag, set()).add(o["key"])
@@ -175,7 +173,7 @@ def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: Pla
     tags = sorted((tag for tag, keys in charts_by_tag.items() if len(keys) >= TRAIT_MIN_CHARTS), key=str)
     if not tags:
         return []
-    design = _TraitDesign(observations, tags, profile, reading)
+    design = _TraitDesign(observations, tags, profile)
     full = design.fit()
     # chance level: the same fit with every chart wearing another chart's tags
     exceed = np.zeros(len(tags))
@@ -302,7 +300,7 @@ def practice_for(axis: Dict[str, Any], chart_index: ChartIndex, profile: PlayPro
         if ref is not None:
             mine[ref.key] = song
     rows = []
-    for chart in patterns.charts_with(chart_index, tag, reading=profile.reading):
+    for chart in patterns.charts_with(chart_index, tag):
         if not (low - 1e-9 <= chart.constant <= high + 1e-9):
             continue
         song = mine.get(chart.key)
@@ -346,7 +344,7 @@ def radar_axes(axes: Sequence[Dict[str, Any]], limit: int = 8, tentative: bool =
     return sorted(chosen, key=lambda axis: -float(axis["offset"]))
 
 
-def chart_trait_offset(traits: Sequence[Dict[str, Any]], chart: ChartRef, reading: bool = False) -> float:
+def chart_trait_offset(traits: Sequence[Dict[str, Any]], chart: ChartRef) -> float:
     """The traits' combined verdict on one chart: negative where the player tends to lose points.
 
     :param traits: The traits measured from the player's scores.
@@ -358,4 +356,4 @@ def chart_trait_offset(traits: Sequence[Dict[str, Any]], chart: ChartRef, readin
     if not traits:
         return 0.0
     lookup = {(t["dimension"], t["label"]): float(t["offset"]) for t in traits}
-    return sum(lookup.get(trait, 0.0) for trait in chart_traits(chart, reading))
+    return sum(lookup.get(trait, 0.0) for trait in chart_traits(chart))
