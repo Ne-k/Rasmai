@@ -6,6 +6,12 @@ from rasmai.storage.db import get_user_settings, set_user_settings
 # is off until its owner turns it on, and turning it off puts everything back exactly as it was.
 FEATURES: Dict[str, Dict[str, str]] = {
     # the site draws each of these as a checkbox: "label" is its title and "note" the line under it
+    "patterns": {
+        "label": "Pattern fit",
+        "note": "Adds up what each chart is made of against the patterns you score above and below "
+                "your own curve on, and nudges picks worth the same toward the ones built from what "
+                "you are good at. Measured as the better of the two; still a small sample.",
+    },
     "laya": {
         "label": "Laya decision model",
         "note": "Reads what a chart is and what you have been playing, and reorders picks worth the "

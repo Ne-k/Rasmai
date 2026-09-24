@@ -287,3 +287,65 @@ def _laya_reaches_the_picks():
     finally:
         laya.pick_odds = original
     return problems
+
+
+@check("pattern fit reads every axis it measured, and leaves an unmeasured chart exactly alone")
+def _pattern_fit():
+    from rasmai.engine.analysis import ChartIndex, ChartRef, build_play_profile
+    from rasmai.engine.insights import pattern_fit
+    from rasmai.engine.insights.tags import chart_traits
+    from rasmai.storage.models import SongInfo
+    from rasmai.web.dashboard.beta import FEATURES, READINESS
+
+    problems = []
+    if "patterns" not in FEATURES:
+        problems.append("pattern fit is not in the beta picker, so nobody can switch it on or off")
+    if "patterns" in READINESS:
+        problems.append("pattern fit is arithmetic that is always there, so it has nothing to be ready for")
+
+    index = ChartIndex()
+    liked = ChartRef(title="Liked", chart_type="dx", difficulty="master", constant=13.0, level="13",
+                     notes=700, genre="POPS", artist="a", cover="", version=26, bpm=170.0)
+    plain = ChartRef(title="Plain", chart_type="std", difficulty="expert", constant=13.0, level="13",
+                     notes=700, genre="POPS", artist="a", cover="", version=26, bpm=170.0)
+    index.add(liked)
+    index.add(plain)
+    songs = [SongInfo(name="Liked", chart_type="dx", difficulty_type="master", accuracy=99.0,
+                      rating=250, level="13", difficulty=13.0)]
+    profile = build_play_profile(songs, [], index, 26)
+    rows = [{"key": ("liked", "dx", "master"), "ref": liked},
+            {"key": ("plain", "std", "expert"), "ref": plain}]
+
+    # nothing measured at all: every chart has to come back untouched rather than at some default
+    profile.trait_axes = []
+    if pattern_fit.taste(profile, rows):
+        problems.append("a player with nothing measured still had their picks reordered")
+
+    # the axes are read, not only the handful that cleared the bar to be named a trait: half the
+    # accounts measured have no named trait at all, and reading profile.traits says nothing for them
+    dimension, label = chart_traits(liked)[0]
+    profile.trait_axes = [{"dimension": dimension, "label": label, "offset": 2.0}]
+    profile.traits = []
+    weights = pattern_fit.taste(profile, rows)
+    if not weights:
+        problems.append("a measured axis moved nothing, so only named traits are being read")
+    elif weights.get(("liked", "dx", "master"), 1.0) <= 1.0:
+        problems.append("a chart built from what the player is good at was not favoured")
+    elif weights.get(("plain", "std", "expert"), 0.0) != 1.0:
+        problems.append("a chart carrying nothing that was measured did not land on exactly 1.0, so "
+                        "it is being sorted against charts nothing is known about")
+
+    source = (ROOT / "rasmai" / "engine" / "insights" / "pattern_fit.py").read_text(encoding="utf-8")
+    if "trait_axes" not in source:
+        problems.append("pattern fit no longer reads the measured axes, only the named traits")
+
+    # measured at 0.10 and worse either side, so the bar is there rather than open-ended
+    MEASURED_TO = 0.25
+    if not 0.0 < pattern_fit.WEIGHT <= MEASURED_TO:
+        problems.append(f"a weight of {pattern_fit.WEIGHT} is outside the 0 to {MEASURED_TO} that was "
+                        f"measured; 0.10 was the best of them and every reading past 0.25 was worse")
+    for value in pattern_fit.taste(profile, rows).values():
+        if not pattern_fit.FLOOR <= value <= pattern_fit.CEILING:
+            problems.append(f"a chart was weighted {value}, outside the {pattern_fit.FLOOR} to "
+                            f"{pattern_fit.CEILING} a chart is allowed to be moved by")
+    return problems

@@ -9,11 +9,13 @@ logger = logging.getLogger(__name__)
 
 Key = Tuple[str, str, str]
 
+from rasmai.engine.analysis.picks.model import SHORTLIST_READ
+
 MODEL = os.getenv("RASMAI_LAYA_MODEL", "convaiinnovations/laya")
 BATCH = int(os.getenv("RASMAI_LAYA_BATCH", "32"))
-# charts asked about in one go; the shortlist is never longer than this. Raisable from the
+# charts asked about in one go, which is the shortlist every reading gets. Raisable from the
 # environment because measuring wants a bigger sample than a player ever sees at once.
-CAP = int(os.getenv("RASMAI_LAYA_CAP", "30"))
+CAP = int(os.getenv("RASMAI_LAYA_CAP", str(SHORTLIST_READ)))
 RECENT_SHOWN = 3         # plays named in the state, newest first
 BRIEF = True             # leave out what the recent plays already imply; see describe_player
 
@@ -121,17 +123,17 @@ def describe_player(profile: Any, recent_shown: int = RECENT_SHOWN, brief: bool 
         summary["style"] = "score grinder" if profile.accuracy_focus >= 0.65 else (
             "clear hunter" if profile.accuracy_focus <= 0.35 else "balanced")
         summary["hardest_cleared_well"] = round(profile.hardest_s, 1)
-        if profile.chart_type_bias:
-            summary["prefers_chart_type"] = max(profile.chart_type_bias, key=profile.chart_type_bias.get).upper()
-        if profile.genre_bias:
-            summary["favourite_genres"] = [genre for genre, _weight in
-                                           sorted(profile.genre_bias.items(), key=lambda p: -p[1])[:3] if genre]
         good = [t.get("label", "") for t in (profile.traits or []) if float(t.get("offset", 0)) > 0][:3]
         weak = [t.get("label", "") for t in (profile.traits or []) if float(t.get("offset", 0)) < 0][:3]
         if good:
             summary["good_at"] = good
         if weak:
             summary["loses_points_on"] = weak
+        if profile.chart_type_bias:
+            summary["prefers_chart_type"] = max(profile.chart_type_bias, key=profile.chart_type_bias.get).upper()
+        if profile.genre_bias:
+            summary["favourite_genres"] = [genre for genre, _weight in
+                                           sorted(profile.genre_bias.items(), key=lambda p: -p[1])[:3] if genre]
         if profile.new_version_share:
             summary["share_of_plays_on_new_songs"] = round(profile.new_version_share, 2)
     except Exception as error:

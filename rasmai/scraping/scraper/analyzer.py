@@ -140,46 +140,64 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         return snapshot
 
     def _read_taste(self, candidates: List[ScoredCandidate], chart_index: ChartIndex) -> Dict[Tuple[str, str, str], float]:
-        """What the decision model makes of the shortlist, or nothing at all.
+        """What the two shortlist readings make of these picks, multiplied together.
 
-        Off for everyone who has not switched it on, and empty whenever the model is missing,
-        slow to load or unhappy. The ranking it feeds works the same either way.
+        Both are off for anyone who has not switched them on, and either failing leaves the other
+        alone. Pattern fit is arithmetic and runs wherever the analysis does; the decision model is
+        most of a minute, so it only runs where nothing is waiting on the answer.
 
         :rtype: Dict[Tuple[str, str, str], float]
         """
-        if not self.user_id or not self.background:
+        if not self.user_id:
             return {}
         try:
             from rasmai.web.dashboard.beta import wants
-            if not wants(self.user_id, "laya"):
-                return {}
-            from rasmai.engine.insights import laya
+            from rasmai.engine.analysis.picks.model import SHORTLIST_READ
+            from rasmai.engine.insights import pattern_fit
             from rasmai.engine.insights.tags import chart_traits
         except Exception:
             return {}
+        wants_model = self.background and wants(self.user_id, "laya")
+        wants_patterns = wants(self.user_id, "patterns")
+        if not (wants_model or wants_patterns):
+            return {}
+
         rows = []
-        for candidate in candidates[:laya.CAP]:
+        for candidate in candidates[:SHORTLIST_READ]:
             key = (candidate.title.casefold(), candidate.chart_type, candidate.difficulty_type)
             chart = chart_index.get(key)
             try:
                 traits = chart_traits(chart) if chart else []
             except Exception:
                 traits = []
-            rows.append({"key": key, "title": candidate.title, "artist": candidate.artist,
+            rows.append({"key": key, "ref": chart, "title": candidate.title, "artist": candidate.artist,
                          "genre": candidate.genre, "level": candidate.level,
                          "difficulty": candidate.difficulty_type, "chart_type": candidate.chart_type,
                          "is_new": candidate.is_new, "traits": traits})
-        try:
-            asking = [row for row in rows if row["key"] not in self._pick_odds]
-            if asking:
-                self._pick_odds.update(laya.pick_odds(self.play_profile, asking))
-            # weighed over the whole shortlist at once, never over whatever part of it was new,
-            # or a chart would be ranked against a different set than the one it is shown beside
-            return laya.weigh({row["key"]: self._pick_odds[row["key"]] for row in rows
-                               if row["key"] in self._pick_odds})
-        except Exception as error:
-            logger.warning(f"the decision model could not rank the shortlist: {error}")
-            return {}
+
+        weights: Dict[Tuple[str, str, str], float] = {}
+        if wants_patterns:
+            try:
+                weights = dict(pattern_fit.taste(self.play_profile, rows))
+            except Exception as error:
+                logger.warning(f"pattern fit could not weigh the shortlist: {error}")
+        if wants_model:
+            try:
+                # imported here and nowhere else: on a bot built with the package this pulls in torch,
+                # and nobody who left the switch alone should pay for that on every analysis
+                from rasmai.engine.insights import laya
+                asking = [row for row in rows if row["key"] not in self._pick_odds]
+                if asking:
+                    self._pick_odds.update(laya.pick_odds(self.play_profile, asking))
+                # weighed over the whole shortlist at once, never over whatever part of it was new,
+                # or a chart would be ranked against a different set than the one it is shown beside
+                said = laya.weigh({row["key"]: self._pick_odds[row["key"]] for row in rows
+                                   if row["key"] in self._pick_odds})
+                for key, value in said.items():
+                    weights[key] = weights.get(key, 1.0) * value
+            except Exception as error:
+                logger.warning(f"the decision model could not rank the shortlist: {error}")
+        return weights
 
     def generate_recommendations(self) -> Tuple[List[Recommendation], Dict]:
         """Rank what the player should play next.

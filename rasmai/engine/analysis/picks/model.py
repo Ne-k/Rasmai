@@ -6,6 +6,9 @@ MAX_UNPLAYED_PICKS = 6     # unplayed charts allowed among the picks; the New ch
 MIN_PICKS = 12             # a shorter list of played picks than this is continued with charts worth a first run
 
 
+SHORTLIST_READ = 30        # picks handed to a beta reading; past this nobody looks and the model is slow
+
+
 DROPPED_BEST_STRETCH = 0.5 # how far past its first-pass estimate a chart whose best was a dropped run may be aimed, in spreads
 
 
