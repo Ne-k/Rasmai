@@ -656,7 +656,8 @@ def _admin():
 
 @check("note types become traits measured against what was at stake on them")
 def _judgement_traits():
-    from rasmai.engine.judgements import JUDGEMENT_CONFIRM_PLAYS, judgement_traits
+    from rasmai.engine.judgements import (JUDGEMENT_CONFIRM_PLAYS, JUDGEMENT_LEAN_OFFSET, JUDGEMENT_OFFSET,
+                                          judgement_traits)
     clean = {"tap": {"critical": 800, "perfect": 0, "great": 0, "good": 0, "miss": 0},
              "break": {"critical": 40, "perfect": 0, "great": 0, "good": 0, "miss": 0}}
 
@@ -697,9 +698,11 @@ def _judgement_traits():
     if any(t["verified"] or t["leaning"] for t in even):
         problems.append(f"loss spread across the stake should name nobody: {[(t['label'], t['offset']) for t in even]}")
     # a gap too small to state is still a lean; plenty of plays must not make it vanish instead
-    small = judgement_traits([play(break_misses=1) for _ in range(JUDGEMENT_CONFIRM_PLAYS * 2)])
+    # a break dropped on three plays in four, so the gap lands between the two bars rather than on one
+    small = judgement_traits([play(break_misses=1 if n % 4 else 0)
+                              for n in range(JUDGEMENT_CONFIRM_PLAYS * 2)])
     breaks = next(t for t in small if t["label"] == "break notes")
-    if not 0.3 <= abs(breaks["offset"]) < 0.5:
+    if not JUDGEMENT_LEAN_OFFSET <= abs(breaks["offset"]) < JUDGEMENT_OFFSET:
         problems.append(f"expected a gap between the lean and stated bars to test with, got {breaks['offset']:+.2f}")
     elif not breaks["leaning"] or breaks["verified"]:
         problems.append(f"{breaks['offset']:+.2f} over {breaks['count']} plays should lean, not disappear")
@@ -1069,6 +1072,7 @@ def _seam_live():
 @check("a trait names a skill or a pattern, never who charted it")
 def _traits_are_skills():
     from rasmai.engine.insights import even, leaning, notable
+    from rasmai.engine.insights import traits as T
     from rasmai.engine.insights.tags import NOT_A_SKILL
 
     # one of each kind, all far enough out and confirmed, so only the dimension decides
@@ -1161,6 +1165,16 @@ def _traits_are_skills():
             problems.append(f"the search box in {name}.tsx no longer says it is one, so it is read as a plain field")
     if boxes:
         problems.append(f"{boxes} type a search box as \"search\", which a Japanese IME will not compose into")
+
+    # every number the site decides a trait with has to be the number the bot decided it with
+    import re as _re
+    for name, value in (("LEAN", T.TRAIT_LEAN_OFFSET), ("LEAN_P", T.TRAIT_LEAN_P),
+                        ("CONFIRM_CHARTS", float(T.TRAIT_CONFIRM_CHARTS))):
+        found = _re.search(rf"const {name} = ([0-9.]+);", source)
+        if not found:
+            problems.append(f"the site no longer says what it uses for {name}")
+        elif abs(float(found.group(1)) - float(value)) > 1e-9:
+            problems.append(f"the site uses {name}={found.group(1)} where the bot uses {value}")
 
     # and the lists it builds have to be built from the filtered set, not the raw axes
     defines = [line for line in source.splitlines() if line.strip().startswith("const all =")]
@@ -2973,6 +2987,41 @@ def _link_embeds():
         problems.append(f"a button carries a key Discord refuses: {button.group(0)}")
 
     del json
+    return problems
+
+
+@check("a trait is only named when it replicates on the player's own charts")
+def _trait_bars_are_earned():
+    import math
+    from rasmai.engine import judgements as J
+    from rasmai.engine.insights import traits as T
+
+    problems = []
+    # Measured over six halvings of eight real accounts: a trait keeps its sign across both halves
+    # 73% of the time at 0.2-0.3, 80% at 0.4-0.5 and 85% above 0.5. Below about a fifth of a point
+    # there is nothing left to replicate, so a bar under that is naming noise whatever its p says.
+    FLOOR = 0.2
+    if T.TRAIT_LEAN_OFFSET < FLOOR:
+        problems.append(f"a lean at {T.TRAIT_LEAN_OFFSET} is under the {FLOOR} the split-half test can still see")
+    if T.TRAIT_THRESHOLD <= T.TRAIT_LEAN_OFFSET:
+        problems.append("a confirmed trait has to be a stronger claim than a lean, not an equal one")
+    if T.TRAIT_P > T.TRAIT_LEAN_P:
+        problems.append("a confirmed trait has to be rarer under shuffling than a lean, not commoner")
+    # A lean is judged on replicating rather than on rarity, so this bar is looser than the confirm
+    # one on purpose. It stops where the evidence stops: the slice from 0.05 to 0.15 was measured at
+    # 87% sign agreement, and nothing above 0.15 has been measured at all.
+    MEASURED_TO = 0.15
+    if T.TRAIT_LEAN_P > MEASURED_TO:
+        problems.append(f"a lean bar of p<={T.TRAIT_LEAN_P} goes past the {MEASURED_TO} anyone has "
+                        f"checked replicates; measure that band before opening it")
+    room = math.floor(T.TRAIT_LEAN_P * (T.TRAIT_PERMUTATIONS + 1))
+    if room < 4:
+        problems.append(f"p <= {T.TRAIT_LEAN_P} over {T.TRAIT_PERMUTATIONS} shuffles cannot be resolved")
+    if J.JUDGEMENT_OFFSET < T.TRAIT_THRESHOLD:
+        problems.append(f"a note type confirmed at {J.JUDGEMENT_OFFSET} would vanish from every list, "
+                        f"because a confirmed trait is shown only above {T.TRAIT_THRESHOLD}")
+    if J.JUDGEMENT_LEAN_OFFSET > T.TRAIT_LEAN_OFFSET:
+        problems.append("a note type should not need a bigger offset to lean than a chart trait does")
     return problems
 
 

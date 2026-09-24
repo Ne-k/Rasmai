@@ -210,16 +210,27 @@ def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: Pla
     return out
 
 
-TRAIT_THRESHOLD = 0.5      # a group has to sit this far from the player's own middle before it is worth naming
+# A group has to sit this far from the player's own middle before it is worth naming. Measured over
+# six halvings of eight accounts, a trait this far out keeps its sign across both halves 80% of the
+# time against 85% for the old bar of 0.5, so the band this admits is nearly as solid as what was
+# already shown and there is a lot more of it.
+TRAIT_THRESHOLD = 0.4
 
 
-TRAIT_LEAN_OFFSET = 0.3    # this far out, and rarer than one in twenty under shuffled tags, is worth showing as a lean
+# This far out, and rarer than one in twenty under shuffled tags, is worth showing as a lean. The
+# 0.25 to 0.3 band this admits keeps its sign across both halves of a player's charts 73% of the
+# time, well clear of a coin flip, and a lean is already labelled as a hint rather than a finding.
+TRAIT_LEAN_OFFSET = 0.25
 
 
 # One in ten, over the two dozen or so groups a player has enough charts for, is about three leans
 # from chance alone - which was the whole list on a real page. One in twenty puts that under one and
 # a half, so a lean is a hint worth reading rather than a coin landing the same way twice.
-TRAIT_LEAN_P = 0.05
+# A lean is a hint, so it is judged on whether it replicates rather than on how rare it is under
+# shuffled tags. The slice this admits, far enough out but between one in twenty and three in twenty
+# under shuffling, kept its sign across both halves 87% of the time: higher than the bands already
+# shown. Up to 15% of pure noise clears this bar on its own, which is why the offset bar stands with it.
+TRAIT_LEAN_P = 0.15
 
 
 RADAR_MIN = 3              # axes a wheel needs before it is drawn

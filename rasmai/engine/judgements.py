@@ -76,8 +76,8 @@ def judgement_profile(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 JUDGEMENT_LEAN_PLAYS = 10     # plays before a note type is worth mentioning as a lean
 JUDGEMENT_CONFIRM_PLAYS = 25  # plays before it is stated as measured
 JUDGEMENT_MIN_NOTES = 200     # notes of that type before its rate means anything
-JUDGEMENT_OFFSET = 0.5        # points a play a type has to cost beyond the player's own rate to be stated
-JUDGEMENT_LEAN_OFFSET = 0.3   # and this much to be worth showing as a lean
+JUDGEMENT_OFFSET = 0.4        # points a play a type has to cost beyond the player's own rate to be stated; keeps step with TRAIT_THRESHOLD
+JUDGEMENT_LEAN_OFFSET = 0.25  # and this much to be worth showing as a lean; keeps step with TRAIT_LEAN_OFFSET
 
 
 def judgement_traits(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

@@ -5,9 +5,11 @@ import { Empty, Info, Jacket, Label, TitleLink, type OpenChart } from "./bits";
 // what a chart is rather than what it asks of the hands. The bot measures these, because a
 // charter's habits soak up differences that would otherwise be blamed on a pattern, but a trait
 // is only worth naming if it is a skill you can work on. Kept in step with NOT_A_SKILL in tags.py.
+// These four MUST match traits.py: the bot decides what is confirmed, the site decides what
+// is a lean and what is level with the rest, so a number that drifts shows a different page.
 const NOT_A_SKILL = new Set(["type", "era", "genre", "designer"]);
-const LEAN = 0.3;
-const LEAN_P = 0.05;
+const LEAN = 0.25;
+const LEAN_P = 0.15;
 const CONFIRM_CHARTS = 12;
 const TIER = { basic: "BAS", advanced: "ADV", expert: "EXP", master: "MAS", remaster: "Re:M" } as Record<string, string>;
 
