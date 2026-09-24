@@ -4,12 +4,13 @@ import logging
 import math
 import os
 import threading
+import time
+
+from rasmai.engine.analysis.picks.model import SHORTLIST_READ
 
 logger = logging.getLogger(__name__)
 
 Key = Tuple[str, str, str]
-
-from rasmai.engine.analysis.picks.model import SHORTLIST_READ
 
 MODEL = os.getenv("RASMAI_LAYA_MODEL", "convaiinnovations/laya")
 BATCH = int(os.getenv("RASMAI_LAYA_BATCH", "32"))
@@ -196,8 +197,15 @@ def pick_odds(profile: Any, charts: Sequence[Dict[str, Any]]) -> Dict[Key, float
     player = describe_player(profile)
     states = [{"player": player, "chart": describe_chart(chart)} for chart in wanted]
     try:
+        # said out loud because it is the better part of a minute on a CPU with nothing else to
+        # show for itself, and a log that goes quiet there is indistinguishable from a hang
+        logger.info(f"asking the decision model about {len(wanted)} charts")
+        started = time.monotonic()
         with _lock:
             results = agent.predict_batch(states, QUESTIONS, batch_size=BATCH)
+        spent = time.monotonic() - started
+        logger.info(f"the decision model answered for {len(wanted)} charts in {spent:.1f}s "
+                    f"({1000 * spent / max(1, len(wanted)):.0f}ms each)")
     except Exception as error:
         logger.warning(f"laya could not answer, falling back to the arithmetic: {error}")
         return {}
