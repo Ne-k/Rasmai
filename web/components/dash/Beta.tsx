@@ -79,7 +79,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
           !on
             ? "Off from your next read."
             : feature && feature.ready === false
-              ? "On, but not enough is read yet to measure anything. Your traits will change once it is."
+              ? feature.status || "On, but the groundwork behind it is not finished yet."
               : "On from your next read. Use refresh above to see it now.",
         );
       })
@@ -112,7 +112,9 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
                 <b>{feature.label}</b>
                 <span className="dim">{feature.note}</span>
                 <Progress feature={feature} />
-                {feature.status && !feature.waiting && <span className="mono hint ok">{feature.status}</span>}
+                {feature.status && !feature.waiting && (
+                  <span className={`mono hint${feature.ready === false ? "" : " ok"}`}>{feature.status}</span>
+                )}
               </span>
             </label>
           </li>
@@ -120,7 +122,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">These change what the model measures, so your traits can move when you switch one on.</p>
+      <p className="hint">These change what the model measures or how it orders what it finds, so your traits and your picks can move when you switch one on.</p>
     </section>
   );
 }

@@ -39,7 +39,8 @@ ENV PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     MAIMAI_WEBSERVER_HOST=0.0.0.0 \
     MAIMAI_WEBSERVER_PORT=8765 \
-    MAIMAI_DATABASE_PATH=/app/data/maimai.sqlite3
+    MAIMAI_DATABASE_PATH=/app/data/maimai.sqlite3 \
+    HF_HOME=/app/data/models
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
@@ -58,6 +59,18 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install -r requirements.txt
+
+# The decision model behind the "laya" beta, off unless asked for: torch is 454 MB on linux/arm64
+# and the checkpoint another 808 MB, and a bot nobody will switch the feature on for should carry
+# neither. Built without it the beta picker says so, rather than offering a switch that does
+# nothing. Build with:  docker build --target bot --build-arg WITH_LAYA=1 .
+ARG WITH_LAYA=0
+COPY requirements-laya.txt .
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    if [ "$WITH_LAYA" = "1" ]; then \
+      pip install --index-url https://download.pytorch.org/whl/cpu torch \
+   && pip install -r requirements-laya.txt; \
+    fi
 
 COPY rasmai/ ./rasmai/
 COPY brand/emoji/png/ ./brand/emoji/png/

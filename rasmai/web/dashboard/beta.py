@@ -4,7 +4,17 @@ from rasmai.storage.db import get_user_settings, set_user_settings
 
 # Features that are finished enough to use and not finished enough to be on by default. Each one
 # is off until its owner turns it on, and turning it off puts everything back exactly as it was.
-FEATURES: Dict[str, Dict[str, str]] = {}
+FEATURES: Dict[str, Dict[str, str]] = {
+    # the site draws each of these as a checkbox: "label" is its title and "note" the line under it
+    "laya": {
+        "label": "Picks that read the song, not only the numbers",
+        "note": "A decision model reads what a chart is and what you have been playing, and nudges "
+                "the order of your picks toward the ones you would actually put on. What a score is "
+                "worth, and what you are expected to get, stay exactly as they are. Measured against "
+                "what eight players went and played next it has not beaten the ordering it replaces, "
+                "so it is here to be tried rather than because it is known to help.",
+    },
+}
 
 
 # Chart reading left this picker when it became how traits are measured for everyone. Its
@@ -42,7 +52,23 @@ FEATURES: Dict[str, Dict[str, str]] = {}
 # # probe is kept because the developer page still reports how much of the game has been read.
 
 
-READINESS: Dict[str, Any] = {}     # nothing is behind a switch, so nothing has a readiness probe
+def _laya_status() -> Dict[str, Any]:
+    """Whether the decision model is installed on this bot at all.
+
+    The weights are not part of the image, so a bot that was never given them has to say so
+    rather than let someone switch on a feature that will quietly do nothing. Only the package
+    is looked for, never loaded: loading it pulls in torch and most of a gigabyte of weights.
+    """
+    try:
+        from rasmai.engine.insights import laya
+        if laya.available():
+            return {"ready": True, "status": ""}
+    except Exception:
+        pass
+    return {"ready": False, "status": "this bot was built without the decision model"}
+
+
+READINESS: Dict[str, Any] = {"laya": _laya_status}
 
 
 def beta_state(user_id: str) -> Dict[str, Any]:

@@ -44,6 +44,11 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.events_read_at: Optional[datetime] = None
         self.plan_stretch: bool = False
         self.region: str = "intl"
+        self.user_id: str = ""      # whose account this is, so a per-player beta can be looked up
+        # what the decision model said about each chart, kept for as long as this analyzer lives:
+        # one read ranks three times over as unknowns and play counts arrive, and the model is
+        # the better part of a minute each time it is asked something it has already answered
+        self._pick_odds: Dict[Tuple[str, str, str], float] = {}
         self.challenge: str = "balanced"
 
     @property
@@ -130,6 +135,48 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         }
         return snapshot
 
+    def _read_taste(self, candidates: List[ScoredCandidate], chart_index: ChartIndex) -> Dict[Tuple[str, str, str], float]:
+        """What the decision model makes of the shortlist, or nothing at all.
+
+        Off for everyone who has not switched it on, and empty whenever the model is missing,
+        slow to load or unhappy. The ranking it feeds works the same either way.
+
+        :rtype: Dict[Tuple[str, str, str], float]
+        """
+        if not self.user_id:
+            return {}
+        try:
+            from rasmai.web.dashboard.beta import wants
+            if not wants(self.user_id, "laya"):
+                return {}
+            from rasmai.engine.insights import laya
+            from rasmai.engine.insights.tags import chart_traits
+        except Exception:
+            return {}
+        rows = []
+        for candidate in candidates[:laya.CAP]:
+            key = (candidate.title.casefold(), candidate.chart_type, candidate.difficulty_type)
+            chart = chart_index.get(key)
+            try:
+                traits = chart_traits(chart) if chart else []
+            except Exception:
+                traits = []
+            rows.append({"key": key, "title": candidate.title, "artist": candidate.artist,
+                         "genre": candidate.genre, "level": candidate.level,
+                         "difficulty": candidate.difficulty_type, "chart_type": candidate.chart_type,
+                         "is_new": candidate.is_new, "traits": traits})
+        try:
+            asking = [row for row in rows if row["key"] not in self._pick_odds]
+            if asking:
+                self._pick_odds.update(laya.pick_odds(self.play_profile, asking))
+            # weighed over the whole shortlist at once, never over whatever part of it was new,
+            # or a chart would be ranked against a different set than the one it is shown beside
+            return laya.weigh({row["key"]: self._pick_odds[row["key"]] for row in rows
+                               if row["key"] in self._pick_odds})
+        except Exception as error:
+            logger.warning(f"the decision model could not rank the shortlist: {error}")
+            return {}
+
     def generate_recommendations(self) -> Tuple[List[Recommendation], Dict]:
         """Rank what the player should play next.
 
@@ -163,6 +210,18 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
             chart_index,
             self.current_version,
         )
+        # the shortlist decides what is worth asking a model about, so the model runs after a
+        # first ranking and the list is ordered again with what it said
+        taste = self._read_taste(candidates, chart_index)
+        if taste:
+            self.play_profile.taste = taste
+            candidates = analysis.generate_recommendations(
+                self.songs,
+                self.play_profile,
+                self.best50,
+                chart_index,
+                self.current_version,
+            )
         self.analysis_summary = analysis.summarise(candidates, self.play_profile, self.best50)
 
         start_rating = int(getattr(self.player, "rating", 0) or 0) or self.best50.total

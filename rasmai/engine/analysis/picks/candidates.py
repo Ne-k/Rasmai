@@ -66,7 +66,7 @@ def _unplayed_candidates(
             continue
 
         feasibility = profile.feasibility(chart.constant, expected, chart.difficulty)
-        affinity = profile.affinity(chart.chart_type, chart.genre, chart.difficulty)
+        affinity = profile.affinity(chart.chart_type, chart.genre, chart.difficulty, key)
         proximity = 1.0 / (1.0 + abs(chart.constant - profile.comfort_constant) / 3.0)
         score = rating_gain * feasibility * affinity * proximity * 0.7
         if is_new and best50.new_pool.headroom() > 0:

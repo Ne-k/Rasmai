@@ -45,6 +45,9 @@ class PlayProfile:
     chart_type_bias: Dict[str, float] = field(default_factory=dict)   # std/dx
     genre_bias: Dict[str, float] = field(default_factory=dict)
     difficulty_bias: Dict[str, float] = field(default_factory=dict)
+    # a per-chart reading of the same thing the three biases above guess at, filled only when
+    # something has actually measured it for this player; empty means fall back to the categories
+    taste: Dict[Tuple[str, str, str], float] = field(default_factory=dict)
     # how far this player's scores on each tier sit from the shared curve at the same
     # constant: a Master 13 and an Expert 13 are not the same chart to the same hands
     difficulty_offset: Dict[str, float] = field(default_factory=dict)
@@ -396,12 +399,38 @@ class PlayProfile:
         expected, sigma = self.chart_expectation(key, constant, best_accuracy)
         return _normal_cdf((expected - target_accuracy) / sigma)
 
-    def affinity(self, chart_type: str, genre: str, difficulty: str) -> float:
+    def affinity(self, chart_type: str, genre: str, difficulty: str,
+                 key: Optional[Tuple[str, str, str]] = None) -> float:
+        """How much this chart looks like the ones the player chooses.
+
+        A chart the player would actually put on is worth more than one that only scores well on
+        paper. The three categories are all this can see on its own; where something has measured
+        this player's taste for one chart in particular, that multiplies what the categories say
+        rather than replacing it, so a chart that was read and a chart that was not are still
+        being compared on the same scale.
+
+        :param key: The chart, so a per-chart reading can be used where there is one.
+        :type key: Optional[Tuple[str, str, str]]
+        :rtype: float
+        """
         value = 1.0
         value *= self.chart_type_bias.get(chart_type, 1.0)
         value *= self.genre_bias.get(genre, 1.0)
         value *= self.difficulty_bias.get(difficulty, 1.0)
-        return value
+        return value * self.pick_weight(key) if key is not None else value
+
+    def pick_weight(self, key: Tuple[str, str, str]) -> float:
+        """How much a per-chart reading of this player's taste should move this one, or 1.0 for none.
+
+        Separate from :meth:`affinity` because it has to be exactly 1.0 when nothing was measured:
+        it is multiplied into an ordering that everyone gets, and nobody who never switched a
+        reading on may see their list move because of one.
+
+        :param key: The chart, as ``(title, chart type, difficulty)``.
+        :type key: Tuple[str, str, str]
+        :rtype: float
+        """
+        return self.taste.get(key, 1.0)
 
     def curve_points(self, step: float = 0.1) -> List[Dict[str, float]]:
         """The fitted curve as points, from the easiest chart scored to the hardest that exists.

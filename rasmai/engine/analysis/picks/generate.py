@@ -62,7 +62,7 @@ def generate_recommendations(
         feasibility = profile.chart_feasibility(key, constant, accuracy, target_accuracy)
         chart = chart_index.get(key)
         genre = chart.genre if chart else str(getattr(song, "genre", ""))
-        affinity = profile.affinity(chart_type, genre, difficulty_type)
+        affinity = profile.affinity(chart_type, genre, difficulty_type, key)
         freshness = _freshness(profile, key)
 
         pool = best50.pool_for(is_new)
@@ -127,11 +127,19 @@ def generate_recommendations(
 
     movers = [c for c in candidates if c.rating_gain > 0]
     near = [c for c in candidates if c.rating_gain <= 0]
+    # Taste is 1.0 for every chart nothing has measured, so a list nobody has asked to be read
+    # sorts exactly as it always did. Where there is a reading it decides between charts, never
+    # instead of them: the gain is a whole number and most of a list shares one, so a tie is what
+    # it breaks and a bigger gain never falls below a smaller one because of it.
+    def taste(candidate: ScoredCandidate) -> float:
+        return profile.pick_weight((candidate.title.casefold(), candidate.chart_type, candidate.difficulty_type))
+
     if mode.pick == "likely":
         # first-pass estimates on unplayed charts are less certain than a score you already hold
-        movers.sort(key=lambda c: (c.rating_gain * c.feasibility * (0.6 if c.is_unplayed else 1.0), c.feasibility), reverse=True)
+        movers.sort(key=lambda c: (c.rating_gain * c.feasibility * (0.6 if c.is_unplayed else 1.0) * taste(c),
+                                   c.feasibility), reverse=True)
     else:
-        movers.sort(key=lambda c: (c.rating_gain, c.feasibility), reverse=True)
+        movers.sort(key=lambda c: (c.rating_gain, taste(c) * c.feasibility), reverse=True)
     # a new player's list would otherwise be twenty-five unplayed 12.1s all reading "~S for +12": a few make the
     # point, the New charts view has the rest, and the charts they already hold a score on stay visible
     kept, unplayed_shown = [], 0

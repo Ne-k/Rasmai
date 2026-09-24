@@ -252,6 +252,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
         )
         for r in rows
     ]
+    analyzer.user_id = user_id
     analyzer.play_counts = load_play_counts(user_id)
     analyzer.recorded_plays = load_recorded_plays(user_id)
     analyzer.judgements = load_judgements(user_id)

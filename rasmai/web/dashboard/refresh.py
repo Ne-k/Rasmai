@@ -72,6 +72,7 @@ class RefreshJobs:
                 analyzer.player = snapshot["player"]
                 analyzer.songs = snapshot["songs"]
                 analyzer.recent_songs = snapshot.get("recentSongsData", [])
+                analyzer.user_id = user_id
                 analyzer.play_counts = load_play_counts(user_id)
                 analyzer.recorded_plays = load_recorded_plays(user_id)
                 analyzer.judgements = load_judgements(user_id)

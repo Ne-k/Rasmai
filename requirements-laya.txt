@@ -1,0 +1,15 @@
+# The decision model behind the "laya" beta, and nothing else needs it.
+#
+# Kept out of requirements.txt on purpose. torch is 127 MB on an Apple Silicon Mac and 454 MB on
+# linux/arm64, and the checkpoint is another 808 MB fetched on first use, so a bot that will never
+# turn the feature on should not carry any of it. A bot built without this says so in the beta
+# picker rather than offering a switch that does nothing.
+#
+#   pip install -r requirements.txt -r requirements-laya.txt
+#
+# On a machine with no GPU, install torch from the CPU index first or pip will pull the CUDA build:
+#
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch
+#
+laya==0.3.11
+torch==2.14.0

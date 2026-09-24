@@ -59,7 +59,7 @@ def _plan_options(
         chart = chart_index.get(key)
         genre = chart.genre if chart else str(getattr(song, "genre", ""))
         expected, sigma = profile.chart_expectation(key, constant, accuracy)
-        affinity = profile.affinity(chart_type, genre, difficulty_type)
+        affinity = profile.affinity(chart_type, genre, difficulty_type, key)
         plays = profile.plays_for(key)
         for rank_name, threshold in tiers_for(accuracy, expected, sigma, constant,
                                               played=not profile.dropped_best(key, constant, accuracy)):
@@ -135,7 +135,7 @@ def unplayed_plan_options(
         is_new = bool(current_version) and chart.version == current_version
         local_sigma = max(global_sigma, profile.sigma_at(chart.constant))
         expected = profile.expected_for(chart.constant, chart.difficulty) - 0.35 - 0.4 * local_sigma
-        affinity = profile.affinity(chart.chart_type, chart.genre, chart.difficulty)
+        affinity = profile.affinity(chart.chart_type, chart.genre, chart.difficulty, chart.key)
         for rank_name, threshold in target_tiers(profile, 0.0, expected, local_sigma, chart.constant,
                                                  stretch_sigmas, slack, played=False):
             if threshold < 97.0:
