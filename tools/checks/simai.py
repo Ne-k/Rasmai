@@ -164,22 +164,37 @@ def _simai_down():
     store._database_ready = False
     asked = []
 
-    def dead(chart_id):
-        asked.append(chart_id)
-        return None
+    def refusing(why):
+        def answer(chart_id):
+            asked.append(chart_id)
+            simai._last_refusal = why
+            return None
+        return answer
 
     pending = [(f"song {n}|dx|master", f"id{n}", {"t": 1, "h": 0, "s": 0, "u": 0, "b": 0, "n": 1}) for n in range(50)]
     held_fetch, held_pending, held_pause = simai.fetch_chart, simai._pending, simai.PAUSE
-    simai.fetch_chart, simai._pending, simai.PAUSE = dead, lambda known: pending, 0.0
+    held_refusal = simai._last_refusal
+    simai._pending, simai.PAUSE = lambda known: pending, 0.0
     problems = []
     try:
+        simai.fetch_chart = refusing(simai.UNREACHABLE)
         out = simai.refresh(40)
         if len(asked) > simai.MISSES:
             problems.append(f"a dead site was asked {len(asked)} times, expected to stop after {simai.MISSES}")
         if out:
             problems.append("a run that read nothing reported work done, so the caller would run it again")
+
+        # A site that answers with its own page is not a site to wait out: one is proof the endpoint
+        # serves nobody, and the rest of the list would be hundreds of requests to be told the same.
+        asked.clear()
+        simai.fetch_chart = refusing(simai.NOT_SERVED)
+        simai.refresh(40)
+        if len(asked) != 1:
+            problems.append(f"a site answering with its own page was asked {len(asked)} times, and "
+                            f"once is all it takes to know the notation is not there")
     finally:
         simai.fetch_chart, simai._pending, simai.PAUSE = held_fetch, held_pending, held_pause
+        simai._last_refusal = held_refusal
         store.DATABASE_PATH = was
         store._database_ready = False
     return problems

@@ -33,6 +33,14 @@ SAVE_EVERY = 25
 # give up the run after this many unanswered requests in a row, so a site that is down is left alone
 MISSES = 5
 
+# Why the last fetch came back with nothing. A site that cannot be reached and a site that answers
+# its own front page instead of a chart are not the same thing and do not deserve the same answer:
+# the first is worth waiting out, the second means the notation is not there to be had, and saying
+# "stopped answering" about a site that replied in 400ms sends whoever reads the log the wrong way.
+UNREACHABLE = "unreachable"
+NOT_SERVED = "answered, but not with a chart"
+_last_refusal = UNREACHABLE
+
 _lock = threading.Lock()
 
 
@@ -87,6 +95,8 @@ def fetch_chart(chart_id: str) -> Optional[str]:
     :type chart_id: str
     :rtype: Optional[str]
     """
+    global _last_refusal
+    _last_refusal = UNREACHABLE
     try:
         response = requests.get(CHART_URL.format(chart=chart_id),
                                 headers={"User-Agent": USER_AGENT, "Accept": "text/plain"}, timeout=TIMEOUT)
@@ -97,7 +107,10 @@ def fetch_chart(chart_id: str) -> Optional[str]:
         return None
     text = response.text
     # the site answers its own index page for an id it does not hold, rather than a 404
-    return None if text.lstrip().startswith("<") else text
+    if text.lstrip().startswith("<"):
+        _last_refusal = NOT_SERVED
+        return None
+    return text
 
 
 def read_chart(text: str, expected: Dict[str, Any]) -> Optional[Dict[str, float]]:
@@ -188,11 +201,19 @@ def refresh(budget: int = BATCH) -> Dict[str, Any]:
         for key, chart_id, row in waiting[:budget]:
             text = fetch_chart(chart_id)
             if text is None:
+                # One front page in place of a chart is all the proof needed: the endpoint is not
+                # serving notation to anybody, so walking the rest of the list would be a few
+                # hundred requests to be told the same thing.
+                if _last_refusal == NOT_SERVED:
+                    logger.info("simai: %s answered, but with its own page instead of %s: it is no "
+                                "longer serving chart notation, so the charts already read are all "
+                                "there is from it. The repository is unaffected.", SITE, chart_id)
+                    break
                 # the site is not answering. A chart that was never fetched is left pending on
                 # purpose, so stop rather than walk the whole list against a site that is down.
                 missed += 1
                 if missed >= MISSES:
-                    logger.info("simai: %s stopped answering, leaving the rest for next time", SITE)
+                    logger.info("simai: %s could not be reached, leaving the rest for next time", SITE)
                     break
             else:
                 missed = 0
