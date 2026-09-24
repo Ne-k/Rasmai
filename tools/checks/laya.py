@@ -151,6 +151,13 @@ def _laya_is_optional():
         problems.append("the image cannot be built with the model at all")
     elif "WITH_LAYA" not in docker:
         problems.append("the image installs the model unconditionally, so it is no longer optional")
+    # A build argument is not a setting: nothing in .env reaches one unless compose is told to pass
+    # it through. Without this the switch is offered, turned on, and answers that the bot was built
+    # without the model, which is exactly what it did.
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    if "WITH_LAYA" not in compose:
+        problems.append("docker-compose.yml never passes WITH_LAYA to the build, so setting it in "
+                        ".env builds an image without the model and the switch does nothing")
     return problems
 
 

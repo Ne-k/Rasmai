@@ -79,7 +79,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
           !on
             ? "Off from your next read."
             : feature && feature.ready === false
-              ? feature.status || "On, but the groundwork behind it is not finished."
+              ? "On, but this bot cannot run it yet, so nothing will change."
               : "On from your next read. Use refresh above to see it now.",
         );
       })

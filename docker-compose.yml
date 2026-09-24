@@ -5,6 +5,11 @@ services:
     build:
       context: .
       target: bot
+      args:
+        # the decision model behind the "laya" beta, off unless .env says otherwise. It is a build
+        # arg rather than a setting because it decides what goes into the image, so changing it
+        # means rebuilding: docker compose build bot && docker compose up -d bot
+        WITH_LAYA: ${WITH_LAYA:-0}
       cache_from:
         - ghcr.io/ne-k/rasmai:latest
     container_name: rasmai
