@@ -235,7 +235,7 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
       <div className="two-up">
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts you have never played whose constant sits where a first pass should already be worth a place in your best 50. The numbers are the range of constants searched. Banks means the score would count but not raise your rating yet.">
+            <Label info="Charts you have never played whose constant is already worth a best-50 place on a first pass. Banks means the score would count but not raise your rating yet.">
               new charts to try · {picks.newWindow[0].toFixed(1)}–{picks.newWindow[1].toFixed(1)}
             </Label>
           </div>
@@ -267,7 +267,7 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
 
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts that would enter your best 50 if you scored on them what you usually score at their level. Where the score you hold is far below that, it is read as one run that went badly rather than a chart you cannot play: Usually is what the model expects from you, and Needs is what it takes to get in.">within reach of your best 50</Label>
+            <Label info="Charts that would enter your best 50 if you scored what you usually do at their level. Usually is what the model expects from you, and Needs is what it takes to get in.">within reach of your best 50</Label>
           </div>
           {near.length === 0 ? (
             <Empty>Nothing is within reach of your best 50 right now.</Empty>

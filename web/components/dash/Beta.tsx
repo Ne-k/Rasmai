@@ -79,7 +79,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
           !on
             ? "Off from your next read."
             : feature && feature.ready === false
-              ? feature.status || "On, but the groundwork behind it is not finished yet."
+              ? feature.status || "On, but the groundwork behind it is not finished."
               : "On from your next read. Use refresh above to see it now.",
         );
       })
@@ -92,7 +92,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="Work that is finished enough to use and not finished enough to be on for everyone. Turning one off puts everything back the way it was: nothing is kept that depends on it.">
+        <Label info="Finished enough to use, not finished enough to be on for everyone. Turning one off puts everything back.">
           beta
         </Label>
         <span className={`mono hint${count ? " ok" : ""}`}>{count ? `${count} on` : "none on"}</span>
@@ -122,7 +122,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">These change what the model measures or how it orders what it finds, so your traits and your picks can move when you switch one on.</p>
+      <p className="hint">These change what the model measures or how it orders things, so your traits and picks can move.</p>
     </section>
   );
 }

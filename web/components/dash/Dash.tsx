@@ -7,12 +7,12 @@ import { ApiError, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type Look
 import { Lookup } from "./Lookup";
 import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
-import { JudgementProfile, Traits } from "./Traits";
+import { JudgementProfile, Traits } from "./traits";
 import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
 import { Account } from "./Account";
-import { AdminPanel } from "./Admin";
+import { AdminPanel } from "./admin";
 import { Best50 } from "./Best50";
 import { Frame } from "./Frame";
 import { OverviewTab } from "./OverviewTab";

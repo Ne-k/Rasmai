@@ -42,13 +42,13 @@ const FEATURES: { mark: string; title: string; body: string; command: string }[]
   {
     mark: "pb",
     title: "Where you lose points",
-    body: "Your scores grouped by tempo, note count, era, genre and designer against your own curve, plus the model's check of itself against your recorded plays: range coverage, predicted against real new bests, and the corrections it applied.",
+    body: "Your scores grouped by the patterns and skills a chart asks for, against your own curve, plus the model's check of itself: range coverage, predicted against real new bests, and the corrections it applied.",
     command: "/profile",
   },
   {
     mark: "diff_master",
     title: "Look anything up",
-    body: "One chart with your score, its prediction, what each rank is worth and what the chart asks of your hands, in Japanese or romaji, with the whole song and a score-history graph one button away. Or browse every chart that carries a pattern: streams, hand swaps, slow rotations.",
+    body: "One chart with your score, its prediction, what each rank is worth and what it asks of your hands, with the whole song and a score-history graph a button away. Or browse every chart carrying a pattern.",
     command: "/chart  /charts",
   },
   {
@@ -60,7 +60,7 @@ const FEATURES: { mark: string; title: string; body: string; command: string }[]
   {
     mark: "festival",
     title: "Read the chart, then read your run",
-    body: "Pattern tags from maiノーツ say what a chart is made of before you play it. Afterwards the play log shows each judgement, so you can work out what cost you rather than being told. The numbers are a starting point; the noticing is yours.",
+    body: "Pattern tags say what a chart is made of before you play it. Afterwards the play log shows every judgement, so you can work out what cost you rather than being told. The noticing is yours.",
     command: "/charts  /recent play:1",
   },
 ];

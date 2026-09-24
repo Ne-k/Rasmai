@@ -90,7 +90,7 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="The line is what the model expects you to score at each chart constant, fitted to your own results. The band around it is how much your scores usually vary. Each dot is one chart you hold a score on, so a dot below the band is a chart you under-perform on and one above it is a chart you beat your own curve on.">
+        <Label info="The line is what the model expects at each constant, fitted to your own results, and the band is how much your scores vary. Each dot is a chart: below the band you under-perform, above it you beat your curve.">
           your curve
         </Label>
         <span className="mono hint">{scored.length} scored charts behind it</span>

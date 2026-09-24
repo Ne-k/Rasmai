@@ -14,7 +14,7 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
   maintenance: {
     headline: ["maimai DX NET is ", "down"],
     detail:
-      "Your Aime sign-in worked, but that gateway and the maimai DX NET score site are two different things, and the score site is the one your session has to be checked against. It is in maintenance or not answering, so the check cannot happen yet.",
+      "Your Aime sign-in worked, but the maimai DX NET score site is a separate service, and that is the one your session has to be checked against. It is not answering right now, so the check cannot happen yet.",
     hint: "Nothing was used up: your login link still works. Press the bookmark again once the servers are back. The band at the top says when.",
   },
   no_login: {

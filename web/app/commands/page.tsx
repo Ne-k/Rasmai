@@ -64,7 +64,7 @@ export default function CommandsPage() {
           Every command, and <em>what it does</em>.
         </>
       }
-      intro="Everything the bot answers to. Words with a dotted line under them have a meaning you can hover for, or tap on a phone. Everything here works in a server, in DMs, or anywhere at all if you add Rasmai to your account instead of a server."
+      intro="Everything the bot answers to. Words with a dotted underline have a meaning you can hover for, or tap on a phone. It all works in a server, in DMs, or anywhere if you add Rasmai to your account."
     >
       <h2>Start here</h2>
       <div className="cmds">

@@ -98,7 +98,7 @@ export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { ini
       {current && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Every chart you have never played on this account in this window, ordered the way the chosen level ranks them. First pass is the score the model expects the first time you play it, Odds of S is how likely an S is, and Worth is what an S would add to your rating.">
+            <Label info="Charts you have never played on this account. First pass is what the model expects your first try to score, Odds of S is how likely an S is, and Worth is what an S would add.">
               {current.picks.length} charts · {current.level !== "any" ? `level ${current.level} · ` : ""}constants {current.window[0].toFixed(1)}–{current.window[1].toFixed(1)}
             </Label>
             <span className="mono hint">sorted the way this level ranks them</span>

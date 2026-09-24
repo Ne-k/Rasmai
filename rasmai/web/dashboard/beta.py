@@ -7,12 +7,10 @@ from rasmai.storage.db import get_user_settings, set_user_settings
 FEATURES: Dict[str, Dict[str, str]] = {
     # the site draws each of these as a checkbox: "label" is its title and "note" the line under it
     "laya": {
-        "label": "Picks that read the song, not only the numbers",
-        "note": "A decision model reads what a chart is and what you have been playing, and nudges "
-                "the order of your picks toward the ones you would actually put on. What a score is "
-                "worth, and what you are expected to get, stay exactly as they are. Measured against "
-                "what eight players went and played next it has not beaten the ordering it replaces, "
-                "so it is here to be tried rather than because it is known to help.",
+        "label": "Laya decision model",
+        "note": "Reads what a chart is and what you have been playing, and reorders picks worth the "
+                "same toward the ones you would actually put on. Unproven: it has not yet beaten the "
+                "ordering it replaces.",
     },
 }
 

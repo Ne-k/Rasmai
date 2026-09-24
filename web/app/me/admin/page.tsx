@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Admin } from "@/components/dash/Admin";
+import { Admin } from "@/components/dash/admin";
 import "../dashboard.css";
 
 export const metadata: Metadata = { title: "Developer · Rasmai", robots: { index: false, follow: false } };

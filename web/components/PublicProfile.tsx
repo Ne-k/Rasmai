@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Ring } from "@/components/Ring";
 import { ThemeToggle } from "@/components/Theme";
 import { Chip, Empty, Jacket, Label, num, pct, when } from "./dash/bits";
-import { Radar, radarAxes, twoSides } from "./dash/Traits";
+import { Radar, radarAxes, twoSides } from "./dash/traits";
 
 type Chart = {
   title: string; difficulty: string; type: string; level: string; constant: number;

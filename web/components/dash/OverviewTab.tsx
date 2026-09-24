@@ -47,7 +47,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
       <div className="two-up">
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Where your scores put you. Comfortable up to is the hardest constant you still score consistently at; S expected up to is where a first pass should still land an S. Reachable is what the What to play targets add up to if every one lands. Charts you pick is how old they were when you played them. First track of a credit only appears once enough plays say the gap is not chance.">how you play</Label>
+            <Label info="Comfortable up to is the hardest constant you still score consistently at, and S expected up to is where a first pass should still land an S. Reachable is what every What to play target adds up to.">how you play</Label>
           </div>
           <dl className="facts">
             <dt>comfortable up to</dt>
@@ -101,7 +101,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
         </section>
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Your rating is the sum of your best 50 chart ratings: the 15 best on songs from the current version and the 35 best on older ones. Enters at is the chart rating a new score needs to push the lowest one out. Open means that pool is not full yet, so any score counts.">best 50 cutoffs</Label>
+            <Label info="Your rating is your best 50 chart ratings: the 15 best from the current version and the 35 best from older ones. Enters at is what a new score needs to push the lowest one out. Open means that pool is not full yet.">best 50 cutoffs</Label>
           </div>
           <dl className="facts">
             <dt>new pool (15)</dt>
