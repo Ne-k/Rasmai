@@ -3112,9 +3112,39 @@ def _laya_is_optional():
     # the switch is per player, so an analyzer with nobody attached to it must never reach the model
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
     analyzer = MaimaiRatingAnalyzer.__new__(MaimaiRatingAnalyzer)
-    analyzer.user_id = ""
+    analyzer.user_id, analyzer._pick_odds = "", {}
     if analyzer._read_taste([], index):
         problems.append("an analysis with no account behind it still asked the model about somebody")
+
+    # And the switch has to be read *before* the model's module is, or every analysis on the bot
+    # pays to import it - which on a bot built with the package means importing torch - whether the
+    # person turned anything on or not. This is the one ordering that can regress silently.
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    import rasmai.engine.insights as _insights
+    module = sys.modules.pop("rasmai.engine.insights.laya", None)
+    # the package keeps its own attribute once a submodule has been imported, and an import would
+    # find that instead of loading anything, so hiding it too is what makes this test mean something
+    attribute = getattr(_insights, "laya", None)
+    if attribute is not None:
+        delattr(_insights, "laya")
+    try:
+        analyzer.user_id = "somebody-who-never-found-it"
+        chart = ChartRef(title="Song", chart_type="dx", difficulty="master", constant=13.0, level="13",
+                         notes=700, genre="POPS", artist="a", cover="", version=26, bpm=170.0)
+        index.add(chart)
+        if analyzer._read_taste(list(plain), index):
+            problems.append("a player who never switched the model on had their picks reordered by it")
+        if "rasmai.engine.insights.laya" in sys.modules:
+            problems.append("an analysis for somebody without the switch on loaded the model's module "
+                            "anyway, so the switch is being read after the import rather than before it")
+    finally:
+        if module is not None:
+            sys.modules["rasmai.engine.insights.laya"] = module
+        if attribute is not None:
+            setattr(_insights, "laya", attribute)
+        store.DATABASE_PATH = was
+        store._database_ready = False
 
     if laya.WEIGHT <= 0:
         problems.append(f"a weight of {laya.WEIGHT} means the feature does nothing when it is switched on")
