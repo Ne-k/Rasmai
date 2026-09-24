@@ -90,9 +90,23 @@ def _laya_is_optional():
     # the switch is per player, so an analyzer with nobody attached to it must never reach the model
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
     analyzer = MaimaiRatingAnalyzer.__new__(MaimaiRatingAnalyzer)
-    analyzer.user_id, analyzer._pick_odds = "", {}
+    analyzer.user_id, analyzer._pick_odds, analyzer.background = "", {}, True
     if analyzer._read_taste([], index):
         problems.append("an analysis with no account behind it still asked the model about somebody")
+
+    # and an analysis a page is waiting on is never allowed to, however much the player wants it:
+    # the model is most of a minute, the dashboard rebuilds its analysis inside the request, and
+    # every retry while it waited queued another one behind the same lock
+    if MaimaiRatingAnalyzer(debug=True).background:
+        problems.append("an analysis is allowed to take its time unless told otherwise, so the page "
+                        "that rebuilds one inside a request will sit there waiting on the model")
+    for path, wants_it in (("rasmai/web/dashboard/refresh.py", True),
+                           ("rasmai/bot/builders/results/fresh.py", True),
+                           ("rasmai/web/dashboard/analysis.py", False)):
+        source = (ROOT / path).read_text(encoding="utf-8")
+        if (".background = True" in source) is not wants_it:
+            problems.append(f"{path} {'no longer' if wants_it else 'now'} runs its analysis in the "
+                            f"background, so the model {'will never be asked' if wants_it else 'can block a page'}")
 
     # And the switch has to be read *before* the model's module is, or every analysis on the bot
     # pays to import it - which on a bot built with the package means importing torch - whether the
@@ -253,6 +267,7 @@ def _laya_reaches_the_picks():
         laya.pick_odds = counting
         analyzer = MaimaiRatingAnalyzer.__new__(MaimaiRatingAnalyzer)
         analyzer.user_id, analyzer._pick_odds, analyzer.play_profile = "somebody", {}, profile
+        analyzer.background = True
         candidates = generate_recommendations(songs, profile, best50, index, 26) or plain
         from rasmai.web.dashboard import beta as _beta
         was_settings = _beta.get_user_settings

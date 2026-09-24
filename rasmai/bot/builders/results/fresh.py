@@ -72,6 +72,7 @@ async def run_full_analysis(
     analyzer.recent_songs = snapshot.get("recentSongsData", [])
     analyzer.events_data = snapshot.get("eventsData") or {"areaEvents": [], "eventAreaEvents": []}
     analyzer.user_id = user_id
+    analyzer.background = True      # already minutes of scraping behind a progress bar
     analyzer.play_counts = load_play_counts(user_id, latest_play_times(analyzer))
     analyzer.recorded_plays = load_recorded_plays(user_id)
     analyzer.judgements = load_judgements(user_id)

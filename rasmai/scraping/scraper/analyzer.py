@@ -45,6 +45,10 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.plan_stretch: bool = False
         self.region: str = "intl"
         self.user_id: str = ""      # whose account this is, so a per-player beta can be looked up
+        # Whether this analysis is allowed to take its time. A page waiting on a reply is not:
+        # the decision model is the better part of a minute, and a dashboard that rebuilds its
+        # analysis inside the request would sit there loading while every retry queued another.
+        self.background: bool = False
         # what the decision model said about each chart, kept for as long as this analyzer lives:
         # one read ranks three times over as unknowns and play counts arrive, and the model is
         # the better part of a minute each time it is asked something it has already answered
@@ -143,7 +147,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
 
         :rtype: Dict[Tuple[str, str, str], float]
         """
-        if not self.user_id:
+        if not self.user_id or not self.background:
             return {}
         try:
             from rasmai.web.dashboard.beta import wants
