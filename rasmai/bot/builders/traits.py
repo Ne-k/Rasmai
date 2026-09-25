@@ -26,7 +26,13 @@ def _practice_lines(axis: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[st
     lines = [f"**{english_label(str(axis['label']))}** `{float(axis['offset']):+.2f}` · `/charts pattern:{tag}` for all of them"]
     for r in rows:
         short = TIER_SHORT.get(r["difficulty"], r["difficulty"][:3].upper())
-        mine = f"you hold **{r['accuracy']:.4f}**" if r.get("accuracy") is not None else "not played yet"
+        if r.get("accuracy") is None:
+            mine = "not played yet"
+        elif r.get("stale"):
+            # a couple of plays a long way under the curve, from a while ago: worth saying so
+            mine = f"an old **{r['accuracy']:.2f}**"
+        else:
+            mine = f"you hold **{r['accuracy']:.4f}**"
         lines.append(f"{chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {short} {r['chart_type'].upper()} {r['constant']:.1f} · {mine}")
     return lines
 

@@ -19,6 +19,47 @@ _TAG_PENALTY = 10.0          # ridge weight on a tag: shrinks a group of n chart
 _CONTROL_PENALTY = 1e-3
 
 
+# A best far under the curve on a chart they have barely touched is an old run, not something the
+# chart's patterns did. Both halves have to hold. The gap on its own cannot tell last year's score
+# from a real weakness - a weakness *is* a run of scores under the curve - so cutting on the gap
+# alone would delete the very thing this sets out to measure. Applying the recommender's own
+# dropped_best here takes a fifth of every score with it, because its gap is two points and is
+# fitted for whether to offer a chart again, not for whether a score is evidence.
+#
+# The play count has to be one maimai actually gave us. Not knowing how often a chart was played
+# is not the same as knowing it was played once, and treating it as such is what made the first
+# attempt at this throw away 20% of every account's scores.
+STALE_PLAYS = 2            # official plays at or under this, and only when the count is known
+STALE_GAP = 6.0            # points under the curve before a barely-played best stops counting
+STALE_SPREADS = 3.0        # or this many of the player's own spreads, whichever is further
+
+
+def stale_best(profile: PlayProfile, key: Tuple[str, str, str], constant: float,
+               difficulty: str, accuracy: float) -> bool:
+    """Whether a held best is an old run rather than what this player does on this chart now.
+
+    maimai never says when a best was set, so this is the nearest thing that can be known: a score
+    well under the curve on a chart the game says they have played once or twice.
+
+    :param profile: How the player plays, as measured from their scores.
+    :type profile: PlayProfile
+    :param key: The chart, as ``(title, chart type, difficulty)``.
+    :type key: Tuple[str, str, str]
+    :param constant: The chart's internal difficulty constant.
+    :type constant: float
+    :param difficulty: The difficulty tier, such as ``"master"``.
+    :type difficulty: str
+    :param accuracy: The best the player holds on it.
+    :type accuracy: float
+    :rtype: bool
+    """
+    official = profile.play_counts.get(key)
+    if official is None or official < 0 or official > STALE_PLAYS:
+        return False
+    gap = max(STALE_GAP, STALE_SPREADS * profile.sigma_at(constant))
+    return accuracy < profile.expected_for(constant, difficulty) - gap
+
+
 def _trait_observations(scored: Sequence[Any], chart_index: ChartIndex, profile: PlayProfile,
                         recorded_plays: Optional[Sequence[Dict[str, Any]]]) -> List[Dict[str, Any]]:
     """Every score the player made, as a residual against their own curve with the chart it was on.
@@ -37,6 +78,8 @@ def _trait_observations(scored: Sequence[Any], chart_index: ChartIndex, profile:
         residual = float(song.accuracy) - profile.expected_for(float(song.difficulty), chart.difficulty)
         if residual < -12:
             continue                  # a dropped run says nothing about the chart's traits
+        if stale_best(profile, key, float(song.difficulty), chart.difficulty, float(song.accuracy)):
+            continue                  # and neither does last year's, on a chart played twice
         out.append({"key": key, "chart": chart, "residual": residual, "play": 0, "weight": 1.0})
     plays_by_chart: Dict[Tuple[str, str, str], List[float]] = {}
     for play in recorded_plays or []:
@@ -317,10 +360,17 @@ def practice_for(axis: Dict[str, Any], chart_index: ChartIndex, profile: PlayPro
         song = mine.get(chart.key)
         rows.append((0 if song is not None else 1, abs(chart.constant - profile.comfort_constant), chart.title.casefold(), chart, song))
     rows.sort(key=lambda row: row[:3])
-    return [{"title": chart.title, "chart_type": chart.chart_type, "difficulty": chart.difficulty, "level": chart.level,
-             "constant": chart.constant, "cover": chart.cover,
-             "accuracy": float(song.accuracy or 0) if song is not None else None}
-            for _played, _constant, _title, chart, song in rows[:limit]]
+    out = []
+    for _played, _constant, _title, chart, song in rows[:limit]:
+        accuracy = float(song.accuracy or 0) if song is not None else None
+        # a chart worth practising is often one they last played badly a long time ago. Saying so
+        # beats printing an old number beside today's, which reads as if the model believes it.
+        old = bool(song is not None and accuracy
+                   and stale_best(profile, chart.key, chart.constant, chart.difficulty, accuracy))
+        out.append({"title": chart.title, "chart_type": chart.chart_type, "difficulty": chart.difficulty,
+                    "level": chart.level, "constant": chart.constant, "cover": chart.cover,
+                    "accuracy": accuracy, "stale": old})
+    return out
 
 
 def radar_axes(axes: Sequence[Dict[str, Any]], limit: int = 8, tentative: bool = True) -> List[Dict[str, Any]]:

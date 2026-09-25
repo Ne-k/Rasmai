@@ -55,7 +55,13 @@ export function Practice({ items, onOpen }: { items: TraitPractice[]; onOpen?: O
                     {TIER[c.difficulty] ?? c.difficulty} {c.level} · {c.constant.toFixed(1)} {c.chart_type.toUpperCase()}
                   </span>
                 </span>
-                <span className="mono">{c.accuracy !== null ? `you hold ${c.accuracy.toFixed(4)}%` : "not played yet"}</span>
+                <span className="mono">
+                  {c.accuracy === null
+                    ? "not played yet"
+                    : c.stale
+                      ? `an old ${c.accuracy.toFixed(2)}%`
+                      : `you hold ${c.accuracy.toFixed(4)}%`}
+                </span>
               </li>
             ))}
           </ul>

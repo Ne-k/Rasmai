@@ -623,3 +623,55 @@ def _trait_bars_are_earned():
     if J.JUDGEMENT_LEAN_OFFSET > T.TRAIT_LEAN_OFFSET:
         problems.append("a note type should not need a bigger offset to lean than a chart trait does")
     return problems
+
+
+@check("an old score on a chart played twice stops counting, and a real weakness does not")
+def _stale_bests():
+    from rasmai.engine.analysis import ChartIndex, ChartRef, build_play_profile
+    from rasmai.engine.insights import traits as T
+    from rasmai.storage.models import SongInfo
+
+    problems = []
+    index, songs = ChartIndex(), []
+    for number in range(14):
+        constant = 12.0 + number * 0.1
+        title = f"chart {number:02d}"
+        index.add(ChartRef(title=title, chart_type="dx", difficulty="master", constant=constant,
+                           level="12", notes=700, genre="POPS", artist="a", cover="", version=26, bpm=170.0))
+        songs.append(SongInfo(name=title, chart_type="dx", difficulty_type="master", accuracy=99.0,
+                              rating=250, level="12", difficulty=constant))
+    profile = build_play_profile(songs, [], index, 26)
+    key, constant = ("chart 00", "dx", "master"), 12.0
+    under = profile.expected_for(constant, "master") - max(T.STALE_GAP, T.STALE_SPREADS * profile.sigma_at(constant)) - 1
+
+    # Not knowing how often a chart was played is not knowing it was played once. Reading an
+    # absent count as "barely played" threw away a fifth of every account's scores.
+    profile.play_counts = {}
+    if T.stale_best(profile, key, constant, "master", under):
+        problems.append("a chart with no play count at all was called an old run, so every account "
+                        "whose counts have not been fetched loses the scores that measure it")
+    profile.play_counts = {key: -1}
+    if T.stale_best(profile, key, constant, "master", under):
+        problems.append("a play count maimai has not answered for yet was read as a low one")
+
+    # both halves, and neither alone
+    profile.play_counts = {key: 1}
+    if not T.stale_best(profile, key, constant, "master", under):
+        problems.append("a score far under the curve on a chart played once still counted")
+    if T.stale_best(profile, key, constant, "master", profile.expected_for(constant, "master") - 1):
+        problems.append("a chart played once with a near-enough score was thrown out, and one bad "
+                        "day is not what this is for")
+    profile.play_counts = {key: T.STALE_PLAYS + 1}
+    if T.stale_best(profile, key, constant, "master", under):
+        problems.append("a chart ground more than twice to the same low score was thrown out; that "
+                        "is a weakness, which is the thing this measures")
+
+    # and the gap is far enough out that the negative half of the spread survives, or every
+    # weakness would be cut away with the stale scores
+    if T.STALE_GAP < 4.0:
+        problems.append(f"a gap of {T.STALE_GAP} is inside the scatter of ordinary scores, so real "
+                        f"weaknesses would be dropped along with the old runs")
+    if T.STALE_PLAYS > 4:
+        problems.append(f"{T.STALE_PLAYS} plays is enough to mean a score, so it should not be "
+                        f"treated as one attempt nobody came back to")
+    return problems
