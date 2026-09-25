@@ -20,21 +20,22 @@ BATCH = int(os.getenv("RASMAI_LAYA_BATCH", "32"))
 CAP = int(os.getenv("RASMAI_LAYA_CAP", str(SHORTLIST_READ)))
 # plays named in the state, and whether everything the recent plays imply is left out.
 # Both from the environment so a measuring run can try another shape without an edit.
-RECENT_SHOWN = int(os.getenv("RASMAI_LAYA_RECENT", "3"))
-BRIEF = os.getenv("RASMAI_LAYA_BRIEF", "1") != "0"
+RECENT_SHOWN = int(os.getenv("RASMAI_LAYA_RECENT", "10"))
+BRIEF = os.getenv("RASMAI_LAYA_BRIEF", "0") != "0"
 
-# How far the model is allowed to move the ranking, fitted in tools/laya_eval.py against 105 plays
-# eight accounts actually went and made after the snapshot the ranking was built from.
+# How far the model is allowed to move the ranking, fitted in tools/laya_eval.py against the plays
+# eight accounts went on to make after the snapshot their ranking was built from.
 #
-# The fit says: do not listen to it. Inside the shortlist the arithmetic alone places a played
-# chart at 0.565, where 0.5 is a coin toss. Every weight tried made that worse, and monotonically:
-# 0.25 -> 0.538, 1.0 -> 0.513, 3.0 -> 0.498. Reversing the model's order is no better (-0.25 ->
-# 0.562, -3.0 -> 0.516), so its answers are not backwards, they are noise, and any weight at all
-# dilutes an ordering that was already carrying signal.
+# Read this as unproven rather than as working. On the 88 of those plays the model gets a say in,
+# the arithmetic alone places a played chart at 0.527 inside its own shortlist, where 0.5 is a coin
+# toss, and this weight takes it to 0.555 with six of the eight accounts improving. But held out a
+# player at a time it is four of eight, sign test p=0.64, and almost all of the gain is two
+# accounts moving a long way. Asked the plainest question of all - are the odds on a chart somebody
+# played any different from the odds on one they did not - the answer is still no, at p=0.60.
 #
-# Kept at the gentlest setting measured rather than removed, because the feature is off until
-# someone opts into it and this is the least it can cost them. Nothing above 0.25 has been
-# measured as anything but harmful, which is what the sweep holds it to.
+# So: a small positive that does not survive being asked properly, on a feature that costs most of
+# a minute per read. It stays at the gentlest setting that showed the gain, behind a switch that is
+# off until someone asks for it, and the sweep refuses anything above what was measured.
 WEIGHT = 0.25
 
 # How the model's answers become a multiplier. Fitted in tools/laya_eval.py; "rank" wins because
@@ -129,10 +130,12 @@ def describe_player(profile: Any, recent_shown: int = RECENT_SHOWN, brief: bool 
     Kept to the things a reader of text could use. Every number the curve already handles is left
     out, because the ranking multiplies this answer by those numbers anyway.
 
-    Short on purpose. A longer list of recent songs made the model both slower and *vaguer*: at
-    ten songs its answers across a shortlist spread by 0.04, at three by 0.13, and the wider
-    spread is the one that ranks better. Attention spent on a tenth song title is attention not
-    spent on the chart being asked about.
+    Long rather than short, which is the opposite of what this said for a while. A three-song
+    state makes the model answer with far more conviction - its answers across a shortlist spread
+    by 0.16 against 0.08 for the full one - and conviction was mistaken here for being right. Told
+    against the plays eight accounts actually went on to make, the short state costs the ranking
+    something at every weight and the full state gains it a little, so the spread was measuring
+    how sure the model sounds and nothing else. It is about half as fast again per chart.
 
     :param profile: How the player plays, as measured from their scores.
     :type profile: PlayProfile
