@@ -18,8 +18,10 @@ BATCH = int(os.getenv("RASMAI_LAYA_BATCH", "32"))
 # charts asked about in one go, which is the shortlist every reading gets. Raisable from the
 # environment because measuring wants a bigger sample than a player ever sees at once.
 CAP = int(os.getenv("RASMAI_LAYA_CAP", str(SHORTLIST_READ)))
-RECENT_SHOWN = 3         # plays named in the state, newest first
-BRIEF = True             # leave out what the recent plays already imply; see describe_player
+# plays named in the state, and whether everything the recent plays imply is left out.
+# Both from the environment so a measuring run can try another shape without an edit.
+RECENT_SHOWN = int(os.getenv("RASMAI_LAYA_RECENT", "3"))
+BRIEF = os.getenv("RASMAI_LAYA_BRIEF", "1") != "0"
 
 # How far the model is allowed to move the ranking, fitted in tools/laya_eval.py against 105 plays
 # eight accounts actually went and made after the snapshot the ranking was built from.

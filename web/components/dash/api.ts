@@ -45,10 +45,15 @@ export type TraitFamily = {
   inside: Trait[];
 };
 
+export type BetaVerdict = "better" | "same" | "worse";
+
+export type BetaSaid = { verdict: BetaVerdict; said: string; saidAt: string };
+
 export type BetaFeature = {
   key: string;
   label: string;
   note: string;
+  said?: BetaSaid | null;   // what this person already said about it, if anything
   ready?: boolean;
   status?: string;
   done?: number;

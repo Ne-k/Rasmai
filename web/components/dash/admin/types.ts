@@ -16,6 +16,8 @@ export type AdminData = {
   };
   live: Record<string, number | boolean | number[] | undefined>;
   generatedAt: string;
+  betaFeedback?: Feedback[];
+  betaTally?: Record<string, Record<string, number>>;
   accounts_list?: Account[];
   guilds_list?: Guild[];
 };
@@ -40,4 +42,8 @@ export type Detail = Person & {
   quietRead: { readAt: string; added: number; error: string };
   history: { recordedAt: string; rating: number }[];
   activity: { day: string; plays: number }[];
+};
+
+export type Feedback = Person & {
+  userId: string; feature: string; verdict: string; said: string; saidAt: string; player: string;
 };

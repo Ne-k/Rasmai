@@ -39,10 +39,10 @@ export async function POST(request: Request, { params }: Params) {
   const user = currentUser(request);
   if (!user) return json(401, { ok: false, error: "signed_out" });
   const path = tail((await params).rest);
-  if (!path || !["refresh", "unlink", "import", "sharing", "beta", "admin/update"].includes(path))
+  if (!path || !["refresh", "unlink", "import", "sharing", "beta", "beta/feedback", "admin/update"].includes(path))
     return json(404, { ok: false, error: "not_found" });
   let body: unknown = {};
-  if (path === "sharing" || path === "beta" || path === "admin/update") {
+  if (path === "sharing" || path === "beta" || path === "beta/feedback" || path === "admin/update") {
     try {
       body = JSON.parse(await request.text());
     } catch {

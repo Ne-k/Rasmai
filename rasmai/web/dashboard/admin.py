@@ -8,6 +8,7 @@ import time
 
 from rasmai.config import ADMIN_USER_ID, DATABASE_PATH, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES
 from rasmai.storage.db.connection import get_database_connection
+from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +362,9 @@ def admin_payload() -> Dict[str, Any]:
         running += int(row["n"])
         growth.append({"day": row["day"], "accounts": running})
 
-    known = people([r["user_id"] for r in busiest] + [r["user_id"] for r in stale] + [r["user_id"] for r in reads])
+    said = beta_feedback()
+    known = people([r["user_id"] for r in busiest] + [r["user_id"] for r in stale]
+                   + [r["user_id"] for r in reads] + [r["userId"] for r in said])
     return {
         "accounts": [{"region": r["region"], "count": int(r["n"]), "expired": int(r["dead"] or 0)} for r in accounts],
         "expired": _named([{"userId": r["user_id"], "region": r["region"], "since": r["session_expired"]} for r in stale], known),
@@ -375,5 +378,8 @@ def admin_payload() -> Dict[str, Any]:
         "growth": growth,
         "store": store,
         "live": live,
+        # what the testers made of each beta, counted first and then said in their own words
+        "betaFeedback": _named(said, known),
+        "betaTally": beta_feedback_tally(),
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getJSON, postJSON, type Beta as BetaState, type BetaFeature } from "./api";
+import { getJSON, postJSON, type Beta as BetaState, type BetaFeature, type BetaVerdict } from "./api";
 import { Label } from "./bits";
 
 const POLL_MS = 4000;
@@ -39,6 +39,85 @@ function Progress({ feature }: { feature: BetaFeature }) {
       <span className="crawl-said mono">
         {done.toLocaleString()} / {total.toLocaleString()} charts · {percent.toFixed(1)}%{eta ? ` · ${eta}` : ""}
       </span>
+    </span>
+  );
+}
+
+const VERDICTS: { key: BetaVerdict; label: string }[] = [
+  { key: "better", label: "Better" },
+  { key: "same", label: "No difference" },
+  { key: "worse", label: "Worse" },
+];
+
+/** What one tester made of one feature: a verdict, and optionally why. Only shown once it is on. */
+function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: BetaState) => void }) {
+  const said = feature.said ?? null;
+  const [note, setNote] = useState(said?.said ?? "");
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const send = (verdict: BetaVerdict, text: string) => {
+    setBusy(true);
+    setError("");
+    postJSON<BetaState>("/api/me/beta/feedback", { feature: feature.key, verdict, said: text })
+      .then((next) => {
+        onSaved(next);
+        setOpen(false);
+      })
+      .catch((e: Error) => setError(e.message || "could not send that"))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <span className="beta-say">
+      <span className="beta-say-row">
+        <span className="dim">Against having it off:</span>
+        {VERDICTS.map((v) => (
+          <button
+            key={v.key}
+            type="button"
+            className={`beta-chip${said?.verdict === v.key ? " on" : ""}`}
+            disabled={busy}
+            aria-pressed={said?.verdict === v.key}
+            onClick={() => send(v.key, note)}
+          >
+            {v.label}
+          </button>
+        ))}
+        <button type="button" className="beta-chip quiet" disabled={busy} onClick={() => setOpen((was) => !was)}>
+          {note ? "Edit note" : "Add a note"}
+        </button>
+      </span>
+      {open && (
+        <span className="beta-say-row">
+          <input
+            type="text"
+            className="beta-note"
+            maxLength={500}
+            placeholder="What changed, in your words"
+            value={note}
+            disabled={busy}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && said?.verdict) send(said.verdict, note);
+            }}
+          />
+          {said?.verdict && (
+            <button type="button" className="beta-chip" disabled={busy} onClick={() => send(said.verdict, note)}>
+              Save
+            </button>
+          )}
+          {!said?.verdict && <span className="mono hint">Pick one of the three first.</span>}
+        </span>
+      )}
+      {said && !open && (
+        <span className="mono hint ok">
+          You said {said.verdict}
+          {said.said ? ` — ${said.said}` : ""}
+        </span>
+      )}
+      {error && <span className="mono hint">{error}</span>}
     </span>
   );
 }
@@ -117,12 +196,13 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
                 )}
               </span>
             </label>
+            {state.on[feature.key] && <Feedback feature={feature} onSaved={onChange} />}
           </li>
         ))}
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">These change what the model measures or how it orders things, so your traits and picks can move.</p>
+      <p className="hint">These change what the model measures or how it orders things, so your traits and picks can move. Say what you make of one and it reaches whoever is deciding whether to keep it.</p>
     </section>
   );
 }

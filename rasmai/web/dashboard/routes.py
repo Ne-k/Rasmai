@@ -18,7 +18,8 @@ from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 from rasmai.web.dashboard.imports import import_payload
-from rasmai.web.dashboard.beta import beta_state, set_beta
+from rasmai.storage.db import VERDICTS, set_beta_feedback
+from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
 from rasmai.web.dashboard.public_profile import set_sharing
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,20 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         return True
     if path == "/internal/me/beta":
         handler._send_json(200, set_beta(user["id"], (payload or {}).get("on") or {}))
+        return True
+    if path == "/internal/me/beta/feedback":
+        # a verdict on a feature that exists, from the person whose session this is. Anything
+        # else is refused rather than stored: the developer page reads this table by eye.
+        body = payload or {}
+        feature = str(body.get("feature") or "")
+        if feature not in FEATURES:
+            handler._send_json(400, {"ok": False, "error": "no_such_feature"})
+            return True
+        stored = set_beta_feedback(user["id"], feature, str(body.get("verdict") or ""), body.get("said") or "")
+        if stored is None:
+            handler._send_json(400, {"ok": False, "error": "no_such_verdict", "allowed": list(VERDICTS)})
+            return True
+        handler._send_json(200, beta_state(user["id"]))
         return True
     if path == "/internal/me/sharing":
         body = payload or {}

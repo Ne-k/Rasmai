@@ -83,10 +83,15 @@ def beta_state(user_id: str) -> Dict[str, Any]:
     :rtype: Dict[str, Any]
     """
     on = get_user_settings(user_id).get("beta") or {}
+    try:
+        from rasmai.storage.db import beta_feedback_for
+        said = beta_feedback_for(user_id)
+    except Exception:
+        said = {}
     features = []
     for key, spec in FEATURES.items():
         ready = READINESS[key]() if key in READINESS else {"ready": True, "status": ""}
-        features.append({"key": key, **spec, **ready})
+        features.append({"key": key, **spec, **ready, "said": said.get(key)})
     return {"on": {key: bool(on.get(key)) for key in FEATURES}, "features": features}
 
 

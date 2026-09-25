@@ -220,6 +220,18 @@ def get_database_connection() -> sqlite3.Connection:
                         setup.execute(f"ALTER TABLE play_judgements ADD COLUMN {column}")
                     except sqlite3.OperationalError:
                         pass      # already there
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS beta_feedback (   -- what one player made of one beta feature
+                        user_id  TEXT NOT NULL,
+                        feature  TEXT NOT NULL,
+                        verdict  TEXT NOT NULL,
+                        said     TEXT NOT NULL DEFAULT '',
+                        said_at  TEXT NOT NULL,
+                        PRIMARY KEY (user_id, feature)   -- the latest word, not a log: saying it twice replaces it
+                    )
+                    """
+                )
             _database_ready = True
 
     connection = sqlite3.connect(DATABASE_PATH, timeout=10)

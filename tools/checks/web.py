@@ -713,3 +713,62 @@ def _link_embeds():
 
     del json
     return problems
+
+
+@check("a tester's word on a beta is kept once, checked before it is stored, and reaches the developer page")
+def _beta_feedback():
+    import pathlib
+    import tempfile
+
+    from rasmai.storage.db import connection as store
+    from rasmai.web.dashboard.beta import FEATURES, beta_state
+
+    problems = []
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    try:
+        from rasmai.storage.db import (VERDICTS, beta_feedback, beta_feedback_tally, set_beta_feedback)
+        from rasmai.storage.db.feedback import SAID_LIMIT
+        feature = next(iter(FEATURES))
+        user = "feedback-check-user"
+
+        # a verdict nobody offered is refused rather than written down, because the page reads this by eye
+        if set_beta_feedback(user, feature, "brilliant") is not None:
+            problems.append("a verdict that is not one of the three was stored anyway")
+        if beta_feedback():
+            problems.append("a refused verdict was written down regardless")
+
+        for verdict in VERDICTS:
+            if set_beta_feedback(user, feature, verdict) is None:
+                problems.append(f"{verdict!r} is offered as a verdict and refused when given")
+        if len(beta_feedback()) != 1:
+            problems.append("saying it again left a second row, so the page shows one person twice")
+
+        # a note is a note: whitespace collapsed and anything past the limit cut rather than refused
+        stored = set_beta_feedback(user, feature, "better", "  a   long  " + "x" * (SAID_LIMIT * 2))
+        if stored is None or len(stored["said"]) != SAID_LIMIT:
+            problems.append(f"a note was not cut to {SAID_LIMIT}, so one person can fill the table")
+
+        tally = beta_feedback_tally().get(feature, {})
+        if tally.get("better") != 1 or sum(tally.values()) != 1:
+            problems.append(f"the count of what people said does not add up: {tally}")
+
+        # the page shows a person what they already said, so they are not guessing whether it saved
+        said = {row["key"]: row.get("said") for row in beta_state(user)["features"]}
+        if not said.get(feature):
+            problems.append("the beta panel does not carry back what this person already said")
+        for key in FEATURES:
+            if key != feature and said.get(key):
+                problems.append(f"{key} was given somebody else's answer")
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+    # the developer page is where it is read, and it is the one page nobody else may open
+    panel = (ROOT / "web" / "components" / "dash" / "admin" / "Panel.tsx").read_text(encoding="utf-8")
+    if "betaFeedback" not in panel or "betaTally" not in panel:
+        problems.append("the developer page does not show what anybody said about a beta")
+    admin = (ROOT / "rasmai" / "web" / "dashboard" / "admin.py").read_text(encoding="utf-8")
+    if "beta_feedback" not in admin:
+        problems.append("the developer page is never sent the feedback to show")
+    return problems

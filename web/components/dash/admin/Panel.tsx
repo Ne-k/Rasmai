@@ -357,6 +357,35 @@ export function AdminPanel() {
             </p>
           )}
         </section>
+
+        <section className="ledger">
+          <Label info="What the people running a beta feature made of it, against having it off. One verdict each, replaced whenever they change their mind.">
+            beta feedback
+          </Label>
+          {Object.entries(data.betaTally ?? {}).map(([feature, counts]) => {
+            const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+            return (
+              <p key={feature} className="hint">
+                <b>{feature}</b>: {total} said · better <b className="ok">{counts.better ?? 0}</b> · no difference{" "}
+                <b>{counts.same ?? 0}</b> · worse <b className="bad">{counts.worse ?? 0}</b>
+              </p>
+            );
+          })}
+          {!(data.betaFeedback ?? []).length && <Empty>Nobody has said anything yet.</Empty>}
+          <ul className="beta-said">
+            {(data.betaFeedback ?? []).map((f) => (
+              <li key={`${f.userId}-${f.feature}`}>
+                <Who person={f} id={f.userId} />
+                <span className="mono">{f.feature}</span>
+                <span className={`mono ${f.verdict === "better" ? "ok" : f.verdict === "worse" ? "bad" : ""}`}>
+                  {f.verdict}
+                </span>
+                <span className="dim">{f.said}</span>
+                <span className="mono dim">{when(f.saidAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       </main>
     </>
   );
