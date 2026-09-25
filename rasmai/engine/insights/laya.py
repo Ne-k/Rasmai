@@ -5,6 +5,7 @@ import math
 import os
 import threading
 import time
+import warnings
 
 from rasmai.engine.analysis.picks.model import SHORTLIST_READ
 
@@ -86,12 +87,38 @@ def load() -> Optional[Any]:
         try:
             import laya
             logger.info(f"loading the decision model from {MODEL}; the first time also downloads it")
-            _agent = laya.load(MODEL)
+            with warnings.catch_warnings():
+                # The checkpoint ships one calibration figure outside the range the package will
+                # accept, for choice questions with eleven or more options, and it says so loudly
+                # every load. Nothing here asks a choice question, so the figure is never reached.
+                # Silenced by its own wording rather than by category, and only around the load.
+                warnings.filterwarnings("ignore", message=".*invalid temperatures.*", category=RuntimeWarning)
+                _agent = laya.load(MODEL)
+            _warn_if_our_question_was_clamped(_agent)
             logger.info(f"laya loaded from {MODEL}")
         except Exception as error:
             logger.warning(f"laya could not be loaded, falling back to the arithmetic: {error}")
             _agent = None
         return _agent
+
+
+def _warn_if_our_question_was_clamped(agent: Any) -> None:
+    """Say something only if the calibration this actually uses was the part found wanting.
+
+    The load warning is silenced because it is about a question type nothing here asks. That is
+    only true while it stays true, so the one figure this does use is read back and complained
+    about properly if a later checkpoint ships it out of range.
+    """
+    try:
+        import laya
+        index = laya.QTYPES[QUESTIONS["pick"]["type"]]
+        shipped, applied = float(agent.temperature_raw[index]), float(agent.temperature[index])
+    except Exception:
+        return
+    if abs(shipped - applied) > 1e-9:
+        logger.warning(f"the checkpoint's calibration for a {QUESTIONS['pick']['type']} question was "
+                       f"{shipped} and had to be pulled to {applied}: the odds it gives are no longer "
+                       f"calibrated, so what it says about a chart is worth less than it looks")
 
 
 def describe_player(profile: Any, recent_shown: int = RECENT_SHOWN, brief: bool = BRIEF) -> Dict[str, Any]:
