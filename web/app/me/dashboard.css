@@ -671,15 +671,21 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .curve-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
 .curve-keys span { display: inline-flex; align-items: center; gap: 6px; }
 .curve-keys i { width: 9px; height: 9px; border-radius: 50%; }
+.curve-keys i.ring { box-sizing: border-box; border: 1.5px solid var(--ink); }
+.curve-dot.recent { opacity: 1; stroke: var(--ink); stroke-width: 1.4; }
 .curve-mark { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .curve-mark.comfort { stroke: var(--gold-edge); }
 .curve-mark.reach { stroke: var(--pink-edge); }
-.curve-mark-label { font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.6px; fill: var(--muted); text-transform: uppercase; }
+.curve-mark-label { font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.6px; fill: var(--muted); text-transform: uppercase;
+  stroke: var(--paper); stroke-width: 3px; paint-order: stroke; }   /* an outline in the page colour, for any dot under the text */
 .curve-mark-label.comfort { fill: var(--gold-edge); }
 .curve-mark-label.reach { fill: var(--pink-edge); }
-:root[data-theme="dark"] .curve-mark.comfort, :root[data-theme="dark"] .curve-mark-label.comfort { stroke: var(--gold); fill: var(--gold); }
-:root[data-theme="dark"] .curve-mark.reach, :root[data-theme="dark"] .curve-mark-label.reach { stroke: var(--pink); fill: var(--pink); }
+:root[data-theme="dark"] .curve-mark.comfort { stroke: var(--gold); }
+:root[data-theme="dark"] .curve-mark-label.comfort { fill: var(--gold); }
+:root[data-theme="dark"] .curve-mark.reach { stroke: var(--pink); }
+:root[data-theme="dark"] .curve-mark-label.reach { fill: var(--pink); }
 :root[data-theme="dark"] .curve-dot { opacity: 0.5; }
+:root[data-theme="dark"] .curve-dot.recent { opacity: 1; }
 .masthead-tag { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30vw; }
 
 /* one control under the tabs: the picture the matching Discord command draws, saved as a file */

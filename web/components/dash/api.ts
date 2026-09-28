@@ -152,6 +152,7 @@ export type ChartRow = {
   artist: string;
   inBest50: boolean;
   estimated?: boolean;
+  recent?: boolean;
 };
 
 export type Recommendation = {

@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.engine.losses import note_losses
-from rasmai.bot.state.snapshots import compact_snapshot
+from rasmai.bot.state.snapshots import compact_snapshot, moved_by_recent
 from rasmai.engine import analysis
 from rasmai.engine.analysis import rank_for
 from rasmai.storage.db import judged_marks, judgement_for, load_play_history, load_rating_history
@@ -37,6 +37,7 @@ def charts_payload(cached: CachedAnalysis) -> List[Dict[str, Any]]:
     a = cached.analyzer
     in_new = a.best50.new_pool.in_pool if a.best50 else set()
     in_old = a.best50.old_pool.in_pool if a.best50 else set()
+    moved = {id(song) for song in moved_by_recent(a)}
     rows = []
     for song in a.songs:
         if (song.difficulty_type or "").lower() == "utage":
@@ -53,6 +54,7 @@ def charts_payload(cached: CachedAnalysis) -> List[Dict[str, Any]]:
             "genre": ref.genre if ref else "", "artist": ref.artist if ref else "",
             "inBest50": key in (in_new if song.is_new else in_old),
             "estimated": bool(getattr(song, "constant_estimated", False)),
+            "recent": id(song) in moved,      # its best is a score from the recent-plays list
         })
     return rows
 

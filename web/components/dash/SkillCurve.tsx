@@ -34,7 +34,11 @@ function nudge(key: string): number {
 
 export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Props) {
   const scored = useMemo(
-    () => (charts ?? []).filter((c) => c.constant > 0 && c.accuracy > 0 && c.difficulty !== "utage"),
+    () =>
+      (charts ?? [])
+        .filter((c) => c.constant > 0 && c.accuracy > 0 && c.difficulty !== "utage")
+        // the ringed ones last, so a recent best is drawn over the old scores around it
+        .sort((a, b) => Number(Boolean(a.recent)) - Number(Boolean(b.recent))),
     [charts],
   );
 
@@ -115,18 +119,19 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
             key={`${chart.title}|${chart.type}|${chart.difficulty}`}
             cx={x(chart.constant + nudge(`${chart.title}|${chart.type}|${chart.difficulty}`))}
             cy={y(chart.accuracy)}
-            r={2}
-            className={`curve-dot d-${chart.difficulty}`}
+            r={chart.recent ? 3.2 : 2}
+            className={`curve-dot d-${chart.difficulty}${chart.recent ? " recent" : ""}`}
           >
-            <title>{`${chart.title} · ${chart.difficulty} ${chart.level} · ${chart.constant.toFixed(1)} · ${chart.accuracy.toFixed(4)}%`}</title>
+            <title>{`${chart.title} · ${chart.difficulty} ${chart.level} · ${chart.constant.toFixed(1)} · ${chart.accuracy.toFixed(4)}%${chart.recent ? " · best set in recent plays" : ""}`}</title>
           </circle>
         ))}
         <polyline points={line} className="curve-line" />
         {marks.map(([value, label, cls], i) => {
           const at = x(value as number);
           // the labels stack on their own rows and hug whichever side they are nearest, so two
-          // markers a few tenths apart never print over each other
-          const row = PAD.top + 11 + i * 13;
+          // markers a few tenths apart never print over each other; at the foot of the plot, where
+          // only a stray low score reaches, rather than the top, where every good score is
+          const row = H - PAD.bottom - 6 - i * 13;
           const near = at > W - PAD.right - 70;
           return (
             <g key={label}>
@@ -158,6 +163,12 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
               {tier === "remaster" ? "Re:MASTER" : tier}
             </span>
           ))}
+        {scored.some((c) => c.recent) && (
+          <span>
+            <i className="ring" />
+            best set in recent plays
+          </span>
+        )}
       </div>
       <p className="hint">
         Dots below the band are where the picks come from. The band widens where you have played less: the model is less sure there.

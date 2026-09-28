@@ -302,11 +302,18 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
         else:
             parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="5" fill="{ink}" opacity="{0.85 if acc >= y0 else 0.35}"/>')
 
-    for value, name in ((float(getattr(profile, "comfort_constant", 0)), "comfort"), (float(getattr(profile, "reach_constant", 0)), "reach")):
-        if x0 <= value <= x1:
-            x = X(value)
-            parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#5cd3e8" stroke-width="1.5" stroke-dasharray="6 6"/>')
-            parts.append(f'<text x="{x + 6:.1f}" y="{mt + 16}" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#5cd3e8">{name} {value:.1f}</text>')
+    marks = [(float(getattr(profile, "comfort_constant", 0)), "comfort"), (float(getattr(profile, "reach_constant", 0)), "reach")]
+    for row, (value, name) in enumerate(m for m in marks if x0 <= m[0] <= x1):
+        x = X(value)
+        # Each label on a row of its own, and to the left of its line near the right edge: comfort and
+        # reach are often a few tenths apart, and printed on one row they ran into each other. They sit
+        # at the foot of the plot, which only a stray low score reaches, where the top is packed with
+        # dots, and carry an outline in the background colour for the dots that are there anyway.
+        near = x > width - mr - 130
+        parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#5cd3e8" stroke-width="1.5" stroke-dasharray="6 6"/>')
+        parts.append(f'<text x="{x - 6 if near else x + 6:.1f}" y="{height - mb - 10 - row * 18}" text-anchor="{"end" if near else "start"}" '
+                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#5cd3e8" '
+                     f'stroke="#0d0c0b" stroke-width="4" paint-order="stroke">{name} {value:.1f}</text>')
 
     return f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(parts)}</svg>'
 
