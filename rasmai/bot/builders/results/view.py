@@ -336,6 +336,42 @@ async def run_view_command(interaction: discord.Interaction, mode: str, failure:
             pass
 
 
+# a reply built from scores already in hand takes seconds; one still going after two minutes has hung
+# somewhere, and without a limit the person watches "thinking" until Discord drops the interaction
+BUILD_LIMIT = 120
+
+
+async def build_in_time(interaction: discord.Interaction, build, cached: Optional[CachedAnalysis]):
+    """Run `build(cached)`, or tell the person it took too long and return None.
+
+    The reading of scores from maimai happens before this and has no such limit: it can rightly take minutes.
+
+    :param interaction: The Discord interaction the command arrived on.
+    :type interaction: discord.Interaction
+    :param build: Builds the reply.
+    :param cached: The player's analysis, or None when there is none.
+    :type cached: Optional[CachedAnalysis]
+    :returns: Whatever `build` returned, or None when it ran out of time.
+    """
+    # shielded rather than cancelled: most of a build renders in worker threads that a cancel cannot stop,
+    # and a render allowed to finish is kept in the analysis, so the retry answers at once
+    work = asyncio.ensure_future(build(cached))
+    try:
+        return await asyncio.wait_for(asyncio.shield(work), timeout=BUILD_LIMIT)
+    except asyncio.TimeoutError:
+        command = getattr(interaction.command, "qualified_name", "?")
+        # nobody awaits it now, so a failure after the limit would otherwise vanish without a word
+        work.add_done_callback(lambda done: done.cancelled() or done.exception() is None or logger.error(
+            "/%s for user %s failed after running out of time", command, interaction.user.id, exc_info=done.exception()))
+        logger.warning("/%s for user %s took over %ss to build; told them to try again", command, interaction.user.id, BUILD_LIMIT)
+        try:
+            await interaction.edit_original_response(content="That took too long to put together. Please try again in a moment.",
+                                                     embed=None, attachments=[], view=None)
+        except discord.HTTPException:
+            pass
+        return None
+
+
 async def run_simple_command(interaction: discord.Interaction, failure: str, build, *, ephemeral: bool = False) -> None:
     """Defer, make sure the analysis is loaded, then send whatever `build(cached)` returns.
 
@@ -353,7 +389,10 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
         cached = await load_analysis(interaction)
         if cached is None:
             return
-        embed, files, view = await build(cached)
+        built = await build_in_time(interaction, build, cached)
+        if built is None:
+            return
+        embed, files, view = built
         note_read_age(embed, cached)
         await interaction.edit_original_response(content=None, embed=embed, attachments=files or [], view=view)
         if view is not None and hasattr(view, "message"):

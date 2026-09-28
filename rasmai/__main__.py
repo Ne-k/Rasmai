@@ -1,5 +1,11 @@
 import os
+import asyncio
+import io
 import logging
+import signal
+import sys
+import threading
+import traceback
 
 from rasmai.bot.core import bot
 from rasmai.config import get_public_base_url, public_url_is_shareable
@@ -9,6 +15,32 @@ from rasmai.web.web_server import InternalApiServer
 logger = logging.getLogger(__name__)
 
 
+def dump_stacks(signum=None, frame=None) -> None:
+    """Log where every thread and every pending asyncio task is right now.
+
+    A command stuck on "thinking" logs nothing on its own, so this is how to see what it waits on:
+    ``docker kill -s USR1 rasmai`` and then ``docker logs rasmai``.
+    """
+    try:
+        names = {t.ident: t.name for t in threading.enumerate()}
+        parts = []
+        for ident, top in sys._current_frames().items():
+            parts.append(f"--- thread {names.get(ident, ident)}\n{''.join(traceback.format_stack(top))}")
+        try:
+            loop = asyncio.get_running_loop()       # the handler runs in the main thread, where bot.run keeps its loop
+        except RuntimeError:
+            loop = None
+        if loop is not None:
+            for task in asyncio.all_tasks(loop):
+                out = io.StringIO()
+                task.print_stack(file=out)
+                parts.append(f"--- task {task.get_name()}\n{out.getvalue()}")
+        logger.warning("Stack dump on request:\n%s", "\n".join(parts))
+    except Exception:
+        # a diagnostic must never take the bot down with it
+        logger.exception("Stack dump failed")
+
+
 def main():
     TOKEN = os.getenv('DISCORD_TOKEN')
 
@@ -16,6 +48,9 @@ def main():
         print("DISCORD_TOKEN not found in environment variables!")
         print("Please create a .env file with DISCORD_TOKEN=your_bot_token")
         return
+
+    if hasattr(signal, "SIGUSR1"):      # Windows has no SIGUSR1
+        signal.signal(signal.SIGUSR1, dump_stacks)
 
     web_server = InternalApiServer()
     web_server.start()

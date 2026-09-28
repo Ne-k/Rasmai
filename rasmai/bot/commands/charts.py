@@ -13,7 +13,7 @@ from rasmai.bot.core import bot, heavy_cooldown, light_cooldown, private_only
 from rasmai.bot.builders.areas import build_areas
 from rasmai.bot.builders.history import build_lastplay, build_progress, build_recent
 from rasmai.bot.builders.results import load_analysis, run_simple_command
-from rasmai.bot.builders.results.view import failure_text
+from rasmai.bot.builders.results.view import build_in_time, failure_text
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import DIFFICULTY_CHOICES, SORT_CHOICES, level_autocomplete
 
@@ -36,7 +36,10 @@ async def _lookup(interaction: discord.Interaction, what: str, build) -> None:
         cached = cache_get(user_id)
         if cached is None and get_connected_account(user_id):
             cached = await load_analysis(interaction)
-        embed, files, view = await build(cached)
+        built = await build_in_time(interaction, build, cached)
+        if built is None:
+            return
+        embed, files, view = built
         await interaction.edit_original_response(content=None, embed=embed, attachments=files, view=view)
         if view is not None:
             try:

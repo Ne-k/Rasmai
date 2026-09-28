@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/image")
+READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -50,7 +51,9 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     cached = None
     if path not in ANSWERED_WITHOUT_ANALYSIS:
         cached = analysis_for_user(user["id"], patient=path in DOWNLOADS)
-    account = get_connected_account(user["id"])
+    # the stored scores only for the two pages that show them: unpacking them was a millisecond and
+    # a half of every other request, which only needs to know the account is there
+    account = get_connected_account(user["id"], with_snapshot=path in READS_SNAPSHOT)
 
     if path in ("/internal/me", "/internal/me/"):
         handler._send_json(200, overview_payload(user, account))

@@ -211,7 +211,8 @@ class InternalApiServer:
                     try:
                         handled = dashboard.handle_get(self, route.path, query, user)
                     except dashboard.StillBuilding as wait:
-                        self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds})
+                        self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds,
+                                          "position": wait.position, "eta": wait.eta})
                         return
                     if not handled:
                         self._send_json(404, {"ok": False, "error": "not_found"})
@@ -334,7 +335,8 @@ class InternalApiServer:
                         return
                     self._send_json(404, {"ok": False, "error": "not_found"})
                 except dashboard.StillBuilding as wait:
-                    self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds})
+                    self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds,
+                                          "position": wait.position, "eta": wait.eta})
                 except Exception as error:
                     logger.exception("internal api request failed")
                     self._send_json(502, {"ok": False, "kind": "unknown", "error": public_reason(error)})
@@ -437,6 +439,8 @@ class InternalApiServer:
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
         logger.info(f"Internal API for the website listening on http://{self.host}:{self.port}")
+        # a restart empties every analysis: rebuild the recently active ones before they ask, behind anyone who does
+        threading.Thread(target=dashboard.warm_recent, name="warm-analyses", daemon=True).start()
 
     def stop(self) -> None:
         if self.httpd:

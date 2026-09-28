@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Dict, Any
 import logging
 import threading
+import time
 
 from rasmai.bot.state import reads
-from rasmai.bot.state.cache import CachedAnalysis
+from rasmai.bot.state.cache import CachedAnalysis, cache_get
 from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.config import MAIMAI_BASE_URLS, MAX_CONCURRENT_SCRAPES
@@ -35,17 +36,57 @@ class RefreshJobs:
             job = self._jobs.get(user_id)
             if job and job.get("running"):
                 return dict(job)
+            began = datetime.now()
             elsewhere = reads.claim(user_id, reads.WEBSITE)
-            if elsewhere is not None:
-                # a Discord command is already reading this account; a second read would only slow both
-                return {"running": False, "stage": "failed", "done": 0, "total": 0, "detail": "",
-                        "error": f"your scores are being read right now, started from {elsewhere}. "
-                                 "Give it a moment and try again."}
             job = {"running": True, "stage": "queued", "done": 0, "total": 0, "detail": "", "error": "",
-                   "startedAt": datetime.now().isoformat(timespec="seconds")}
+                   "startedAt": began.isoformat(timespec="seconds")}
+            if elsewhere is not None:
+                # a Discord command is already reading this account: a second read would only slow both,
+                # so this one waits its turn and is usually answered by that read
+                job["detail"] = f"waiting for the read started from {elsewhere}"
             self._jobs[user_id] = job
-        threading.Thread(target=self._run, args=(user_id, account, job), daemon=True, name=f"refresh-{user_id}").start()
+        if elsewhere is None:
+            threading.Thread(target=self._run, args=(user_id, account, job), daemon=True, name=f"refresh-{user_id}").start()
+        else:
+            threading.Thread(target=self._queue, args=(user_id, account, job, elsewhere, began),
+                             daemon=True, name=f"refresh-{user_id}").start()
         return dict(job)
+
+    def _queue(self, user_id: str, account: Dict[str, Any], job: Dict[str, Any], elsewhere: str, began: datetime) -> None:
+        """Wait for the read another command holds, then take its result or read once it is free.
+
+        :param user_id: The Discord user id.
+        :type user_id: str
+        :param account: The linked account, with its token and region.
+        :type account: Dict[str, Any]
+        :param job: The job the site polls.
+        :type job: Dict[str, Any]
+        :param elsewhere: What holds the read, for the message if the wait runs out.
+        :type elsewhere: str
+        :param began: When the button was pressed; only an analysis made after it answers this job.
+        :type began: datetime
+        """
+        deadline = time.monotonic() + reads.WAIT_LIMIT
+        while time.monotonic() < deadline:
+            time.sleep(reads.WAIT_POLL)
+            if reads.running(user_id) is not None:
+                continue
+            cached = cache_get(user_id)
+            if cached is not None and cached.created >= began:
+                with self._lock:
+                    job.update({"running": False, "stage": "done", "detail": f"read just now by {elsewhere}, so not read again",
+                                "finishedAt": datetime.now().isoformat(timespec="seconds")})
+                return
+            # that read failed or kept nothing, so the site reads for itself
+            if reads.claim(user_id, reads.WEBSITE) is None:
+                with self._lock:
+                    job["detail"] = ""
+                self._run(user_id, account, job)
+                return
+        with self._lock:
+            job.update({"running": False, "stage": "failed",
+                        "error": f"your scores are being read right now, started from {elsewhere}. "
+                                 "Give it a moment and try again."})
 
     def _tell(self, job: Dict[str, Any]):
         def callback(key: str, done: int = 0, total: int = 0, detail: str = "") -> None:

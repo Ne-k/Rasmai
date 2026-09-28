@@ -23,6 +23,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./otoge_cache:/app/otoge_cache
+      - ./models:/app/models          # the laya checkpoint, 800 MB fetched once; kept out of data/ so it stays out of its backups
       - ./simai_cache:/app/simai_cache   # the charts themselves, packed, so a restart re-reads rather than re-downloads
       - ./debug:/app/debug            # the raw page exports MAIMAI_DEBUG writes, so they survive the container
     init: true

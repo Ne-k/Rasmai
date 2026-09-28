@@ -85,6 +85,22 @@ def set_guild_settings(guild_id: str, settings: Dict[str, Any]) -> None:
         connection.close()
 
 
+def delete_guild_settings(guild_id: str) -> bool:
+    """Forget a server's switches, for when the bot is removed from it.
+
+    :param guild_id: The Discord server id.
+    :type guild_id: str
+    :returns: Whether the server had any stored.
+    :rtype: bool
+    """
+    connection = get_database_connection()
+    try:
+        with connection:
+            return connection.execute("DELETE FROM guild_settings WHERE guild_id = ?", (guild_id,)).rowcount > 0
+    finally:
+        connection.close()
+
+
 def notified_rating(user_id: str) -> int:
     """The rating the person was last told about by the daily read, 0 when never.
 

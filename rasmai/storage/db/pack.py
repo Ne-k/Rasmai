@@ -3,6 +3,7 @@ import sqlite3
 import zlib
 
 from rasmai.storage.db import connection as store
+from rasmai.storage.db.accounts import _split_avatar
 from rasmai.storage.db.connection import _dump_json_column, _load_json_column, get_database_connection
 
 
@@ -22,7 +23,7 @@ def pack() -> Dict[str, int]:
     backup = sqlite3.connect(str(store.DATABASE_PATH) + ".before-pack")
     connection.backup(backup)
     backup.close()
-    accounts = sources = 0
+    accounts = avatars = sources = 0
     try:
         for (user_id,) in connection.execute(
                 "SELECT user_id FROM connected_accounts WHERE typeof(latest_snapshot) = 'text'").fetchall():
@@ -39,6 +40,17 @@ def pack() -> Dict[str, int]:
                 connection.execute("UPDATE connected_accounts SET latest_snapshot = ? WHERE user_id = ?",
                                    (_dump_json_column(snapshot, packed=True), user_id))
             accounts += 1
+        # the avatar goes to its own column as bytes, where it is three quarters the size it was as base64
+        for user_id, text in connection.execute(
+                "SELECT user_id, official_profile FROM connected_accounts "
+                "WHERE typeof(official_profile) = 'text' AND instr(official_profile, '\"avatar_base64\"') > 0").fetchall():
+            profile, avatar = _split_avatar(_load_json_column(text))
+            if profile is None:
+                continue
+            with connection:
+                connection.execute("UPDATE connected_accounts SET official_profile = ?, avatar = COALESCE(?, avatar) "
+                                   "WHERE user_id = ?", (_dump_json_column(profile), avatar, user_id))
+            avatars += avatar is not None
         for source, payload in connection.execute(
                 "SELECT source, payload FROM news_state WHERE typeof(payload) = 'text' AND length(payload) > 4096").fetchall():
             with connection:
@@ -46,13 +58,13 @@ def pack() -> Dict[str, int]:
                                    (zlib.compress(payload.encode("utf-8"), 6), source))
             sources += 1
         connection.execute("VACUUM")
-        return {"accounts": accounts, "sources": sources, "before": before, "after": size()}
+        return {"accounts": accounts, "avatars": avatars, "sources": sources, "before": before, "after": size()}
     finally:
         connection.close()
 
 
 if __name__ == "__main__":
     done = pack()
-    print(f"packed {done['accounts']} accounts and {done['sources']} source payloads; "
+    print(f"packed {done['accounts']} accounts, {done['avatars']} avatars and {done['sources']} source payloads; "
           f"{done['before'] / 1e6:.1f} MB -> {done['after'] / 1e6:.1f} MB "
           f"(the copy from before is {store.DATABASE_PATH}.before-pack)")

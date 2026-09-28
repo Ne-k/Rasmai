@@ -10,6 +10,11 @@ _RUNNING: Dict[str, str] = {}
 DISCORD = "a Discord command"
 WEBSITE = "the website"
 
+# a read found running is waited on rather than refused: checked this often, for at most this long,
+# which covers the slowest full read with room to spare
+WAIT_POLL = 1.0
+WAIT_LIMIT = 10 * 60
+
 
 def claim(user_id: str, source: str) -> Optional[str]:
     """Take the read slot for an account, or find out who already holds it.

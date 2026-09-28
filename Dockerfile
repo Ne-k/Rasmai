@@ -40,7 +40,7 @@ ENV PYTHONUNBUFFERED=1 \
     MAIMAI_WEBSERVER_HOST=0.0.0.0 \
     MAIMAI_WEBSERVER_PORT=8765 \
     MAIMAI_DATABASE_PATH=/app/data/maimai.sqlite3 \
-    HF_HOME=/app/data/models
+    HF_HOME=/app/models
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
@@ -77,7 +77,7 @@ COPY brand/emoji/png/ ./brand/emoji/png/
 # the linking walkthroughs, so /login can play one in Discord rather than sending people away
 COPY web/public/walkthrough/ ./walkthrough/
 
-VOLUME ["/app/data", "/app/otoge_cache"]
+VOLUME ["/app/data", "/app/otoge_cache", "/app/models"]
 EXPOSE 8765
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=90s --retries=3 \

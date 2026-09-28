@@ -100,12 +100,15 @@ def _queued_builds():
             running["now"] -= 1
         return types.SimpleNamespace(region="intl", generate_recommendations=lambda: ([], []))
 
+    places = []
+
     def ask(person, into):
         started = time.perf_counter()
         try:
             into.append(("ok", A.analysis_for_user(person), time.perf_counter() - started))
         except A.StillBuilding as wait:
             into.append(("wait", wait.seconds, time.perf_counter() - started))
+            places.append(wait.position)
 
     held = (A.analyzer_from_snapshot, A.resolve_unknown_later, A.get_connected_account)
     A.analyzer_from_snapshot, A.resolve_unknown_later = slow_build, lambda cached, loop=None: False
@@ -148,6 +151,9 @@ def _queued_builds():
             problems.append(f"a request queued behind others was held {max(t for _, _, t in told):.2f}s before being told to come back")
         if any(not 2 <= seconds <= 30 for _, seconds, _ in told):
             problems.append(f"the page was told to come back after {[s for _, s, _ in told]}s, outside 2-30")
+        if told and (min(places) < 2 or len(set(places)) < 2):
+            problems.append(f"people queued behind others were told their places were {sorted(places)}; "
+                            f"each should see where they stand, and not all the same place")
         deadline = time.monotonic() + 10
         while A._pending and time.monotonic() < deadline:
             time.sleep(0.02)
@@ -226,4 +232,54 @@ def _pooled_answers():
     finally:
         server.shutdown()
         server.server_close()
+    return problems
+
+
+@check("somebody waiting is built before the warm-ups, and a warmed person who asks moves to the front")
+def _warm_then_asked():
+    import threading
+    import time
+    import types
+
+    from rasmai.config import ANALYSIS_BUILDS
+    from rasmai.web.dashboard import analysis as A
+
+    problems = []
+    order = []
+    guard = threading.Lock()
+
+    def slow_build(user_id, account):
+        with guard:
+            order.append(user_id)
+        time.sleep(0.05)
+        return types.SimpleNamespace(region="intl", generate_recommendations=lambda: ([], []))
+
+    held = (A.analyzer_from_snapshot, A.resolve_unknown_later, A.get_connected_account)
+    A.analyzer_from_snapshot, A.resolve_unknown_later = slow_build, lambda cached, loop=None: False
+    A.get_connected_account = lambda user_id: {}
+    warmed = [f"warm-check-{n}" for n in range(12)]
+    try:
+        A.warm(warmed)
+        time.sleep(0.01)
+        asker = threading.Thread(target=lambda: A.analysis_for_user("warm-check-asker", patient=True))
+        promoted = threading.Thread(target=lambda: A.analysis_for_user(warmed[-1], patient=True))
+        asker.start()
+        promoted.start()
+        asker.join()
+        promoted.join()
+        deadline = time.monotonic() + 10
+        while A._pending and time.monotonic() < deadline:
+            time.sleep(0.02)
+        # at most one warm-up per worker can already be under way when they ask; then it is their turn
+        for who in ("warm-check-asker", warmed[-1]):
+            if who not in order or order.index(who) > 2 * ANALYSIS_BUILDS + 1:
+                problems.append(f"{who} was built {order.index(who) + 1 if who in order else 'never'} of {len(order)}, "
+                                f"behind warm-ups nobody was waiting for")
+        if sorted(order) != sorted(warmed + ["warm-check-asker"]):
+            problems.append(f"built {len(order)} analyses for {len(warmed) + 1} people: a promoted warm-up ran twice or not at all")
+    finally:
+        A.analyzer_from_snapshot, A.resolve_unknown_later, A.get_connected_account = held
+        from rasmai.bot.state import cache
+        for key in [k for k in list(getattr(cache, "_analysis_cache", {})) if str(k).startswith("warm-check")]:
+            cache._analysis_cache.pop(key, None)
     return problems

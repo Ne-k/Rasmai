@@ -8,6 +8,7 @@ data/
 debug/
 otoge_cache/
 simai_cache/
+models/
 .git/
 *.md
 web/node_modules/

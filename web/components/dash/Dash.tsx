@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Turnstile } from "@/components/Turnstile";
 import { InstallHint } from "@/components/Pwa";
-import { ApiError, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type RecentPlay, type RefreshStatus } from "./api";
+import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
 import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
@@ -29,6 +29,17 @@ const IMAGE_FOR: Partial<Record<Tab, ImageKind[]>> = {
   best50: ["best50"],
   recent: ["recent"],
 };
+
+function QueueNote({ spot }: { spot: NonNullable<QueueSpot> }) {
+  const wait = spot.eta < 60 ? `${Math.max(1, spot.eta)}s` : `${Math.round(spot.eta / 60)} min`;
+  return (
+    <div className="notice" role="status" aria-live="polite">
+      {spot.position <= 1
+        ? "Building your analysis now…"
+        : `A lot of people are here at once. Your analysis is number ${spot.position} in line, about ${wait} to go; this page fills in by itself.`}
+    </div>
+  );
+}
 
 export function Dash() {
   const [me, setMe] = useState<Overview | null>(null);
@@ -63,6 +74,14 @@ export function Dash() {
           setTurnstile(String(e.body?.turnstile ?? ""));
         } else setError(e.message);
       });
+  }, []);
+
+  // while the bot builds this person's analysis behind other people's, the page says where they are in line
+  const [queued, setQueued] = useState<QueueSpot>(null);
+  useEffect(() => {
+    const onQueue = (event: Event) => setQueued(((event as CustomEvent).detail ?? null) as QueueSpot);
+    window.addEventListener(QUEUE_EVENT, onQueue);
+    return () => window.removeEventListener(QUEUE_EVENT, onQueue);
   }, []);
 
   // any API call that answers 401 sends the dashboard back to the sign-in gate, whichever tab made it
@@ -224,7 +243,7 @@ export function Dash() {
   if (!me) {
     return (
       <Frame>
-        <div className="gate">{error ? <p className="hint">{error}</p> : <p className="hint">Loading…</p>}</div>
+        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">Loading…</p>}</div>
       </Frame>
     );
   }
@@ -294,6 +313,7 @@ export function Dash() {
       )}
 
       {refresh?.running && <RefreshBar status={refresh} />}
+      {queued && <QueueNote spot={queued} />}
 
       <main className="panel">
         <div hidden={tab !== "overview"}>

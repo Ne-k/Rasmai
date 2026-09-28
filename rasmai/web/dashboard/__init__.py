@@ -1,6 +1,7 @@
 from rasmai.web.dashboard.analysis import (  # noqa: F401
     analysis_for_user,
     StillBuilding,
+    warm_recent,
     _chart_key,
 )
 from rasmai.web.dashboard.overview import (  # noqa: F401

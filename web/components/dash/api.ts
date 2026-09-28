@@ -439,6 +439,14 @@ export class ApiError extends Error {
 
 export const SIGNED_OUT_EVENT = "rasmai:signed-out";
 
+/** Where this person's analysis stands in the bot's build queue, or null once it is built. */
+export const QUEUE_EVENT = "rasmai:queue";
+export type QueueSpot = { position: number; eta: number } | null;
+
+function announceQueue(spot: QueueSpot) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(QUEUE_EVENT, { detail: spot }));
+}
+
 /** A 401 from any call means the session is gone; the dashboard listens for this and shows the sign-in gate. */
 function announceSignedOut(body: Record<string, unknown>) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(SIGNED_OUT_EVENT, { detail: body }));
@@ -464,14 +472,22 @@ async function fetchJSON<T>(path: string, init: RequestInit): Promise<T> {
   return body as T;
 }
 
-/** A GET, asked again while the bot says the analysis behind it is still queued, as long as it says to wait. */
+/** A GET, asked again while the bot says the analysis behind it is still queued, telling the page its place in line meanwhile. */
 export async function getJSON<T>(path: string): Promise<T> {
+  let queued = false;
   for (let tries = 0; ; tries++) {
     try {
-      return await fetchJSON<T>(path, {});
+      const answer = await fetchJSON<T>(path, {});
+      if (queued) announceQueue(null);
+      return answer;
     } catch (e) {
       const building = e instanceof ApiError && e.status === 503 && e.code === "building";
-      if (!building || tries >= 40) throw e;
+      if (!building || tries >= 120) {
+        if (queued) announceQueue(null);
+        throw e;
+      }
+      queued = true;
+      announceQueue({ position: Number(e.body.position) || 1, eta: Number(e.body.eta) || 0 });
       await new Promise((resolve) => setTimeout(resolve, (Number(e.body.retryAfter) || 3) * 1000));
     }
   }

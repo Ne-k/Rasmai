@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple, Any
+import base64
 import re
 import secrets
 
 from rasmai.security import LOGIN_CODE_TTL, _hash_code, decrypt_token, encrypt_token
 from rasmai.storage.db.connection import _dump_json_column, _load_json_column, get_database_connection
+from rasmai.util import _json_safe
 
 
 def issue_login_code(user_id: str, region: str) -> str:
@@ -130,20 +132,51 @@ def login_code_expiry(created: Optional[datetime] = None) -> datetime:
 _SEEN: Dict[str, str] = {}
 
 
+def _split_avatar(profile: Any) -> Tuple[Any, Optional[bytes]]:
+    """Take the avatar out of a profile, as the PNG's own bytes, for the ``avatar`` column.
+
+    As base64 inside the profile's JSON it was about 8 KB an account, a third more than the
+    picture itself. The profile stays plain JSON text, because the dashboard reads its name and
+    rating with SQL. An avatar that would not come back as the same text is left where it is.
+
+    :param profile: The profile as the caller passed it, or ``None``.
+    :type profile: Any
+    :returns: The profile without the avatar, and the avatar, or ``None`` when it had none.
+    :rtype: Tuple[Any, Optional[bytes]]
+    """
+    if profile is None:
+        return None, None
+    profile = _json_safe(profile)     # a copy, so the caller's own dict keeps its avatar
+    if not isinstance(profile, dict):
+        return profile, None
+    encoded = profile.pop("avatar_base64", None)
+    if encoded:
+        try:
+            avatar = base64.b64decode(encoded, validate=True)
+            if base64.b64encode(avatar).decode("ascii") == encoded:
+                return profile, avatar
+        except (TypeError, ValueError):
+            pass
+        profile["avatar_base64"] = encoded
+    return profile, None
+
+
 def upsert_connected_account(user_id: str, region: str, token: str, official_profile: Optional[Dict[str, Any]] = None, snapshot: Optional[Dict[str, Any]] = None) -> None:
     now = datetime.now().isoformat()
+    official_profile, avatar = _split_avatar(official_profile)
     connection = get_database_connection()
     try:
         with connection:
             connection.execute(
                 """
                 INSERT INTO connected_accounts
-                    (user_id, region, token, official_profile, latest_snapshot, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (user_id, region, token, official_profile, avatar, latest_snapshot, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     region           = excluded.region,
                     token            = excluded.token,
                     official_profile = COALESCE(excluded.official_profile, connected_accounts.official_profile),
+                    avatar           = COALESCE(excluded.avatar, connected_accounts.avatar),
                     latest_snapshot  = COALESCE(excluded.latest_snapshot, connected_accounts.latest_snapshot),
                     updated_at       = excluded.updated_at,
                     session_expired  = ''
@@ -153,6 +186,7 @@ def upsert_connected_account(user_id: str, region: str, token: str, official_pro
                     region,
                     encrypt_token(token),
                     _dump_json_column(official_profile),
+                    avatar,
                     _dump_json_column(snapshot, packed=True),
                     now,
                     now,
@@ -162,29 +196,48 @@ def upsert_connected_account(user_id: str, region: str, token: str, official_pro
         connection.close()
 
 
-def get_connected_account(user_id: str) -> Optional[Dict[str, Any]]:
+def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[Dict[str, Any]]:
+    """The linked account, with its profile and, unless asked not to, its stored scores.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param with_snapshot: False skips reading the stored scores, which are most of an account's
+        size and take unpacking; the result then has no ``latestSnapshot`` key at all, so
+        ``account.get("latestSnapshot")`` is ``None``. Only for callers that never look at it.
+    :type with_snapshot: bool
+    :rtype: Optional[Dict[str, Any]]
+    """
+    columns = ("user_id, region, token, official_profile, avatar, created_at, updated_at, session_expired, "
+               "share_slug, seen_at" + (", latest_snapshot" if with_snapshot else ""))
     connection = get_database_connection()
     try:
         row = connection.execute(
-            "SELECT * FROM connected_accounts WHERE user_id = ?", (user_id,)
+            f"SELECT {columns} FROM connected_accounts WHERE user_id = ?", (user_id,)
         ).fetchone()
     finally:
         connection.close()
 
     if row is None:
         return None
-    return {
+    profile = _load_json_column(row["official_profile"])
+    # a profile stored before the avatar had its own column still carries it, and so does one whose
+    # avatar would not have read back the same; either is at least as new as the column
+    if profile is not None and row["avatar"] and not profile.get("avatar_base64"):
+        profile["avatar_base64"] = base64.b64encode(row["avatar"]).decode("ascii")
+    account = {
         "userId": row["user_id"],
         "region": row["region"],
         "token": decrypt_token(str(row["token"] or "")),
-        "officialProfile": _load_json_column(row["official_profile"]),
-        "latestSnapshot": _load_json_column(row["latest_snapshot"]),
+        "officialProfile": profile,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
         "sessionExpired": row["session_expired"] or "",
         "shareSlug": row["share_slug"] or "",
         "seenAt": row["seen_at"] or "",
     }
+    if with_snapshot:
+        account["latestSnapshot"] = _load_json_column(row["latest_snapshot"])
+    return account
 
 
 def touch_account(user_id: str) -> None:
@@ -283,6 +336,7 @@ def delete_connected_account(user_id: str) -> bool:
             connection.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
             connection.execute("DELETE FROM play_judgements WHERE user_id = ?", (user_id,))
             connection.execute("DELETE FROM notify_state WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM beta_feedback WHERE user_id = ?", (user_id,))
         return cursor.rowcount > 0
     finally:
         connection.close()
@@ -296,6 +350,7 @@ def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, A
     :param snapshot: The stored copy of the player's scores.
     :type snapshot: Optional[Dict[str, Any]]
     """
+    official_profile, avatar = _split_avatar(official_profile)
     connection = get_database_connection()
     try:
         with connection:
@@ -303,13 +358,16 @@ def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, A
                 """
                 UPDATE connected_accounts
                 SET official_profile = COALESCE(?, official_profile),
+                    -- a profile read without its picture keeps the one already held
+                    avatar           = COALESCE(?, avatar),
                     latest_snapshot  = COALESCE(?, latest_snapshot),
                     updated_at       = ?,
                     -- a read that landed proves the session works, whatever an earlier one thought
                     session_expired  = ''
                 WHERE user_id = ?
                 """,
-                (_dump_json_column(official_profile), _dump_json_column(snapshot, packed=True), datetime.now().isoformat(), user_id),
+                (_dump_json_column(official_profile), avatar, _dump_json_column(snapshot, packed=True),
+                 datetime.now().isoformat(), user_id),
             )
     finally:
         connection.close()

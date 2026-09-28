@@ -91,7 +91,8 @@ async def load_analysis(interaction: discord.Interaction, force: bool = False) -
     (profile and recent plays, a few seconds) says nothing has changed; a full read of
     every score page happens only when it has, when the stored read is a week old, or
     when `force` asks for it. A second command from the same person while their scores
-    are being read waits for that read instead of starting another. Replies on its own
+    are being read waits for that read instead of starting another, and so does one that
+    finds a read from the website under way, for up to `reads.WAIT_LIMIT`. Replies on its own
     when no account is linked and returns None.
 
     :param interaction: The Discord interaction the command arrived on.
@@ -116,15 +117,33 @@ async def load_analysis(interaction: discord.Interaction, force: bool = False) -
             embed=None, attachments=[], view=None,
         )
         return await asyncio.shield(running)
+    began = datetime.now()      # before the claim, so a read that lands between the two still counts as new
     elsewhere = reads.claim(user_id, reads.DISCORD)
     if elsewhere is not None:
-        # a read started somewhere this command cannot wait on, so say so rather than read twice
+        # a read started somewhere this command does not own, usually the site's button: wait for it
+        # and use what it read, rather than make the person run the command again
         await interaction.edit_original_response(
             content=f"Your scores are being read right now, started from **{elsewhere}**. "
-                    "Give it a moment and run this again; reading twice at once would only slow both down.",
+                    "This command will continue when that finishes.",
             embed=None, attachments=[], view=None,
         )
-        return None
+        deadline = asyncio.get_running_loop().time() + reads.WAIT_LIMIT
+        while elsewhere is not None and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(reads.WAIT_POLL)
+            if reads.running(user_id) is not None:
+                continue
+            cached = cache_get(user_id)
+            if cached is not None and cached.created >= began:
+                return cached
+            # that read failed or kept nothing, so this command reads for itself
+            elsewhere = reads.claim(user_id, reads.DISCORD)
+        if elsewhere is not None:
+            await interaction.edit_original_response(
+                content=f"Your scores are being read right now, started from **{elsewhere}**. "
+                        "Give it a moment and run this again; reading twice at once would only slow both down.",
+                embed=None, attachments=[], view=None,
+            )
+            return None
     task = asyncio.ensure_future(_fresh_analysis(interaction, user_id, force))
     _inflight[user_id] = task
     try:

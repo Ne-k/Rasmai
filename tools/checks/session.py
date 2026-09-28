@@ -258,3 +258,132 @@ def _curve_rings_recent_bests():
     if rings != 1:
         problems.append(f"the curve drew {rings} rings for one recent best")
     return problems
+
+
+@check("a Discord command that finds the website reading waits and takes that read, not a second one")
+def _discord_waits_for_site():
+    import asyncio
+    import types
+
+    import rasmai.bot.builders.results.loading as loading
+    from rasmai.bot.state import cache, reads
+    from rasmai.bot.state.cache import CachedAnalysis
+
+    said = []
+
+    async def edit(**fields):
+        said.append(fields.get("content") or "")
+
+    interaction = types.SimpleNamespace(user=types.SimpleNamespace(id=9101), edit_original_response=edit)
+    fresh_reads = []
+
+    async def fresh(interaction, user_id, force):
+        fresh_reads.append(user_id)
+
+    kept = (loading.touch_account, loading._fresh_analysis, reads.WAIT_POLL, reads.WAIT_LIMIT)
+    loading.touch_account = lambda user_id: None
+    loading._fresh_analysis = fresh
+    reads.WAIT_POLL = 0.01
+    problems = []
+    try:
+        async def site_reads():
+            await asyncio.sleep(0.05)
+            cache.cache_put(CachedAnalysis(user_id="9101", region="intl", analyzer=None, recommendations=[], value_charts=[]))   # type: ignore[arg-type]
+            reads.release("9101")
+
+        async def both():
+            reads.claim("9101", reads.WEBSITE)
+            site = asyncio.ensure_future(site_reads())
+            got = await loading.load_analysis(interaction)
+            await site
+            return got
+
+        got = asyncio.run(both())
+        if got is None or got is not cache._analysis_cache.get("9101"):
+            problems.append(f"the command did not come back with the website's read: {got!r}; it said {said}")
+        if fresh_reads:
+            problems.append("the command read the scores again after the website had just read them")
+        if len(said) != 1 or "continue" not in said[0]:
+            problems.append(f"the command should say once that it will continue, it said {said}")
+        if reads.running("9101") is not None:
+            problems.append("the read slot was left held")
+
+        # a read that never ends still lets the command go, with the old advice
+        said.clear()
+        reads.WAIT_LIMIT = 0.05
+        cache._analysis_cache.pop("9101", None)
+        reads.claim("9101", reads.WEBSITE)
+        if asyncio.run(loading.load_analysis(interaction)) is not None or fresh_reads:
+            problems.append("a wait that ran out still returned scores or read them")
+        if not said or "run this again" not in said[-1]:
+            problems.append(f"a wait that ran out did not tell the person to run it again: {said}")
+    finally:
+        loading.touch_account, loading._fresh_analysis, reads.WAIT_POLL, reads.WAIT_LIMIT = kept
+        reads.release("9101")
+        cache._analysis_cache.pop("9101", None)
+    return problems
+
+
+@check("a website read pressed while Discord reads waits in the queue and takes that read, not a second one")
+def _site_queues_behind_discord():
+    import time
+
+    from rasmai.bot.state import cache, reads
+    from rasmai.bot.state.cache import CachedAnalysis
+    from rasmai.web.dashboard.refresh import RefreshJobs
+
+    jobs = RefreshJobs()
+    site_reads = []
+
+    def read(user_id, account, job, tell):
+        site_reads.append(user_id)
+        with jobs._lock:
+            job.update({"running": False, "stage": "done"})
+
+    jobs._read = read
+    kept = reads.WAIT_POLL
+    reads.WAIT_POLL = 0.01
+    problems = []
+
+    def settle():
+        for _ in range(200):
+            if not jobs.status("9102").get("running"):
+                break
+            time.sleep(0.01)
+        return jobs.status("9102")
+
+    try:
+        reads.claim("9102", reads.DISCORD)
+        started = jobs.start("9102", {"token": "cookie://x", "region": "intl"})
+        time.sleep(0.05)
+        waiting = jobs.status("9102")
+        for shown in (started, waiting):
+            if not shown.get("running") or shown.get("stage") != "queued" or "Discord" not in shown.get("detail", ""):
+                problems.append(f"the site was not told it is queued behind Discord: {shown}")
+                break
+        if jobs.start("9102", {"token": "cookie://x", "region": "intl"}).get("stage") != "queued":
+            problems.append("pressing the button again while queued did not return the queued job")
+        cache.cache_put(CachedAnalysis(user_id="9102", region="intl", analyzer=None, recommendations=[], value_charts=[]))   # type: ignore[arg-type]
+        reads.release("9102")
+        done = settle()
+        if done.get("stage") != "done" or done.get("running"):
+            problems.append(f"the queued job did not finish with the Discord read: {done}")
+        if site_reads:
+            problems.append("the site read the scores again right after Discord had read them")
+
+        # the Discord read failed and kept nothing: the queued job reads for itself once the slot is free
+        cache._analysis_cache.pop("9102", None)
+        jobs._jobs.pop("9102", None)
+        reads.claim("9102", reads.DISCORD)
+        jobs.start("9102", {"token": "cookie://x", "region": "intl"})
+        reads.release("9102")
+        done = settle()
+        if site_reads != ["9102"] or done.get("stage") != "done":
+            problems.append(f"after a failed Discord read the queued job did not read once: {site_reads}, {done}")
+        if reads.running("9102") is not None:
+            problems.append("the read slot was left held")
+    finally:
+        reads.WAIT_POLL = kept
+        reads.release("9102")
+        cache._analysis_cache.pop("9102", None)
+    return problems

@@ -333,3 +333,16 @@ async def on_ready():
         asyncio.get_running_loop().run_in_executor(None, _crawl_wiki_titles)
         asyncio.get_running_loop().run_in_executor(None, _crawl_wiki_areas)
         asyncio.get_running_loop().run_in_executor(None, _warm_area_pictures)
+
+
+@bot.event
+async def on_guild_remove(guild: discord.Guild) -> None:
+    # A server that removed the bot has no one left to change its switches, and one that adds it
+    # back should start from the defaults like any new server.
+    from rasmai.storage.db.settings import delete_guild_settings
+    try:
+        had = await asyncio.to_thread(delete_guild_settings, str(guild.id))
+    except Exception:
+        logger.exception("Could not clear the settings of server %s after leaving it", guild.id)
+        return
+    logger.info("Left server %s (%s)%s", guild.id, guild.name, "; its settings are cleared" if had else "")

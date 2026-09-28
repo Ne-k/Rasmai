@@ -137,10 +137,13 @@ class CachedOtogeDB:
         self._discard_repo()     # a checkout left by an interrupted run is stale, and a forced fetch wants today's files
         try:
             self._log("Fetching otoge-db (maimai data + jackets only)", "info")
+            # Both run under _update_lock, so a stalled GitHub would hold up every analysis waiting on
+            # the chart database for good; a timeout lands in the except below like any other failure.
             subprocess.run(["git", "clone", "--depth=1", "--filter=blob:none", "--sparse",
-                            "https://github.com/zvuc/otoge-db.git", str(self.repo_path)], check=True, capture_output=True)
+                            "https://github.com/zvuc/otoge-db.git", str(self.repo_path)],
+                           check=True, capture_output=True, timeout=300)
             subprocess.run(["git", "-C", str(self.repo_path), "sparse-checkout", "set", "maimai/data", "maimai/jacket"],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, timeout=120)
             return True
         except Exception as error:
             self._log(f"Error fetching otoge-db: {error}", "error")

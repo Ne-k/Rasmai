@@ -7,6 +7,8 @@ import json
 
 from rasmai.config import DEBUG_EXPORT_DIR
 
+DEBUG_EXPORTS_KEPT = 40
+
 
 def _json_safe(value: Any) -> Any:
     if hasattr(value, "__dataclass_fields__"):
@@ -32,4 +34,8 @@ def export_debug_payload(payload: Dict[str, Any], export_dir: Path = DEBUG_EXPOR
     file_path = export_dir / f"maimai-export-{timestamp}.json"
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(_json_safe(payload), f, indent=2, ensure_ascii=False)
+    # every analysis and link with the export switched on writes one, and nothing else clears them;
+    # the timestamp in the name sorts oldest first, so everything before the last forty goes
+    for old in sorted(export_dir.glob("maimai-export-*.json"))[:-DEBUG_EXPORTS_KEPT]:
+        old.unlink(missing_ok=True)
     return file_path

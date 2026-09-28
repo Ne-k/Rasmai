@@ -120,6 +120,26 @@ def count_play_history(user_id: str) -> int:
         connection.close()
 
 
+def recently_seen(since: datetime, limit: int) -> List[str]:
+    """Accounts that used the bot or the site since ``since`` and have a stored read to build from, most recent first.
+
+    :param since: How far back to look.
+    :type since: datetime
+    :param limit: Most accounts to return.
+    :type limit: int
+    :rtype: List[str]
+    """
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            "SELECT user_id FROM connected_accounts WHERE seen_at >= ? AND latest_snapshot IS NOT NULL "
+            "ORDER BY seen_at DESC LIMIT ?", (since.isoformat(), limit),
+        ).fetchall()
+    finally:
+        connection.close()
+    return [str(row["user_id"]) for row in rows]
+
+
 def quiet_reads_due(every: timedelta) -> List[Dict[str, Any]]:
     """Accounts with the history setting on whose last quiet read is older than `every` (or never ran).
 
