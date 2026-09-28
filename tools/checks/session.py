@@ -228,3 +228,33 @@ def _manual_updates():
     if not _json.dumps(admin.update_state()).startswith("{"):
         problems.append("the developer page cannot be told how the last update went")
     return problems
+
+
+@check("the skill curve rings the dots a recent play set, and only those")
+def _curve_rings_recent_bests():
+    import types
+
+    from rasmai.bot.state.snapshots import moved_by_recent
+    from rasmai.images import posters
+    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+    from rasmai.storage.models import SongInfo
+
+    problems = []
+    a = MaimaiRatingAnalyzer()
+    song = lambda name, acc: SongInfo(name=name, chart_type="dx", difficulty_type="master", accuracy=acc,
+                                      rating=300, level="13+", difficulty=13.7)
+    beaten, short, idle = song("Beaten", 100.5123), song("Short", 100.4), song("Idle", 99.9)
+    a.songs = [beaten, short, idle]
+    play = lambda name, acc: {"songName": name, "musicType": "dx", "difficulty": "master",
+                              "achievement": int(round(acc * 10000)), "playedAt": "2026-09-28T10:00:00"}
+    # a new best, and a play that fell short of the best already held
+    a.recent_songs = [play("Beaten", 100.5123), play("Beaten", 99.0), play("Short", 99.2)]
+    moved = moved_by_recent(a)
+    if moved != [beaten]:
+        problems.append(f"ringed {[s.name for s in moved]}; only the chart whose best came from a recent play should be")
+    profile = types.SimpleNamespace(consistency=0.5, expected_accuracy=lambda c: 100.0,
+                                    comfort_constant=0, reach_constant=0)
+    rings = posters._skill_chart_svg(profile, a.songs, moved=moved).count('stroke="#f3efe4"')
+    if rings != 1:
+        problems.append(f"the curve drew {rings} rings for one recent best")
+    return problems

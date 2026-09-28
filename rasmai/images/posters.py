@@ -229,7 +229,8 @@ def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, 
 
 # ---------------------------------------------------------------- /profile
 
-def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, height: int = 700) -> str:
+def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, height: int = 700,
+                     moved: Sequence[Any] = ()) -> str:
     """The scatter of every score against chart constant, with the fitted curve over it.
 
     Drawn rather than templated: every coordinate here is computed.
@@ -242,10 +243,12 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
     :type width: int
     :param height: How tall to draw, in pixels.
     :type height: int
+    :param moved: The scored charts whose best a recent play set, ringed so they stand out.
+    :type moved: Sequence[Any]
     :rtype: str
     """
     pts = [
-        (float(s.difficulty), float(s.accuracy), str(getattr(s, "difficulty_type", "")).lower())
+        (float(s.difficulty), float(s.accuracy), str(getattr(s, "difficulty_type", "")).lower(), s in moved)
         for s in songs
         if float(getattr(s, "difficulty", 0) or 0) > 0 and float(getattr(s, "accuracy", 0) or 0) > 0
         and str(getattr(s, "difficulty_type", "")).lower() != "utage"
@@ -291,10 +294,13 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
     parts.append(f'<polygon points="{" ".join(band_top + band_bot[::-1])}" fill="#f0c04a" opacity="0.10"/>')
     parts.append(f'<polyline points="{" ".join(line)}" fill="none" stroke="#f0c04a" stroke-width="3"/>')
 
-    for cst, acc, dtype in pts:
+    # the ringed ones last, so a recent best is never buried under the old scores around it
+    for cst, acc, dtype, recent in sorted(pts, key=lambda p: p[3]):
         _l, ink = tier(dtype)
-        op = 0.85 if acc >= y0 else 0.35
-        parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="5" fill="{ink}" opacity="{op}"/>')
+        if recent:
+            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="6.5" fill="{ink}" stroke="#f3efe4" stroke-width="2.5"/>')
+        else:
+            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="5" fill="{ink}" opacity="{0.85 if acc >= y0 else 0.35}"/>')
 
     for value, name in ((float(getattr(profile, "comfort_constant", 0)), "comfort"), (float(getattr(profile, "reach_constant", 0)), "reach")):
         if x0 <= value <= x1:
@@ -306,7 +312,8 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
 
 
 def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[Any], player_name: str,
-                        player_rating: int, avatar_b64: str, recent_count: int, date_text: str = "") -> str:
+                        player_rating: int, avatar_b64: str, recent_count: int, date_text: str = "",
+                        moved: Sequence[Any] = ()) -> str:
     p = summary.get("profile", {})
     b = summary.get("best50", {})
 
@@ -367,9 +374,12 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
         {"ink": ink, "label": label} for label, ink in
         (DIFFICULTY_STYLES["expert"], DIFFICULTY_STYLES["master"], DIFFICULTY_STYLES["remaster"], DIFFICULTY_STYLES["advanced"])
     ])
+    if moved:
+        legend += ('<span><i style="background:transparent;border:2.5px solid #f3efe4;border-radius:50%;'
+                   'box-sizing:border-box"></i>best set in recent plays</span>')
     body = render(
         "profile-body",
-        chart=_skill_chart_svg(profile, songs),
+        chart=_skill_chart_svg(profile, songs, moved=moved),
         consistency=p.get("consistency", 0),
         legend=legend,
         style=_esc(str(p.get("style", "unknown")).title()),

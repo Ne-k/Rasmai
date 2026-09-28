@@ -100,6 +100,20 @@ def play_rows(analyzer: Any, recent: List[Dict[str, Any]]) -> List[Tuple[Any, ..
     return rows
 
 
+def moved_by_recent(analyzer: Any) -> List[Any]:
+    """The scored charts whose best is a score from the recent-plays list: the dots those plays put where they are.
+
+    :param analyzer: The scraper and the analysis it holds.
+    :type analyzer: Any
+    :rtype: List[Any]
+    """
+    reached: Dict[str, float] = {}
+    for row in play_rows(analyzer, analyzer.recent_songs or []):
+        reached[row[0]] = max(reached.get(row[0], 0.0), row[2])
+    return [song for song in analyzer.songs
+            if abs(reached.get("|".join(chart_key(song)), -1.0) - round(float(song.accuracy or 0), 4)) < 0.00005]
+
+
 def record_plays(user_id: str, analyzer: Any, recent: List[Dict[str, Any]]) -> int:
     """Store the plays of one recent-plays read; repeats are ignored.
 

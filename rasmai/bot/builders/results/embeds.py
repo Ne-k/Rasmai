@@ -6,6 +6,7 @@ import discord
 from rasmai.engine import analysis, insights
 from rasmai.images import posters
 from rasmai.bot.state.cache import CachedAnalysis
+from rasmai.bot.state.snapshots import moved_by_recent
 from rasmai.bot.core import try_render
 from rasmai.bot.ui.formatting import (
     stamp,
@@ -251,7 +252,7 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
     summary = a.analysis_summary or {}
     shot = await _image(cached, "profile", lambda: posters.profile_poster_html(
         summary, a.play_profile, a.songs, player.name, cached.start_rating, player.avatar_base64,
-        len(a.recent_songs), date_text=_today(),
+        len(a.recent_songs), date_text=_today(), moved=moved_by_recent(a),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-profile.png")
     embed = discord.Embed(title="Play Profile", color=discord.Color.blurple())
