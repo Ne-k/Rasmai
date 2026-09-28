@@ -7,6 +7,7 @@ import hmac
 import json
 import queue
 import re
+import sys
 import threading
 import logging
 
@@ -77,6 +78,13 @@ class _QueueingServer(ThreadingHTTPServer):
             if taken is None:
                 return
             self.process_request_thread(*taken)
+
+    def handle_error(self, request, client_address) -> None:
+        # the other end hung up before its answer went out, a page closed or a proxy that gave up:
+        # nobody is left to answer, and the traceback the stdlib prints for it is noise
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
 
     def server_close(self) -> None:
         super().server_close()

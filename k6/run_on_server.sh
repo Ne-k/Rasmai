@@ -79,9 +79,12 @@ for run in $RUNS; do
     -e RASMAI_K6_USERS=/results/users.json -e RASMAI_K6_BASE="http://$SERVER:18765" \
     -e SCENARIO=crowd,probe -e RASMAI_K6_CROWD="$crowd" -e RASMAI_K6_HOLD="$hold" -e RASMAI_K6_WARM=8 \
     "$K6_IMAGE" run --quiet --summary-export "/results/$label-summary.json" /src/k6/dashboard.js \
-    > "$OUT/$label-k6.txt" 2>&1 || true      # k6 exits non-zero when a threshold is crossed; the numbers are still wanted
+    > "$OUT/$label-k6.txt" 2>&1 || code=$?    # non-zero when a threshold is crossed; the numbers are still wanted
+  # 99 is a threshold crossed; 137 is k6 itself killed, which with thousands of VUs is out of memory
+  echo "k6 exit code ${code:-0}$([ "${code:-0}" = 137 ] && echo ': killed, most likely out of memory')" >> "$OUT/$label-k6.txt"
+  code=
 
-  kill "$SAMPLER" 2>/dev/null || true; SAMPLER=
+  kill "$SAMPLER" 2>/dev/null || true; wait "$SAMPLER" 2>/dev/null || true; SAMPLER=
   docker logs "$SERVER" 2>&1 | grep -iE "error|exception|traceback" | sort | uniq -c | sort -rn | head -20 > "$OUT/$label-server-errors.txt" || true
   docker rm -f "$SERVER" >/dev/null
 done
@@ -94,7 +97,7 @@ for f in "$OUT"/*-k6.txt; do
   echo
   echo "== $label"
   cat "$OUT/$label-seed.txt"
-  grep -v "level=warning" "$f" | grep -E "http_req_failed|visit_page_ready|first:|http_reqs|name:probe|crowd [a-z]+ 200|probe 200|%" || true
+  grep -v "level=warning" "$f" | grep -E "http_req_failed|visit_page_ready|first:|http_reqs|name:probe|crowd [a-z]+ 200|probe 200|%|k6 exit" || true
   echo "failures by kind:"
   grep "level=warning" "$f" | grep -oE "(connection refused|request timeout|reset by peer|EOF|cannot assign|too many open|i/o timeout)" | sort | uniq -c || true
   awk '{for (i = 1; i < NF; i++) { if ($i == "VmRSS:" && $(i+1) + 0 > r) r = $(i+1); if ($i == "Threads:" && $(i+1) + 0 > t) t = $(i+1) }}
