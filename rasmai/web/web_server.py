@@ -38,6 +38,18 @@ from rasmai.util import _json_safe, export_debug_payload
 logger = logging.getLogger(__name__)
 
 
+class _QueueingServer(ThreadingHTTPServer):
+    """The stdlib server, listening with a queue long enough for a page opening at once.
+
+    The stdlib default backlog is five: the sixth connection arriving before the first is
+    accepted is refused outright, not queued. A dashboard asks for six things as it opens, so
+    two people opening theirs together was enough to turn requests into 503s. Measured with
+    k6/dashboard.js: 89% of requests refused at 50 clients, every one of them in 0ms.
+    """
+
+    request_queue_size = 128
+
+
 class InternalApiServer:
     """The bot's side of the website: JSON only, for the Next.js server to call.
 
@@ -370,7 +382,7 @@ class InternalApiServer:
                     "player": {"name": getattr(official_profile, "name", ""), "rating": getattr(official_profile, "rating", "")},
                 })
 
-        self.httpd = ThreadingHTTPServer((self.host, self.port), Handler)
+        self.httpd = _QueueingServer((self.host, self.port), Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
         logger.info(f"Internal API for the website listening on http://{self.host}:{self.port}")
