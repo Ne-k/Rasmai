@@ -157,6 +157,9 @@ class InternalApiServer:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
+                if payload.get("retryAfter"):
+                    # said in the header too, where a client that drops bodies can still read it
+                    self.send_header("Retry-After", str(payload["retryAfter"]))
                 if len(body) > 1024 and "gzip" in self.headers.get("Accept-Encoding", ""):
                     body = gzip.compress(body, compresslevel=6)
                     self.send_header("Content-Encoding", "gzip")

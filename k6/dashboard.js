@@ -2,13 +2,16 @@ import http from "k6/http";
 import exec from "k6/execution";
 import { check, sleep } from "k6";
 import { Trend } from "k6/metrics";
+import { SharedArray } from "k6/data";
 
 const visitReady = new Trend("visit_page_ready", true);
 
 // What k6/serve_local.py wrote: the seeded user ids, the base address, and this run's secret.
-const config = JSON.parse(open(__ENV.RASMAI_K6_USERS));
-const BASE = __ENV.RASMAI_K6_BASE || config.base;
-const USERS = config.users;
+// The ids are read once and shared: each VU holding its own copy of three thousand of them, and the
+// bodies of everything it was sent, was what ran k6 out of memory at three thousand people.
+const USERS = new SharedArray("users", () => JSON.parse(open(__ENV.RASMAI_K6_USERS)).users);
+const { secret: SECRET, base } = JSON.parse(open(__ENV.RASMAI_K6_USERS));
+const BASE = __ENV.RASMAI_K6_BASE || base;
 const WARM = Number(__ENV.RASMAI_K6_WARM || 8);   // the first WARM users are touched in setup, the rest are left cold
 
 // The dashboard's reads, weighted roughly the way a page load asks for them. /areas, /video and
@@ -25,7 +28,7 @@ const WEIGHTED = READS.flatMap(([name, path, weight]) => Array(weight).fill([nam
 
 function headers(user) {
   return {
-    "X-Rasmai-Internal": config.secret,
+    "X-Rasmai-Internal": SECRET,
     "X-Rasmai-User": JSON.stringify({ id: user, name: "k6", handle: "k6" }),
     "Accept-Encoding": "gzip",
   };
@@ -120,6 +123,7 @@ const chosen = (__ENV.SCENARIO || "warm").split(",");
 export const options = {
   scenarios: Object.fromEntries(chosen.map((key) => [key, SCENARIOS[key]])),
   summaryTrendStats: ["avg", "med", "p(90)", "p(95)", "p(99)", "max"],
+  discardResponseBodies: true,     // only statuses and headers are read
   thresholds: {
     http_req_failed: ["rate<0.01"],
     // one sub-metric each, so the summary prints every endpoint's own percentiles
@@ -163,7 +167,7 @@ export function visit() {
 
 // a 503 that says "building" is the bot asking the page to come back, not a failure
 const BUILDING_OK = http.expectedStatuses(200, 503);
-const building = (r) => r.status === 503 && String(r.body).includes('"building"');
+const building = (r) => r.status === 503 && Boolean(r.headers["Retry-After"]);
 
 export function crowd() {
   const user = USERS[(exec.vu.idInTest - 1) % USERS.length];
@@ -179,7 +183,7 @@ export function crowd() {
     answers.forEach((res, k) => {
       if (building(res)) {
         again.push(todo[k]);
-        wait = Math.max(wait, Number(JSON.parse(res.body).retryAfter) || 3);
+        wait = Math.max(wait, Number(res.headers["Retry-After"]) || 3);
       } else {
         final[todo[k]] = res;
       }

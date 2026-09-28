@@ -8,6 +8,7 @@ IMAGE="${IMAGE:-ghcr.io/ne-k/rasmai:latest}"       # the bot's own image, for it
 K6_IMAGE="${K6_IMAGE:-grafana/k6:2.3.0}"
 ACCOUNTS="${ACCOUNTS:-3000}"
 RUNS="${RUNS:-1000:120s 3000:480s}"                # people:how long they stay; each run gets a fresh server
+CACHE_MAX="${CACHE_MAX:-500}"                      # analyses kept in memory, as MAIMAI_ANALYSIS_CACHE_MAX
 OUT="$REPO/k6/results-$(date +%Y%m%d-%H%M)"
 NET=rasmai-k6-net
 SERVER=rasmai-k6-server
@@ -22,6 +23,7 @@ Nothing opens data/ or talks to the running bot; what it shares with production 
   OTOGE=otoge_cache folder         (default $REPO/otoge_cache)
   RUNS="1000:120s 3000:480s"       people:hold for each run
   ACCOUNTS=3000                    test accounts seeded
+  CACHE_MAX=500                    analyses the server keeps in memory
 Results go to k6/results-<date>/, and a summary to paste back is printed at the end.
 EOF
   exit 0
@@ -44,6 +46,7 @@ trap cleanup EXIT
 {
   echo "machine: $(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m), $(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 )) GB"
   echo "docker: $(docker info --format '{{.NCPU}} CPUs, {{.MemTotal}} bytes, {{.OperatingSystem}}')"
+  echo "analysis cache: $CACHE_MAX"
   echo "code: $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null) $(git -C "$REPO" status --short 2>/dev/null | wc -l | tr -d ' ') files changed"
   echo "running beside it: $(docker ps --format '{{.Names}}' | grep -v "$SERVER" | tr '\n' ' ')"
 } > "$OUT/machine.txt"
@@ -58,7 +61,7 @@ for run in $RUNS; do
   docker run -d --name "$SERVER" --network "$NET" --ulimit nofile=65536:65536 \
     -v "$REPO/rasmai":/src/rasmai:ro -v "$REPO/k6":/src/k6:ro \
     -v "$EXPORTS":/exports:ro -v "$OTOGE":/src/otoge_cache:ro -v "$OUT":/results \
-    -w /src --entrypoint python "$IMAGE" \
+    -e MAIMAI_ANALYSIS_CACHE_MAX="$CACHE_MAX" -w /src --entrypoint python "$IMAGE" \
     k6/serve_local.py --host 0.0.0.0 --users "$ACCOUNTS" --exports /exports --out /results/users.json >/dev/null
   until docker logs "$SERVER" 2>&1 | grep -q "internal API on"; do
     if [ -z "$(docker ps -q -f name=^/$SERVER$)" ]; then docker logs "$SERVER" 2>&1 | tail -20; exit 1; fi
