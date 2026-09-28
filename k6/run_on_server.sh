@@ -32,6 +32,7 @@ ls "$EXPORTS"/*.json >/dev/null 2>&1 || { echo "no exports in $EXPORTS: copy deb
 command -v docker >/dev/null || { echo "docker is not on PATH"; exit 1; }
 
 mkdir -p "$OUT"
+chmod 777 "$OUT"      # written from inside both containers, whatever user each of them runs as
 docker network create "$NET" >/dev/null 2>&1 || true
 cleanup() {
   [ -n "${SAMPLER:-}" ] && kill "$SAMPLER" 2>/dev/null || true
