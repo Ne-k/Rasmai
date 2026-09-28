@@ -128,6 +128,10 @@ class ChartIndex:
         :rtype: Optional[ChartRef]
         """
         key = (str(key[0]).casefold(), key[1], key[2])     # the entries are folded; a caller need not remember to
+        if not key[0].strip():
+            # The untitled song: the database calls it one ideographic space, and maimai DX NET lists it with
+            # an empty name. Unmatched, it counted as unknown, and every restart fetched the database again for it.
+            key = ("　", key[1], key[2])
         charts = self._exact.get(key)
         if charts:
             if len(charts) > 1 and level:

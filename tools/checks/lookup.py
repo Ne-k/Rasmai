@@ -255,3 +255,17 @@ def _search_aliases():
         store._database_ready = False
         aliases._memo = (0.0, None)
     return problems
+
+
+@check("the untitled song, listed with an empty name, finds its chart instead of counting as unknown")
+def _untitled_song():
+    from rasmai.engine import analysis
+
+    problems = []
+    index = analysis.build_chart_index({"untitled": {"title": "　", "artist": "x0o0x_", "dx_lev_mas": "12+", "dx_lev_mas_i": "12.8"}})
+    chart = index.get(("", "dx", "master"), "12+")
+    if chart is None or chart.constant != 12.8:
+        problems.append("a score on the untitled song found no chart, so every restart fetched the whole database again for it")
+    if index.get(("", "dx", "expert")) is not None:
+        problems.append("an empty title matched a difficulty the untitled song does not have")
+    return problems

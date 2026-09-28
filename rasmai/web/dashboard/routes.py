@@ -30,6 +30,10 @@ ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/inte
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
+# every write handle_post answers; one missing here is refused as not found before its branch is reached,
+# which is how beta feedback went unanswered while the site forwarded it
+WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
+          "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -194,8 +198,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
     :type user: Dict[str, Any]
     :rtype: bool
     """
-    if path not in ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import",
-                    "/internal/me/sharing", "/internal/me/beta", "/internal/me/admin/update"):
+    if path not in WRITES:
         return False
     if path == "/internal/me/admin/update":
         # about the bot's own chart databases rather than about an account, so it is answered before

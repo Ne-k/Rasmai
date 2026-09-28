@@ -272,7 +272,10 @@ def _seam_addresses():
 
     # writes are allow-listed on both sides, and a list that drifts is a form that stops working
     allowed = re.search(r"\[((?:\"[a-z/]+\",?\s*)+)\]\.includes\(path\)", web)
-    posts = set(re.findall(r'"/internal/me/([a-z/]+)"', routes[routes.index("def handle_post"):]))
+    # what handle_post lets through its gate, not every path its source mentions: beta feedback had a
+    # branch of its own and was still turned away as not found, because the gate never listed it
+    from rasmai.web.dashboard import routes as route_table
+    posts = {path[len("/internal/me/"):] for path in route_table.WRITES}
     if not allowed:
         problems.append("the site no longer allow-lists which writes under /api/me it will forward")
     else:
