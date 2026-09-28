@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Any
 import hashlib
 import json
 import re
+import zlib
 
 from rasmai.storage.db.connection import get_database_connection
 
@@ -53,12 +54,21 @@ def source_state_get(source: str) -> Optional[Dict[str, Any]]:
         row = connection.execute("SELECT * FROM news_state WHERE source = ?", (source,)).fetchone()
     finally:
         connection.close()
-    return dict(row) if row else None
+    if row is None:
+        return None
+    state = dict(row)
+    if isinstance(state.get("payload"), bytes):
+        state["payload"] = zlib.decompress(state["payload"]).decode("utf-8")
+    return state
 
 
 def source_state_set(source: str, etag: Optional[str] = None, last_modified: Optional[str] = None,
                    payload: Optional[str] = None) -> None:
     """Update the fields given and leave the others as they were.
+
+    A payload is stored deflated past a few kilobytes: the chart tables held here were 3.9 MB as
+    text and are 0.6 MB packed. One left out is not touched, where it used to be read back and
+    written again whole on every check that found nothing new.
 
     :param source: Which crawled source the stored state belongs to.
     :type source: str
@@ -67,17 +77,24 @@ def source_state_set(source: str, etag: Optional[str] = None, last_modified: Opt
     :param payload: The data to store or send.
     :type payload: Optional[str]
     """
-    current = source_state_get(source) or {}
+    stored: Any = payload
+    if payload is not None and len(payload) > 4096:
+        stored = zlib.compress(payload.encode("utf-8"), 6)
     connection = get_database_connection()
     try:
         with connection:
             connection.execute(
-                "INSERT OR REPLACE INTO news_state (source, etag, last_modified, payload, checked_at) VALUES (?, ?, ?, ?, ?)",
-                (source,
-                 current.get("etag", "") if etag is None else etag,
-                 current.get("last_modified", "") if last_modified is None else last_modified,
-                 current.get("payload", "") if payload is None else payload,
-                 datetime.now().isoformat(timespec="seconds")),
+                """
+                INSERT INTO news_state (source, etag, last_modified, payload, checked_at)
+                VALUES (:source, COALESCE(:etag, ''), COALESCE(:modified, ''), COALESCE(:payload, ''), :now)
+                ON CONFLICT(source) DO UPDATE SET
+                    etag          = COALESCE(:etag, etag),
+                    last_modified = COALESCE(:modified, last_modified),
+                    payload       = COALESCE(:payload, payload),
+                    checked_at    = :now
+                """,
+                {"source": source, "etag": etag, "modified": last_modified, "payload": stored,
+                 "now": datetime.now().isoformat(timespec="seconds")},
             )
     finally:
         connection.close()

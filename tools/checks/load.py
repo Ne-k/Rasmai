@@ -77,8 +77,8 @@ def _kept_connections():
     return problems
 
 
-@check("a dashboard opening six requests at once builds its analysis once, and a cached one never waits")
-def _coalesced_builds():
+@check("a dashboard's six requests build one analysis, a crowd queues without holding threads, and a cached one never waits")
+def _queued_builds():
     import threading
     import time
     import types
@@ -100,14 +100,21 @@ def _coalesced_builds():
             running["now"] -= 1
         return types.SimpleNamespace(region="intl", generate_recommendations=lambda: ([], []))
 
-    held = (A.analyzer_from_snapshot, A.resolve_unknown_later)
+    def ask(person, into):
+        started = time.perf_counter()
+        try:
+            into.append(("ok", A.analysis_for_user(person), time.perf_counter() - started))
+        except A.StillBuilding as wait:
+            into.append(("wait", wait.seconds, time.perf_counter() - started))
+
+    held = (A.analyzer_from_snapshot, A.resolve_unknown_later, A.get_connected_account)
     A.analyzer_from_snapshot, A.resolve_unknown_later = slow_build, lambda cached, loop=None: False
+    A.get_connected_account = lambda user_id: {}
     try:
         # one person, six requests at once, nothing cached: one build and six answers
         person = "coalesce-check-0"
         answers = []
-        threads = [threading.Thread(target=lambda: answers.append(A.analysis_for_user(person, {})))
-                   for _ in range(6)]
+        threads = [threading.Thread(target=ask, args=(person, answers)) for _ in range(6)]
         for t in threads:
             t.start()
         for t in threads:
@@ -115,32 +122,108 @@ def _coalesced_builds():
         if running["built"] != 1:
             problems.append(f"one dashboard opening built its analysis {running['built']} times; k6 counted "
                             f"six, and a burst of fifty visitors queued three hundred of them")
-        if len(answers) != 6 or any(a is None for a in answers):
-            problems.append("a request that waited for somebody else's build came back with nothing")
+        if len(answers) != 6 or any(kind != "ok" or value is None for kind, value, _ in answers):
+            problems.append(f"a request that waited for its own build came back without it: {answers}")
 
-        # many different people at once: never more building together than the cap allows
+        # a crowd of new people at once: never more building together than the cap, and the ones
+        # queued behind are told to come back rather than held
         running.update(now=0, most=0, built=0)
-        threads = [threading.Thread(target=A.analysis_for_user, args=(f"coalesce-check-{n}", {}))
-                   for n in range(1, 4 * ANALYSIS_BUILDS + 2)]
+        crowd = [f"coalesce-check-{n}" for n in range(1, 4 * ANALYSIS_BUILDS + 2)]
+        answers = []
+        threads = [threading.Thread(target=ask, args=(p, answers)) for p in crowd]
         for t in threads:
             t.start()
         # and somebody already cached is answered straight away, however full the queue is
         time.sleep(0.05)
         started = time.perf_counter()
-        A.analysis_for_user(person, {})
+        A.analysis_for_user(person)
         waited = time.perf_counter() - started
         for t in threads:
             t.join()
+        told = [a for a in answers if a[0] == "wait"]
+        if not told:
+            problems.append(f"{len(crowd)} people queued behind a cap of {ANALYSIS_BUILDS} and every request "
+                            f"waited out its build: a thousand did that under k6 and held 7,700 threads")
+        if any(took > 0.1 for _, _, took in told):
+            problems.append(f"a request queued behind others was held {max(t for _, _, t in told):.2f}s before being told to come back")
+        if any(not 2 <= seconds <= 30 for _, seconds, _ in told):
+            problems.append(f"the page was told to come back after {[s for _, s, _ in told]}s, outside 2-30")
+        deadline = time.monotonic() + 10
+        while A._pending and time.monotonic() < deadline:
+            time.sleep(0.02)
+        missing = [p for p in crowd if A.cache_get(p) is None]
+        if missing:
+            problems.append(f"{len(missing)} queued analyses were never built")
         if running["most"] > ANALYSIS_BUILDS:
             problems.append(f"{running['most']} analyses were built at once against a cap of {ANALYSIS_BUILDS}, "
                             f"and more at once is slower: 2.9 a second one at a time, 1.5 eight at a time")
         if waited > 0.1:
             problems.append(f"a cached dashboard waited {waited:.2f}s behind other people's builds")
+
+        # somebody with nothing to build from is answered from memory when the page asks again,
+        # not sent to the back of the line each time, which in a crowd was forty trips of thirty seconds
+        empty = {"builds": 0}
+
+        def nothing(user_id, account):
+            empty["builds"] += 1
+
+        A.analyzer_from_snapshot = nothing
+        for _ in range(3):
+            A.analysis_for_user("coalesce-check-empty")
+        if empty["builds"] != 1:
+            problems.append(f"an account with nothing to build was built {empty['builds']} times in a row")
     finally:
-        A.analyzer_from_snapshot, A.resolve_unknown_later = held
+        A._finished.pop("coalesce-check-empty", None)
+        A.analyzer_from_snapshot, A.resolve_unknown_later, A.get_connected_account = held
         from rasmai.bot.state import cache
         for key in [k for k in list(getattr(cache, "_analysis_cache", {})) if str(k).startswith("coalesce-check")]:
             cache._analysis_cache.pop(key, None)
     if ANALYSIS_BUILDS < 1:
         problems.append("a cap below one would let nothing build at all")
+    return problems
+
+
+@check("the internal API answers from a fixed set of threads, so a crowd queues instead of being refused")
+def _pooled_answers():
+    import http.client
+    import threading
+    from http.server import BaseHTTPRequestHandler
+
+    from rasmai.web import web_server
+
+    problems = []
+    answered_on = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            answered_on.append(threading.current_thread().name)
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = web_server._QueueingServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        def ask():
+            c = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
+            c.request("GET", "/")
+            c.getresponse().read()
+            c.close()
+
+        askers = [threading.Thread(target=ask) for _ in range(200)]
+        for t in askers:
+            t.start()
+        for t in askers:
+            t.join()
+        strays = sorted({name for name in answered_on if name != "internal-api"})
+        if strays:
+            problems.append(f"requests were answered on threads started for them ({strays[:3]}...): starting one "
+                            f"per connection is what stopped connections being taken, 40% refused at a thousand people")
+        if len(answered_on) != 200:
+            problems.append(f"{200 - len(answered_on)} of 200 requests at once went unanswered")
+    finally:
+        server.shutdown()
+        server.server_close()
     return problems

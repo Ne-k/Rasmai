@@ -244,7 +244,7 @@ def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[st
         from rasmai.engine import insights
         from rasmai.scraping.mai_notes import english_label
         from rasmai.web.dashboard.analysis import analysis_for_user
-        cached = analysis_for_user(user_id, account)
+        cached = analysis_for_user(user_id)
         axes = list(getattr(getattr(cached, "analyzer", None), "play_profile", None).trait_axes or []) if cached else []
         # the confirmed traits and every axis behind them, which is what the dashboard is handed. The
         # page picks and draws from these itself, with the rules the dashboard uses, so one player

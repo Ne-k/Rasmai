@@ -1,5 +1,7 @@
+import copy
 import itertools
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -229,6 +231,42 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
             )
             index.add(chart)
     return index
+
+
+# one built index per region, as (songs_data, dxrating copy, index), rebuilt when either source is replaced
+_built: Dict[Optional[str], Tuple[Any, Any, ChartIndex]] = {}
+_built_lock = threading.Lock()
+
+
+def chart_index_for(songs_data: Dict[str, Dict[str, Any]], region: Optional[str] = None) -> ChartIndex:
+    """``build_chart_index``, built once and handed out as a copy per player.
+
+    An index is about six megabytes, and every analysis used to build its own. The copy shares the
+    charts and the tables, which nothing changes once built, and keeps what is the player's own:
+    the version they are on, and a stamp of its own so nothing memoised against one player's
+    index answers for another's.
+
+    :param songs_data: The otoge-db song table, keyed by title.
+    :type songs_data: Dict[str, Dict[str, Any]]
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: Optional[str]
+    :rtype: ChartIndex
+    """
+    try:
+        from rasmai.scraping import dxdata
+        known = dxdata.cached()
+    except Exception:
+        known = None
+    with _built_lock:
+        held = _built.get(region)
+        if held is None or held[0] is not songs_data or held[1] is not known:
+            index = build_chart_index(songs_data, region=region)
+            index._charts()             # the flat list too, built once rather than once per copy
+            held = _built[region] = (songs_data, known, index)
+    mine = copy.copy(held[2])
+    mine.stamp = next(_stamps)
+    return mine
+
 
 def level_floor(level: Optional[str]) -> float:
     """The lowest constant a displayed level covers.

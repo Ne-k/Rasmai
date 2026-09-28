@@ -55,10 +55,9 @@ def compact_snapshot(analyzer: Any) -> Dict[str, Any]:
         "areas": _json_safe(getattr(analyzer, "events_data", None) or {"areaEvents": [], "eventAreaEvents": []}),
         "areasReadAt": (analyzer.events_read_at.isoformat(timespec="seconds")
                         if isinstance(getattr(analyzer, "events_read_at", None), datetime) else None),
-        "recentPlays": _json_safe(getattr(analyzer, "recent_songs", None) or []),
         # the recent-plays list as last read: the site's play ids on it are what a judgement page is fetched by,
         # so an analysis rebuilt from the stored copy after a restart can still open one
-        "recent": _json_safe([r for r in (analyzer.recent_songs or []) if r.get("idx")]),
+        "recentPlays": _json_safe(getattr(analyzer, "recent_songs", None) or []),
     }
 
 
@@ -184,9 +183,13 @@ def store_recent(user_id: str, recent: List[Dict[str, Any]]) -> None:
     """
     from rasmai.storage.db import get_connected_account, update_account_snapshot
     snapshot = (get_connected_account(user_id) or {}).get("latestSnapshot")
-    if not snapshot:
+    if not snapshot or not recent:      # an empty read is a failed one, not a player with no plays
         return
-    snapshot["recent"] = _json_safe([r for r in recent if r.get("idx")])
+    # One list, where a rebuild reads it. This used to go to a second key beside the one a rebuild
+    # reads first, so the stored copy carried the list twice, 35 KB a player, and a restart came
+    # back with the plays from the last full read rather than the last quiet one.
+    snapshot["recentPlays"] = _json_safe(recent)
+    snapshot.pop("recent", None)
     update_account_snapshot(user_id, None, snapshot)
 
 
@@ -256,7 +259,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
     analyzer.play_counts = load_play_counts(user_id)
     analyzer.recorded_plays = load_recorded_plays(user_id)
     analyzer.judgements = load_judgements(user_id)
-    analyzer.recent_songs = list(snapshot.get("recentPlays") or snapshot.get("recent") or [])
+    analyzer.recent_songs = list(snapshot.get("recentPlays") or snapshot.get("recent") or [])     # "recent": rows stored before the two were one
     analyzer.events_data = snapshot.get("areas") or {"areaEvents": [], "eventAreaEvents": []}
     try:
         analyzer.events_read_at = datetime.fromisoformat(str(snapshot.get("areasReadAt") or "")) if snapshot.get("areasReadAt") else None

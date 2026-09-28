@@ -29,6 +29,12 @@ services:
     shm_size: "1gb"
     restart: unless-stopped
     stop_grace_period: 20s
+    # the log is every request at INFO; unrotated, Docker keeps all of it for the life of the container
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   # the website: pages, Discord sign-in, the Turnstile check, and the API the pages call.
   # point your https front (Cloudflare tunnel, Caddy, nginx) at 127.0.0.1:8765, the same port the old single container used
@@ -50,3 +56,8 @@ services:
       - bot
     init: true
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"

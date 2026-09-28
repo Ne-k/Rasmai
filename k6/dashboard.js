@@ -1,6 +1,6 @@
 import http from "k6/http";
 import exec from "k6/execution";
-import { check } from "k6";
+import { check, sleep } from "k6";
 import { Trend } from "k6/metrics";
 
 const visitReady = new Trend("visit_page_ready", true);
@@ -98,6 +98,23 @@ const SCENARIOS = {
   },
 };
 
+const CROWD = Number(__ENV.RASMAI_K6_CROWD || 1000);
+
+// thousands of people on the site: each VU is one person with their own account, opening the
+// dashboard, reading it for a while, and opening it again. Their first open is cold, so this is
+// also what happens when a crowd arrives faster than analyses can be built.
+SCENARIOS.crowd = {
+  executor: "ramping-vus",
+  exec: "crowd",
+  startVUs: 0,
+  stages: [
+    { duration: "60s", target: CROWD },
+    { duration: __ENV.RASMAI_K6_HOLD || "120s", target: CROWD },
+    { duration: "20s", target: 0 },
+  ],
+  gracefulRampDown: "130s",
+};
+
 const chosen = (__ENV.SCENARIO || "warm").split(",");
 
 export const options = {
@@ -108,6 +125,8 @@ export const options = {
     // one sub-metric each, so the summary prints every endpoint's own percentiles
     ...Object.fromEntries(READS.map(([name]) => [`http_req_duration{name:${name}}`, ["p(95)<60000"]])),
     "http_req_duration{name:probe}": ["p(95)<60000"],
+    "visit_page_ready{first:true}": ["p(95)<60000"],
+    "visit_page_ready{first:false}": ["p(95)<60000"],
   },
 };
 
@@ -140,6 +159,37 @@ export function visit() {
   answers.forEach((res, i) => check(res, { [`visit ${READS[i][0]} 200`]: (r) => r.status === 200 }));
   // the page is ready when its slowest part is
   visitReady.add(Math.max(...answers.map((r) => r.timings.duration)));
+}
+
+// a 503 that says "building" is the bot asking the page to come back, not a failure
+const BUILDING_OK = http.expectedStatuses(200, 503);
+const building = (r) => r.status === 503 && String(r.body).includes('"building"');
+
+export function crowd() {
+  const user = USERS[(exec.vu.idInTest - 1) % USERS.length];
+  const started = Date.now();
+  let todo = READS.map((read, i) => i);
+  const final = [];
+  // as the page's getJSON does: ask again, after the time the bot gave, for whatever is still building
+  for (let round = 0; todo.length && round < 40; round++) {
+    const answers = http.batch(todo.map((i) => ["GET", `${BASE}${READS[i][1]}`, null,
+      { headers: headers(user), tags: { name: `crowd-${READS[i][0]}` }, timeout: "120s", responseCallback: BUILDING_OK }]));
+    const again = [];
+    let wait = 0;
+    answers.forEach((res, k) => {
+      if (building(res)) {
+        again.push(todo[k]);
+        wait = Math.max(wait, Number(JSON.parse(res.body).retryAfter) || 3);
+      } else {
+        final[todo[k]] = res;
+      }
+    });
+    todo = again;
+    if (todo.length) sleep(wait);
+  }
+  READS.forEach(([name], i) => check(final[i] || { status: 0 }, { [`crowd ${name} 200`]: (r) => r.status === 200 }));
+  visitReady.add(Date.now() - started, { first: String(exec.vu.iterationInScenario === 0) });
+  sleep(10 + Math.random() * 20);    // reading the page before opening it again
 }
 
 export function cold() {

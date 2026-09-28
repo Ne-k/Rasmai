@@ -3,6 +3,7 @@ import json
 import sqlite3
 import threading
 import logging
+import zlib
 
 from rasmai.config import DATABASE_PATH
 from rasmai.util import _json_safe
@@ -271,20 +272,27 @@ def get_database_connection() -> sqlite3.Connection:
     return connection
 
 
-def _dump_json_column(value: Optional[Dict[str, Any]]) -> Optional[str]:
+def _dump_json_column(value: Optional[Dict[str, Any]], packed: bool = False) -> Optional[Any]:
+    """JSON for a column; ``packed`` stores it deflated, which the stored score snapshot is, at about a fifth of its size.
+
+    A packed value is a BLOB in a TEXT column, which SQLite keeps as it is given, and
+    ``_load_json_column`` reads either. SQL's own JSON functions cannot see into one, so
+    only a column nothing queries that way is packed.
+    """
     if value is None:
         return None
     try:
-        return json.dumps(_json_safe(value), ensure_ascii=False)
+        text = json.dumps(_json_safe(value), ensure_ascii=False, separators=(",", ":"))
     except (TypeError, ValueError) as error:
         logger.warning(f"Failed to serialise account column: {error}")
         return None
+    return zlib.compress(text.encode("utf-8"), 6) if packed else text
 
 
 def _load_json_column(value: Any) -> Optional[Dict[str, Any]]:
     if not value:
         return None
     try:
-        return json.loads(value)
-    except (TypeError, ValueError):
+        return json.loads(zlib.decompress(value) if isinstance(value, bytes) else value)
+    except (TypeError, ValueError, zlib.error):
         return None

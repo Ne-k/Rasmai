@@ -108,7 +108,7 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
         "beta": beta_state(user["id"]),
     })
     payload["forecast"] = rating_forecast(history)
-    cached = analysis_for_user(user["id"], account)
+    cached = analysis_for_user(user["id"])
     if cached is not None:
         summary = cached.analyzer.analysis_summary or {}
         payload["analysis"] = _json_safe({"profile": _englished(summary.get("profile")), "best50": summary.get("best50"),

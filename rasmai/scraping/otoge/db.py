@@ -19,6 +19,12 @@ _forced_at = None                  # when a read last forced a fetch; the analys
 _forced_ok = False                 # whether that fetch succeeded; a failure is not retried for every title that turns up meanwhile
 FORCED_COOLDOWN = timedelta(minutes=10)
 
+# The cache file as last read, handed to every instance: each analysis used to unpickle a copy of its
+# own, about five megabytes, and the dashboard keeps five hundred analyses. Nothing writes into these
+# tables once read; a refresh builds new ones, saves them, and the next instance reads the new file.
+_read: Dict[str, tuple] = {}
+_read_lock = threading.Lock()
+
 
 class CachedOtogeDB:
     def __init__(self, cache_dir: str = "otoge_cache", debug: bool = False):
@@ -50,6 +56,21 @@ class CachedOtogeDB:
             logger.warning(message)
 
     def _load_cache(self):
+        try:
+            stat = self.cache_file.stat()
+        except OSError:
+            return
+        stamp = (str(self.cache_file.resolve()), stat.st_mtime_ns, stat.st_size)
+        with _read_lock:
+            held = _read.get("file")
+            if held is not None and held[0] == stamp:
+                self.songs_data, self.cover_cache = held[1], held[2]
+                return
+            self._read_cache_file()
+            if self.songs_data:
+                _read["file"] = (stamp, self.songs_data, self.cover_cache)
+
+    def _read_cache_file(self):
         if self.cache_file.exists():
             try:
                 with open(self.cache_file, 'rb') as f:
@@ -131,6 +152,12 @@ class CachedOtogeDB:
         source = self.repo_path / "maimai" / "jacket"
         if source.exists():
             shutil.copytree(source, self.jacket_dir, dirs_exist_ok=True)
+        # Most jackets come as a .png and a .webp, and everything that opens one tries the .webp
+        # first, so the .png beside it is never read: 78 of the folder's 98 MB. A jacket that only
+        # comes as a .png stays.
+        for png in self.jacket_dir.glob("*.png"):
+            if png.with_suffix(".webp").exists():
+                png.unlink(missing_ok=True)
 
     def _discard_repo(self) -> None:
         if self.repo_path.exists():

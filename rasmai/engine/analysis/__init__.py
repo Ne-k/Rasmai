@@ -21,6 +21,7 @@ from rasmai.engine.analysis.charts import (  # noqa: F401
     DIFFICULTY_ORDER,
     _LEVEL_KEYS,
     build_chart_index,
+    chart_index_for,
     level_floor,
     level_range,
     constant_span,

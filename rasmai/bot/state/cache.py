@@ -152,9 +152,14 @@ def cache_get(user_id: str) -> Optional[CachedAnalysis]:
 
 
 def cache_put(cached: CachedAnalysis) -> None:
+    # the expired go first: nobody is handed one again, and until the cap pushed them out they held
+    # their memory, a few megabytes each, for as long as other people kept arriving
+    now = datetime.now()
+    for user_id in [k for k, v in list(_analysis_cache.items()) if now - v.created >= ANALYSIS_TTL]:   # list(): one step, so another thread's put cannot change it mid-walk
+        _analysis_cache.pop(user_id, None)
     _analysis_cache[cached.user_id] = cached
     while len(_analysis_cache) > ANALYSIS_CACHE_MAX:
-        oldest = min(_analysis_cache, key=lambda k: _analysis_cache[k].created)
+        oldest = min(list(_analysis_cache.items()), key=lambda item: item[1].created)[0]
         _analysis_cache.pop(oldest, None)
 
 

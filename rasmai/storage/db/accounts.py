@@ -153,7 +153,7 @@ def upsert_connected_account(user_id: str, region: str, token: str, official_pro
                     region,
                     encrypt_token(token),
                     _dump_json_column(official_profile),
-                    _dump_json_column(snapshot),
+                    _dump_json_column(snapshot, packed=True),
                     now,
                     now,
                 ),
@@ -309,7 +309,7 @@ def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, A
                     session_expired  = ''
                 WHERE user_id = ?
                 """,
-                (_dump_json_column(official_profile), _dump_json_column(snapshot), datetime.now().isoformat(), user_id),
+                (_dump_json_column(official_profile), _dump_json_column(snapshot, packed=True), datetime.now().isoformat(), user_id),
             )
     finally:
         connection.close()

@@ -5,6 +5,7 @@ from urllib.parse import urlparse, parse_qs
 import gzip
 import hmac
 import json
+import queue
 import re
 import threading
 import logging
@@ -45,9 +46,42 @@ class _QueueingServer(ThreadingHTTPServer):
     accepted is refused outright, not queued. A dashboard asks for six things as it opens, so
     two people opening theirs together was enough to turn requests into 503s. Measured with
     k6/dashboard.js: 89% of requests refused at 50 clients, every one of them in 0ms.
+
+    A thousand people opening theirs at once is six thousand connections, and the thread taking
+    them shares the interpreter with the builds, so it falls behind in bursts: at 128, 42% were
+    refused. Linux holds up to net.core.somaxconn of these (4096 by default); Windows holds 200
+    whatever is asked, so a local run understates this.
     """
 
-    request_queue_size = 128
+    request_queue_size = 1024
+
+    # A fixed set of threads answering, rather than one started per connection. Starting one waits
+    # for it to get the interpreter, which the builds keep busy, so under a crowd the thread taking
+    # connections spent its time starting threads and the queue above overflowed regardless of its
+    # length: k6 had 40% refused at a thousand people, a read that needs no analysis among them.
+    # Connections past these wait their turn, accepted, instead of being refused.
+    workers = 64
+
+    def server_activate(self) -> None:
+        super().server_activate()
+        self._accepted: "queue.SimpleQueue" = queue.SimpleQueue()
+        for _ in range(self.workers):
+            threading.Thread(target=self._answer, name="internal-api", daemon=True).start()
+
+    def process_request(self, request, client_address) -> None:
+        self._accepted.put((request, client_address))
+
+    def _answer(self) -> None:
+        while True:
+            taken = self._accepted.get()
+            if taken is None:
+                return
+            self.process_request_thread(*taken)
+
+    def server_close(self) -> None:
+        super().server_close()
+        for _ in range(self.workers if hasattr(self, "_accepted") else 0):     # none when the bind itself failed
+            self._accepted.put(None)
 
 
 class InternalApiServer:
@@ -163,9 +197,13 @@ class InternalApiServer:
                     if user is None:
                         self._send_json(401, {"ok": False, "error": "signed_out"})
                         return
-                    if dashboard.handle_get(self, route.path, query, user):
+                    try:
+                        handled = dashboard.handle_get(self, route.path, query, user)
+                    except dashboard.StillBuilding as wait:
+                        self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds})
                         return
-                    self._send_json(404, {"ok": False, "error": "not_found"})
+                    if not handled:
+                        self._send_json(404, {"ok": False, "error": "not_found"})
                     return
                 if route.path == "/internal/status":
                     self._status(query)
@@ -284,6 +322,8 @@ class InternalApiServer:
                         self._login(payload)
                         return
                     self._send_json(404, {"ok": False, "error": "not_found"})
+                except dashboard.StillBuilding as wait:
+                    self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds})
                 except Exception as error:
                     logger.exception("internal api request failed")
                     self._send_json(502, {"ok": False, "kind": "unknown", "error": public_reason(error)})

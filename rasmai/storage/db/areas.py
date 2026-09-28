@@ -69,19 +69,19 @@ def stored_area_images() -> List[Dict[str, str]]:
 
     :rtype: List[Dict[str, str]]
     """
+    seen: Dict[str, Dict[str, str]] = {}
     connection = get_database_connection()
     try:
-        rows = connection.execute("SELECT latest_snapshot FROM connected_accounts WHERE latest_snapshot IS NOT NULL").fetchall()
+        # a row at a time: every account's scores at once is hundreds of megabytes past a few thousand accounts
+        for row in connection.execute("SELECT latest_snapshot FROM connected_accounts WHERE latest_snapshot IS NOT NULL"):
+            snapshot = _load_json_column(row["latest_snapshot"]) or {}
+            areas = snapshot.get("areas") or {}
+            for event in list(areas.get("areaEvents") or []) + list(areas.get("eventAreaEvents") or []) + list(areas.get("endedEvents") or []):
+                url = str(event.get("imageUrl") or "")
+                if url and url not in seen:
+                    seen[url] = {"url": url, "key": str(event.get("imageKey") or "")}
     finally:
         connection.close()
-    seen: Dict[str, Dict[str, str]] = {}
-    for row in rows:
-        snapshot = _load_json_column(row["latest_snapshot"]) or {}
-        areas = snapshot.get("areas") or {}
-        for event in list(areas.get("areaEvents") or []) + list(areas.get("eventAreaEvents") or []) + list(areas.get("endedEvents") or []):
-            url = str(event.get("imageUrl") or "")
-            if url and url not in seen:
-                seen[url] = {"url": url, "key": str(event.get("imageKey") or "")}
     return list(seen.values())
 
 

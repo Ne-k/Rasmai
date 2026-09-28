@@ -7,7 +7,7 @@ import re
 from rasmai.bot.builders.charts.index import search_titles
 from rasmai.security import import_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account
-from rasmai.bot.state.cache import forget_analysis
+from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_payload, guilds_payload,
                                         is_admin, start_update)
 from rasmai.web.dashboard.analysis import analysis_for_user
@@ -25,6 +25,12 @@ from rasmai.web.dashboard.public_profile import set_sharing
 logger = logging.getLogger(__name__)
 
 
+# reads that never look at the analysis, so never wait on one
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
+# opened as a plain link: the browser cannot be told to come back, so these wait out the queue
+DOWNLOADS = ("/internal/me/export", "/internal/me/image")
+
+
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
     """Dashboard reads for the signed-in person, as the web server authenticated them; True when answered.
 
@@ -38,6 +44,12 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     :type user: Dict[str, Any]
     :rtype: bool
     """
+    # Whether the analysis is ready is settled before the account is read: while a crowd queues,
+    # most asks are answered "come back", and reading and unpacking the account first was a
+    # millisecond and a half of the interpreter per ask, which starved the thread taking connections.
+    cached = None
+    if path not in ANSWERED_WITHOUT_ANALYSIS:
+        cached = analysis_for_user(user["id"], patient=path in DOWNLOADS)
     account = get_connected_account(user["id"])
 
     if path in ("/internal/me", "/internal/me/"):
@@ -70,7 +82,6 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         handler._send_json(404, {"ok": False, "error": "not_linked"})
         return True
 
-    cached = analysis_for_user(user["id"], account)
     if path == "/internal/me/charts":
         handler._send_json(200, {"charts": charts_payload(cached) if cached else []})
         return True
@@ -234,7 +245,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         if not import_limiter.allow(user["id"]):
             handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five imports per quarter hour."})
             return True
-        cached = analysis_for_user(user["id"], account)
+        cached = cache_get(user["id"])      # whatever is on hand: the import is forgotten and rebuilt after anyway
         try:
             result = import_payload(user["id"], payload or {}, cached.analyzer if cached else MaimaiRatingAnalyzer(),
                                     cached.analyzer.chart_index if cached else shared_index())

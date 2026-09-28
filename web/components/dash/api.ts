@@ -463,8 +463,17 @@ async function fetchJSON<T>(path: string, init: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** A GET, asked again while the bot says the analysis behind it is still queued, as long as it says to wait. */
 export async function getJSON<T>(path: string): Promise<T> {
-  return fetchJSON<T>(path, {});
+  for (let tries = 0; ; tries++) {
+    try {
+      return await fetchJSON<T>(path, {});
+    } catch (e) {
+      const building = e instanceof ApiError && e.status === 503 && e.code === "building";
+      if (!building || tries >= 40) throw e;
+      await new Promise((resolve) => setTimeout(resolve, (Number(e.body.retryAfter) || 3) * 1000));
+    }
+  }
 }
 
 export async function postJSON<T>(path: string, body?: unknown): Promise<T> {
