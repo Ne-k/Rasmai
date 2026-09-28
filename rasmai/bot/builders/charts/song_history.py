@@ -9,6 +9,7 @@ from rasmai.scraping import dxdata
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_NAMES, stamp, today
 from rasmai.bot.state.snapshots import chart_key
+from rasmai.web.links import chart_url
 from rasmai.storage.db import load_chart_scores
 from rasmai.images.cards import history_card_html
 from rasmai.bot.ui import emoji
@@ -86,6 +87,7 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
     embed = discord.Embed(
         title=f"{title} · score history",
         color=discord.Color.from_rgb(*DIFFICULTY_COLOUR.get(ref.difficulty, (162, 102, 232))),
+        url=chart_url(title, ref.chart_type, ref.difficulty, ref.cover),
     )
     was = points[0]["constant"] if points else ref.constant
     embed.add_field(name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",

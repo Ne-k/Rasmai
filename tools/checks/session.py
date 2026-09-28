@@ -387,3 +387,32 @@ def _site_queues_behind_discord():
         reads.release("9102")
         cache._analysis_cache.pop("9102", None)
     return problems
+
+
+@check("the profile's quick wins, stretch goals and new charts link each chart to its page")
+def _profile_lists_link():
+    import json
+
+    from rasmai.bot.builders.results import embeds
+    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+    from rasmai.storage.models import PlayerInfo, SongInfo
+    from tools.checks import ROOT
+
+    problems = []
+    exports = sorted((ROOT / "debug").glob("*.json"), key=lambda p: p.stat().st_size)
+    data = next((d for d in (json.loads(p.read_text(encoding="utf-8")) for p in exports) if d.get("songs")), None)
+    if data is None:
+        return []      # no export on this machine to build from
+    a = MaimaiRatingAnalyzer()
+    a.player = PlayerInfo(**{k: v for k, v in data["player"].items() if k in PlayerInfo.__dataclass_fields__})
+    a.songs = [SongInfo(**{k: v for k, v in r.items() if k in SongInfo.__dataclass_fields__}) for r in data["songs"]]
+    a.generate_recommendations()
+    shown = [c for key in ("quickWins", "stretchGoals", "newChartsToTry") for c in (a.analysis_summary or {}).get(key) or []]
+    if not shown:
+        problems.append("the profile's lists came out empty for a real export")
+    lines = [embeds._highlight(c) for c in shown]
+    if any("](http" not in line for line in lines):
+        problems.append(f"a chart on the profile is not linked to its page: {next(l for l in lines if '](http' not in l)[:80]}")
+    if embeds._highlight("Oshama Scramble!") != "Oshama Scramble!":
+        problems.append("an analysis made before the lists carried charts no longer shows its titles")
+    return problems

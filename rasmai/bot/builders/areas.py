@@ -83,6 +83,26 @@ def _when(value: Any, style: str) -> str:
         return ""
 
 
+_NOT_A_SONG = ("title", "icon", "plate", "frame", "partner", "character", "collection")
+
+
+def _reward_name(reward: Dict[str, Any]) -> str:
+    """A reward's name in bold, linked to the song's page when the reward is a song the chart database knows.
+
+    :param reward: The reward as the wiki lists it, with its kind and name.
+    :type reward: Dict[str, Any]
+    :rtype: str
+    """
+    from rasmai.bot.builders.charts.index import song_record
+    from rasmai.bot.ui.formatting import chart_link
+    name = str(reward.get("name") or "")
+    kind = str(reward.get("kind") or "").lower()
+    # the wiki names rewards in its own words, so a song is recognised by being one, not by how the kind is spelled
+    if name and not any(word in kind for word in _NOT_A_SONG) and song_record(name):
+        return chart_link(name, limit=40)
+    return f"**{name}**"
+
+
 def _heading(area: Dict[str, Any], *extra: str) -> str:
     """The area's name, linked to its card on the site, then the English name, anything extra, and the end date.
 
@@ -120,7 +140,7 @@ def _travel_lines(area: Dict[str, Any]) -> List[str]:
     else:
         bits.append(_km(area["distance"]))
     if reward:
-        what = (f"{reward.get('kind') or ''} **{reward['name']}**".strip() if reward.get("name") else "next reward")
+        what = (f"{reward.get('kind') or ''} {_reward_name(reward)}".strip() if reward.get("name") else "next reward")
         to_go = int(reward.get("toGo") or 0)
         if to_go == 0:
             bits.append(f"{what} ready to collect")

@@ -246,6 +246,14 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
     return embed, files, page
 
 
+def _highlight(chart) -> str:
+    """One chart from the profile's lists, linked to its page; a bare title when it came from an analysis made before they carried the chart."""
+    if isinstance(chart, str):
+        return chart
+    return (f"{chart_link(chart['title'], chart['chart_type'], chart['difficulty'], chart.get('cover', ''))} "
+            f"{TIER_SHORT.get(chart['difficulty'], '')} {level_text(chart.get('level', ''), chart.get('constant'))}")
+
+
 async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[discord.File]]:
     a = cached.analyzer
     player = a.player
@@ -287,11 +295,11 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
     stretch = summary.get("stretchGoals") or []
     unplayed = summary.get("newChartsToTry") or []
     if quick_wins:
-        embed.add_field(name="Quick wins", value="\n".join(f"- {t}" for t in quick_wins[:6]), inline=False)
+        embed.add_field(name="Quick wins", value=_fit([f"- {_highlight(c)}" for c in quick_wins[:6]]), inline=False)
     if stretch:
-        embed.add_field(name="Stretch goals", value="\n".join(f"- {t}" for t in stretch[:6]), inline=False)
+        embed.add_field(name="Stretch goals", value=_fit([f"- {_highlight(c)}" for c in stretch[:6]]), inline=False)
     if unplayed:
-        embed.add_field(name="Never played, worth a shot", value="\n".join(f"- {t}" for t in unplayed[:6]), inline=False)
+        embed.add_field(name="Never played, worth a shot", value=_fit([f"- {_highlight(c)}" for c in unplayed[:6]]), inline=False)
     if not (quick_wins or stretch or unplayed):
         embed.add_field(name="Nothing easy left", value="Every chart in your best-50 is already near your ceiling. Pushing your skill curve up is the only way forward.", inline=False)
     embed.set_footer(text=f"Based on {len(a.songs)} charts and {len(a.recent_songs)} recent plays · skill curve in the image")

@@ -8,7 +8,7 @@ import discord
 from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.bot.state.snapshots import collect_judgements, play_rows, store_recent
-from rasmai.bot.ui.formatting import stamp
+from rasmai.bot.ui.formatting import chart_link, stamp
 from rasmai.bot.ui.login import dm_login_card
 from rasmai.config import MAIMAI_BASE_URLS
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
@@ -78,11 +78,11 @@ class HistoryWatch:
             titles = _title_lookup()
             shown = sorted(bests, key=lambda b: -(b["now"] - b["before"]))[:8]
             for best in shown:
-                name = best["key"].split("|", 1)[0]
+                name, chart_type, difficulty = best["key"].rsplit("|", 2)     # from the right: a title may hold a "|" itself
                 title = titles.get(name, name)
                 tier = str(best["difficulty"]).replace("remaster", "Re:MASTER").upper()
                 was = f"{best['before']:.4f}% → " if best["before"] > 0 else "first pass · "
-                lines.append(f"**{title}** {tier} · {was}**{best['now']:.4f}%**")
+                lines.append(f"{chart_link(title, chart_type, difficulty, limit=40)} {tier} · {was}**{best['now']:.4f}%**")
             if len(bests) > len(shown):
                 lines.append(f"-# and {len(bests) - len(shown)} more")
         embed = discord.Embed(title=f"{len(bests)} new best{'s' if len(bests) != 1 else ''} since the last read" if bests else "Your rating moved",

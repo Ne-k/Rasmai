@@ -10,6 +10,11 @@ from rasmai.engine.analysis.picks.model import MAX_UNPLAYED_PICKS, MIN_PICKS, Sc
 from rasmai.engine.analysis.picks.targets import _freshness, _target_for
 
 
+def _chart_of(c: ScoredCandidate) -> Dict[str, Any]:
+    return {"title": c.title, "chart_type": c.chart_type, "difficulty": c.difficulty_type, "level": c.level,
+            "constant": c.constant, "cover": c.cover}
+
+
 def generate_recommendations(
     songs: Sequence[Any],
     profile: PlayProfile,
@@ -195,7 +200,8 @@ def summarise(
             {"title": c.title, "needs": round(c.required_accuracy, 2), "level": c.level}
             for c in near_misses
         ],
-        "quickWins": [c.title for c in quick_wins],
-        "stretchGoals": [c.title for c in stretch],
-        "newChartsToTry": [c.title for c in unplayed],
+        # the chart itself, not only its title, so whatever shows these can say which difficulty and link to it
+        "quickWins": [_chart_of(c) for c in quick_wins],
+        "stretchGoals": [_chart_of(c) for c in stretch],
+        "newChartsToTry": [_chart_of(c) for c in unplayed],
     }
