@@ -8,14 +8,13 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
   },
   invalid_user: {
     headline: ["This link isn't ", "valid"],
-    detail: "It's missing the part that identifies your Discord account, or it was altered.",
-    hint: "Run /login in Discord and use the link it gives you, unchanged.",
+    detail: "It's missing your Discord account info, or it was changed.",
+    hint: "Run /login in Discord and use the link it gives you as-is.",
   },
   maintenance: {
     headline: ["maimai DX NET is ", "down"],
-    detail:
-      "Your Aime sign-in worked, but the maimai DX NET score site is a separate service, and that is the one your session has to be checked against. It is not answering right now, so the check cannot happen yet.",
-    hint: "Nothing was used up: your login link still works. Press the bookmark again once the servers are back. The band at the top says when.",
+    detail: "Your Aime sign-in worked, but the maimai DX NET score site is down right now, so your session can't be checked yet.",
+    hint: "Your login link still works. Press the bookmark again once the servers are back. The bar at the top shows when.",
   },
   no_login: {
     headline: ["Couldn't read your ", "session"],
@@ -30,11 +29,11 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
   upstream: {
     headline: ["maimai said ", "no"],
     detail: "The sign-in was read correctly, but the maimai site rejected it.",
-    hint: "That usually means the session expired mid-way. Your login link is still good: sign in to the gateway again, then press the bookmark.",
+    hint: "The session probably expired partway through. Your login link still works, so sign in to the gateway again and press the bookmark.",
   },
   verify: {
     headline: ["One check was ", "skipped"],
-    detail: "The bot needs the quick human check on the connect page before it accepts a sign-in.",
+    detail: "You need to pass the human check on the connect page before signing in.",
     hint: "Go back to the connect page, pass the check, then press the bookmark again.",
   },
   unknown: {

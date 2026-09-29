@@ -43,8 +43,8 @@ export function ServersNotice() {
     <div className="notice" role="status">
       <span className="notice-lamp" aria-hidden="true" />
       <span>
-        <b>{state.maintenance ? "maimai DX NET is in maintenance." : "maimai DX NET is not answering right now."}</b>
-        {back} Everything here is from the last read. A new read, and linking an account, cannot happen until it is back.
+        <b>{state.maintenance ? "maimai DX NET is in maintenance." : "maimai DX NET isn't responding right now."}</b>
+        {back} Scores here are from the last check. You can&apos;t refresh or link an account until it&apos;s back.
       </span>
     </div>
   );

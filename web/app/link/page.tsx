@@ -4,9 +4,9 @@ import { Walkthrough } from "@/components/Walkthrough";
 
 export const metadata: Metadata = {
   title: "Link your maimai account",
-  description: "Connect maimai DX NET to Rasmai in about a minute, on a computer or an iPhone, with the whole thing on video.",
+  description: "How to link your maimai DX NET account to Rasmai on a computer or iPhone, with a video.",
   alternates: { canonical: "/link/" },
-  openGraph: { title: "Link your maimai account · Rasmai", description: "Connect maimai DX NET to Rasmai in about a minute, on a computer or an iPhone, with the whole thing on video.", url: "/link/" , images: ["/opengraph-image"] },
+  openGraph: { title: "Link your maimai account · Rasmai", description: "How to link your maimai DX NET account to Rasmai on a computer or iPhone, with a video.", url: "/link/" , images: ["/opengraph-image"] },
 };
 
 export default function LinkPage() {
@@ -16,8 +16,7 @@ export default function LinkPage() {
         Link your <em>maimai</em> account.
       </h1>
       <p className="lede">
-        Once linked, the bot reads your scores and tells you which charts to grind for the most rating, picked for how
-        you actually play.
+        Once you&apos;re linked, Rasmai checks your scores and tells you which charts to play to raise your rating.
       </p>
 
       <section className="step walk-step">
@@ -25,8 +24,8 @@ export default function LinkPage() {
           ▶
         </div>
         <div>
-          <h2>Watch it done first</h2>
-          <p>The whole thing on the device you are holding. No sound, about a minute.</p>
+          <h2>Watch the video first</h2>
+          <p>Pick your device. It&apos;s about a minute long with no sound.</p>
           <Walkthrough />
         </div>
       </section>
@@ -34,9 +33,9 @@ export default function LinkPage() {
       <section className="step">
         <div className="n">1</div>
         <div>
-          <h2>Ask the bot for your link</h2>
+          <h2>Get your link</h2>
           <p>
-            In Discord, run <code>/login</code>. It replies with a private link back here with your login code already
+            Run <code>/login</code> in Discord. You&apos;ll get a private link to this site with your login code already
             filled in.
           </p>
         </div>
@@ -47,23 +46,23 @@ export default function LinkPage() {
           <h2>Sign in at my-aime, then authenticate</h2>
           <p>
             Sign in at <a href="https://my-aime.net/en/">my-aime.net</a> with the account you play on, then open the Aime authentication
-            from the setup page. It uses that sign-in and takes you to the gateway. About a minute.
+            from the setup page. That takes you to the gateway page.
           </p>
         </div>
       </section>
       <section className="step">
         <div className="n">3</div>
         <div>
-          <h2>Grind</h2>
+          <h2>Start grinding</h2>
           <p>
-            Back in Discord: <code>/analyze</code> for the poster, <code>/plan</code> for your route to the next thousand.
+            Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.
           </p>
         </div>
       </section>
 
       <div className="aside">
-        <b>Already linked?</b> Everything the bot knows about your scores is also on the web:{" "}
-        <a href="/me/">open your dashboard</a> and sign in with Discord.
+        <b>Already linked?</b> Your scores are on the web too. <a href="/me/">Open your dashboard</a> and sign in with
+        Discord.
       </div>
     </Shell>
   );

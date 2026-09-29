@@ -140,20 +140,19 @@ function Connect() {
 
   if (info && !info.verified) {
     return (
-      <Shell tag="step 2 of 3" lit={2} footLeft="your password never touches this page" footRight={`link valid until ${info.expiresDisplay}`}>
+      <Shell tag="step 2 of 3" lit={2} footLeft="Rasmai never sees your password" footRight={`link valid until ${info.expiresDisplay}`}>
         <h1>
           One quick <em>check</em>.
         </h1>
         <p className="lede">
-          A second to prove there is a person here. Then your link and the connect bookmark appear.
+          Pass the human check to get your link and the connect bookmark.
         </p>
         <div className="check">
           <Turnstile siteKey={info.turnstile} action="connect" onToken={passCheck} onError={() => setCheckFailed("failed")} />
-          {checkFailed === "failed" && <p className="hint">The check did not pass. Reload the page and try again.</p>}
+          {checkFailed === "failed" && <p className="hint">The check failed. Reload the page and try again.</p>}
         </div>
         <div className="aside">
-          <b>Why?</b> The link on the next screen hands your maimai session to the bot. The check keeps scripts from
-          harvesting it.
+          <b>Why?</b> The next screen gives Rasmai your maimai session, and the check stops bots from grabbing it.
         </div>
       </Shell>
     );
@@ -181,24 +180,24 @@ function Connect() {
       tag="step 2 of 3"
       lit={done ? 3 : 2}
       done={done}
-      footLeft="your password never touches this page"
+      footLeft="Rasmai never sees your password"
       footRight={info ? `link valid until ${info.expiresDisplay}` : ""}
     >
       <h1>
         {mobile ? (
           <>
-            One <em>bookmark</em>, then sign in.
+            Set up the <em>bookmark</em>, then sign in.
           </>
         ) : (
           <>
-            Two taps and a <em>bookmark</em>.
+            Drag in the <em>bookmark</em>, then sign in.
           </>
         )}
       </h1>
       <p className="lede">
         {mobile
-          ? "Set the bookmark up once, sign in at my-aime, open the Aime authentication, then run the bookmark there. This page updates on its own when you're connected."
-          : "Keep this tab open. It lights up on its own the moment you're connected."}
+          ? "Set up the bookmark, sign in at my-aime and open the Aime authentication. Then run the bookmark there. This page updates when you're connected."
+          : "Keep this tab open. It updates when you're connected."}
       </p>
       {platformPicker}
 
@@ -242,7 +241,7 @@ function Connect() {
           {platform === "ios" && (
             <>
               <h2>Make the connect bookmark</h2>
-              <p>Copy the bookmark code, then turn any bookmark into the connect button:</p>
+              <p>Copy the bookmark code, then save it as a bookmark like this.</p>
               <div className="btn-row">
                 <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
                   {copied ? "✓ copied" : "copy bookmark code"}
@@ -266,7 +265,7 @@ function Connect() {
           {platform === "android" && (
             <>
               <h2>Make the connect bookmark</h2>
-              <p>Copy the bookmark code, then turn any bookmark into the connect button:</p>
+              <p>Copy the bookmark code, then save it as a bookmark like this.</p>
               <div className="btn-row">
                 <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
                   {copied ? "✓ copied" : "copy bookmark code"}
@@ -294,7 +293,7 @@ function Connect() {
           <h2>Sign in at my-aime, then authenticate</h2>
           <p>
             First sign in at my-aime.net with the account you play on{mobile ? "" : " (opens in a new tab)"}. Then open the Aime
-            authentication: it uses that sign-in and lands you on the gateway page.
+            authentication, which takes you to the gateway page.
           </p>
           <div className="btn-row">
             <a className="button ghost" href="https://my-aime.net/en/" target="_blank" rel="noopener noreferrer">
@@ -325,21 +324,21 @@ function Connect() {
           <h2>Run the bookmark on the AIME page</h2>
           {platform === "desktop" && (
             <p>
-              Once you&apos;re signed in and looking at the gateway page, click the <b>maimai connect</b> bookmark you
-              saved. It hands your session to the bot and this page lights up.
+              When you&apos;re on the gateway page, click the <b>maimai connect</b> bookmark. This page updates once
+              it&apos;s done.
             </p>
           )}
           {platform === "ios" && (
             <p>
-              Once you&apos;re signed in and looking at the gateway page, open <b>Bookmarks</b>{" "}
-              <span className="glyph">📖</span> and tap <b>maimai connect</b>. Then come back to this tab.
+              When you&apos;re on the gateway page, open <b>Bookmarks</b> <span className="glyph">📖</span> and tap{" "}
+              <b>maimai connect</b>. Then come back to this tab.
             </p>
           )}
           {platform === "android" && (
             <p>
-              Once you&apos;re signed in and looking at the gateway page, tap the <b>address bar</b>, type{" "}
-              <b>maimai connect</b> and pick the bookmark from the suggestions. That is how Chrome runs bookmark code;
-              pasting it into the address bar does not work. Then come back to this tab.
+              When you&apos;re on the gateway page, tap the <b>address bar</b>, type <b>maimai connect</b> and pick the
+              bookmark from the suggestions. Pasting the code into the address bar won&apos;t work in Chrome. Then come
+              back to this tab.
             </p>
           )}
           <div className="status">

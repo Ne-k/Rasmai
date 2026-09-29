@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Rasmai · know what to play next";
+export const alt = "Rasmai · maimai DX rating bot for Discord";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -25,13 +25,13 @@ export default async function Image() {
           a discord bot for maimai dx
         </div>
         <div style={{ display: "flex", fontSize: 96, fontWeight: 800, lineHeight: 1.05, marginTop: 18 }}>
-          Know what to
+          See which charts
         </div>
         <div style={{ display: "flex", fontSize: 96, fontWeight: 800, lineHeight: 1.05, color: "#ff5c9f" }}>
-          play next.
+          to play next.
         </div>
         <div style={{ display: "flex", fontSize: 30, color: "#c6c0d4", marginTop: 30, maxWidth: 900 }}>
-          Rasmai reads your scores and picks the charts worth the most rating, with the odds on each.
+          Rasmai looks at your scores and tells you which charts to play to raise your rating.
         </div>
         <div style={{ display: "flex", marginTop: 46, fontSize: 26, color: "#45d6f2", letterSpacing: 2 }}>
           rasmai.lol

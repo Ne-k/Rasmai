@@ -21,15 +21,15 @@ function Connected() {
   return (
     <Shell tag="done" lit={3} done footLeft="not affiliated with SEGA">
       <h1>
-        Linked. <em>Go play.</em>
+        You&apos;re <em>linked</em>.
       </h1>
       <p className="lede">
         {player ? (
           <>
-            Signed in as <b>{player}</b>. The bot can read your scores now.
+            Signed in as <b>{player}</b>. Rasmai can check your scores now.
           </>
         ) : (
-          "Your maimai account is tied to your Discord account now."
+          "Your maimai account is now linked to your Discord account."
         )}
       </p>
 
@@ -48,11 +48,11 @@ function Connected() {
       <ul className="cmds">
         <li>
           <code>/analyze</code>
-          <span>the poster: what to grind, most rating first</span>
+          <span>what to grind, biggest gains first</span>
         </li>
         <li>
           <code>/plan</code>
-          <span>your route to the next thousand</span>
+          <span>a plan for your next thousand</span>
         </li>
         <li>
           <code>/new</code>
@@ -60,7 +60,7 @@ function Connected() {
         </li>
         <li>
           <code>/profile</code>
-          <span>how you play, in numbers</span>
+          <span>how you play and where you lose points</span>
         </li>
       </ul>
       <p className="hint" style={{ marginTop: 18 }}>

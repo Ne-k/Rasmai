@@ -33,8 +33,8 @@ CONTROL_GUILD_ID = int(os.getenv("MAIMAI_CONTROL_GUILD_ID", "1326596020146143283
 
 # the band the site shows until one is set from Discord; taking that one down leaves the site bare
 DEFAULT_NOTICE = {
-    "text": "Rasmai is moving to rasmai.lol. Your account and scores move with it, so there is nothing to "
-            "re-link. This address keeps working until the switch.",
+    "text": "Rasmai is moving to rasmai.lol. Your account and scores come with it, so you don't need to "
+            "re-link. This address works until the move.",
     "tone": "notice",
     "link": "",
     "id": "move-rasmai-lol",

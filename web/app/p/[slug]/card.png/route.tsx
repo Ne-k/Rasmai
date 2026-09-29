@@ -312,8 +312,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
               <div style={{ display: "flex" }}>{visual === "curve" ? day(points[0].at) : ""}</div>
               <div style={{ display: "flex" }}>
                 {visual === "curve" ? "rating over time"
-                  : visual === "best50" ? `the ${best.length} charts your rating is made of`
-                  : "what each part of your play asks"}
+                  : visual === "best50" ? `best ${best.length} charts`
+                  : "strong and weak patterns"}
               </div>
               <div style={{ display: "flex" }}>{visual === "curve" ? day(last.at) : ""}</div>
             </div>

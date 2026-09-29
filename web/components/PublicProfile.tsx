@@ -142,7 +142,7 @@ export function PublicProfile({ slug }: { slug: string }) {
             This profile is <em>not shared</em>.
           </h1>
           <p className="lede">
-            The link may have been turned off, or replaced with a new one. Ask whoever sent it for the current link.
+            The link may have been turned off or replaced with a new one. Ask whoever sent it for the current link.
           </p>
           <a className="button" href="/">
             what Rasmai does →
@@ -214,7 +214,7 @@ export function PublicProfile({ slug }: { slug: string }) {
               <section className="ledger">
                 <div className="ledger-head">
                   <Label>rating over time</Label>
-                  <span className="mono hint">as the bot has read it</span>
+                  <span className="mono hint">from saved checks</span>
                 </div>
                 <RatingLine points={data.history} />
               </section>
@@ -228,7 +228,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                 <dd className="mono">{num(data.rating)}</dd>
                 <dt>charts scored</dt>
                 <dd className="mono">{num(data.charts)}</dd>
-                <dt>plays on the cabinet</dt>
+                <dt>total plays</dt>
                 <dd className="mono">{num(data.plays)}</dd>
                 {best ? (
                   <>
@@ -243,8 +243,8 @@ export function PublicProfile({ slug }: { slug: string }) {
               </dl>
               <p className="hint">
                 {panels.length > 1
-                  ? "The tabs above are what this player chose to share. Anything not there was left private."
-                  : "This player shares their rating only. Anything else was left private."}
+                  ? "The tabs above are what this player shares. Everything else is private."
+                  : "This player only shares their rating."}
               </p>
             </section>
           </>
@@ -280,10 +280,10 @@ export function PublicProfile({ slug }: { slug: string }) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">Nothing sits below their curve.</p>
+                  <p className="hint">No weak spots found.</p>
                 )}
                 <div className="ledger-head">
-                  <Label>where they shine</Label>
+                  <Label>what they&apos;re good at</Label>
                 </div>
                 {strong.length ? (
                   <ul className="traits">
@@ -296,7 +296,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">Nothing sits above their curve yet.</p>
+                  <p className="hint">No strong spots found yet.</p>
                 )}
               </div>
             </div>
@@ -339,7 +339,7 @@ export function PublicProfile({ slug }: { slug: string }) {
           <section className="ledger">
             <div className="ledger-head">
               <Label>area travel</Label>
-              <span className="mono hint">{data.areas.length} under way or finished</span>
+              <span className="mono hint">{data.areas.length} in progress or done</span>
             </div>
             <ul className="areas compact">
               {data.areas.map((a) => (
@@ -361,7 +361,7 @@ export function PublicProfile({ slug }: { slug: string }) {
           <span>
             Shared with Rasmai · <a href="/">what this is</a> · not affiliated with SEGA
           </span>
-          <span>only what this player chose to share is on this page</span>
+          <span>this page only shows what the player chose to share</span>
         </footer>
       </main>
     </Shell>

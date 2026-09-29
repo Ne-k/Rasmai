@@ -3,9 +3,9 @@ import { Contact, Doc } from "@/components/Doc";
 
 export const metadata: Metadata = {
   title: "Terms",
-  description: "The deal, in plain words: what Rasmai is, what you agree to, and what it does not promise.",
+  description: "What you agree to when you use Rasmai.",
   alternates: { canonical: "/terms/" },
-  openGraph: { title: "Terms · Rasmai", description: "The deal, in plain words: what Rasmai is, what you agree to, and what it does not promise.", url: "/terms/", images: ["/opengraph-image"] },
+  openGraph: { title: "Terms · Rasmai", description: "What you agree to when you use Rasmai.", url: "/terms/", images: ["/opengraph-image"] },
 };
 
 export default function TermsPage() {
@@ -14,10 +14,10 @@ export default function TermsPage() {
       tag="terms"
       title={
         <>
-          The <em>deal</em>, in plain words.
+          Terms of <em>use</em>.
         </>
       }
-      intro="Rasmai is a free, fan-made tool. Using the bot or this site means you agree to the points below. They are short on purpose."
+      intro="Rasmai is a free, fan-made tool. By using the bot or this site you agree to the terms below."
     >
       <h2>What Rasmai is</h2>
       <p>
@@ -54,12 +54,12 @@ export default function TermsPage() {
         <li>Do not misrepresent Rasmai as an official SEGA service.</li>
       </ul>
 
-      <h2>What you get, and what you do not</h2>
+      <h2>No guarantees</h2>
       <ul>
         <li>
           <b>Recommendations are estimates.</b> Rating maths follows the game&apos;s public formula, but chart constants come
-          from a community database and may lag behind or differ from your region. Odds and targets are predictions from
-          your own history, not promises.
+          from a community database and may lag behind or differ from your region. Odds and targets are predictions based on
+          your own history and aren&apos;t guaranteed.
         </li>
         <li>
           <b>The service is provided as is</b>, with no warranty of any kind. It may be unavailable, change, or stop at any
@@ -71,15 +71,15 @@ export default function TermsPage() {
         </li>
       </ul>
 
-      <h2>Ending things</h2>
+      <h2>Stopping</h2>
       <p>
-        You can stop using Rasmai whenever you like; <code>/delete-account</code> removes your data. The operator may remove linked
+        You can stop using Rasmai whenever you like. <code>/delete-account</code> removes your data. The operator may remove linked
         accounts or restrict access, for example in response to abuse, without notice.
       </p>
 
       <h2>Changes and contact</h2>
       <p>
-        These terms may be updated; the effective date above marks the current version. Continued use after a change means
+        These terms may be updated. The effective date above marks the current version. Continued use after a change means
         you accept it. Questions go to <Contact />.
       </p>
     </Doc>

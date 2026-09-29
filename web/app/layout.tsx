@@ -34,12 +34,12 @@ const mono = localFont({
 
 const SITE = env.publicUrl();
 const TAGLINE =
-  "Rasmai reads your maimai DX NET scores and tells you which charts to play next for the most rating, with the odds on each.";
+  "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating.";
 
 export const metadata: Metadata = {
   // every page's canonical is resolved against this, so one address is the address
   metadataBase: new URL(SITE),
-  title: { default: "Rasmai · know what to play next", template: "%s · Rasmai" },
+  title: { default: "Rasmai · maimai DX rating bot for Discord", template: "%s · Rasmai" },
   description: TAGLINE,
   alternates: { canonical: "/" },
   keywords: ["maimai", "maimai DX", "rating", "best 50", "Discord bot", "chart constant", "rhythm game"],
@@ -47,11 +47,11 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Rasmai",
     url: SITE,
-    title: "Rasmai · know what to play next",
+    title: "Rasmai · maimai DX rating bot for Discord",
     description: TAGLINE,
     locale: "en",
   },
-  twitter: { card: "summary_large_image", title: "Rasmai · know what to play next", description: TAGLINE },
+  twitter: { card: "summary_large_image", title: "Rasmai · maimai DX rating bot for Discord", description: TAGLINE },
   applicationName: "Rasmai",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Rasmai", statusBarStyle: "default" },

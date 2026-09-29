@@ -128,10 +128,10 @@ export function InstallHint() {
         <img src="/app/icon-192.png" alt="" width={44} height={44} />
       </div>
       <div className="install-body">
-        <b>Rasmai on your home screen.</b>{" "}
+        <b>Add Rasmai to your home screen.</b>{" "}
         {state.canPrompt ? (
           <>
-            The dashboard opens like an app, full screen, straight to your scores.
+            The dashboard opens full screen like an app.
             <div className="btn-row">
               <button type="button" className="button pink" onClick={install}>
                 install the app
@@ -140,14 +140,14 @@ export function InstallHint() {
           </>
         ) : state.platform === "ios" ? (
           <>
-            In Safari tap <b>Share</b> <span className="glyph">⎙</span>, then <b>Add to Home Screen</b>. It opens full screen, straight to your scores.
+            In Safari tap <b>Share</b> <span className="glyph">⎙</span>, then <b>Add to Home Screen</b>. It opens full screen like an app.
           </>
         ) : state.platform === "android" ? (
           <>
-            In Chrome open the <b>⋮</b> menu and choose <b>Install app</b> or <b>Add to Home screen</b>. It opens full screen, straight to your scores.
+            In Chrome open the <b>⋮</b> menu and choose <b>Install app</b> or <b>Add to Home screen</b>. It opens full screen like an app.
           </>
         ) : (
-          <>Your browser can install this page as an app from its menu. It opens full screen, straight to your scores.</>
+          <>You can install this page as an app from your browser&apos;s menu. It opens full screen.</>
         )}
       </div>
     </div>

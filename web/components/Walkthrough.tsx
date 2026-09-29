@@ -12,7 +12,7 @@ const CLIPS: Record<Platform, { label: string; src: string; poster: string; note
     label: "On a computer",
     src: "/walkthrough/desktop.mp4",
     poster: "/walkthrough/desktop.jpg",
-    note: "Chrome, Edge or Firefox. The bookmark trick works the same in all three.",
+    note: "Works the same in Chrome, Edge and Firefox.",
     chrome: "maimaidx-eng.com",
     w: 1280,
     h: 720,
@@ -21,7 +21,7 @@ const CLIPS: Record<Platform, { label: string; src: string; poster: string; note
     label: "On iPhone",
     src: "/walkthrough/ios-safari.mp4",
     poster: "/walkthrough/ios-safari.jpg",
-    note: "Safari on iOS. Android is the same idea in Chrome.",
+    note: "Safari on iOS. Android works the same way in Chrome.",
     chrome: "maimaidx-eng.com",
     w: 560,
     h: 1214,
@@ -44,7 +44,7 @@ export function Walkthrough() {
       muted
       loop
       preload="none"
-      aria-label={`${clip.label}: the whole linking process, start to finish`}
+      aria-label={`${clip.label}: the full linking process`}
     />
   );
   return (
