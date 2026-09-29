@@ -67,7 +67,20 @@ body {
     radial-gradient(circle at 1px 1px, var(--dots) 1px, transparent 0) 0 0 / 22px 22px,
     var(--paper);
   overflow-x: hidden;
+  isolation: isolate;
 }
+/* the backdrop: CiRCLE's rings top right, a MAGiCAL magic circle bottom left, sparkles between; it stays put while the page scrolls */
+body::before {
+  --r1: min(760px, 130vw); --r2: min(620px, 110vw);
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    url(/bg/rings.svg) right calc(var(--r1) * -.32) top calc(var(--r1) * -.3) / var(--r1) no-repeat,
+    url(/bg/magic.svg) left calc(var(--r2) * -.3) bottom calc(var(--r2) * -.3) / var(--r2) no-repeat,
+    url(/bg/sparkles.svg) 0 0 / 480px;
+  opacity: var(--bg-art);
+}
+:root { --bg-art: .16; }
+:root[data-theme="dark"] { --bg-art: .12; }
 a { color: var(--link); }
 img, svg { max-width: 100%; }
 button, input, select { font-family: inherit; }

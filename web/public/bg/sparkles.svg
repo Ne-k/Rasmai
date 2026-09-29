@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 480 480">
+  <defs>
+    <path id="s" d="M0-10C1-2 2-1 10 0 2 1 1 2 0 10-1 2-2 1-10 0-2-1-1-2 0-10Z"/>
+  </defs>
+  <use href="#s" xlink:href="#s" transform="translate(70 84) scale(1.2)" fill="#e8b422"/>
+  <use href="#s" xlink:href="#s" transform="translate(356 60) scale(.7)" fill="#3cc8e8"/>
+  <use href="#s" xlink:href="#s" transform="translate(250 262) scale(.9)" fill="#ff4fa3"/>
+  <use href="#s" xlink:href="#s" transform="translate(418 392) scale(1.1)" fill="#1fb77a"/>
+  <use href="#s" xlink:href="#s" transform="translate(116 400) scale(.6)" fill="#a78bfa"/>
+  <circle cx="190" cy="140" r="12" fill="none" stroke="#a78bfa" stroke-width="2"/>
+  <circle cx="190" cy="140" r="3" fill="#a78bfa"/>
+  <circle cx="386" cy="210" r="7" fill="none" stroke="#3cc8e8" stroke-width="1.5"/>
+  <circle cx="300" cy="140" r="3" fill="#e8b422"/>
+  <circle cx="44" cy="258" r="3.5" fill="#ff4fa3"/>
+  <circle cx="330" cy="440" r="2.5" fill="#1fb77a"/>
+  <circle cx="200" cy="360" r="2" fill="#3cc8e8"/>
+  <path d="M136 250l9 8-9 8M148 250l9 8-9 8" fill="none" stroke="#3cc8e8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
