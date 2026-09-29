@@ -111,7 +111,7 @@ export function Info({ text }: { text: string }) {
   useDismiss(open, box, setOpen);
   return (
     <span className={`info${open ? " open" : ""}`} ref={box}>
-      <button type="button" className="info-btn" aria-label="what this is" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="info-btn" aria-label="more info" aria-expanded={open} onClick={() => setOpen(!open)}>
         i
       </button>
       {open && (
@@ -188,10 +188,10 @@ export function SaveImage({ kind }: { kind: ImageKind }) {
 
   return (
     <button type="button" className="save-image" onClick={save} disabled={state === "busy"}
-            title={`Save the ${IMAGE_LABEL[kind]} image, the one the bot posts in Discord`}>
-      {state === "busy" ? "drawing…"
-        : state === "empty" ? "nothing to draw yet"
-        : state === "failed" ? "could not draw it"
+            title={`Save the ${IMAGE_LABEL[kind]} image the bot posts in Discord`}>
+      {state === "busy" ? "making image…"
+        : state === "empty" ? "no data for this yet"
+        : state === "failed" ? "couldn't make the image"
         : `save ${IMAGE_LABEL[kind]}`}
     </button>
   );

@@ -41,7 +41,7 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
   if (!open) {
     return (
       <button type="button" className="linkish browse-toggle" onClick={() => setOpen(true)}>
-        or browse by trait: what a chart asks of you, and every chart that asks it
+        or browse charts by trait
       </button>
     );
   }
@@ -59,7 +59,7 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
           type="text"
           role="searchbox"
           value={find}
-          placeholder="Search traits: streams, 乱打, slide-heavy, dense…"
+          placeholder="Search traits (streams, 乱打, slide-heavy…)"
           aria-label="Search traits"
           onChange={(e) => setFind(e.target.value)}
           onKeyDown={(e) => {
@@ -87,7 +87,7 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
       {error && <Empty>{error}</Empty>}
       {!error && (
         <ul className="tag-picker">
-          {matches.length === 0 && <li className="hint">Nothing matches “{find}”.</li>}
+          {matches.length === 0 && <li className="hint">No traits match “{find}”.</li>}
           {matches.map((t) => (
             <li key={t.tag}>
               <button
@@ -105,8 +105,8 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
       )}
       {!error && !tag && (
         <p className="hint">
-          Solid traits are written by maiノーツ's editors, who have covered a third of the Master charts; dashed ones are measured from the chart
-          itself. Pick one to see every chart that has it, hardest first.
+          Solid traits are tagged by maiノーツ editors, who&apos;ve covered a third of Master charts. Dashed ones are measured from the chart.
+          Pick one to see every chart with it, hardest first.
         </p>
       )}
       {tag && data && data.tag && (
@@ -118,7 +118,7 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
             {busy ? " · updating…" : ""}
           </p>
           {data.charts.length === 0 ? (
-            <Empty>No playable chart carries this trait at that level or difficulty.</Empty>
+            <Empty>No charts with this trait at that level or difficulty. Try a different filter.</Empty>
           ) : (
             <ul className="hits pattern-list">
               {data.charts.map((c) => (

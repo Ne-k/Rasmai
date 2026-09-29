@@ -56,7 +56,7 @@ export function AdminPanel() {
         <h1>
           Nothing <em>here</em>.
         </h1>
-        <p className="lede">This page does not exist.</p>
+        <p className="lede">This page doesn&apos;t exist.</p>
         <a className="button" href="/me/">
           back to your dashboard →
         </a>
@@ -108,7 +108,7 @@ export function AdminPanel() {
         <div className="two-up">
           <section className="ledger">
             <div className="ledger-head">
-              <Label>load right now</Label>
+              <Label>current load</Label>
               <span className="mono hint">{num(n("latencyMs"))} ms to the gateway</span>
             </div>
             <Gauge label="score reads in flight" used={n("scrapesMax") - n("scrapesFree")} total={n("scrapesMax")} />
@@ -138,7 +138,7 @@ export function AdminPanel() {
                 ["judgement pages", num(data.store.judgements)],
                 ["rating points", num(data.store.ratingPoints)],
                 ["play counts", num(data.store.playCounts)],
-                ["free space in the file", size(data.store.freeBytes)],
+                ["free space in file", size(data.store.freeBytes)],
                 ["write-ahead log", data.store.walBytes ? size(data.store.walBytes) : "checkpointed"],
               ]}
             />
@@ -179,7 +179,7 @@ export function AdminPanel() {
               <span className={`mono hint${attention ? " bad" : ""}`}>{attention ? `${attention} to look at` : "all clear"}</span>
             </div>
             {attention === 0 ? (
-              <Empty>Every linked session is answering and the daily reads are landing.</Empty>
+              <Empty>All sessions are working and daily refreshes are going through.</Empty>
             ) : (
               <ul className="people">
                 {data.expired.map((e) => (
@@ -207,7 +207,7 @@ export function AdminPanel() {
             </span>
           </div>
           {!data.guilds_list?.length ? (
-            <Empty>The bot is in no servers, or has not finished connecting.</Empty>
+            <Empty>The bot isn&apos;t in any servers yet, or it&apos;s still connecting.</Empty>
           ) : (
             <div className="scroll">
               <table className="tbl compact keep admin-users">
@@ -253,7 +253,7 @@ export function AdminPanel() {
             <span className="mono hint">most recently active first</span>
           </div>
           {!data.accounts_list?.length ? (
-            <Empty>Nobody has linked an account yet.</Empty>
+            <Empty>No linked accounts yet.</Empty>
           ) : (
             <div className="scroll">
               <table className="tbl compact keep admin-users">
@@ -295,7 +295,7 @@ export function AdminPanel() {
         <section className="ledger">
           <div className="ledger-head">
             <Label>source caches</Label>
-            <span className="mono hint">shared by everyone, and the same size whoever is linked</span>
+            <span className="mono hint">shared across all users</span>
           </div>
           {data.sources.length === 0 ? (
             <Empty>Nothing cached yet.</Empty>
@@ -324,7 +324,7 @@ export function AdminPanel() {
             </div>
           )}
           <div className="row-between">
-            <span className="mono hint">update the chart databases by hand</span>
+            <span className="mono hint">update chart databases manually</span>
             <span className="seg">
               {[["simai", "simai charts"], ["otoge", "otoge-db"]].map(([key, label]) => {
                 const state = data.updates?.[key];
@@ -350,16 +350,16 @@ export function AdminPanel() {
           })}
           {data.simai && data.simai.read + data.simai.waiting > 0 && (
             <p className="hint">
-              Charts read note by note: <b>{data.simai.read.toLocaleString()}</b> trusted
-              {data.simai.refused > 0 && <> · {data.simai.refused.toLocaleString()} read differently from maiノーツ and dropped</>}
-              {data.simai.waiting > 0 ? <> · {data.simai.waiting.toLocaleString()} still to read</> : <> · nothing left to read</>}
+              Charts parsed: <b>{data.simai.read.toLocaleString()}</b> trusted
+              {data.simai.refused > 0 && <> · {data.simai.refused.toLocaleString()} didn&apos;t match maiノーツ and were dropped</>}
+              {data.simai.waiting > 0 ? <> · {data.simai.waiting.toLocaleString()} left to parse</> : <> · all parsed</>}
               {data.simai.sheets ? <> · {data.simai.sheets.toLocaleString()} charts kept, {size(data.simai.sheetBytes ?? 0)}</> : null}
             </p>
           )}
         </section>
 
         <section className="ledger">
-          <Label info="What the people running a beta feature made of it, against having it off. One verdict each, replaced whenever they change their mind.">
+          <Label info="What beta users think compared to having it off. One vote per person, updated if they change it.">
             beta feedback
           </Label>
           {Object.entries(data.betaTally ?? {}).map(([feature, counts]) => {
@@ -371,7 +371,7 @@ export function AdminPanel() {
               </p>
             );
           })}
-          {!(data.betaFeedback ?? []).length && <Empty>Nobody has said anything yet.</Empty>}
+          {!(data.betaFeedback ?? []).length && <Empty>No feedback yet.</Empty>}
           <ul className="beta-said">
             {(data.betaFeedback ?? []).map((f) => (
               <li key={`${f.userId}-${f.feature}`}>

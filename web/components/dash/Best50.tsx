@@ -18,7 +18,7 @@ export function Best50({ charts, cutoffs, onOpen }: { charts: ChartRow[] | null;
   const pool = (title: string, rows: ChartRow[], size: number, total?: number, cutoff?: number) => (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info={size === 15 ? "The 15 best chart ratings on songs from the current version. Enters at is the chart rating a score needs to get in." : "The 35 best chart ratings on songs from earlier versions. Enters at is the chart rating a score needs to get in."}>
+        <Label info={size === 15 ? "Your 15 best chart ratings on current version songs. Enters at is the chart rating you need to get in." : "Your 35 best chart ratings on older songs. Enters at is the chart rating you need to get in."}>
           {title} · {rows.length}/{size}
         </Label>
         <span className="mono hint">

@@ -63,7 +63,7 @@ function Where({ regions, intl }: { regions?: string[]; intl?: boolean }) {
   const where = regions?.length ? regions : intl === false ? ["jp", "cn"] : ["jp", "intl", "cn"];
   const everywhere = where.length >= 3;
   return (
-    <span className={`chart-flag${everywhere ? " chart-flag-quiet" : ""}`} title="where this chart can be played">
+    <span className={`chart-flag${everywhere ? " chart-flag-quiet" : ""}`} title="regions that have this chart">
       {everywhere ? "every region" : where.map((r) => REGION_NAMES[r] ?? r).join(" · ")}
       {where.length === 1 ? " only" : ""}
     </span>
@@ -126,7 +126,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
                 <button
                   type="button"
                   onClick={() => onTrait?.(p.key)}
-                  title={`${p.community ? "tagged by maiノーツ's editors" : "measured from the chart's own notes"} · every chart that asks it`}
+                  title={`${p.community ? "tagged by maiノーツ editors" : "measured from the chart's notes"} · click to see every chart with this`}
                 >
                   {p.label}
                   {p.offset != null ? <span className="mono"> {p.offset > 0 ? "+" : ""}{p.offset.toFixed(1)}</span> : null}
@@ -135,11 +135,11 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             ))}
           </ul>
           <p className="hint pattern-note">
-            Pick one to see every chart that asks it.{" "}
+            Click one to see every chart with it.{" "}
             {chart.patterns.some((p) => p.community)
-              ? "Solid tags come from maiノーツ's editors; dashed ones are measured from the chart's own note mix, tempo and density."
-              : "These are measured from the chart's own note mix, tempo and density. maiノーツ's editors have not tagged this one; they mostly tag Master charts."}
-            {chart.patterns.some((p) => p.offset != null) ? " A number is where your own confirmed scores sit against your curve." : ""}
+              ? "Solid tags come from maiノーツ editors. Dashed ones are measured from the chart's notes, BPM and density."
+              : "These are measured from the chart's notes, BPM and density. maiノーツ editors haven't tagged this one. They mostly tag Master charts."}
+            {chart.patterns.some((p) => p.offset != null) ? " The number is how your scores on it compare to your curve." : ""}
           </p>
         </>
       )}
@@ -168,7 +168,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             <div className="fact">
               <div className="k">plays</div>
               <div className="v">{chart.plays ? num(chart.plays) : "—"}</div>
-              <div className="s">{chart.plays ? "on the official count" : "unknown until a read fetches it"}</div>
+              <div className="s">{chart.plays ? "from maimai DX NET" : "unknown until the next refresh"}</div>
             </div>
             <div className="fact">
               <div className="k">best-50</div>
@@ -180,7 +180,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             <div className="k">your score</div>
             <div className="v">
               never played
-              {chart.usual != null && <em>you would usually land ~{chart.usual.toFixed(1)}% here</em>}
+              {chart.usual != null && <em>you&apos;d usually get ~{chart.usual.toFixed(1)}% here</em>}
             </div>
             <div className="s">{chart.note || ""}</div>
           </div>
@@ -197,8 +197,8 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             <div className="s">
               {chart.played && p.new_best != null
                 ? `${Math.round(p.new_best * 100)}% chance the next run is a new best`
-                : "first pass, judged from how you play this level"}
-              {Math.abs(p.tier_offset) >= 0.5 ? ` · your ${p.tier} runs sit ${p.tier_offset >= 0 ? "+" : ""}${p.tier_offset.toFixed(1)} against your curve` : ""}
+                : "first try, based on how you play this level"}
+              {Math.abs(p.tier_offset) >= 0.5 ? ` · your ${p.tier} scores are ${p.tier_offset >= 0 ? "+" : ""}${p.tier_offset.toFixed(1)} vs your curve` : ""}
             </div>
           </div>
         )}
@@ -207,8 +207,8 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
       {chart.ladder.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="For each rank: the achievement it needs, the chart rating it gives, the gain that would add to your best 50, and the odds the model gives you of scoring it here. A highlighted row is a realistic gain.">{chart.played ? "what each rank is worth" : "what each rank would be worth"}</Label>
-            <span className="mono hint">{chart.played ? "gain is what it adds to your best-50 · odds are how often you score like that here" : "odds are for a first pass"}</span>
+            <Label info="What each rank needs, the rating it gives, what it adds to your best 50 and your odds of getting it. Highlighted rows are realistic.">{chart.played ? "what each rank is worth" : "what each rank would be worth"}</Label>
+            <span className="mono hint">{chart.played ? "gain is what it adds to your best 50 · odds are how often you score that here" : "odds are for a first try"}</span>
           </div>
           <table className="tbl compact ladder keep">
             <thead>
@@ -242,11 +242,11 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
 
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="The unlock condition from SilentBlue RemyWiki. When it is an area, your own distance in that area is shown with a link to it.">how to unlock</Label>
+          <Label info="Unlock condition from SilentBlue RemyWiki. If it's an area, your distance there is shown too.">how to unlock</Label>
           <span className="mono hint">{wiki?.wiki ? <a href={wiki.wiki} target="_blank" rel="noopener noreferrer">SilentBlue RemyWiki</a> : "from SilentBlue RemyWiki"}</span>
         </div>
         {wiki === null ? (
-          <Empty>Asking the wiki…</Empty>
+          <Empty>Loading from the wiki…</Empty>
         ) : wiki.unlock.length ? (
           <ul className="unlock">
             {wiki.unlock.map((line, i) => (
@@ -256,7 +256,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
                   .filter((a) => a.line === i)
                   .map((a) => (
                     <a key={a.name} className="unlock-area" href={`/me/?area=${encodeURIComponent(a.name)}#areas`}>
-                      you in {a.title}: {a.state === "not_started" ? "not started" : `${a.distance.toLocaleString("en-US")} km`}
+                      your {a.title} progress: {a.state === "not_started" ? "not started" : `${a.distance.toLocaleString("en-US")} km`}
                       {a.state === "completed" ? ", completed" : a.milestone ? `, next reward at ${a.milestone.toLocaleString("en-US")} km` : ""} →
                     </a>
                   ))}
@@ -264,14 +264,14 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             ))}
           </ul>
         ) : (
-          <Empty>{wiki.wiki ? "The wiki lists no unlock condition for this song, so it should be available by default." : "The wiki has no page for this song yet."}</Empty>
+          <Empty>{wiki.wiki ? "No unlock condition on the wiki, so it should be unlocked by default." : "The wiki has no page for this song yet."}</Empty>
         )}
       </section>
 
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="Every play of this chart the bot has seen. Each dot is a play and the line is your best so far.">score history</Label>
-          <span className="mono hint">{chart.history.length ? `${chart.history.length} points · plays as dots, best so far as the line${constNote(chart)}` : ""}</span>
+          <Label info="Every play of this chart the bot has saved. Dots are plays and the line is your best.">score history</Label>
+          <span className="mono hint">{chart.history.length ? `${chart.history.length} points${constNote(chart)}` : ""}</span>
         </div>
         <ScoreHistory points={chart.history} />
       </section>

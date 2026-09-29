@@ -65,14 +65,14 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
         onSaved(next);
         setOpen(false);
       })
-      .catch((e: Error) => setError(e.message || "could not send that"))
+      .catch((e: Error) => setError(e.message || "couldn't send that"))
       .finally(() => setBusy(false));
   };
 
   return (
     <span className="beta-say">
       <span className="beta-say-row">
-        <span className="dim">Against having it off:</span>
+        <span className="dim">Compared to having it off:</span>
         {VERDICTS.map((v) => (
           <button
             key={v.key}
@@ -95,7 +95,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
             type="text"
             className="beta-note"
             maxLength={500}
-            placeholder="What changed, in your words"
+            placeholder="What changed?"
             value={note}
             disabled={busy}
             onChange={(e) => setNote(e.target.value)}
@@ -108,13 +108,13 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
               Save
             </button>
           )}
-          {!said?.verdict && <span className="mono hint">Pick one of the three first.</span>}
+          {!said?.verdict && <span className="mono hint">Pick an option first.</span>}
         </span>
       )}
       {said && !open && (
         <span className="mono hint ok">
           You said {said.verdict}
-          {said.said ? ` — ${said.said}` : ""}
+          {said.said ? ` · ${said.said}` : ""}
         </span>
       )}
       {error && <span className="mono hint">{error}</span>}
@@ -156,13 +156,13 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
         const feature = next.features.find((f) => f.key === key);
         setNote(
           !on
-            ? "Off from your next read."
+            ? "Turns off on your next refresh."
             : feature && feature.ready === false
-              ? "On, but this bot cannot run it yet, so nothing will change."
-              : "On from your next read. Use refresh above to see it now.",
+              ? "Turned on, but the bot can't run it yet, so nothing changes for now."
+              : "Turns on with your next refresh. Hit refresh above to see it now.",
         );
       })
-      .catch((e: Error) => setNote(e.message || "could not save that"))
+      .catch((e: Error) => setNote(e.message || "couldn't save that"))
       .finally(() => setBusy(false));
   };
 
@@ -171,7 +171,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="Finished enough to use, not finished enough to be on for everyone. Turning one off puts everything back.">
+        <Label info="Features that work but aren't finished yet. Turning one off puts things back to normal.">
           beta
         </Label>
         <span className={`mono hint${count ? " ok" : ""}`}>{count ? `${count} on` : "none on"}</span>
@@ -202,7 +202,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">These change what the model measures or how it orders things, so your traits and picks can move. Say what you make of one and it reaches whoever is deciding whether to keep it.</p>
+      <p className="hint">These can change your traits and picks. Tell us what you think so we know whether to keep them.</p>
     </section>
   );
 }

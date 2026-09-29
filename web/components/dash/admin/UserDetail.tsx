@@ -15,7 +15,7 @@ export function UserDetail({ detail, onClose }: { detail: Detail; onClose: () =>
   const settings = Object.entries(detail.settings ?? {});
   const peak = Math.max(1, ...detail.activity.map((d) => d.plays));
   return (
-    <div className="sheet-back" role="dialog" aria-modal="true" aria-label={`${detail.player || detail.userId} in full`} onClick={onClose}>
+    <div className="sheet-back" role="dialog" aria-modal="true" aria-label={`${detail.player || detail.userId} details`} onClick={onClose}>
       <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
         <div className="ledger-head">
           <Label>account</Label>
@@ -78,7 +78,7 @@ export function UserDetail({ detail, onClose }: { detail: Detail; onClose: () =>
         {detail.activity.length > 0 && (
           <section className="ledger">
             <div className="ledger-head">
-              <Label>their plays · last 30 days with any</Label>
+              <Label>their plays · last 30 active days</Label>
               <span className="mono hint">peak {num(peak)} in a day</span>
             </div>
             <div className="admin-bars">

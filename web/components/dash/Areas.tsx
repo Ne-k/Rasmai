@@ -63,7 +63,7 @@ function Panel({ area }: { area: AreaEntry }) {
     reward = (
       <div className="area-next gift">
         <span className="lbl">first play</span>
-        {area.firstGift ? <Reward step={area.firstGift} /> : <span className="w">a gift is waiting</span>}
+        {area.firstGift ? <Reward step={area.firstGift} /> : <span className="w">you get a gift</span>}
       </div>
     );
   }
@@ -115,7 +115,7 @@ function AreaCard({ area, focused }: { area: AreaEntry; focused?: boolean }) {
   const english = area.english && area.english.toLowerCase() !== area.name.toLowerCase() ? area.english : "";
   const notes: string[] = [];
   if (area.gained > 0 && area.since) notes.push(`+${km(area.gained)} since ${day(area.since)}`);
-  if (area.pace && area.state === "in_progress") notes.push(`${area.pace} km a play${area.ownPace ? "" : ", from your other areas"}`);
+  if (area.pace && area.state === "in_progress") notes.push(`${area.pace} km per play${area.ownPace ? "" : ", based on your other areas"}`);
   const period = endsIn(area.periodEnd);
   if (period) notes.push(period);
   const later = area.nextRewards.filter((step) => !area.nextReward || step.total !== area.nextReward.total).slice(0, 2);
@@ -174,10 +174,10 @@ export function Areas({ focus = "" }: { focus?: string }) {
     if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focus, data]);
   if (error) return <LoadError what="your areas" message={error} onRetry={() => { setError(""); setData(null); setReload((n) => n + 1); }} />;
-  if (!data) return <Empty>Reading the map…</Empty>;
+  if (!data) return <Empty>Loading areas…</Empty>;
   const all = [...data.areas, ...data.events, ...(data.ended ?? [])];
   if (!all.length) {
-    return <Empty>Nothing read from the map pages yet. A read from the Account tab or any Discord command brings them in.</Empty>;
+    return <Empty>No area data yet. Hit refresh on the Account tab or run any command in Discord.</Empty>;
   }
   const travelling = data.areas.filter((a) => a.state === "in_progress");
   const done = data.areas.filter((a) => a.state === "completed");
@@ -188,8 +188,8 @@ export function Areas({ focus = "" }: { focus?: string }) {
     <>
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="Area travel on maimai DX NET: every play moves you further along the area you are in, and rewards unlock at set distances. This is your map as of the last read.">area travel</Label>
-          <span className="mono hint">{data.readAt ? `map read ${ago(data.readAt)}` : "map as last read"}</span>
+          <Label info="Every play moves you further in your current area, and rewards unlock at set distances. This is from your last refresh.">area travel</Label>
+          <span className="mono hint">{data.readAt ? `updated ${ago(data.readAt)}` : "from your last refresh"}</span>
         </div>
         <dl className="facts">
           <dt>under way</dt>
@@ -198,17 +198,17 @@ export function Areas({ focus = "" }: { focus?: string }) {
           <dd className="mono">{data.counts.completed}</dd>
           <dt>not started</dt>
           <dd className="mono">{data.counts.untouched}</dd>
-          <dt>distance a play earns you</dt>
+          <dt>distance per play</dt>
           <dd className="mono">{data.pace ? `${data.pace} km · from ${data.readings} reading${data.readings === 1 ? "" : "s"}` : "not measured yet"}</dd>
         </dl>
         <p className="hint">
-          maimai DX NET gives distance, not what a play is worth, so plays-to-go appears once the map has moved between two reads. Names come from SilentBlue RemyWiki.
+          maimai DX NET only shows total distance, so plays left shows up once your distance changes between two refreshes. Area names are from SilentBlue RemyWiki.
         </p>
       </section>
       {travelling.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Areas you are part way through, with the distance to the next reward and, once the worth of a play has been measured, the plays to go.">travelling now</Label>
+            <Label info="Areas you're partway through, with the distance and plays left to the next reward.">in progress</Label>
           </div>
           <ul className="areas">
             {travelling.map((a) => (
@@ -220,7 +220,7 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {liveEvents.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Limited-time areas. They run for the dates shown and their rewards can only be collected while they are open.">event areas</Label>
+            <Label info="Limited-time areas. You can only get their rewards while they're running.">event areas</Label>
           </div>
           <ul className="areas">
             {liveEvents.map((a) => (
@@ -232,7 +232,7 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {untouched.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Areas you have not entered yet. Choosing one on the cabinet and playing once collects its first gift.">not started · {untouched.length}</Label>
+            <Label info="Areas you haven't started. Pick one on the cab and play once to get its first gift.">not started · {untouched.length}</Label>
             <span className="mono hint">the first play in each gives a gift</span>
           </div>
           <ul className="areas">
@@ -245,7 +245,7 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {waitingEvents.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Event areas you have not entered yet, with how long each one still runs.">events not started</Label>
+            <Label info="Event areas you haven't started and when each one ends.">events not started</Label>
           </div>
           <ul className="areas compact">
             {waitingEvents.map((a) => (
@@ -257,8 +257,8 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {(data.ended ?? []).length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Event areas whose period has ended. maimai DX NET no longer shows your distance in them, so only the names and dates are kept.">ended events · {data.ended.length}</Label>
-            <span className="mono hint">the site keeps their names and dates, not your distance</span>
+            <Label info="Events that are over. maimai DX NET doesn't show your distance for these anymore.">ended events · {data.ended.length}</Label>
+            <span className="mono hint">names and dates only</span>
           </div>
           <ul className="areas compact ended">
             {data.ended.map((a) => (
@@ -279,7 +279,7 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {done.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Areas you have finished, with the distance each one took.">completed · {done.length}</Label>
+            <Label info="Areas you've finished and the distance each one took.">completed · {done.length}</Label>
           </div>
           <ul className="areas compact">
             {done.map((a) => (

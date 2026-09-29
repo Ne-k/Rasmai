@@ -62,7 +62,7 @@ export function Radar({ axes }: { axes: Axis[] }) {
   const shape = axes.map((a, i) => at(i, reachOf(a)).join(",")).join(" ");
   const labelReach = (radius + 18) / radius;
   return (
-    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="your traits against your own average">
+    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="your traits vs your average">
       {[0.25, 0.5, 0.75, 1].map((r) => (
         <polygon key={r} points={ring(r)} className={r === 0.5 ? "ring mid" : "ring"} />
       ))}

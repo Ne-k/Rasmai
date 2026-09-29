@@ -38,7 +38,7 @@ function QueueNote({ spot }: { spot: NonNullable<QueueSpot> }) {
     <div className="notice" role="status" aria-live="polite">
       {spot.position <= 1
         ? "Building your analysis now…"
-        : `A lot of people are here at once. Your analysis is number ${spot.position} in line, about ${wait} to go; this page fills in by itself.`}
+        : `It's busy right now. You're #${spot.position} in the queue, about ${wait} left. The page will update when it's done.`}
     </div>
   );
 }
@@ -131,10 +131,10 @@ export function Dash() {
     load();
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("error");
-    if (kind === "discord") setError("Discord did not confirm the sign-in. Try again.");
-    if (kind === "state") setError("That sign-in link was stale. Try again.");
-    if (kind === "oauth_unconfigured") setError("Sign-in is not set up on this server yet.");
-    if (kind === "verify") setError("The human check did not pass. Try again.");
+    if (kind === "discord") setError("Discord didn't confirm the sign-in. Try again.");
+    if (kind === "state") setError("That sign-in link expired. Try again.");
+    if (kind === "oauth_unconfigured") setError("Sign-in isn't set up on this server yet.");
+    if (kind === "verify") setError("The human check failed. Try again.");
     applyLocation();
   }, [load, applyLocation]);
 
@@ -178,7 +178,7 @@ export function Dash() {
         .catch((e: ApiError) => {
           pollFailures.current += 1;
           if (pollFailures.current >= 5 || e.status === 401) {
-            setRefresh({ running: false, stage: "failed", error: "lost contact with the bot while it was reading. Reload the page, or try again in a minute." });
+            setRefresh({ running: false, stage: "failed", error: "lost connection to the bot. Reload the page or try again in a minute." });
           }
         });
     }, 1500);
@@ -217,12 +217,12 @@ export function Dash() {
             Your scores, <em>on the web</em>.
           </h1>
           <p className="lede">
-            Everything the bot has read from your maimai account: what to play next, your best 50, every chart, your rating over time.
+            See your best 50, all your charts, your rating history and what to play next.
             Sign in with the Discord account you use the bot with.
           </p>
           {oauth && turnstile ? (
             <form method="post" action="/auth/discord" className="signin">
-              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError("The human check could not load. Reload the page.")} />
+              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError("The human check didn't load. Reload the page.")} />
               <input type="hidden" name="cf-turnstile-response" value={human} />
               <button className="button pink" type="submit" disabled={!human}>
                 sign in with Discord
@@ -233,10 +233,10 @@ export function Dash() {
               sign in with Discord
             </a>
           ) : (
-            <p className="hint">Sign-in is not set up on this server yet. The owner needs to add a Discord client id and secret.</p>
+            <p className="hint">Sign-in isn&apos;t set up on this server yet. The owner needs to add a Discord client ID and secret.</p>
           )}
           {error && <p className="hint">{error}</p>}
-          <div className="aside">Only your Discord id and name are read. Nothing is posted, and no server list is requested.</div>
+          <div className="aside">We only read your Discord ID and name. We don&apos;t post anything or ask for your server list.</div>
           <InstallHint />
         </div>
       </Frame>
@@ -257,8 +257,8 @@ export function Dash() {
             No maimai account <em>linked yet</em>.
           </h1>
           <p className="lede">
-            This Discord account is signed in, but the bot has no maimai session for it. Run <code>/login</code> in Discord and follow the
-            link it gives you; come back here afterwards.
+            You&apos;re signed in, but this Discord account has no maimai account linked. Run <code>/login</code> in Discord, follow the
+            link, then come back here.
           </p>
           <a className="button" href="/">
             how linking works →
@@ -402,9 +402,8 @@ function SessionExpired({ since }: { since: string }) {
     : ` on ${when.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
   return (
     <aside className="expired" role="status">
-      <b>Your maimai session has expired.</b> maimai DX NET stopped accepting the saved sign-in{on}, so your scores are no
-      longer being read. Everything below is your last successful read. Run <code>/login</code> in Discord to link again and
-      the reads carry on from where they stopped.
+      <b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on}, so your scores aren&apos;t updating.
+      Everything below is from your last refresh. Run <code>/login</code> in Discord to link again.
     </aside>
   );
 }

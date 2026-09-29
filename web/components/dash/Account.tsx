@@ -46,7 +46,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         setNote(`Imported ${r.plays} plays, ${r.bests} bests, ${r.ratingPoints} rating points and ${r.playCounts} play counts. Reloading…`);
         setTimeout(() => window.location.reload(), 1500);
       })
-      .catch((e: Error) => setNote(e instanceof SyntaxError ? "That file is not JSON." : e.message))
+      .catch((e: Error) => setNote(e instanceof SyntaxError ? "That file isn't JSON." : e.message))
       .finally(() => {
         setBusy(false);
         if (picker.current) picker.current.value = "";
@@ -58,7 +58,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
     <div className="two-up">
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="The maimai DX NET account linked to your Discord and when the bot last read it. History points are the rating readings behind the line on the Overview.">maimai account</Label>
+          <Label info="The maimai DX NET account linked to your Discord. History points are the saved ratings behind the graph on Overview.">maimai account</Label>
         </div>
         <dl className="facts">
           <dt>player</dt>
@@ -72,32 +72,32 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         </dl>
         <div className="btn-row">
           <button type="button" className="button" onClick={start} disabled={busy || Boolean(refresh?.running)}>
-            {refresh?.running ? "reading…" : "read my scores now"}
+            {refresh?.running ? "refreshing…" : "refresh scores"}
           </button>
           <a className="button ghost" href="/api/me/export">
             download JSON
           </a>
           <button type="button" className="button ghost" onClick={() => picker.current?.click()} disabled={busy}>
-            import an export
+            import JSON
           </button>
           <input ref={picker} type="file" accept="application/json,.json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
         </div>
-        {refresh?.stage === "failed" && <p className="hint">Last read failed: {refresh.error}</p>}
+        {refresh?.stage === "failed" && <p className="hint">Refresh failed: {refresh.error}</p>}
         {refresh?.stage === "done" && !refresh.running && (
           <p className="hint ok">
-            Read finished <Ago iso={refresh.finishedAt} />.
+            Refreshed <Ago iso={refresh.finishedAt} />.
           </p>
         )}
         {note && <p className="hint">{note}</p>}
-        <p className="hint">About a minute, and the same read the Discord commands do. The picks here update from it.</p>
+        <p className="hint">Takes about a minute. It&apos;s the same refresh the Discord commands do, and your picks update after.</p>
         <p className="hint">
-          An export can be imported back; nothing stored is overwritten. Import your oldest file first, so each best lands on the day it was set.
+          You can import an export back in. It won&apos;t overwrite anything. Import your oldest file first so each best keeps the date you set it.
         </p>
         <InstallHint />
       </section>
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="The defaults the Discord commands use for you: how results are laid out, how ambitious the targets are, and who may see your scores.">bot settings</Label>
+          <Label info="Your defaults for the Discord commands.">bot settings</Label>
         </div>
         <dl className="facts">
           <dt>default layout</dt>
@@ -128,7 +128,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         <div className="ledger-head">
           <Label>unlink</Label>
         </div>
-        <p className="hint">Removes the maimai session, scores, history and play counts. Your Discord sign-in here stays.</p>
+        <p className="hint">Deletes your maimai session, scores, history and play counts. You stay signed in with Discord here.</p>
         {confirm ? (
           <div className="btn-row">
             <button type="button" className="button pink" onClick={unlink} disabled={busy}>

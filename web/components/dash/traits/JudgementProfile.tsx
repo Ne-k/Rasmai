@@ -10,22 +10,22 @@ export function JudgementProfile({ data }: { data: JudgementProfileData | null }
     share === null
       ? ""
       : share >= 0.6
-        ? `Your off-timing hits land late ${Math.round(share * 100)}% of the time: a touch behind the beat.`
+        ? `${Math.round(share * 100)}% of your off-timing hits are late, so you're a bit behind the beat.`
         : share <= 0.4
-          ? `Your off-timing hits land early ${Math.round((1 - share) * 100)}% of the time: a touch ahead of the beat.`
-          : "Your off-timing hits split evenly between fast and late.";
+          ? `${Math.round((1 - share) * 100)}% of your off-timing hits are early, so you're a bit ahead of the beat.`
+          : "Your off-timing hits are about half fast, half late.";
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="Measured from the judgement pages of your recent plays rather than guessed from scores: how many notes of each type you hit, what each type cost, and whether you land early or late.">
+        <Label info="From the judgement pages of your recent plays. Shows what each note type costs you and whether you hit early or late.">
           judgements
         </Label>
-        <span className="mono hint">{data ? `${data.plays} plays read · ${data.lostPerPlay.toFixed(2)} points lost per play` : ""}</span>
+        <span className="mono hint">{data ? `${data.plays} plays · ${data.lostPerPlay.toFixed(2)} points lost per play` : ""}</span>
       </div>
       {!data ? (
         <Empty>
-          Needs the judgement pages of three plays. Open a play&apos;s judgements on the Recent tab, or let a read collect them: every command and the daily
-          read pick up the pages for new plays.
+          Needs judgement data from 3 plays. Open a play&apos;s judgements on the Recent tab, hit refresh on the Account tab, or run any
+          command in Discord.
         </Empty>
       ) : (
         <div className="two-up">
@@ -60,13 +60,13 @@ export function JudgementProfile({ data }: { data: JudgementProfileData | null }
           <div>
             <p className="hint">
               {weak
-                ? `${weak.kind[0].toUpperCase()}${weak.kind.slice(1)} notes cost ${Math.round(weak.lossShare * 100)}% of your loss while being worth ${Math.round((weak.stakeShare ?? weak.share) * 100)}%: the type costing you most.`
-                : "No type costs more than it is worth. A break is worth five taps, so it is judged against that."}
+                ? `${weak.kind[0].toUpperCase()}${weak.kind.slice(1)} notes are ${Math.round(weak.lossShare * 100)}% of your lost points but only worth ${Math.round((weak.stakeShare ?? weak.share) * 100)}%, so they cost you the most.`
+                : "No note type costs you more than it's worth. A break counts as five taps here."}
             </p>
             {Boolean(data.bonusPerPlay) && (
               <p className="hint">
-                The break bonus costs {(data.bonusPerPlay ?? 0).toFixed(2)} a play, {Math.round((data.bonusShare ?? 0) * 100)}% of your loss. Only a critical
-                earns it, so that is the price of not chasing them rather than breaks going wrong. It is kept out of the types above.
+                Missed break bonus costs you {(data.bonusPerPlay ?? 0).toFixed(2)} per play, {Math.round((data.bonusShare ?? 0) * 100)}% of your loss. Only
+                critical breaks get it, so this comes from missing criticals. It isn&apos;t counted in the table.
               </p>
             )}
             <ul className="bars">

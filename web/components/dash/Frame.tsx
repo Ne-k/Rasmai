@@ -35,7 +35,7 @@ export function Frame({ children, user, onSignOut }: { children: React.ReactNode
           Created by <b>nek_ng</b> · not affiliated with SEGA · <a href="/privacy/">privacy</a> ·{" "}
           <a href="/terms/">terms</a>
         </span>
-        <span>scores are read from maimai DX NET when you run a command or refresh here</span>
+        <span>scores update from maimai DX NET when you run a command or refresh here</span>
       </footer>
     </div>
   );

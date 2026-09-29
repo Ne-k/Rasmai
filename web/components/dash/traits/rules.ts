@@ -82,5 +82,5 @@ export function odds(p?: number): number {
 
 export function chance(p?: number): string {
   const n = odds(p);
-  return n ? `1 in ${n} shuffles matched it` : "";
+  return n ? `1 in ${n} by chance` : "";
 }

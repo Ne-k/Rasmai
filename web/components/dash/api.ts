@@ -403,10 +403,10 @@ export type SongLookup = {
 
 /** The codes the site's API answers with, as sentences a person can act on. */
 const ERROR_TEXT: Record<string, string> = {
-  bot_unreachable: "The bot is not reachable right now. It may be restarting; try again in a minute.",
-  rate_limited: "Too many requests in a short time. Wait a moment and try again.",
-  signed_out: "Your sign-in has expired. Sign in again to continue.",
-  bad_response: "The server's answer could not be read.",
+  bot_unreachable: "Can't reach the bot right now. It might be restarting, so try again in a minute.",
+  rate_limited: "Too many requests. Wait a moment and try again.",
+  signed_out: "Your sign-in expired. Sign in again.",
+  bad_response: "Couldn't read the server's response.",
   not_linked: "No maimai account is linked to this Discord account yet.",
 };
 
@@ -417,9 +417,9 @@ export function describeError(status: number, body: Record<string, unknown>): st
   if (status === 502 || status === 503 || status === 504) return ERROR_TEXT.bot_unreachable;
   if (status === 429) return ERROR_TEXT.rate_limited;
   if (status === 401) return ERROR_TEXT.signed_out;
-  if (status === 404) return "That was not found.";
-  if (status >= 500) return "The server hit a problem. Try again in a moment.";
-  if (status === 0) return "The network request did not go through. Check the connection and try again.";
+  if (status === 404) return "Not found.";
+  if (status >= 500) return "Something went wrong on the server. Try again in a moment.";
+  if (status === 0) return "Couldn't connect. Check your internet and try again.";
   return code ? code.replace(/_/g, " ") : `Something went wrong (${status}).`;
 }
 

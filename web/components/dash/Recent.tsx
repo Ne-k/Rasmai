@@ -67,7 +67,7 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
       </div>
       {lost.length > 0 && (
         <div className="judge-lost">
-          <span className="label">what it cost</span>
+          <span className="label">points lost</span>
           {lost.map(([k, v]) => (
             <span key={k} className="lost-tag">
               {k} <b>−{v.toFixed(2)}%</b>
@@ -90,15 +90,14 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
     setOpen((o) => ({ ...o, [idx]: "loading" }));
     getJSON<PlayDetail>(`/api/me/play?idx=${encodeURIComponent(idx)}`)
       .then((d) => setOpen((o) => ({ ...o, [idx]: d })))
-      .catch((e: Error) => setOpen((o) => ({ ...o, [idx]: { error: e.message || "could not read the play" } })));
+      .catch((e: Error) => setOpen((o) => ({ ...o, [idx]: { error: e.message || "couldn't load this play" } })));
   };
   if (!plays) return <Empty>Loading…</Empty>;
   if (!plays.length)
     return (
       <Empty>
-        No plays stored yet. Every read, a command in Discord or the read-now button on the Account tab, keeps the plays on the recent-plays
-        page, and they stay here for as long as the account is linked. Turn on the daily read with <code>/settings history</code> so none fall
-        off maimai&apos;s fifty-play list between reads.
+        No plays saved yet. Hit refresh on the Account tab or run any command in Discord. Turn on the daily refresh with{" "}
+        <code>/settings history</code> so plays don&apos;t fall off maimai&apos;s 50-play list between refreshes.
       </Empty>
     );
   const visible = plays.slice(0, shown);
@@ -111,9 +110,8 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
   return (
     <>
       <p className="hint">
-        {num(total)} plays stored since {oldest ? new Date(oldest.day).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "linking"}
-        {total > plays.length ? `, the latest ${num(plays.length)} shown` : ""}. Every read adds the plays it sees, and they stay for as long
-        as the account is linked.
+        {num(total)} plays saved since {oldest ? new Date(oldest.day).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "linking"}
+        {total > plays.length ? `, showing the latest ${num(plays.length)}` : ""}. Plays stay here as long as your account is linked.
       </p>
       {days.map(([d, group]) => (
         <section className="ledger" key={d}>
@@ -167,7 +165,7 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
                     <td colSpan={7}>
                       {open[p.idx] === "loading" ? (
                         <div className="judge-panel judge-wait">
-                          <span className="lamp" /> reading the play from maimai DX NET…
+                          <span className="lamp" /> loading the play from maimai DX NET…
                         </div>
                       ) : "error" in (open[p.idx] as object) ? (
                         <div className="judge-panel judge-wait">{(open[p.idx] as { error: string }).error}</div>

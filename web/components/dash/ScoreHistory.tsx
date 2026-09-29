@@ -22,9 +22,9 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
       <div className="score-history" ref={box}>
         <Empty>
           {sorted.length === 1
-            ? `One point so far: ${pct(sorted[0].achievement, 4)} on ${new Date(sorted[0].when).toLocaleDateString()}.`
-            : "No stored scores for this chart yet."}{" "}
-          Every read records the plays it sees, so this fills in as you play it.
+            ? `Only one score so far: ${pct(sorted[0].achievement, 4)} on ${new Date(sorted[0].when).toLocaleDateString()}.`
+            : "No saved scores for this chart yet."}{" "}
+          New plays show up here after each refresh.
         </Empty>
       </div>
     );

@@ -6,10 +6,10 @@ import { Label } from "./bits";
 import { EmbedCard } from "./EmbedCard";
 
 const SECTIONS: { key: keyof SharingState["sections"]; label: string; note: string }[] = [
-  { key: "best50", label: "Best 50", note: "the fifty charts your rating is made of" },
-  { key: "traits", label: "Traits", note: "where you lose points and where you shine" },
-  { key: "recent", label: "Recent plays", note: "the last twenty plays the bot has seen" },
-  { key: "areas", label: "Areas", note: "how far along each area you are" },
+  { key: "best50", label: "Best 50", note: "the 50 charts that make up your rating" },
+  { key: "traits", label: "Traits", note: "your strengths and weak spots" },
+  { key: "recent", label: "Recent plays", note: "your last 20 plays" },
+  { key: "areas", label: "Areas", note: "your progress in each area" },
 ];
 
 /** The public profile: a link anyone can open, carrying only the sections that are switched on. */
@@ -24,7 +24,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
     setNote("");
     postJSON<SharingState>("/api/me/sharing", body)
       .then(onChange)
-      .catch((e: Error) => setNote(e.message || "could not save that"))
+      .catch((e: Error) => setNote(e.message || "couldn't save that"))
       .finally(() => setBusy(false));
   };
 
@@ -35,20 +35,20 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
         setCopied(true);
         setTimeout(() => setCopied(false), 1600);
       })
-      .catch(() => setNote("could not copy; select the link instead"));
+      .catch(() => setNote("couldn't copy. Select the link and copy it yourself."));
   };
 
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="A page anyone with the link can open. Your Discord account is never on it and it is not indexed by search engines. Turning it off stops the link working straight away.">
+        <Label info="Anyone with the link can see it. Your Discord account isn't on it and search engines won't list it.">
           public profile
         </Label>
         <span className={`mono hint${state.on ? " ok" : ""}`}>{state.on ? "shared" : "private"}</span>
       </div>
 
       <p className="hint">
-        Off by default. Shows your name, rating and play count, plus the sections you pick.
+        Off by default. Shows your name, rating, play count and any sections you turn on.
       </p>
 
       <div className="btn-row">
@@ -104,7 +104,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
       )}
 
       {note && <p className="hint">{note}</p>}
-      {state.on && <p className="hint">A new link stops the old one working, so anything already passed around goes dead.</p>}
+      {state.on && <p className="hint">Making a new link breaks the old one.</p>}
     </section>
   );
 }

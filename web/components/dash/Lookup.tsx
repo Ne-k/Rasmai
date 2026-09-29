@@ -57,9 +57,9 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           const rows = (e.body.charts as { level: string; difficulty: string; accuracy: number }[] | undefined) ?? [];
           const yours = rows.map((c) => `${c.difficulty} ${c.level} at ${c.accuracy.toFixed(4)}%`).join(", ");
           setError(
-            `"${String(e.body.title ?? title)}" is not in the chart database yet. Reading your scores fetched the database again when it met this song, so the song is newer than the database's own entries; the jacket, constants and this page arrive once it is listed there. Until then your score${rows.length === 1 ? "" : "s"} (${yours}) count${rows.length === 1 ? "s" : ""} with a constant taken from the middle of the level.`,
+            `"${String(e.body.title ?? title)}" isn't in the chart database yet. The song is newer than the database, so the jacket, constants and this page will show up once it's added. For now your score${rows.length === 1 ? "" : "s"} (${yours}) count${rows.length === 1 ? "s" : ""} with a constant guessed from the level.`,
           );
-        } else setError(e.status === 404 ? `Nothing in the chart database matches "${title}".` : e.message);
+        } else setError(e.status === 404 ? `No song in the chart database matches "${title}".` : e.message);
       })
       .finally(() => {
         if (mine === opening.current) setBusy(false);
@@ -133,7 +133,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
       </div>
       {hits !== null && (
         <ul className="hits">
-          {hits.length === 0 && <li className="empty">{searchError ? `The search could not run. ${searchError}` : "Nothing matches. Try part of the title, its reading in romaji, or an artist or charter."}</li>}
+          {hits.length === 0 && <li className="empty">{searchError ? `Search failed. ${searchError}` : "No matches. Try part of the title, the romaji reading, or the artist or charter."}</li>}
           {hits.map((h) => (
             <li key={h.title} className="hit">
               <Jacket cover={h.cover} size={44} />
@@ -167,9 +167,8 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
       {error && <Empty>{error}</Empty>}
       {!busy && !song && hits === null && !error && (
         <Empty>
-          Type a song title. You get every chart the song has, your score on it, what the model expects of you, what each rank is worth to your
-          best-50 and the odds of it, what the chart asks of you, your score history on the chart and the chart video. Any title on the other
-          tabs opens here too.
+          Search for a song to see your scores, your odds for each rank, your score history and the chart video. Clicking a song title on
+          any other tab opens it here too.
         </Empty>
       )}
       {!song && hits === null && (

@@ -33,7 +33,7 @@ const STAGE_LABEL: Record<string, string> = {
   recent: "Recent plays",
   extras: "Albums and events",
   plays: "Play counts",
-  analysis: "Working out what to play",
+  analysis: "Picking charts for you",
   done: "Done",
   failed: "Failed",
 };

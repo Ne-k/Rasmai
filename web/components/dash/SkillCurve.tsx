@@ -94,12 +94,12 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="The line is what the model expects at each constant, fitted to your own results, and the band is how much your scores vary. Each dot is a chart: below the band you under-perform, above it you beat your curve.">
+        <Label info="The line is your expected score at each constant, based on your results. The band is how much your scores vary, and each dot is a chart.">
           your curve
         </Label>
-        <span className="mono hint">{scored.length} scored charts behind it</span>
+        <span className="mono hint">from {scored.length} charts</span>
       </div>
-      <svg className="curve" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="what you score against chart constant">
+      <svg className="curve" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="your scores by chart constant">
         {rows.map((a) => (
           <g key={a}>
             <line x1={PAD.left} y1={y(a)} x2={W - PAD.right} y2={y(a)} className="curve-grid" />
@@ -171,7 +171,7 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
         )}
       </div>
       <p className="hint">
-        Dots below the band are where the picks come from. The band widens where you have played less: the model is less sure there.
+        Dots below the band are where your picks come from. The band is wider where you&apos;ve played less.
       </p>
     </section>
   );

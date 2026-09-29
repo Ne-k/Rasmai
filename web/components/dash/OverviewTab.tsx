@@ -47,7 +47,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
       <div className="two-up">
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Comfortable up to is the hardest constant you still score consistently at, and S expected up to is where a first pass should still land an S. Reachable is what every What to play target adds up to.">how you play</Label>
+            <Label info="Comfortable up to is the highest constant you score well on every time. S expected up to is the highest constant you should S on your first try.">how you play</Label>
           </div>
           <dl className="facts">
             <dt>comfortable up to</dt>
@@ -101,7 +101,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
         </section>
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Your rating is your best 50 chart ratings: the 15 best from the current version and the 35 best from older ones. Enters at is what a new score needs to push the lowest one out. Open means that pool is not full yet.">best 50 cutoffs</Label>
+            <Label info="Your rating is your 15 best charts from the current version plus your 35 best from older ones. Enters at is the chart rating you need to get in.">best 50 cutoffs</Label>
           </div>
           <dl className="facts">
             <dt>new pool (15)</dt>
@@ -116,7 +116,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
             </dd>
           </dl>
           <div className="ledger-head">
-            <Label info="How many of your Expert, Master and Re:Master scores sit at each rank.">ranks · expert and up</Label>
+            <Label info="How many of your Expert, Master and Re:Master scores are at each rank.">ranks · expert and up</Label>
           </div>
           {stats ? (
             <ul className="bars">
@@ -138,7 +138,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
       {stats && stats.levels.size > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Your average achievement at each level, Expert and up, with how many charts that average covers. The bar starts at 80% and fills at 100%.">average achievement by level · expert and up</Label>
+            <Label info="Your average achievement at each level, Expert and up. The bar goes from 80% to 100%.">average achievement by level · expert and up</Label>
           </div>
           <table className="tbl compact levels keep">
             <tbody>

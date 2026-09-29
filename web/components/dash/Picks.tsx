@@ -4,10 +4,10 @@ import { Chip, Empty, Jacket, Label, LoadError, num, pct } from "./bits";
 import { TitleLink, type OpenChart } from "./bits";
 
 const LEVELS: { key: string; label: string; note: string }[] = [
-  { key: "easy", label: "Easier", note: "the surest step, about a coin flip" },
-  { key: "balanced", label: "Balanced", note: "best expected gain, one in four" },
-  { key: "hard", label: "Challenging", note: "a stretch, about one in six" },
-  { key: "extreme", label: "Long shots", note: "the biggest gain on the board, about one in ten" },
+  { key: "easy", label: "Easier", note: "safest targets, about 50/50 odds" },
+  { key: "balanced", label: "Balanced", note: "best gain for the effort, about 1 in 4" },
+  { key: "hard", label: "Challenging", note: "harder targets, about 1 in 6" },
+  { key: "extreme", label: "Long shots", note: "biggest gains, about 1 in 10" },
 ];
 
 const CHART_LEVELS = ["15", "14+", "14", "13+", "13", "12+", "12", "11+", "11", "10+", "10", "9+", "9", "8+", "8", "7+", "7"];
@@ -39,7 +39,7 @@ export function Picks({ initial, onOpen }: { initial: string; onOpen?: OpenChart
   return (
     <>
       <div className="row-between">
-        <div className="seg" role="group" aria-label="How far above your usual scores the targets sit">
+        <div className="seg" role="group" aria-label="How hard the targets are">
           {LEVELS.map((l) => (
             <button key={l.key} type="button" className={l.key === challenge ? "on" : ""} aria-pressed={l.key === challenge} onClick={() => setChallenge(l.key)}>
               {l.label}
@@ -48,7 +48,7 @@ export function Picks({ initial, onOpen }: { initial: string; onOpen?: OpenChart
         </div>
         <span className="hint">
           {level.note}
-          {picks?.scope ? ` · picks and new charts held to ${picks.scope}; the road is the whole route` : ""}
+          {picks?.scope ? ` · picks and new charts filtered to ${picks.scope}. The road isn't filtered.` : ""}
         </span>
       </div>
       <div className="filters scope-filters">
@@ -65,16 +65,16 @@ export function Picks({ initial, onOpen }: { initial: string; onOpen?: OpenChart
           type="text"
           role="searchbox"
           value={constant}
-          placeholder="or a constant: 13.2, or 13.0-13.4"
+          placeholder="or a constant like 13.2 or 13.0-13.4"
           aria-label="Only this constant or range"
           onChange={(e) => setConstant(e.target.value)}
         />
         {!scopeOk && <span className="hint">Use a level like 13+, a constant like 13.2, or a range like 13.0-13.4.</span>}
       </div>
       {error && <LoadError what="the picks" message={error} onRetry={() => setError("")} />}
-      {!picks && !error && scopeOk && <Empty>Working out what to play…</Empty>}
+      {!picks && !error && scopeOk && <Empty>Finding charts for you…</Empty>}
       {picks && picks.recommendations.length === 0 && (
-        <Empty>Nothing at {picks.scope || "this level"} moves your best-50 at the {level.label.toLowerCase()} level. Try a bolder level, a wider range, or clear the filter.</Empty>
+        <Empty>Nothing at {picks.scope || "this level"} would raise your best 50 on {level.label}. Try a harder setting or clear the filter.</Empty>
       )}
       {picks && picks.recommendations.length > 0 && <PickTables picks={picks} onOpen={onOpen} />}
     </>
@@ -89,16 +89,16 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
   return (
     <>
       {picks.summary?.fallbackFrom && (
-        <p className="hint">Nothing at the {picks.summary.fallbackFrom} level moves your best-50 yet, so these are the balanced picks.</p>
+        <p className="hint">Nothing on {picks.summary.fallbackFrom} would raise your best 50 yet, so here are the Balanced picks.</p>
       )}
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="Played charts where a better score adds the most to your best 50. Now is your score, Target is the score the model gives you a fair chance at, and Gain is what reaching it adds to your rating.">
-            grind these · {movers.length} charts · <b className="gold">+{gain}</b> if every target lands
+          <Label info="Charts you've played where a better score raises your rating the most. Target is a score you have a fair shot at, and Gain is the rating you'd get from it.">
+            grind these · {movers.length} charts · <b className="gold">+{gain}</b> if you hit every target
           </Label>
         </div>
         {movers.length === 0 ? (
-          <Empty>No played chart moves your best-50 at this level. Try a different level, or the new charts below.</Empty>
+          <Empty>None of your played charts would raise your best 50 here. Try another setting or check the new charts below.</Empty>
         ) : (
           <div className="scroll">
           <table className="tbl">
@@ -125,9 +125,9 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
                     <TitleLink title={r.song} type={r.chart_type} difficulty={r.difficulty_type} onOpen={onOpen} />
                     <Chip difficulty={r.difficulty_type} level={r.level} constant={r.difficulty} type={r.chart_type} />
                     <span className="sub">
-                      {r.estimated ? "not in the chart database yet · constant estimated from its level · " : ""}
-                      {r.is_unplayed ? `never played · a first pass should land ~${r.expected.toFixed(1)}%` : `you usually score ~${r.expected.toFixed(1)}% here`}
-                      {r.value_chart_reason?.includes("one run") ? " · your one run here ended far under that, so it is read as a run that was dropped" : ""}
+                      {r.estimated ? "not in the chart database yet · constant guessed from its level · " : ""}
+                      {r.is_unplayed ? `never played · expect ~${r.expected.toFixed(1)}% first try` : `you usually score ~${r.expected.toFixed(1)}% here`}
+                      {r.value_chart_reason?.includes("one run") ? " · your only play here was way under that, so it counts as a dropped run" : ""}
                     </span>
                   </td>
                   <td className="c-num mono" data-l="now">{r.is_unplayed ? <span className="dim">new</span> : pct(r.current_accuracy)}</td>
@@ -149,7 +149,7 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
       {tries.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts you have never played, offered because the grind list is short. Some would bank rating on a good first run; the rest carry a pattern your own scores say costs you points, so they are worth a run as practice.">
+            <Label info="Unplayed charts, shown because the grind list is short. Some could add rating on a good first run, and some are practice for patterns you lose points on.">
               worth a first run · {tries.length} charts
             </Label>
           </div>
@@ -177,10 +177,10 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
 
       <section className="ledger">
         <div className="ledger-head">
-          <Label info="A route to the next rating milestone: the targets that, taken together, cover the points needed. The percentage is how far above your usual score they ask you to go, so a small number is a gentle route.">road to {num(picks.plan.goal)}</Label>
+          <Label info="Targets that together get you to the next rating milestone. The % is how far above your usual score they are, so lower is easier.">road to {num(picks.plan.goal)}</Label>
           <span className="mono hint">
             {picks.plan.reached
-              ? `covers the full +${picks.plan.needed}`
+              ? `covers all +${picks.plan.needed}`
               : `+${picks.plan.total} of the +${picks.plan.needed} needed · ${picks.plan.shortfall} short`}
             {" · "}
             {picks.plan.averageStretch >= 0 ? "+" : ""}
@@ -188,7 +188,7 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
           </span>
         </div>
         {picks.plan.steps.length === 0 ? (
-          <Empty>No route yet at this level.</Empty>
+          <Empty>No route at this setting yet. Try a different one.</Empty>
         ) : (
           <div className="scroll">
           <table className="tbl">
@@ -235,12 +235,12 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
       <div className="two-up">
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts you have never played whose constant is already worth a best-50 place on a first pass. Banks means the score would count but not raise your rating yet.">
+            <Label info="Unplayed charts where a first try could get into your best 50. Banks means the score counts but won't raise your rating yet.">
               new charts to try · {picks.newWindow[0].toFixed(1)}–{picks.newWindow[1].toFixed(1)}
             </Label>
           </div>
           {picks.newCharts.length === 0 ? (
-            <Empty>Nothing unplayed fits this window.</Empty>
+            <Empty>No unplayed charts in this range.</Empty>
           ) : (
             <table className="tbl compact">
               <tbody>
@@ -267,10 +267,10 @@ function PickTables({ picks, onOpen }: { picks: PicksData; onOpen?: OpenChart })
 
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts that would enter your best 50 if you scored what you usually do at their level. Usually is what the model expects from you, and Needs is what it takes to get in.">within reach of your best 50</Label>
+            <Label info="Charts that would get into your best 50 if you score your usual at their level. Needs is the score it takes to get in.">within reach of your best 50</Label>
           </div>
           {near.length === 0 ? (
-            <Empty>Nothing is within reach of your best 50 right now.</Empty>
+            <Empty>No charts are close to your best 50 right now.</Empty>
           ) : (
             <table className="tbl compact nojacket">
               <tbody>

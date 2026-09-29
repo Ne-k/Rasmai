@@ -42,7 +42,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
   const largest = [...all].filter((t) => t.count >= CONFIRM_CHARTS)
     .sort((a, b) => Math.abs(b.offset) - Math.abs(a.offset)).slice(0, 4);
   const gate =
-    "Confirmed: rarer than 1 in 50 under shuffled tags, and the same sign in both halves of your charts. Leaning: rarer than 1 in 20, so read it as a hint. Worth watching: not yet separable from chance. Only confirmed traits steer your picks.";
+    "Confirmed traits beat 1 in 50 odds and hold up on both halves of your charts, and only those affect your picks. Leaning ones beat 1 in 20, so treat them as hints.";
 
   // the empty state is for a player with nothing to show on either side, which now includes what is
   // only worth watching: a list with rows in it is never called empty
@@ -50,19 +50,19 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
     return (
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={`Your traits: what your charts share, a pattern, a note mix, a tempo band, an era, a designer, scored by how far your results sit from your own curve. Once enough plays are stored, each note type joins them, measured from your judgement pages rather than inferred from scores. ${gate}`}>how you play</Label>
+          <Label info={`How your scores on charts with the same pattern, note mix or BPM compare to your curve. ${gate}`}>how you play</Label>
           <span className="mono hint">
             {all.length} groups measured · {charts} scored charts
           </span>
         </div>
         <Empty>
-          Nothing separates from noise yet. Every trait group measured sits too close to your usual score to trust, or has too few charts behind it. Every recorded
-          play counts, not only your bests, so more plays sharpen this.
+          No clear traits yet. Every group is too close to your usual score or doesn&apos;t have enough charts. All your saved plays count,
+          so more plays will help.
         </Empty>
         {largest.length ? (
           <>
             <div className="ledger-head">
-              <Label info="The four groups furthest from your usual score. None passed the gate, so treat them as things to watch, not facts.">largest measured, none confirmed</Label>
+              <Label info="The 4 groups furthest from your usual score. None are confirmed, so take them with a grain of salt.">biggest gaps, none confirmed</Label>
             </div>
             <ul className="traits">
               {largest.map((t) => (
@@ -87,39 +87,39 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
     <>
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={`Your traits: what your charts share, a pattern, a note mix, a tempo band, an era, a designer, scored by how far your results sit from your own curve. Once enough plays are stored, each note type joins them, measured from your judgement pages rather than inferred from scores. Every tag is fitted together over your bests and every recorded play, with play count and difficulty held fixed. ${gate} Patterns and note mixes come from maiノーツ.`}>how you play</Label>
+          <Label info={`How your scores on charts with the same pattern, note mix or BPM compare to your curve. ${gate} Pattern tags are from maiノーツ.`}>how you play</Label>
           <span className="mono hint">
             {confirmed.length} confirmed · {leaning.length} leaning
             {leaning.length && byChance ? <> (about {byChance} by chance)</> : null} · {watch.length} worth watching ·{" "}
-            {even.length} level with the rest · {charts} scored charts
+            {even.length} about even · {charts} scored charts
           </span>
         </div>
         <div className="two-up radar-split">
           <div className="radar-wrap">
-            <Info text="Each axis is a play trait: patterns, note mix, tempo, density. The middle ring is your own average, so further out is above it and further in is below. Hollow grey points with a ? are not confirmed." />
+            <Info text="The middle ring is your average. Further out is better, further in is worse, and points with a ? aren't confirmed." />
             {onFamilies.length >= RADAR_MIN ? (
               <Radar axes={onFamilies} />
             ) : wheel.length >= RADAR_MIN ? (
               <Radar axes={wheel} />
             ) : (
-              <p className="hint">The wheel appears once three or more play traits have enough charts behind them.</p>
+              <p className="hint">The wheel shows up once 3 or more traits have enough charts.</p>
             )}
           </div>
           <div>
             <div className="ledger-head">
-              <Label info="Traits where your scores sit below your own curve. The number is the gap in achievement points, and the small figure counts the charts behind it.">where you lose points</Label>
+              <Label info="Traits where you score below your curve. The big number is the achievement gap and the small one is the chart count.">where you lose points</Label>
             </div>
-            <List items={weak} tone="down" empty="Nothing sits below your own average yet." />
+            <List items={weak} tone="down" empty="Nothing below your average yet." />
             <div className="ledger-head">
-              <Label info="Traits where your scores sit above your own curve.">where you shine</Label>
+              <Label info="Traits where you score above your curve.">where you&apos;re strong</Label>
             </div>
-            <List items={strong} tone="up" empty="Nothing sits above your own average yet." />
+            <List items={strong} tone="up" empty="Nothing above your average yet." />
           </div>
         </div>
         {families?.length ? (
           <>
             <div className="ledger-head">
-              <Label info="Your traits grouped by what they ask of you. A family is weighted by the charts behind it, so a tag measured on nine charts counts about a ninth of one measured on ninety. Open a family to see its traits.">what each part of your play asks</Label>
+              <Label info="Your traits grouped by type, weighted by how many charts each one has. Click a group to see its traits.">trait groups</Label>
             </div>
             <Families families={families} />
           </>
@@ -127,7 +127,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
         {practice?.length ? (
           <>
             <div className="ledger-head">
-              <Label info="For each pattern you score below your curve on, a few charts in your own working band that carry it. Ones you already hold a score on come first, so a rerun shows the change.">what to work on</Label>
+              <Label info="A few charts at your level for each pattern you're weak on. Ones you've played come first so you can see if you improve.">what to work on</Label>
             </div>
             <Practice items={practice} onOpen={onOpen} />
           </>

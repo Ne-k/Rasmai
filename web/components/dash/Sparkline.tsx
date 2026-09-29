@@ -24,7 +24,7 @@ export function Sparkline({ points }: { points: HistoryPoint[] }) {
       <div className="spark one" ref={box}>
         <span className="label">rating over time</span>
         <p>
-          {sorted.length ? `One point so far: ${values[0]}.` : "No history yet."} Each analysis adds a point, so this fills in as you play.
+          {sorted.length ? `Only one rating saved so far: ${values[0]}.` : "No rating history yet."} Each refresh adds a point.
         </p>
       </div>
     );

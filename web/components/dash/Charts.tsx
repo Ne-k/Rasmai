@@ -174,7 +174,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
         <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label="Difficulty">
           {DIFFS.map((d) => (
             <option key={d} value={d}>
-              {d === "all" ? "every difficulty" : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
+              {d === "all" ? "all difficulties" : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
             </option>
           ))}
         </select>
@@ -213,10 +213,10 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
         </select>
       </div>
       <div className="ledger-head">
-        <Label info="Every chart you have a score on, with the filters above applied. Rating is what each chart is worth toward your best 50 and Lamp is the full combo and full sync marks.">
+        <Label info="Every chart you have a score on. Lamp shows your FC and FS marks.">
           {num(filtered.length)} of {num(rows.length)} charts
         </Label>
-        <span className="mono hint">{num(totalRating)} rating across the selection</span>
+        <span className="mono hint">{num(totalRating)} total rating</span>
       </div>
       {filtered.length === 0 ? (
         <Empty>Nothing matches those filters.</Empty>
@@ -246,7 +246,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
                   <Chip difficulty={r.difficulty} level={r.level} constant={r.constant} type={r.type} />
                   {r.inBest50 && <span className="tag-b50">best 50</span>}
                   {r.estimated && (
-                    <span className="tag-est" title="Not in the chart database yet: the constant is the middle of its level, and the rating from it is a guess. The database refreshes itself when a read meets a song it does not know.">
+                    <span className="tag-est" title="Not in the chart database yet, so the constant and rating are guesses based on its level. The database updates when a refresh finds a new song.">
                       new song · constant estimated
                     </span>
                   )}

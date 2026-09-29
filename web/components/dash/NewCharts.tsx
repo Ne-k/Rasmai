@@ -17,10 +17,10 @@ type NewData = {
 const LEVELS = ["any", "15", "14+", "14", "13+", "13", "12+", "12", "11+", "11", "10+", "10", "9+", "9", "8+", "8", "7+"];
 
 const MODES = [
-  { key: "easy", label: "Easier", note: "charts you will almost certainly S, from where you are comfortable" },
-  { key: "balanced", label: "Balanced", note: "best value just under your S reach" },
-  { key: "hard", label: "Challenging", note: "the hardest charts where an S is still within reach" },
-  { key: "extreme", label: "Long shots", note: "past your ceiling, where a first pass is a gamble" },
+  { key: "easy", label: "Easier", note: "charts you'll almost surely S" },
+  { key: "balanced", label: "Balanced", note: "best value right under your S limit" },
+  { key: "hard", label: "Challenging", note: "the hardest charts you can still S" },
+  { key: "extreme", label: "Long shots", note: "above your S limit, first try is a gamble" },
 ];
 const DIFFS = [
   { key: "any", label: "Expert and up" },
@@ -53,7 +53,7 @@ export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { ini
   return (
     <>
       <div className="row-between">
-        <div className="seg" role="group" aria-label="How far above your usual scores to look">
+        <div className="seg" role="group" aria-label="How hard to look">
           {MODES.map((l) => (
             <button key={l.key} type="button" className={l.key === challenge ? "on" : ""} aria-pressed={l.key === challenge} onClick={() => setChallenge(l.key)}>
               {l.label}
@@ -77,34 +77,34 @@ export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { ini
           </select>
           <select value={focus} onChange={(e) => setFocus(e.target.value)} aria-label="Lean toward a trait">
             <option value="none">any trait</option>
-            <option value="weak">what you struggle with</option>
-            <option value="strong">what you excel at</option>
+            <option value="weak">your weak spots</option>
+            <option value="strong">your strengths</option>
           </select>
         </div>
       </div>
       {current && current.focus !== "none" && current.traits.length > 0 && (
         <p className="hint" style={{ marginTop: 10 }}>
-          Leaning toward {current.focus === "weak" ? "what you struggle with" : "what you excel at"}:{" "}
+          Leaning toward {current.focus === "weak" ? "your weak spots" : "your strengths"}:{" "}
           {current.traits.map((t) => `${t.label} (${t.offset > 0 ? "+" : ""}${t.offset.toFixed(2)})`).join(", ")}.
         </p>
       )}
       <p className="hint" style={{ marginTop: 10 }}>
         {level === "any"
-          ? `${mode.note}. Charts you have never played on this account, in the constant window the level searches. The estimate is a first pass: a little under where you usually land at that constant.`
-          : `Every level ${level} chart you have never played on this account, ordered the way the ${mode.label.toLowerCase()} level ranks them. The estimate is a first pass: a little under where you usually land at that constant.`}
+          ? `${mode.note}. Charts you haven't played on this account in this constant range. First pass is a bit under what you usually score at that constant.`
+          : `Every level ${level} chart you haven't played on this account, sorted for ${mode.label}. First pass is a bit under what you usually score at that constant.`}
       </p>
       {error && <LoadError what="the new charts" message={error} onRetry={() => setError("")} />}
       {!current && !error && <Empty>Looking for charts…</Empty>}
       {current && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Charts you have never played on this account. First pass is what the model expects your first try to score, Odds of S is how likely an S is, and Worth is what an S would add.">
+            <Label info="First pass is your expected score on a first try. Worth is the rating an S would add.">
               {current.picks.length} charts · {current.level !== "any" ? `level ${current.level} · ` : ""}constants {current.window[0].toFixed(1)}–{current.window[1].toFixed(1)}
             </Label>
-            <span className="mono hint">sorted the way this level ranks them</span>
+            <span className="mono hint">sorted for {mode.label}</span>
           </div>
           {current.picks.length === 0 ? (
-            <Empty>{current.level !== "any" ? `Every level ${current.level} chart at this difficulty has been played already, or none exists.` : "Nothing unplayed fits this window."} Try another level or difficulty.</Empty>
+            <Empty>{current.level !== "any" ? `You've played every level ${current.level} chart at this difficulty, or there aren't any.` : "No unplayed charts in this range."} Try another level or difficulty.</Empty>
           ) : (
             <div className="scroll">
             <table className="tbl">

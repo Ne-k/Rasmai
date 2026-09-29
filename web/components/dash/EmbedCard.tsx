@@ -7,23 +7,23 @@ type Toggle<G extends "card" | "embed"> = { key: keyof SharingState[G]; label: s
 
 // the name and the rating are the card, so they are not here. Everything else is the owner's.
 const PICTURE: Toggle<"card">[] = [
-  { key: "chart", label: "Rating over time", note: "the curve across the bottom" },
-  { key: "gain", label: "What it moved", note: "how far the rating has come, and since when" },
-  { key: "charts", label: "Charts scored", note: "how many charts you have a score on" },
-  { key: "plays", label: "Play count", note: "how many credits you have put in" },
+  { key: "chart", label: "Rating over time", note: "the graph along the bottom" },
+  { key: "gain", label: "Rating gain", note: "how much your rating went up and since when" },
+  { key: "charts", label: "Charts scored", note: "how many charts you've scored" },
+  { key: "plays", label: "Play count", note: "how many credits you've played" },
 ];
 
 // what the picture can be a picture of. Two of them need a section the profile may not be sharing.
 const VISUALS: Record<string, { label: string; note: string }> = {
-  curve: { label: "Rating over time", note: "where your rating has been going" },
-  best50: { label: "Your best 50", note: "the fifty charts it is made of, tallest first" },
-  traits: { label: "How you play", note: "the wheel of what each part of your play asks" },
-  figures: { label: "Just the figures", note: "no chart, the numbers on their own" },
+  curve: { label: "Rating over time", note: "your rating history" },
+  best50: { label: "Your best 50", note: "the 50 charts in your rating, highest first" },
+  traits: { label: "How you play", note: "your traits wheel" },
+  figures: { label: "Numbers only", note: "no graph, only your stats" },
 };
 
 const TEXT: Toggle<"embed">[] = [
-  { key: "region", label: "Region", note: "international or Japan, beside the rating" },
-  { key: "charts", label: "Charts scored", note: "the count, beside the rating" },
+  { key: "region", label: "Region", note: "International or Japan, next to your rating" },
+  { key: "charts", label: "Charts scored", note: "the count, next to your rating" },
 ];
 
 /**
@@ -103,7 +103,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   return (
     <dialog className="sheet" ref={box} aria-label="the card your link shows in Discord">
       <div className="sheet-head">
-        <b>The card in Discord</b>
+        <b>Discord card</b>
         <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label="close">
           ×
         </button>
@@ -111,14 +111,14 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
 
       <div className="sheet-body">
         <p className="hint">
-          What Discord shows when somebody pastes your link. Your name and rating are always on it. Everything else
-          here is yours.
+          What Discord shows when someone posts your link. Your name and rating are always on it, and you can change
+          the rest.
         </p>
 
         <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label="what the card looks like">
           {state.card.on && !failed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={picture} alt="the picture above your card" onError={() => setFailed(true)} />
+            <img src={picture} alt="your card image" onError={() => setFailed(true)} />
           ) : null}
           <div className="embed-body">
             <b className="embed-title" style={{ color: colour }}>
@@ -128,9 +128,9 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             <span className="embed-btn">See the profile</span>
           </div>
         </div>
-        {failed && <p className="hint">The picture is not ready yet. It will be there when Discord reads the card.</p>}
+        {failed && <p className="hint">The image isn&apos;t ready yet. It&apos;ll be there when Discord loads the card.</p>}
 
-        <p className="embed-group">the picture</p>
+        <p className="embed-group">image</p>
         <ul className="visuals">
           {state.visuals.map((option) => {
             const about = VISUALS[option.key];
@@ -173,7 +173,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           ))}
           <label className="swatch-own">
             <input type="color" value={colour} disabled={busy} onChange={(e) => pick(e.target.value)} />
-            <span>your own</span>
+            <span>custom</span>
           </label>
         </div>
 
@@ -185,14 +185,14 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             onChange={(e) => onSave({ card: { on: e.target.checked } })}
           />
           <span>
-            <b>Show a picture</b>
-            <span className="dim">off leaves the name, the rating and the button</span>
+            <b>Show an image</b>
+            <span className="dim">when off, only your name, rating and button show</span>
           </span>
         </label>
 
         {state.card.on && (
           <>
-            <p className="embed-group">on the picture</p>
+            <p className="embed-group">on the image</p>
             {rows("card", PICTURE)}
           </>
         )}
@@ -201,8 +201,8 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
         {rows("embed", TEXT)}
 
         <p className="hint">
-          Discord holds on to a card for about half an hour after it first reads it, so a change shows up on the next
-          link you post rather than on one already sent.
+          Discord caches cards for about half an hour. Changes show up the next time you post your link, and links
+          you already sent keep the old card.
         </p>
       </div>
     </dialog>
