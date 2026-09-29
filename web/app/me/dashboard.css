@@ -1,4 +1,3 @@
-.dash { max-width: 1180px; }
 .dash .masthead .home { display: flex; color: inherit; }
 .who-discord { margin-left: 0; display: flex; align-items: center; gap: 10px; font-weight: 500; min-width: 0; }
 .who-discord img { border-radius: 50%; border: 2px solid var(--edge); flex: 0 0 auto; }
@@ -14,10 +13,29 @@
 .ident-who { min-width: 0; }
 .ident h1 { font-size: clamp(30px, 3.6vw + 16px, 46px); margin: 2px 0 6px; }
 .ident-sub { color: var(--ink-2); font-size: 13.5px; }
+/* the player's own plate from the game, at its 720x116 shape, in the ink outline the rest wears */
+.nameplate { display: block; width: min(360px, 100%); height: auto; aspect-ratio: 720 / 116; margin-top: 12px;
+             border: 2px solid var(--edge); border-radius: 12px; background: var(--paper-2); object-fit: cover; }
+.nameplate[hidden] { display: none; }
 .readout.big { margin: 0; padding: 16px 22px; grid-template-columns: auto auto auto; gap: 2px 26px; flex: 0 0 auto; }
 .readout.big .lbl { grid-row: 1; }
 .readout.big .val { grid-row: 2; font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
 .readout.big .val.pair { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+/* the rating plate, drawn as the bot's images draw it: the band's colour in an ink frame inside a cream ring, a cell
+   per digit, a star per 250-point step. The readout is dark in both themes, so the ink and the cream are fixed, like the marks */
+.rplate { display: inline-flex; align-items: center; gap: .26em; font-size: 26px; line-height: 1; vertical-align: middle; letter-spacing: 0;
+          padding: .14em .14em .14em .3em; color: #1d1a2f; border: .09em solid #1d1a2f;
+          background: linear-gradient(to bottom, rgba(255,255,255,.3), rgba(255,255,255,0) 50%, rgba(0,0,0,.08)),
+                      repeating-linear-gradient(135deg, rgba(255,255,255,.16) 0 .05em, transparent .05em .16em), var(--band);
+          border-radius: .3em; box-shadow: inset 0 -.05em 0 rgba(0,0,0,.18), 0 0 0 .07em #fbf6ec; margin: .1em; }
+.rp-side { display: flex; flex-direction: column; align-items: center; gap: .1em; }
+.rp-label { font-family: var(--font-mono), monospace; font-size: .3em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.rp-stars { display: flex; gap: .03em; }
+.rp-stars svg { width: .3em; height: .3em; fill: #1d1a2f; }
+.rp-cells { display: flex; gap: .06em; }
+.rp-cells i { font-style: normal; font-family: var(--font-mono), monospace; font-weight: 700; width: .74em; padding: .1em 0 .07em; text-align: center;
+              background: #1d1a2f; color: #fbf6ec; border-radius: .12em; }
+.rp-cells i.off { color: #4a4560; }
 
 /* the tab strip scrolls sideways on a phone; the wrapper carries the rule so nothing overflows vertically */
 .tabs-wrap { margin: 30px 0 0; border-bottom: 3px solid var(--edge); }
@@ -60,6 +78,14 @@
 .two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; align-items: start; }
 .two-up.wide-right { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 40px; }
 .tbl.b50 .c-title { min-width: 150px; }
+.tbl.b50 .b50-sub { display: block; font-size: 11.5px; font-weight: 400; }
+.tbl.b50 .b50-const { font-size: 12px; font-weight: 400; margin-right: 6px; }
+.dxstars { white-space: nowrap; }
+.dxstars img { vertical-align: -2px; margin-right: 1px; }
+.dxstars img.off { filter: grayscale(1); opacity: .3; }
+.readout.b50-avg { grid-template-columns: repeat(3, auto); gap: 2px 26px; margin: 22px 0 0; }
+.readout.b50-avg .lbl { grid-row: 1; }
+.readout.b50-avg .val { grid-row: 2; font-size: 20px; }
 .two-up > * { min-width: 0; }
 .mono { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
 .dim { color: var(--muted); }
@@ -220,6 +246,14 @@
   .readout.big .lbl { font-size: 10px; letter-spacing: 1.6px; }
   .readout.big .val.pair { display: grid; gap: 0; font-size: clamp(15px, 4.4vw, 22px); line-height: 1.25; align-self: end; }
   .readout.big .val.pair .sep { display: none; }
+  /* the label above says rating, so the plate drops its own to fit a third of a phone */
+  .rplate { font-size: clamp(14px, 4.4vw, 22px); gap: .18em; padding-left: .18em; }
+  .rp-label { display: none; }
+  .rp-stars { flex-direction: column; }
+  .rp-stars svg { width: .36em; height: .36em; }
+  .readout.b50-avg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 12px 16px; gap: 0 12px; }
+  .readout.b50-avg .lbl { font-size: 10px; letter-spacing: 1.4px; }
+  .readout.b50-avg .val { font-size: clamp(14px, 4.2vw, 20px); }
   .two-up, .two-up.wide-right { grid-template-columns: 1fr; }
   .tabs-wrap { margin-top: 22px; }
   .tabs button { padding: 12px 13px 13px; }
@@ -288,7 +322,6 @@
   .tbl.b50 td.c-jacket { grid-area: j; width: auto; }
   .tbl.b50 td.c-title { grid-area: t; min-width: 0; }
   .tbl.b50 td.c-title .title { font-size: 13.5px; }
-  .tbl.b50 td.c-const { display: none; }
   .tbl.b50 td.c-acc { grid-area: a; font-size: 13px; align-self: end; }
   .tbl.b50 td.c-rating { grid-area: r; font-size: 15px; align-self: start; }
   .tbl.b50 .chip { font-size: 9.5px; padding: 0 6px; }
@@ -758,3 +791,33 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
              background: transparent; color: inherit; font-size: 12px; }
 .beta-said { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .beta-said li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+
+/* plates: a tile per version, the kanji on a cream chip that stays cream in both themes, a bar per condition */
+.plates { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.plate { display: grid; grid-template-columns: 58px 1fr; gap: 8px 12px; padding: 12px 14px; border: 2px solid var(--edge); border-radius: 16px; background: var(--paper-2); min-width: 0; }
+.plate-chip { grid-row: span 2; display: flex; align-items: center; justify-content: center; height: 58px; border-radius: 14px; background: #fbf6ec; color: #1d1a2f;
+              border: 3px solid var(--edge); font-size: 32px; font-weight: 900; line-height: 1; }
+.plate-chip.word { font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: .5px; }
+.plate-name { font-weight: 700; font-size: 14px; line-height: 1.25; min-width: 0; overflow-wrap: anywhere; }
+.plate-name small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.plate-goals { display: grid; gap: 3px; align-content: start; }
+.plate-goal { display: grid; grid-template-columns: 42px 1fr 64px; align-items: center; gap: 8px; width: 100%; padding: 3px 4px; border: 0; border-radius: 4px;
+              background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; --lit: var(--ink); }
+.plate-goal:hover, .plate-goal.on { background: var(--paper); }
+.plate-goal.on { outline: 2px solid var(--pink); }
+.plate-goal:focus-visible { outline: 3px solid var(--cyan); }
+.plate-goal .k { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.plate-goal .bar > span { background: var(--lit); min-width: 0; }
+.plate-goal .n { font-size: 11.5px; color: var(--muted); text-align: right; }
+.plate-goal.done .n { color: var(--gold-edge); font-weight: 700; }
+.plate-goal.g-clear { --lit: var(--muted); }
+.plate-goal.g-fc { --lit: var(--cyan); }
+.plate-goal.g-sss { --lit: var(--gold); }
+.plate-goal.g-ap { --lit: var(--pink); }
+.plate-goal.g-fdx { --lit: var(--ink); }
+:root[data-theme="dark"] .plate-goal.done .n { color: var(--gold); }
+.plate-missing { list-style: none; margin: 10px 0 12px; padding: 0; }
+.plate-missing li { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.plate-chart { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.plate-missing .need { font-size: 12.5px; text-align: right; white-space: nowrap; }
+@media (max-width: 560px) { .plate-missing li { grid-template-columns: 36px 1fr; } .plate-missing .need { grid-column: 2; text-align: left; } }

@@ -16,6 +16,7 @@ from rasmai.bot.ui.formatting import (
 from rasmai.images.render import cover_html_factory, generate_poster_html
 from rasmai.storage.db import load_judgements, since_last_look
 from rasmai.engine.judgements import judgement_profile
+from rasmai.engine.plates import plate_overview, plate_standing
 from rasmai.bot.builders.traits import judgement_summary
 
 
@@ -302,6 +303,12 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
         embed.add_field(name="Never played, worth a shot", value=_fit([f"- {_highlight(c)}" for c in unplayed[:6]]), inline=False)
     if not (quick_wins or stretch or unplayed):
         embed.add_field(name="Nothing easy left", value="Every chart in your best-50 is already near your ceiling. Pushing your skill curve up is the only way forward.", inline=False)
+    earned, closest = plate_standing(await asyncio.to_thread(plate_overview, a.songs, a.chart_index))
+    if closest:
+        plate, goal = closest
+        embed.add_field(name="Plates", inline=False, value=(
+            f"**{earned}** earned · Closest: **{plate['reading'] or plate['name']} {goal['label']}** · {goal['required'] - goal['met']} left"
+            "\n-# the Plates button shows every plate and what each still needs"))
     embed.set_footer(text=f"Based on {len(a.songs)} charts and {len(a.recent_songs)} recent plays · skill curve in the image")
     return embed, files
 

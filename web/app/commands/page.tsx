@@ -163,6 +163,14 @@ export default function CommandsPage() {
           />{" "}
           stars, and the charts sitting closest to the next one.
         </Cmd>
+        <Cmd name="/profile" args="then the Plates button">
+          Your version{" "}
+          <Term
+            word="plates"
+            means="Nameplates for meeting one condition on every chart of a version, BASIC to MASTER: FC is a full combo, SSS 100% or more, AP all perfect, FDX full sync DX."
+          />
+          , one line per version. Pick one from the menu to list the charts it still needs, nearest first.
+        </Cmd>
         <Cmd name="/progress">
           Your rating over time, the pace that implies, and the date your next thousand arrives if you keep it up.
         </Cmd>

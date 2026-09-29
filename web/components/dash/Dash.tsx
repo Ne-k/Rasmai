@@ -7,6 +7,7 @@ import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartR
 import { Lookup } from "./Lookup";
 import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
+import { Plates } from "./Plates";
 import { JudgementProfile, Traits } from "./traits";
 import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
@@ -14,6 +15,8 @@ import { Picks } from "./Picks";
 import { Account } from "./Account";
 import { AdminPanel } from "./admin/Panel";
 import { Best50 } from "./Best50";
+import { ratingBand } from "./band";
+import { RatingPlate } from "./RatingPlate";
 import { Frame } from "./Frame";
 import { OverviewTab } from "./OverviewTab";
 import { Recent } from "./Recent";
@@ -280,6 +283,10 @@ export function Dash() {
           <div className="ident-sub mono">
             {[...new Set([p.dan, p.title].filter(Boolean))].join(" · ") || "no title read yet"} · {num(p.totalPlayCount)} plays
           </div>
+          {p.nameplate ? (
+            <img className="nameplate" src={p.nameplate} alt="" width={360} height={58}
+                 onError={(e) => { e.currentTarget.hidden = true; }} />
+          ) : null}
           {me.sinceLast && (me.sinceLast.plays > 0 || me.sinceLast.ratingDelta !== 0) && (
             <div className="since mono">
               since {day(me.sinceLast.since)}: {me.sinceLast.ratingDelta ? `rating ${me.sinceLast.ratingDelta > 0 ? "+" : ""}${me.sinceLast.ratingDelta}` : "rating unchanged"}
@@ -289,8 +296,10 @@ export function Dash() {
           )}
         </div>
         <div className="readout big">
-          <span className="lbl">rating</span>
-          <span className="val">{num(p.rating)}</span>
+          <span className="lbl">rating · {ratingBand(p.rating).key}</span>
+          <span className="val">
+            <RatingPlate rating={p.rating} />
+          </span>
           <span className="lbl">best 50</span>
           <span className="val">{num(s.best50)}</span>
           <span className="lbl">new · old</span>
@@ -364,6 +373,11 @@ export function Dash() {
               onOpen={openChart}
             />
             <JudgementProfile data={me.judgements ?? null} />
+          </div>
+        )}
+        {visited.has("plates") && (
+          <div hidden={tab !== "plates"}>
+            <Plates key={me.profile?.updatedAt ?? ""} onOpen={openChart} />
           </div>
         )}
         {visited.has("areas") && (
