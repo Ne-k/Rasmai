@@ -45,9 +45,6 @@ class ChartRef:
     regions: str = "jic"      # cabinets that have it, as initials: j Japan, i international, c China
     released: str = ""       # the day the chart arrived, ISO 8601
     locked: bool = False     # the song has to be unlocked before it can be picked at all
-    # the version the chart itself arrived in, as a three-digit code ("185" MURASAKi PLUS). Not always
-    # the song's: a DX chart added years later to an old song belongs to the version that added it
-    edition: str = ""
 
     @property
     def key(self) -> Tuple[str, str, str]:
@@ -181,11 +178,9 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
     index = ChartIndex(region)
     try:
         from rasmai.scraping import dxdata
-        stored = dxdata.cached()
-        known = stored.get("sheets") or {}
-        editions = stored.get("editions") or {}
+        known = dxdata.cached().get("sheets") or {}
     except Exception:                    # the index has to build with or without the second source
-        known, editions = {}, {}
+        known = {}
     for record in songs_data.values():
         raw_title = str(record.get("title", ""))
         title = raw_title.strip() or ("　" if raw_title else "")     # the untitled song's title is one ideographic space
@@ -197,7 +192,6 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
         artist = str(record.get("artist", ""))
         cover = str(record.get("cover", ""))
         version = version_major(record.get("version"))
-        edition = str(record.get("version") or "")[:3]
         folded = loose_title(title)
         bpm_match = re.search(r"\d+(?:\.\d+)?", str(record.get("bpm", "") or ""))
         bpm = float(bpm_match.group(0)) if bpm_match else 0.0
@@ -238,8 +232,6 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
                 designer=designer if designer != "-" else "",
                 released=str(facts.get("r", "")),
                 locked=bool(facts.get("k")),
-                # otoge-db keeps one version per song, which is the standard chart's when there is one
-                edition=editions.get(f"{folded}|{chart_type}|{difficulty}") or edition,
             )
             index.add(chart)
     return index

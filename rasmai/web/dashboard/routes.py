@@ -127,11 +127,6 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     if path == "/internal/me/search":
         handler._send_json(200, {"songs": search_payload(cached, (query.get("q") or [""])[0][:80])})
         return True
-    if path == "/internal/me/plates":
-        from rasmai.web.dashboard.plates import plates_payload
-        plates = plates_payload(cached, (query.get("plate") or [""])[0][:16].strip(), (query.get("goal") or [""])[0][:4].strip())
-        handler._send_json(200 if plates is not None else 404, plates if plates is not None else {"ok": False, "error": "no_plate"})
-        return True
     if path == "/internal/me/titles":
         q = query.get("q")
         if q is not None and len(q[0].strip()) >= 1:

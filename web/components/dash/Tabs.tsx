@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type RefreshStatus } from "./api";
 
-export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "plates" | "areas" | "account" | "admin";
+export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
 
 // what to play, then how you play, then your scores, then the reference tabs
 export const TABS: { key: Tab; label: string }[] = [
@@ -15,7 +15,6 @@ export const TABS: { key: Tab; label: string }[] = [
   { key: "charts", label: "All charts" },
   { key: "recent", label: "Recent" },
   { key: "chart", label: "Look up" },
-  { key: "plates", label: "Plates" },
   { key: "areas", label: "Areas" },
   { key: "account", label: "Account" },
 ];

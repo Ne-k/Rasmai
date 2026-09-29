@@ -17,8 +17,6 @@ from rasmai.bot.builders.results.embeds import (
 from rasmai.bot.builders.results.loading import ensure_target_play_counts, load_analysis
 from rasmai.bot.builders.results.stored import note_read_age
 from rasmai.bot.builders.traits import build_traits
-from rasmai.bot.builders.plates import build_plates
-from rasmai.engine.plates import GOAL_LABELS, PLATE_KEYS, plate_choices
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +65,13 @@ NEW_LEVELS = ("7+", "8", "8+", "9", "9+", "10", "10+", "11", "11+", "12", "12+",
 class ResultsView(OwnerOnlyView):
     """Switch between the four views of one analysis without scraping again."""
 
-    MODES = (("analyze", "Analyze"), ("plan", "Plan"), ("session", "Session"), ("new", "New charts"), ("profile", "Profile"),
-             ("traits", "Traits"), ("plates", "Plates"))
+    MODES = (("analyze", "Analyze"), ("plan", "Plan"), ("session", "Session"), ("new", "New charts"), ("profile", "Profile"), ("traits", "Traits"))
 
     def __init__(self, owner_id: int, mode: str, *, target: Optional[int] = None, stretch: bool = False,
                  page: int = 0, difficulty: Optional[str] = None, output: str = "both", challenge: str = "balanced",
                  min_level: Optional[str] = None, credits: int = SESSION_DEFAULT, focus: Optional[str] = None,
-                 level: Optional[str] = None, plate: Optional[str] = None, goal: Optional[str] = None):
+                 level: Optional[str] = None):
         super().__init__(owner_id, timeout=VIEW_TIMEOUT)
-        self.plate = plate if plate in PLATE_KEYS else None
-        self.goal = goal
         self.min_level = min_level
         self.level = level
         self.credits = max(1, min(20, credits))
@@ -92,9 +87,9 @@ class ResultsView(OwnerOnlyView):
 
         for key, label in self.MODES:
             button = discord.ui.Button(
-                label=label, row=4 if key in ("traits", "plates") else 0,      # five per row: traits and plates sit beside Refresh
+                label=label, row=0 if key != "traits" else 4,      # five per row: traits sits beside Refresh
                 style=discord.ButtonStyle.primary if key == mode else discord.ButtonStyle.secondary,
-                disabled=key == mode and not (key == "plates" and self.plate),     # from one plate, Plates goes back to them all
+                disabled=key == mode,
             )
             button.callback = self._switcher(key)
             self.add_item(button)
@@ -113,21 +108,7 @@ class ResultsView(OwnerOnlyView):
             three = discord.ui.Button(label="+ 3", row=1, style=discord.ButtonStyle.secondary, disabled=self.credits >= 18)
             three.callback = self._credits(3)
             self.add_item(three)
-        if mode == "plates":
-            # 28 plates is over a menu's 25, so the plates up to FiNALE and the DX ones get a menu each
-            choices = plate_choices()
-            for row, (placeholder, older) in enumerate((("Plates to FiNALE", True), ("DX plates", False)), start=1):
-                options = [discord.SelectOption(label=label, value=key, default=key == self.plate)
-                           for label, key in choices if (PLATE_KEYS[key].versions[-1] < "200") == older]
-                pick = discord.ui.Select(placeholder=placeholder, row=row, min_values=1, max_values=1, options=options)
-                pick.callback = self._pick_plate(pick)
-                self.add_item(pick)
-            if self.plate:
-                goals = discord.ui.Select(placeholder="Condition", row=3, min_values=1, max_values=1, options=[
-                    discord.SelectOption(label=GOAL_LABELS[g], value=g, default=g == goal) for g in PLATE_KEYS[self.plate].goals])
-                goals.callback = self._pick_goal(goals)
-                self.add_item(goals)
-        if mode not in ("profile", "traits", "plates"):
+        if mode not in ("profile", "traits"):
             targets = discord.ui.Select(
                 placeholder=f"Targets: {analysis.challenge_for(self.challenge).label}", row=2, min_values=1, max_values=1,
                 options=[
@@ -283,26 +264,6 @@ class ResultsView(OwnerOnlyView):
                                    page=0, difficulty=self.difficulty, min_level=self.min_level, level=self.level, credits=self.credits, focus=self.focus, output=self.output, challenge=select.values[0])
         return callback
 
-    def _pick_plate(self, select: discord.ui.Select):
-        async def callback(interaction: discord.Interaction) -> None:
-            await interaction.response.defer()
-            cached = await self._cached(interaction)
-            if cached:
-                await show_results(interaction, cached, "plates", target=self.target, stretch=self.stretch,
-                                   page=0, difficulty=self.difficulty, min_level=self.min_level, level=self.level, credits=self.credits, focus=self.focus, output=self.output, challenge=self.challenge,
-                                   plate=select.values[0])
-        return callback
-
-    def _pick_goal(self, select: discord.ui.Select):
-        async def callback(interaction: discord.Interaction) -> None:
-            await interaction.response.defer()
-            cached = await self._cached(interaction)
-            if cached:
-                await show_results(interaction, cached, "plates", target=self.target, stretch=self.stretch,
-                                   page=0, difficulty=self.difficulty, min_level=self.min_level, level=self.level, credits=self.credits, focus=self.focus, output=self.output, challenge=self.challenge,
-                                   plate=self.plate, goal=select.values[0])
-        return callback
-
 
     async def _refresh(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
@@ -315,21 +276,18 @@ class ResultsView(OwnerOnlyView):
             return
         if cached:
             await show_results(interaction, cached, self.mode, target=self.target, stretch=self.stretch,
-                               page=self.page, difficulty=self.difficulty, min_level=self.min_level, level=self.level, credits=self.credits, focus=self.focus, output=self.output, challenge=self.challenge,
-                               plate=self.plate, goal=self.goal)
+                               page=self.page, difficulty=self.difficulty, min_level=self.min_level, level=self.level, credits=self.credits, focus=self.focus, output=self.output, challenge=self.challenge)
 
 
 async def show_results(interaction: discord.Interaction, cached: CachedAnalysis, mode: str, *,
                        target: Optional[int] = None, stretch: bool = False, page: int = 0,
                        difficulty: Optional[str] = None, output: str = "both", challenge: str = "balanced",
                        min_level: Optional[str] = None, credits: int = SESSION_DEFAULT, focus: Optional[str] = None,
-                       level: Optional[str] = None, plate: Optional[str] = None, goal: Optional[str] = None) -> None:
-    if mode not in ("profile", "traits", "plates"):
+                       level: Optional[str] = None) -> None:
+    if mode not in ("profile", "traits"):
         await ensure_target_play_counts(interaction, cached, challenge)
     if mode == "traits":
         embed, files, _view = await build_traits(cached)
-    elif mode == "plates":
-        embed, files, goal = await build_plates(cached, plate if plate in PLATE_KEYS else None, goal)
     elif mode == "plan":
         embed, files, page = await build_plan(cached, target, stretch, page, challenge, difficulty, min_level)
     elif mode == "session":
@@ -346,7 +304,7 @@ async def show_results(interaction: discord.Interaction, cached: CachedAnalysis,
         output = "both"          # nothing rendered, so text is all there is
     view = ResultsView(interaction.user.id, mode, target=target, stretch=stretch, page=page,
                        difficulty=difficulty, output=output, challenge=challenge, min_level=min_level,
-                       credits=credits, focus=focus, level=level, plate=plate, goal=goal)
+                       credits=credits, focus=focus, level=level)
     if output == "image":
         # the picture stands alone: buttons only travel with the text
         await interaction.edit_original_response(content=None, embed=None, attachments=image_files, view=None)
