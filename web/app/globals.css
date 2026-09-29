@@ -25,8 +25,9 @@
   --readout-inset: #2b2742;
   --readout-label: #8d88a8;
 
-  /* the page gutter follows the notch on phones held sideways */
-  --gutter: max(28px, env(safe-area-inset-left), env(safe-area-inset-right));
+  /* the page gutter shrinks with the screen, and follows the notch on phones held sideways */
+  --gutter: max(clamp(16px, 4vw, 56px), env(safe-area-inset-left), env(safe-area-inset-right));
+  --page-width: 1520px;
 }
 
 /* the dark theme is the reader's choice from the masthead switch, saved in the browser; the device setting is not consulted */
@@ -71,7 +72,7 @@ a { color: var(--link); }
 img, svg { max-width: 100%; }
 button, input, select { font-family: inherit; }
 
-.frame { max-width: 1040px; margin: 0 auto; padding: 36px var(--gutter) 60px; }
+.frame { max-width: var(--page-width); margin: 0 auto; padding: 36px var(--gutter) 60px; }
 .masthead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; padding-bottom: 18px; border-bottom: 3px solid var(--edge); }
 .wordmark { font-family: var(--font-display), sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.3px; }
 .wordmark span { color: var(--pink); }
@@ -180,7 +181,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 .cmds code { font-size: 14px; }
 .subhead { font-family: var(--font-display), sans-serif; font-size: 20px; margin: 26px 0 0; }
 
-.doc { max-width: 720px; margin-top: 40px; }
+.doc { margin-top: 40px; }
+.doc p, .doc ul { max-width: 70ch; }
 .doc h1 { font-size: clamp(30px, 3vw + 18px, 40px); }
 .doc h2 { font-family: var(--font-display), sans-serif; font-size: 20px; margin: 34px 0 8px; }
 .doc p, .doc li { color: var(--ink-2); font-size: 16px; line-height: 1.65; }
@@ -190,6 +192,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 .doc b { color: var(--ink); }
 /* the commands page: what you type on the left, what comes back on the right */
 .cmds { margin: 0 0 18px; border-top: 1px solid var(--line); }
+/* two columns of commands once there is room for both */
+.doc .cmds { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); column-gap: 40px; }
 .cmd { display: grid; grid-template-columns: 210px 1fr; gap: 18px; padding: 14px 0;
        border-bottom: 1px solid var(--line); }
 .cmd-name { display: flex; flex-direction: column; gap: 4px; }
@@ -215,6 +219,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
             box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16); opacity: 0; visibility: hidden;
             transition: opacity 120ms ease; }
 .term-pop.on { opacity: 1; visibility: visible; }
+/* a closed box takes no room, so one that would hang past the edge cannot widen a phone's page */
+.term-pop:not(.on) { display: none; }
 /* near the right edge the box would run off the page, so it hangs from the right instead */
 .term:nth-last-child(-n + 2) .term-pop { left: auto; right: 0; }
 @media (prefers-reduced-motion: reduce) { .term-pop { transition: none; } }
@@ -244,7 +250,6 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 }
 
 @media (max-width: 760px) {
-  :root { --gutter: max(16px, env(safe-area-inset-left), env(safe-area-inset-right)); }
   .frame { padding: 20px var(--gutter) 40px; }
   .stage { grid-template-columns: 1fr; gap: 24px; margin-top: 28px; }
   .rail { position: static; display: flex; align-items: center; gap: 18px; }
