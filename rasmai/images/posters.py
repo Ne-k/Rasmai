@@ -3,6 +3,7 @@ from html import escape
 from typing import Any, Callable, Dict, List, Sequence
 
 from rasmai.config import site_label
+from rasmai.engine.analysis.rating import rating_band, rating_step
 from rasmai.images.markup import render, render_each, styleimage, template
 
 CoverFn = Callable[[str, str], str]
@@ -79,6 +80,31 @@ def _page(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], h
     )
 
 
+_STAR = ('<svg class="rp-star" viewBox="0 0 128 128"><polygon points="64,13 79.9,47.2 117.3,51.7 89.7,77.3 '
+         '96.9,114.3 64,96 31.1,114.3 38.3,77.3 10.7,51.7 48.1,47.2"/></svg>')
+
+
+def rating_plate(rating: Any, small: bool = False) -> str:
+    """The rating on its plate: the band's colour, each digit in a cell, a star per 250-point step.
+
+    :param rating: The player's rating.
+    :type rating: Any
+    :param small: The counter size, without the label, for a header that already says rating.
+    :type small: bool
+    :rtype: str
+    """
+    key, fill = rating_band(rating)
+    try:
+        text = str(max(0, min(99999, int(rating or 0))))
+    except (TypeError, ValueError):
+        text = "0"
+    cells = '<i class="off">0</i>' * (5 - len(text)) + "".join(f"<i>{d}</i>" for d in text)
+    stars = rating_step(rating)
+    side = '<span class="rp-label">Rating</span>' + (f'<span class="rp-stars">{_STAR * stars}</span>' if stars else "")
+    return (f'<span class="rplate{" sm" if small else ""}" style="--band:{fill}" title="{key}">'
+            f'<span class="rp-side">{side}</span><span class="rp-cells">{cells}</span></span>')
+
+
 def _plays(plays: int, unplayed: bool = False) -> str:
     if unplayed:
         return "never played"
@@ -147,7 +173,7 @@ def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64
     ]
     return _page(f"Road to {plan.goal_rating}", player_name, avatar_b64, counters,
                  f"+{plan.total}", f"of +{plan.needed} needed", body,
-                 f"Rasmai · {site_label()} · maimai DX · best-50 aware", date_text)
+                 f"Rasmai · {site_label()} · maimai DX", date_text)
 
 
 # ---------------------------------------------------------------- /session
@@ -194,7 +220,7 @@ def session_poster_html(session: Any, player_name: str, player_rating: int, avat
     counters = [("Credits", str(session.credits)), ("Charts", str(session.distinct_charts)),
                 ("Any lands", f"{session.any_lands * 100:.0f}%")]
     return _page("Tonight's session", player_name, avatar_b64, counters, f"+{session.expected_total:.0f}",
-                 "rating expected from these credits", body, f"Rasmai · {site_label()} · maimai DX · best-50 aware", date_text)
+                 "rating expected from these credits", body, f"Rasmai · {site_label()} · maimai DX", date_text)
 
 
 # ---------------------------------------------------------------- /new
@@ -420,5 +446,6 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
         ("AP", f"{p.get('apRate', 0) * 100:.0f}%"),
         ("DX score", f"{p.get('dxScoreRate', 0) * 100:.0f}%"),
     ]
-    return _page("Play profile", player_name, avatar_b64, counters, str(player_rating), "rating", body,
-                 f"Rasmai · {site_label()} · maimai DX · best-50 aware", date_text)
+    return _page("Play profile", player_name, avatar_b64, counters, rating_plate(player_rating),
+                 f"rating · {rating_band(player_rating)[0]}", body,
+                 f"Rasmai · {site_label()} · maimai DX", date_text)

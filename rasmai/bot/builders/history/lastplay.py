@@ -18,7 +18,7 @@ from rasmai.storage.db import get_connected_account, mark_session_expired
 from rasmai.bot.core import try_render
 from rasmai.images.cards import play_card_html
 from rasmai.images.render import cover_html_factory
-from rasmai.images.pages import star_text, stars_for
+from rasmai.images.pages import stars_for
 from rasmai.bot.builders.history.plays import recent_plays
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
     max_dx = detail.get("max_dx_score") or play["max_dx"]
     dx = detail.get("dx_score") or play["dx"]
     stars = stars_for(dx / max_dx) if max_dx else 0
-    embed.add_field(name="DX score", value=f"**{dx:,}** / {max_dx:,}\n-# {star_text(stars)} {100.0 * dx / max_dx if max_dx else 0:.1f}%", inline=True)
+    embed.add_field(name="DX score", value=f"**{dx:,}** / {max_dx:,}\n-# {emoji.dx_stars(stars)} {100.0 * dx / max_dx if max_dx else 0:.1f}%", inline=True)
     embed.add_field(name="Combo", value=f"**{detail.get('combo', 0):,}** / {detail.get('max_combo', 0):,}" + (f"\n-# sync {detail.get('sync', 0):,} / {detail.get('max_sync', 0):,}" if detail.get("max_sync") else ""), inline=True)
     embed.add_field(name="Timing", value=f"fast **{detail.get('fast', 0)}** · late **{detail.get('late', 0)}**", inline=True)
     change = detail.get("rating_change", 0)

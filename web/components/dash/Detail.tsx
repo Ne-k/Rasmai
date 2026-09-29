@@ -11,6 +11,17 @@ function constNote(chart: { history: { when: string; constant: number }[]; const
 
 const NOTE_KINDS = ["tap", "hold", "slide", "touch", "break"] as const;
 
+/** The five DX stars in Rasmai's star mark, the unearned ones faded. */
+function DxStars({ n }: { n: number }) {
+  return (
+    <span className="dxstars" role="img" aria-label={`${n} of 5 DX stars`}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <img key={i} src="/marks/dxstar.svg" alt="" width={14} height={14} className={i < n ? undefined : "off"} />
+      ))}
+    </span>
+  );
+}
+
 /** A chart's day of arrival, read as a plain date rather than a moment, so no timezone moves it. */
 function arrived(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
@@ -152,7 +163,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             <div className="fact">
               <div className="k">DX score</div>
               <div className="v">{chart.dx ? num(chart.dx) : "—"}</div>
-              <div className="s">{chart.max_dx ? `of ${num(chart.max_dx)} · ${"★".repeat(chart.stars ?? 0)}${"☆".repeat(5 - (chart.stars ?? 0))}` : "max unknown"}</div>
+              <div className="s">{chart.max_dx ? <>of {num(chart.max_dx)} · <DxStars n={chart.stars ?? 0} /></> : "max unknown"}</div>
             </div>
             <div className="fact">
               <div className="k">plays</div>

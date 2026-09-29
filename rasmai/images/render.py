@@ -10,6 +10,7 @@ import logging
 from rasmai.config import site_label
 from rasmai.engine import analysis
 from rasmai.images.markup import styleimage
+from rasmai.images.posters import rating_plate
 from rasmai.storage.models import Recommendation
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,7 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
       <h1>{html_escape(player_name)}</h1>
     </div>
     <div class="counters">
-      <div class="counter"><dt>Rating</dt><dd>{player_rating}</dd></div>
+      <div class="counter"><dt>Rating</dt><dd>{rating_plate(player_rating, small=True)}</dd></div>
       {counters}
     </div>
     <div class="headline-figure">
@@ -276,7 +277,7 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
   {near_html}
 
   <footer>
-    <span>Rasmai &middot; {html_escape(site_label())} &middot; maimai DX &middot; best-50 aware</span>
+    <span>Rasmai &middot; {html_escape(site_label())} &middot; maimai DX</span>
     <span>{datetime.now().strftime('%d %B %Y')}</span>
   </footer>
 </div>

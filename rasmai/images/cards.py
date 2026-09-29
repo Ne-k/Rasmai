@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 from rasmai.images.markup import render
 from rasmai.images.posters import CoverFn, _esc, tier
-from rasmai.images.pages import _image, star_text
+from rasmai.images.pages import _image, star_marks
 
 def _card(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], headline_value: str,
           headline_caption: str, body: str, date_text: str) -> str:
@@ -30,7 +30,7 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
             rate = f'<span class="big">{r["rating"]}</span>'
             lamp = _esc(_lamp(r.get("fc"), r.get("fs")) or "—")
             if r.get("max_dx"):
-                dx = f'{r["dx"]:,} / {r["max_dx"]:,}<br /><span class="stars">{star_text(r["stars"])}</span>'
+                dx = f'{r["dx"]:,} / {r["max_dx"]:,}<br /><span class="stars">{star_marks(r["stars"])}</span>'
             elif r.get("dx"):
                 dx = f'{r["dx"]:,}'
             else:
@@ -233,7 +233,7 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
     change = int(detail.get("rating_change") or 0)
     tiles = [
         ("Achievement", f"{achievement:.4f}<small>%</small>", play.get("rank", "")),
-        ("DX score", f"{dx:,}<small>/ {max_dx:,}</small>", star_text(stars)),
+        ("DX score", f"{dx:,}<small>/ {max_dx:,}</small>", star_marks(stars)),
         ("Combo", f"{int(detail.get('combo') or 0):,}<small>/ {int(detail.get('max_combo') or 0):,}</small>",
          f"sync {int(detail.get('sync') or 0):,} / {int(detail.get('max_sync') or 0):,}" if detail.get("max_sync") else "&nbsp;"),
         ("Timing", f"{int(detail.get('fast') or 0)}<small>fast</small> {int(detail.get('late') or 0)}<small>late</small>", "&nbsp;"),

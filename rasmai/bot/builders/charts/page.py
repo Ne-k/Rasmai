@@ -9,7 +9,6 @@ from rasmai.bot.ui.formatting import TIER_NAMES, stamp
 from rasmai.bot.state.snapshots import chart_key
 from rasmai.storage.db import save_play_counts
 from rasmai.bot.ui import emoji
-from rasmai.images.pages import star_text
 from rasmai.bot.builders.charts.index import song_for_chart, songs_by_loose_key
 from rasmai.bot.builders.charts.ladder import chart_ladder, format_ladder, format_prediction, prediction_for
 
@@ -172,7 +171,7 @@ def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: Ch
     lamp = emoji.lamps(row.get("fc"), row.get("fs"))
     embed.add_field(name="Lamp", value=lamp or "-# none yet", inline=True)
     if row.get("max_dx"):
-        embed.add_field(name="DX score", value=f"**{row['dx']:,}** / {row['max_dx']:,}\n-# {star_text(row['stars'])}", inline=True)
+        embed.add_field(name="DX score", value=f"**{row['dx']:,}** / {row['max_dx']:,}\n-# {emoji.dx_stars(row['stars'])}", inline=True)
     elif row.get("dx"):
         embed.add_field(name="DX score", value=f"**{row['dx']:,}**\n-# max unknown for this chart", inline=True)
     plays = row.get("plays") or 0

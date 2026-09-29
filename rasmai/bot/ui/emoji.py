@@ -133,6 +133,20 @@ def lamps(fc: str, fs: str) -> str:
     return " · ".join(parts)
 
 
+def dx_stars(count: int) -> str:
+    """DX stars as the pack's dxstar mark, one per star, or ★☆ text when the pack is not loaded.
+
+    :param count: How many of the five stars are earned.
+    :type count: int
+    :rtype: str
+    """
+    count = max(0, min(5, int(count)))
+    mark = emoji("dxstar")
+    if not mark:
+        return "★" * count + "☆" * (5 - count)
+    return mark * count or "no star"
+
+
 def difficulty(difficulty_type: str) -> str:
     return emoji(f"diff_{str(difficulty_type or '').lower()}")
 

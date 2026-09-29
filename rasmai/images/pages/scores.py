@@ -1,38 +1,56 @@
 from typing import Any, Dict, Sequence, Tuple
 
 from rasmai.images.markup import render
-from rasmai.images.posters import lvl, CoverFn, _esc, tier
+from rasmai.images.posters import lvl, CoverFn, _esc, tier, rating_plate
 from rasmai.images.pages.common import _fc, _image
 
 
 def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequence[Dict[str, Any]],
                       player_name: str, rating: int, avatar_b64: str, cover_html: CoverFn,
                       new_total: int, old_total: int, date_text: str = "") -> str:
+    def dx_line(e: Dict[str, Any]) -> str:
+        if not e.get("dx"):
+            return ""
+        return f'<div class="s">DX <b>{e["dx"]:,}</b>' + (f' / {e["max_dx"]:,}' if e.get("max_dx") else "") + "</div>"
+
     def cards(entries: Sequence[Dict[str, Any]], size: int) -> str:
         out = ""
         for position, e in enumerate(entries, 1):
             label, ink = tier(e["difficulty"])
+            constant = f'<small>{e["constant"]:.1f} &rarr;</small>' if e.get("constant") else ""
             out += f"""
             <div class="b50" style="--tier:{ink};">
               {cover_html(e.get("cover", ""), "cv")}
               <div class="pos">#{position}</div>
               <div class="t" title="{_esc(e["title"])}">{_esc(e["title"])}</div>
-              <div class="d">{label} {lvl(e["level"], e.get("constant"))} · {_esc(e["chart_type"].upper())}</div>
+              <div class="d">{label} {_esc(e["level"])} · {_esc(e["chart_type"].upper())}</div>
               <div class="s"><b>{e["accuracy"]:.4f}</b> {_esc(e["rank"])}{(" · " + _esc(_fc(e.get("fc"), e.get("fs")))) if _fc(e.get("fc"), e.get("fs")) else ""}</div>
-              <div class="r">{e["rating"]}</div>
+              {dx_line(e)}
+              <div class="r">{constant}{e["rating"]}</div>
             </div>"""
         for _ in range(max(0, size - len(entries))):
             out += '<div class="b50" style="--tier:#2b2924;"><div class="no-cover"></div><div class="pos">open slot</div></div>'
         return out
 
-    body = f"""
+    everything = [*new_entries, *old_entries]
+    averages = ""
+    if everything:
+        n = len(everything)
+        averages = f"""
+    <div class="section-label">Averages over the {n}</div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Constant</div><div class="v">{sum(e["constant"] for e in everything) / n:.2f}</div></div>
+      <div class="tile"><div class="k">Achievement</div><div class="v">{sum(e["accuracy"] for e in everything) / n:.4f}<small>%</small></div></div>
+      <div class="tile"><div class="k">Rating per chart</div><div class="v">{sum(e["rating"] for e in everything) / n:.1f}</div></div>
+    </div>"""
+    body = averages + f"""
     <div class="section-label">Current version · {len(new_entries)} of 15 · {new_total}</div>
     <div class="b50-grid">{cards(new_entries, 15)}</div>
     <div class="section-label">Older versions · {len(old_entries)} of 35 · {old_total}</div>
     <div class="b50-grid">{cards(old_entries, 35)}</div>"""
     counters = [("New", str(new_total)), ("Old", str(old_total)),
                 ("Lowest", f"{min([e['rating'] for e in new_entries] or [0])} / {min([e['rating'] for e in old_entries] or [0])}")]
-    return _image("Best 50", player_name, avatar_b64, counters, str(new_total + old_total), "best-50 total", body, date_text)
+    return _image("Best 50", player_name, avatar_b64, counters, rating_plate(new_total + old_total), "best-50 total", body, date_text)
 
 
 def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], player_name: str, rating: int,
@@ -143,14 +161,28 @@ def stars_for(ratio: float) -> int:
     return stars
 
 
-def star_text(stars: int) -> str:
-    return "★" * stars + "☆" * (5 - stars)
+# brand/emoji/svg/dxstar.svg, drawn inline: an image is one HTML string with no files beside it
+_STAR = "64.0,13.0 79.9,47.2 117.3,51.7 89.7,77.3 96.9,114.3 64.0,96.0 31.1,114.3 38.3,77.3 10.7,51.7 48.1,47.2"
+_STAR_ON = (f'<svg class="dxstar" viewBox="0 0 128 128"><polygon class="halo" points="{_STAR}"/>'
+            f'<polygon points="{_STAR}"/><circle cx="64" cy="70" r="8"/></svg>')
+_STAR_OFF = f'<svg class="dxstar off" viewBox="0 0 128 128"><polygon points="{_STAR}"/></svg>'
+
+
+def star_marks(stars: int) -> str:
+    """Five DX stars for an image: the earned ones in the dxstar mark, the rest as dim outlines.
+
+    :param stars: How many of the five are earned.
+    :type stars: int
+    :rtype: str
+    """
+    stars = max(0, min(5, int(stars)))
+    return _STAR_ON * stars + _STAR_OFF * (5 - stars)
 
 
 def dxscore_image_html(tiles: Dict[int, int], rows: Sequence[Dict[str, Any]], player_name: str, rating: int,
                        avatar_b64: str, cover_html: CoverFn, average: float, date_text: str = "") -> str:
     tile_html = "".join(
-        f'<div class="tile"><div class="k">{star_text(s)}</div><div class="v">{tiles.get(s, 0)}<small>charts</small></div></div>'
+        f'<div class="tile"><div class="k">{star_marks(s)}</div><div class="v">{tiles.get(s, 0)}<small>charts</small></div></div>'
         for s in (5, 4, 3, 2, 1, 0)
     )
     head = """<thead><tr><th></th><th></th><th>Chart</th><th>DX score</th><th>Now</th><th>Next</th><th style="text-align:right">Points short</th></tr></thead>"""
@@ -165,8 +197,8 @@ def dxscore_image_html(tiles: Dict[int, int], rows: Sequence[Dict[str, Any]], pl
               <td class="c-cover">{cover_html(r.get('cover', ''), 'row-cover')}</td>
               <td><span class="row-title">{_esc(r['title'])}</span><span class="row-tier">{label} {lvl(r['level'], r.get('constant'))} · {_esc(r['chart_type'].upper())}</span></td>
               <td class="num"><b>{r['dx']:,}</b> / {r['max_dx']:,} · {r['ratio'] * 100:.1f}%</td>
-              <td class="stars{' dim' if r['stars'] == 0 else ''}">{star_text(r['stars'])}</td>
-              <td class="stars">{star_text(r['stars'] + 1)}</td>
+              <td class="stars">{star_marks(r['stars'])}</td>
+              <td class="stars">{star_marks(r['stars'] + 1)}</td>
               <td class="c-gain" style="font-size:18px">{r['short']}</td>
             </tr>"""
         return out

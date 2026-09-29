@@ -7,7 +7,8 @@ from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, level_text, message_files, today
 from rasmai.bot.state.snapshots import chart_key
 from rasmai.images.render import cover_html_factory
-from rasmai.images.pages import STAR_STEPS, best50_image_html, dxscore_image_html, star_text, stars_for
+from rasmai.bot.ui.emoji import dx_stars
+from rasmai.images.pages import STAR_STEPS, best50_image_html, dxscore_image_html, stars_for
 from rasmai.bot.builders.charts.index import songs_by_key
 from rasmai.bot.ui.views import PagedView, from_cache
 
@@ -67,10 +68,10 @@ async def build_dxscore(cached: CachedAnalysis, owner_id: Optional[int] = None, 
     embed.set_author(name=player.name, icon_url=avatar_url)
     total = sum(tiles.values())
     embed.description = (f"**{tiles[5]}** five-star charts of **{total}** · average **{average * 100:.1f}%** of max DX score\n"
-                         f"-# {star_text(5)} 97% · {star_text(4)} 95% · {star_text(3)} 93% · {star_text(2)} 90% · {star_text(1)} 85%")
-    embed.add_field(name="By star", value="\n".join(f"{star_text(s)} **{tiles[s]}**" for s in (5, 4, 3, 2, 1, 0)), inline=True)
+                         f"-# {dx_stars(5)} 97% · {dx_stars(4)} 95% · {dx_stars(3)} 93% · {dx_stars(2)} 90% · {dx_stars(1)} 85%")
+    embed.add_field(name="By star", value="\n".join(f"{dx_stars(s)} **{tiles[s]}**" for s in (5, 4, 3, 2, 1, 0)), inline=True)
     lines = [
-        f"`{r['short']:>4}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {TIER_SHORT.get(r['difficulty'], '')} {level_text(r['level'], r.get('constant'))}\n-# {r['dx']:,}/{r['max_dx']:,} · {star_text(r['stars'])} → {star_text(r['stars'] + 1)}"
+        f"`{r['short']:>4}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {TIER_SHORT.get(r['difficulty'], '')} {level_text(r['level'], r.get('constant'))}\n-# {r['dx']:,}/{r['max_dx']:,} · {dx_stars(r['stars'])} → {dx_stars(r['stars'] + 1)}"
         for r in rows[page * PAGE:(page + 1) * PAGE]
     ]
     embed.add_field(name="Points short of the next star" + (f" · {page * PAGE + 1}-{min((page + 1) * PAGE, len(rows))} of {len(rows)}" if len(rows) > PAGE else ""),
@@ -96,6 +97,7 @@ def best50_entries(cached: CachedAnalysis) -> Tuple[List[Dict[str, Any]], List[D
                 "constant": float(song.difficulty or 0), "accuracy": float(song.accuracy or 0),
                 "rank": song.current_rank or rank_for(float(song.accuracy or 0)), "rating": int(rating),
                 "fc": song.fc_status, "fs": song.fs_status, "cover": song.cover_url or (ref.cover if ref else ""),
+                "dx": int(song.dx_score or 0), "max_dx": ref.notes * 3 if ref and ref.notes > 0 else 0,
             })
         return out
 

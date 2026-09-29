@@ -8,7 +8,7 @@ from rasmai.images.pages.scores import (  # noqa: F401
     level_image_html,
     STAR_STEPS,
     stars_for,
-    star_text,
+    star_marks,
     dxscore_image_html,
 )
 from rasmai.images.pages.progress import (  # noqa: F401

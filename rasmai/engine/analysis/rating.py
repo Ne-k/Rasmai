@@ -127,6 +127,57 @@ def accuracy_for_rating(constant: float, wanted_rating: int) -> Optional[float]:
 
 _normal_cdf = statistics.NormalDist().cdf
 
+# The rating colour bands, from SilentBlue RemyWiki's "maimai DX:Rating". The game also cuts gold,
+# platinum and rainbow into 250-point steps (JiETNG lists 14250, 14750, 15250...); those are frame
+# variants inside one colour, so the table keeps the colours and rating_step the steps. The fills are Rasmai's tints of
+# the game's colours, chosen so ink type reads on every one. Bronze to platinum carry a diagonal sheen and
+# rainbow runs corner to corner, as the game's frames do. web/components/dash/band.ts carries the same table.
+RATING_BANDS: List[Tuple[int, str, str]] = [
+    (15000, "rainbow", "linear-gradient(135deg, #ff3d8f, #ff8a3d 22%, #f0c04a 38%, #6cc57a 56%, #5cd3e8 74%, #b98cf0)"),
+    (14500, "platinum", "linear-gradient(120deg, #d3f1f6, #ffffff 16%, #a6dce6 30%, #c4ebf1 60%, #8ccbd6)"),
+    (14000, "gold", "linear-gradient(120deg, #f2c457, #fff1bd 16%, #e3a82a 30%, #f3c85c 60%, #cf9420)"),
+    (13000, "silver", "linear-gradient(120deg, #cfd2da, #f7f8fa 16%, #a9adba 30%, #d3d6de 60%, #979ba8)"),
+    (12000, "bronze", "linear-gradient(120deg, #d68a50, #f5c393 16%, #b3672f 30%, #d38f58 60%, #9c5a2a)"),
+    (10000, "purple", "#b98cf0"),
+    (7000, "red", "#f0606e"),
+    (4000, "yellow", "#f5e06a"),
+    (2000, "green", "#6cc57a"),
+    (1000, "blue", "#5cd3e8"),
+    (0, "white", "#f3efe4"),
+]
+
+def rating_band(rating: Any) -> Tuple[str, str]:
+    """The colour band a rating sits in.
+
+    :param rating: The player's rating.
+    :type rating: Any
+    :returns: The band's name (``"gold"``) and its CSS fill, a colour or, for rainbow, a gradient.
+    :rtype: Tuple[str, str]
+    """
+    try:
+        value = int(rating or 0)
+    except (TypeError, ValueError):
+        value = 0
+    return next((key, fill) for minimum, key, fill in RATING_BANDS if value >= minimum or minimum == 0)
+
+# the bands the game cuts into 250-point frame steps; the plate marks them with 1 to 3 stars
+STEPPED_BANDS = ("gold", "platinum", "rainbow")
+
+
+def rating_step(rating: Any) -> int:
+    """Which 250-point step of a gold, platinum or rainbow band a rating is on, from 1; 0 in the other bands.
+
+    :param rating: The player's rating.
+    :type rating: Any
+    :rtype: int
+    """
+    try:
+        value = int(rating or 0)
+    except (TypeError, ValueError):
+        return 0
+    minimum, key, _fill = next(band for band in RATING_BANDS if value >= band[0] or band[0] == 0)
+    return min(3, 1 + (value - minimum) // 250) if key in STEPPED_BANDS else 0
+
 def parse_constant(raw: Any) -> float:
     if raw is None:
         return 0.0

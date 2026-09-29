@@ -32,9 +32,8 @@ export function Best50({ charts, cutoffs, onOpen }: { charts: ChartRow[] | null;
             <th className="c-n">#</th>
             <th className="c-jacket" aria-label="jacket" />
             <th>chart</th>
-            <th className="c-num">const</th>
             <th className="c-num">achievement</th>
-            <th className="c-num">rating</th>
+            <th className="c-num">const → rating</th>
           </tr>
         </thead>
         <tbody>
@@ -48,21 +47,37 @@ export function Best50({ charts, cutoffs, onOpen }: { charts: ChartRow[] | null;
                 <TitleLink title={r.title} type={r.type} difficulty={r.difficulty} onOpen={onOpen} />
                 <Chip difficulty={r.difficulty} level={r.level} constant={r.constant} type={r.type} />
               </td>
-              <td className="c-num mono dim c-const">{r.constant.toFixed(1)}</td>
               <td className="c-num mono c-acc">
                 {pct(r.accuracy)} <b>{r.rank}</b>
+                {r.dx > 0 && <span className="b50-sub dim">DX {num(r.dx)}{r.maxDx > 0 ? ` / ${num(r.maxDx)}` : ""}</span>}
               </td>
-              <td className="c-num mono strong c-rating">{r.rating}</td>
+              <td className="c-num mono strong c-rating">
+                {r.constant > 0 && <span className="b50-const dim">{r.constant.toFixed(1)} →</span>}
+                {r.rating}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </section>
   );
+  const mean = (pick: (c: ChartRow) => number) => inPool.reduce((sum, c) => sum + pick(c), 0) / inPool.length;
   return (
-    <div className="two-up wide-right">
-      {pool("new version", fresh, 15, cutoffs?.newTotal, cutoffs?.newCutoff)}
-      {pool("older versions", older, 35, cutoffs?.oldTotal, cutoffs?.oldCutoff)}
-    </div>
+    <>
+      {inPool.length > 0 && (
+        <div className="readout b50-avg" aria-label={`averages over the ${inPool.length} charts in your best 50`}>
+          <span className="lbl">avg constant</span>
+          <span className="val">{mean((c) => c.constant).toFixed(2)}</span>
+          <span className="lbl">avg achievement</span>
+          <span className="val">{pct(mean((c) => c.accuracy))}</span>
+          <span className="lbl">avg rating</span>
+          <span className="val">{mean((c) => c.rating).toFixed(1)}</span>
+        </div>
+      )}
+      <div className="two-up wide-right">
+        {pool("new version", fresh, 15, cutoffs?.newTotal, cutoffs?.newCutoff)}
+        {pool("older versions", older, 35, cutoffs?.oldTotal, cutoffs?.oldCutoff)}
+      </div>
+    </>
   );
 }
