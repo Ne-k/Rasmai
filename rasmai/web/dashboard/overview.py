@@ -75,7 +75,7 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
     from rasmai.storage.db import touch_account
     from rasmai.web.dashboard.admin import is_admin
     from rasmai.web.dashboard.beta import beta_state
-    from rasmai.web.dashboard.public_profile import sharing_payload
+    from rasmai.web.dashboard.public_profile import nameplate_src, sharing_payload
     if account is not None:
         touch_account(user["id"])
     payload: Dict[str, Any] = {"user": user, "linked": account is not None, "admin": is_admin(user["id"])}
@@ -90,6 +90,7 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
             "name": profile.get("name", ""), "rating": int(profile.get("rating") or 0), "dan": profile.get("dan", ""),
             "title": profile.get("title", ""), "totalPlayCount": int(profile.get("totalPlayCount") or 0),
             "updatedAt": profile.get("updatedAt") or snapshot.get("recordedAt") or account.get("updatedAt"),
+            "nameplate": nameplate_src(profile),
         },
         "snapshot": {
             "recordedAt": snapshot.get("recordedAt"), "best50": snapshot.get("best50", 0),

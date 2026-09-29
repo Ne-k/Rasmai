@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 import { clientKey } from "@/lib/http";
 import { internal } from "@/lib/internal";
+import { ratingBand, ratingDigits, ratingStep } from "@/components/dash/band";
+import { STAR } from "@/components/dash/RatingPlate";
 
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 
@@ -26,7 +28,7 @@ type Family = { label?: string; offset?: number };
 type Card = { on?: boolean; chart?: boolean; gain?: boolean; charts?: boolean; plays?: boolean };
 type Shared = {
   name?: string; rating?: number; region?: string; charts?: number; plays?: number;
-  history?: Point[]; card?: Card; colour?: string; visual?: string;
+  history?: Point[]; card?: Card; colour?: string; visual?: string; nameplate?: string;
   best50?: { new?: Chart[]; old?: Chart[] };
   traitFamilies?: Family[];
 };
@@ -39,8 +41,22 @@ function day(when: string): string {
     : at.toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+/** The player's name plate as a data address, since Satori draws only the picture itself; "" leaves it off. */
+async function nameplate(src: string): Promise<string> {
+  const key = /^\/api\/nameplate\/([0-9a-f]{40})$/.exec(src)?.[1];
+  if (!key) return "";
+  try {
+    const answer = await internal(`/internal/nameplate/${key}`);
+    const kind = answer.headers.get("content-type") ?? "";
+    if (!answer.ok || !/^image\/(png|jpeg)$/.test(kind)) return "";
+    return `data:${kind};base64,${Buffer.from(await answer.arrayBuffer()).toString("base64")}`;
+  } catch {
+    return "";
+  }
+}
+
 /**
- * The picture of a shared profile: the rating over time, which is the one thing about a profile a
+ * The picture of a shared profile:the rating over time, which is the one thing about a profile a
  * picture says better than a line of text.
  *
  * What goes on it is the owner's choice, made in the Account tab. The name and the rating are the
@@ -62,6 +78,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   }
   const name = String(shared.name || "").trim();
   if (!name) return new Response("not found", { status: 404 });
+  const plate = await nameplate(String(shared.nameplate ?? ""));
 
   const wants: Card = { on: true, chart: true, gain: true, charts: true, plays: false, ...(shared.card ?? {}) };
   // the owner's colour, or the brand's when there is not one. Checked again here because this is
@@ -168,12 +185,42 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     return [];
   };
 
-  const figure = (label: string, value: string, ink = tint) => (
+  const figure = (label: string, value: React.ReactNode, ink = tint) => (
     <div style={{ display: "flex", flexDirection: "column", marginRight: u(54) }}>
       <div style={{ display: "flex", fontSize: u(18), letterSpacing: u(4), color: "#8d88a8", textTransform: "uppercase" }}>
         {label}
       </div>
       <div style={{ display: "flex", fontSize: u(50), fontWeight: 800, color: ink, marginTop: u(2) }}>{value}</div>
+    </div>
+  );
+
+  // the rating plate as the site and the bot draw it, in what Satori can do: the cream ring is a wrapper, not a shadow
+  const band = ratingBand(rating);
+  const { digits, pad } = ratingDigits(rating);
+  const step = ratingStep(rating);
+  const ratingPlate = (
+    <div style={{ display: "flex", padding: u(2.5), marginTop: u(4), backgroundColor: "#fbf6ec", borderRadius: u(13) }}>
+      <div style={{ display: "flex", alignItems: "center", padding: `${u(5)}px ${u(5)}px ${u(5)}px ${u(10)}px`,
+                    border: `${u(3.5)}px solid #1d1a2f`, borderRadius: u(11), color: "#1d1a2f",
+                    ...(band.fill.startsWith("linear") ? { backgroundImage: band.fill } : { backgroundColor: band.fill }) }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: u(9) }}>
+          <div style={{ display: "flex", fontSize: u(12), fontWeight: 800, letterSpacing: u(1.5) }}>RATING</div>
+          {step ? (
+            <div style={{ display: "flex", marginTop: u(3) }}>
+              {Array.from({ length: step }, (_, i) => (
+                <svg key={i} width={u(12)} height={u(12)} viewBox="0 0 128 128"><polygon points={STAR} fill="#1d1a2f" /></svg>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {digits.map((d, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "center", alignItems: "center", width: u(31), height: u(46),
+                                marginLeft: i ? u(2.5) : 0, borderRadius: u(5), backgroundColor: "#1d1a2f",
+                                color: i < pad ? "#4a4560" : "#fbf6ec", fontSize: u(36), fontWeight: 800 }}>
+            {d}
+          </div>
+        ))}
+      </div>
     </div>
   );
 
@@ -233,8 +280,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
                       padding: drawable ? `${u(36)}px ${u(64)}px 0` : `0 ${u(64)}px`,
                       justifyContent: drawable ? "flex-start" : "center" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", fontSize: u(20), letterSpacing: u(5), color: "#918ba6", textTransform: "uppercase" }}>
-              {region} · {name}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {/* the player's plate from the game, at its 720x116 shape, in the ink outline */}
+              {plate ? (
+                <div style={{ display: "flex", marginRight: u(22), border: `${u(2)}px solid #5a5470`,
+                              borderRadius: u(10), overflow: "hidden" }}>
+                  <img src={plate} width={u(300)} height={u(48)} alt="" />
+                </div>
+              ) : null}
+              <div style={{ display: "flex", fontSize: u(20), letterSpacing: u(5), color: "#918ba6", textTransform: "uppercase" }}>
+                {region} · {name}
+              </div>
             </div>
             <div style={{ display: "flex", fontSize: u(30), fontWeight: 800 }}>
               Ras<span style={{ color: tint }}>mai</span>
@@ -242,7 +298,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           </div>
 
           <div style={{ display: "flex", marginTop: u(20) }}>
-            {figure("rating", rating.toLocaleString("en"))}
+            {figure(band.key, ratingPlate)}
             {wants.charts !== false ? figure("charts", charts.toLocaleString("en")) : null}
             {wants.plays ? figure("plays", plays.toLocaleString("en")) : null}
             {wants.gain !== false && drawable && gain !== 0

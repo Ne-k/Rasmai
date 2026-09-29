@@ -202,6 +202,9 @@ class InternalApiServer:
                 if route.path.startswith("/internal/area-image/"):
                     dashboard.area_image(self, route.path[len("/internal/area-image/"):])
                     return
+                if route.path.startswith("/internal/nameplate/"):
+                    dashboard.nameplate(self, route.path[len("/internal/nameplate/"):])
+                    return
                 if route.path.startswith("/internal/me"):
                     user = self._user()
                     if user is None:

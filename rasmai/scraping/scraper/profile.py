@@ -10,6 +10,24 @@ from rasmai.scraping.scraper.session import PacedSession, SessionRejected, cooki
 logger = logging.getLogger(__name__)
 
 
+def parse_nameplate_url(html: str, base_url: str) -> str:
+    """The address of the name plate the player has on, from a maimai DX NET page, or "".
+
+    The collection page's SETTING box shows the plate in use first, as ``img.w_396.m_r_10``;
+    any other page that shows a plate at all is read for its first one.
+
+    :param html: The page.
+    :type html: str
+    :param base_url: The region's maimai DX NET address, for a relative ``src``.
+    :type base_url: str
+    :rtype: str
+    """
+    soup = BeautifulSoup(html or "", 'html.parser')
+    image = soup.select_one('img.w_396.m_r_10[src*="/img/NamePlate/"]') or soup.select_one('img[src*="/img/NamePlate/"]')
+    src = str(image.get('src') or '').strip() if image else ''
+    return src if not src or src.startswith('http') else f"{base_url}{src}"
+
+
 class ProfilePages:
     """Logging in and reading the player's own profile page."""
 
@@ -91,7 +109,28 @@ class ProfilePages:
             player.course_rank_url = course_src if course_src.startswith('http') else f"{base_url}{course_src}"
             player.class_rank_url = class_src if class_src.startswith('http') else f"{base_url}{class_src}"
 
+        player.nameplate_url = parse_nameplate_url(html, base_url)
         return player, player.icon_url
+
+    def _read_nameplate(self, session: PacedSession, region: str) -> str:
+        """The plate the player has on, from the collection page; "" when it cannot be read.
+
+        The profile page does not show the plate (other scrapers read it from here too), so
+        this is one more page, read only on a full read.
+
+        :param session: The signed-in maimai session.
+        :type session: PacedSession
+        :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+        :type region: str
+        :rtype: str
+        """
+        base_url = get_maimai_base_url(region)
+        try:
+            html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/collection/nameplate/", f"{base_url}/maimai-mobile/")
+        except Exception as error:
+            logger.info(f"Name plate page not read: {error}")
+            return ""
+        return parse_nameplate_url(html, base_url)
 
     def _login_and_fetch_official_profile(self, token: str, region: str) -> PlayerInfo:
         sanitized_token = token.strip()

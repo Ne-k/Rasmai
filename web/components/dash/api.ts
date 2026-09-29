@@ -71,7 +71,7 @@ export type Overview = {
   linked: boolean;
   oauth: boolean;
   region?: string;
-  profile?: { name: string; rating: number; dan: string; title: string; totalPlayCount: number; updatedAt: string };
+  profile?: { name: string; rating: number; dan: string; title: string; totalPlayCount: number; updatedAt: string; nameplate?: string };
   snapshot?: { recordedAt: string; best50: number; newTotal: number; oldTotal: number; charts: number };
   history?: HistoryPoint[];
   settings?: Record<string, string | boolean>;

@@ -159,8 +159,12 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
         "colour": clean_colour(prefs.get("card_colour")),
         "visual": clean_visual(prefs.get("card_visual")),
     }
+    # part of the header, like the name, so it rides along whenever the profile is shared at all
+    plate = nameplate_src(profile)
+    if plate:
+        payload["nameplate"] = plate
 
-    covers = _covers() if (shows["best50"] or shows["recent"]) else None
+    covers =_covers() if (shows["best50"] or shows["recent"]) else None
     if shows["best50"]:
         pool = sorted((c for c in charts if c.get("rating")), key=lambda c: -int(c.get("rating") or 0))
         payload["best50"] = {
@@ -186,6 +190,18 @@ def public_payload(slug: str) -> Optional[Dict[str, Any]]:
         for row in (load_rating_history(user_id) or [])[-120:]
     ]
     return _json_safe(payload)
+
+
+def nameplate_src(profile: Dict[str, Any]) -> str:
+    """The site's address for the player's name plate, fetched on first need; "" when there is none to show.
+
+    :param profile: The stored official profile.
+    :type profile: Dict[str, Any]
+    :rtype: str
+    """
+    from rasmai.scraping.scraper.nameplates import cache_nameplate
+    key = cache_nameplate(str((profile or {}).get("nameplate_url") or ""))
+    return f"/api/nameplate/{key}" if key else ""
 
 
 def _covers() -> Optional[Any]:

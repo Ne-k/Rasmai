@@ -65,6 +65,7 @@ class PlayerInfo:
     total_play_count: int = 0
     course_rank_url: str = ""
     class_rank_url: str = ""
+    nameplate_url: str = ""
 
 
 @dataclass

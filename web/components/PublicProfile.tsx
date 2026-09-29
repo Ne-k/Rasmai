@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Ring } from "@/components/Ring";
 import { ThemeToggle } from "@/components/Theme";
 import { Chip, Empty, Jacket, Label, num, pct, when } from "./dash/bits";
+import { RatingPlate } from "./dash/RatingPlate";
 import { Radar, radarAxes, twoSides } from "./dash/traits";
 
 type Chart = {
@@ -18,6 +19,7 @@ type SharedTrait = {
 type Shared = {
   name: string; title: string; dan: string; region: string; rating: number; plays: number; charts: number;
   updatedAt: string;
+  nameplate?: string;
   shows: { best50: boolean; traits: boolean; recent: boolean; areas: boolean };
   best50?: { new: Chart[]; old: Chart[] };
   recent?: { title: string; difficulty: string; type: string; achievement: number; rank: string; day: string; cover: string }[];
@@ -182,10 +184,14 @@ export function PublicProfile({ slug }: { slug: string }) {
             {[data.dan, data.title].filter(Boolean).join(" · ") || "no title read yet"} · {num(data.plays)} plays · read{" "}
             {when(data.updatedAt)}
           </div>
+          {data.nameplate ? (
+            <img className="nameplate" src={data.nameplate} alt="" width={360} height={58}
+                 onError={(e) => { e.currentTarget.hidden = true; }} />
+          ) : null}
         </div>
         <div className="readout big">
           <span className="lbl">rating</span>
-          <span className="val">{num(data.rating)}</span>
+          <span className="val"><RatingPlate rating={data.rating} /></span>
           <span className="lbl">charts</span>
           <span className="val">{num(data.charts)}</span>
         </div>

@@ -44,6 +44,23 @@ def jacket(handler: BaseHTTPRequestHandler, name: str) -> bool:
     return True
 
 
+def nameplate(handler: BaseHTTPRequestHandler, key: str) -> None:
+    """A cached name plate by key, or 404. Never fetches: the key is a hash, so only a plate already cached can answer.
+
+    :param handler: The request being answered.
+    :type handler: BaseHTTPRequestHandler
+    :param key: The key from ``nameplate_key``.
+    :type key: str
+    """
+    from rasmai.scraping.scraper.nameplates import nameplate_path
+    path = nameplate_path(key)
+    if path is None:
+        handler._send_json(404, {"ok": False, "error": "not_found"})
+        return
+    kinds = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif"}
+    _send_file(handler, path, kinds.get(path.suffix, "image/png"))
+
+
 def image_export(handler: Any, cached: Any, kind: str) -> None:
     """Hand over the picture a command would attach, as a download.
 

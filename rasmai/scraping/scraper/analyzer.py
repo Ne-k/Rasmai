@@ -10,6 +10,7 @@ from rasmai.storage.models import PlayerInfo, Recommendation, SongInfo
 from rasmai.scraping.otoge import CachedOtogeDB
 from rasmai.scraping.scraper.session import download_image_base64
 from rasmai.scraping.scraper.areas import AreaPages
+from rasmai.scraping.scraper.nameplates import cache_nameplate
 from rasmai.scraping.scraper.profile import ProfilePages
 from rasmai.scraping.scraper.pages import ScorePages
 from rasmai.scraping.scraper.plays import PlaylogPages
@@ -83,6 +84,9 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         player.region = region
         if getattr(self, "_official_cookie_header", ""):
             player.avatar_base64 = download_image_base64(player.icon_url, self._official_cookie_header)
+        player.nameplate_url = player.nameplate_url or self._read_nameplate(session, region)
+        # cached now, while the session is at hand, in case the picture wants it
+        cache_nameplate(player.nameplate_url, getattr(self, "_official_cookie_header", ""))
 
         all_songs_data: Dict[int, List[SongInfo]] = {}
         difficulties = [0, 1, 2, 3, 4, 10]

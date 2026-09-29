@@ -259,6 +259,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
         total_play_count=int(profile.get("totalPlayCount") or snapshot.get("totalPlayCount") or 0),
         # the avatar was read when the account was linked; without it every poster built from the stored copy has a blank corner
         avatar_base64=str(profile.get("avatar_base64") or ""), icon_url=str(profile.get("icon_url") or ""),
+        nameplate_url=str(profile.get("nameplate_url") or ""),
     )
     analyzer.songs = [
         SongInfo(
@@ -311,6 +312,7 @@ def persist_progress(user_id: str, analyzer: Any) -> None:
             "title": player.title, "totalPlayCount": int(player.total_play_count or 0),
             # a fresh read brings the avatar with it; an analysis built from the stored copy carries the stored one back
             "avatar_base64": player.avatar_base64 or "", "icon_url": player.icon_url or "",
+            "nameplate_url": getattr(player, "nameplate_url", "") or "",
             "updatedAt": datetime.now().isoformat(timespec="seconds"),
         }
         update_account_snapshot(user_id, profile, compact_snapshot(analyzer))
