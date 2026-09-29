@@ -47,6 +47,18 @@ export default function TermsPage() {
         </li>
       </ul>
 
+      <h2>What you share</h2>
+      <ul>
+        <li>
+          If you turn on a public profile, <code>/compare</code> or <code>/leaderboard</code>, you choose what other people can
+          see. Anyone with your profile link can see it, so only share the link with people you are happy to show it to.
+        </li>
+        <li>
+          Beta feedback you send is kept with your account and read by the operator to improve Rasmai. Keep notes free of
+          anything you would not want read.
+        </li>
+      </ul>
+
       <h2>Fair use</h2>
       <ul>
         <li>Do not use the bot or site to probe, overload or attack the service, maimai DX NET, or Discord.</li>

@@ -10,7 +10,7 @@ def _backlog():
     problems = []
     queue = getattr(getattr(web_server, "_QueueingServer", None), "request_queue_size", 5)
     # the stdlib default is five, and a dashboard opens with six requests at once: two people
-    # opening theirs together refused 89% of requests under k6, every one of them in 0ms
+    # opening theirs together refused 89% of requests under a load test, every one of them in 0ms
     if queue < 64:
         problems.append(f"the internal API listens with a backlog of {queue}, so a couple of dashboards "
                         f"opening at once are refused rather than queued")
@@ -123,7 +123,7 @@ def _queued_builds():
         for t in threads:
             t.join()
         if running["built"] != 1:
-            problems.append(f"one dashboard opening built its analysis {running['built']} times; k6 counted "
+            problems.append(f"one dashboard opening built its analysis {running['built']} times; a load test counted "
                             f"six, and a burst of fifty visitors queued three hundred of them")
         if len(answers) != 6 or any(kind != "ok" or value is None for kind, value, _ in answers):
             problems.append(f"a request that waited for its own build came back without it: {answers}")
@@ -146,7 +146,7 @@ def _queued_builds():
         told = [a for a in answers if a[0] == "wait"]
         if not told:
             problems.append(f"{len(crowd)} people queued behind a cap of {ANALYSIS_BUILDS} and every request "
-                            f"waited out its build: a thousand did that under k6 and held 7,700 threads")
+                            f"waited out its build: a thousand did that under a load test and held 7,700 threads")
         if any(took > 0.1 for _, _, took in told):
             problems.append(f"a request queued behind others was held {max(t for _, _, t in told):.2f}s before being told to come back")
         if any(not 2 <= seconds <= 30 for _, seconds, _ in told):

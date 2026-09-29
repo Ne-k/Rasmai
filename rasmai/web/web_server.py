@@ -45,7 +45,7 @@ class _QueueingServer(ThreadingHTTPServer):
     The stdlib default backlog is five: the sixth connection arriving before the first is
     accepted is refused outright, not queued. A dashboard asks for six things as it opens, so
     two people opening theirs together was enough to turn requests into 503s. Measured with
-    k6/dashboard.js: 89% of requests refused at 50 clients, every one of them in 0ms.
+    a load test of the dashboard: 89% of requests refused at 50 clients, every one of them in 0ms.
 
     A thousand people opening theirs at once is six thousand connections, and the thread taking
     them shares the interpreter with the builds, so it falls behind in bursts: at 128, 42% were
@@ -58,7 +58,7 @@ class _QueueingServer(ThreadingHTTPServer):
     # A fixed set of threads answering, rather than one started per connection. Starting one waits
     # for it to get the interpreter, which the builds keep busy, so under a crowd the thread taking
     # connections spent its time starting threads and the queue above overflowed regardless of its
-    # length: k6 had 40% refused at a thousand people, a read that needs no analysis among them.
+    # length: a load test had 40% refused at a thousand people, a read that needs no analysis among them.
     # Connections past these wait their turn, accepted, instead of being refused.
     workers = 64
 

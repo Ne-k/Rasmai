@@ -28,7 +28,7 @@ class StillBuilding(Exception):
 
 
 # Builds run on a few threads of their own, one job per person however many of their requests ask.
-# A request used to build, or wait on somebody else's build, for as long as it took: k6 opened the
+# A request used to build, or wait on somebody else's build, for as long as it took: a load test opened the
 # dashboard for a thousand new people at once, the builds queued at two or three a second, and every
 # request behind them held a thread and a parsed account while it waited - 7,700 threads, 8 GB, and
 # five thousand connections refused before the first minute was out.

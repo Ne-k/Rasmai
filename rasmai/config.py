@@ -103,7 +103,7 @@ REQUESTS_PER_SECOND = float(os.getenv("MAIMAI_REQUESTS_PER_SECOND", "25"))  # to
 PROGRESS_EDITS_PER_SECOND = float(os.getenv("MAIMAI_PROGRESS_EDITS_PER_SECOND", "8"))   # loading-bar edits, all users together
 ANALYSIS_CACHE_MAX = int(os.getenv("MAIMAI_ANALYSIS_CACHE_MAX", "500"))     # finished analyses kept in memory
 # analyses built for the dashboard at once. It is CPU work under one interpreter lock, so more at
-# once is slower, not faster: k6 measured 2.9 a second one at a time and 1.5 a second eight at a time.
+# once is slower, not faster: a load test measured 2.9 a second one at a time and 1.5 a second eight at a time.
 ANALYSIS_BUILDS = max(1, int(os.getenv("MAIMAI_ANALYSIS_BUILDS", "2")))
 # how long a dashboard request waits on its own build before it is told to ask again; with a queue
 # ahead of it, it does not wait at all

@@ -59,10 +59,20 @@ export default function PrivacyPage() {
           re-load hundreds of pages every time.
         </li>
         <li>
-          <b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, and three opt-ins
+          <b>Judgement details and area progress.</b> For plays whose judgement page Rasmai reads, the note counts and the
+          fast/late split. For your map areas, how far you have got and when it was recorded.
+        </li>
+        <li>
+          <b>Beta feedback.</b> If you tell Rasmai whether a beta feature was better, the same or worse, it keeps that answer
+          and the short note you may add (500 characters at most). The site&apos;s owner can read it, and it is not shown
+          to anyone else.
+        </li>
+        <li>
+          <b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, and opt-ins
           that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored
-          scores, appearing on <code>/leaderboard</code> in servers you share with the bot, and a daily read of your
-          recent-plays page (below). With the first two off, nobody else can see anything about your account through the bot.
+          scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below),
+          a daily read of your recent-plays page (below) and a Discord message about what that read found. With the
+          compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai.
         </li>
         <li>
           <b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a
@@ -74,6 +84,17 @@ export default function PrivacyPage() {
         <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key
         and loads only the recent-plays page, so plays aren&apos;t lost between commands. <code>/settings</code> shows when it last ran and how many plays it
         found.
+      </p>
+
+      <h2>Public profile</h2>
+      <p>
+        Only if you turn it on in the dashboard&apos;s Account tab, Rasmai gives you a link to a page at{" "}
+        <code>{SITE_URL.replace("https://", "")}/p/&hellip;</code> that anyone holding the link can open. The link is a random
+        code, not your Discord ID, and nothing on the page identifies your Discord account. It always shows your maimai player
+        name, title, dan, name plate, region, rating, play count and rating history. Your best 50, recent plays, play style
+        and area progress appear only if you switch each one on. The link also produces a preview picture and Discord
+        embed built from the same data. Turning the profile off makes the link stop working, and asking for a new link
+        replaces the old one at once. The name plate image is copied from maimai DX NET and cached on the server.
       </p>
 
       <h2>The website</h2>
@@ -141,8 +162,8 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <b>Yourself, at once.</b> Run <code>/delete-account</code> in Discord, or press <b>unlink</b> on the dashboard&apos;s Account
-          tab. Either deletes your session key, profile, stored scores, play history, rating readings, settings, play-count
-          cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds
+          tab. Either deletes your session key, profile, profile link, stored scores, play history, judgement details, area
+          progress, rating readings, settings, beta feedback, play-count cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds
           your Discord ID and name.
         </li>
         <li>
