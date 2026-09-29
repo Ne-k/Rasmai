@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, Tuple
 import zlib
 
 from rasmai.storage.db.connection import get_database_connection
@@ -47,21 +47,6 @@ def sheet_put(chart_key: str, chart_id: str, sheet: str) -> None:
             )
     finally:
         connection.close()
-
-
-def sheet_get(chart_key: str) -> Optional[str]:
-    """One chart's simai, or None when it has never been read.
-
-    :param chart_key: The chart, as ``"title|type|difficulty"``.
-    :type chart_key: str
-    :rtype: Optional[str]
-    """
-    connection = get_database_connection()
-    try:
-        row = connection.execute("SELECT sheet FROM simai_sheets WHERE chart_key = ?", (chart_key,)).fetchone()
-    finally:
-        connection.close()
-    return _unpack(row["sheet"]) if row else None
 
 
 def sheets_all() -> Iterator[Tuple[str, str]]:

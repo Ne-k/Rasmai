@@ -37,8 +37,8 @@ export function json(status: number, body: unknown): NextResponse {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export function redirect(location: string, status = 303): NextResponse {
-  return new NextResponse(null, { status, headers: { Location: location, "Cache-Control": "no-store" } });
+export function redirect(location: string): NextResponse {
+  return new NextResponse(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store" } });
 }
 
 /** JSON or form body as a flat string map; bodies over 64 KB are refused. */

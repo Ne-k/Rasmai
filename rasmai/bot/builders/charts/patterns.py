@@ -174,7 +174,5 @@ def _choice_name(item: Dict[str, Any]) -> str:
 
 
 async def pattern_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    # the person typing decides whether traits read from the charts are offered at all
-    from rasmai.bot.state.cache import cache_get
     items = patterns.suggest(current, shared_index())
     return [app_commands.Choice(name=_choice_name(item), value=item["tag"][:100]) for item in items]

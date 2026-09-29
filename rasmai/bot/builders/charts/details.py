@@ -140,7 +140,7 @@ def _pattern_field(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: 
     :param ref: The chart being shown.
     :type ref: ChartRef
     """
-    from rasmai.engine import insights, patterns
+    from rasmai.engine import insights
     tags = insights.chart_tags(ref)
     if not tags:
         return

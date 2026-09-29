@@ -9,9 +9,6 @@ from rasmai.engine import analysis
 from rasmai.storage.models import PlayerInfo, Recommendation
 
 
-TIMESTAMP_STYLES = ("t", "T", "d", "D", "f", "F", "R")
-
-
 def stamp(moment: datetime, style: str = "f") -> str:
     """A Discord timestamp: rendered in each reader's own timezone, daylight saving included.
 

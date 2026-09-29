@@ -66,8 +66,6 @@ export type BetaFeature = {
 
 export type Beta = { on: Record<string, boolean>; features: BetaFeature[] };
 
-export type SimaiProgress = { read: number; refused: number; waiting: number; checkedAt?: string };
-
 export type Overview = {
   user: DiscordUser;
   linked: boolean;

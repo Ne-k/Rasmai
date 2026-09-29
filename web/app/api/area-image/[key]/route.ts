@@ -1,8 +1,6 @@
 import { json } from "@/lib/http";
 import { internal, passthrough, unavailable } from "@/lib/internal";
 
-export const dynamic = "force-dynamic";
-
 type Params = { params: Promise<{ key: string }> };
 
 /** Area artwork the bot cached from maimai DX NET, by its key. */

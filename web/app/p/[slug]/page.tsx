@@ -8,9 +8,6 @@ import { env } from "@/lib/env";
 import { internal } from "@/lib/internal";
 import "../../me/dashboard.css";
 
-// one visitor's profile is never another's, so nothing here is held
-export const dynamic = "force-dynamic";
-
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 const SITE = env.publicUrl();
 

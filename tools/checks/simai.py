@@ -140,13 +140,6 @@ def _simai_is_the_source():
         store.DATABASE_PATH = was
         store._database_ready = False
 
-    # the tags simai replaced stay in the tree, commented out, so putting them back is uncommenting
-    source = (ROOT / "rasmai" / "engine" / "insights" / "tags.py").read_text(encoding="utf-8")
-    for call in ("mai_notes.note_traits(row)", "mai_notes.pattern_traits(row)"):
-        if call not in source:
-            problems.append(f"{call} is gone from tags.py rather than parked, so it cannot be put back")
-        elif not any(line.strip().startswith("#") and call in line for line in source.splitlines()):
-            problems.append(f"{call} is live again in tags.py, so both sources are naming traits at once")
     if not (ROOT / "rasmai" / "scraping" / "mai_notes.py").exists():
         problems.append("mai_notes.py is gone, and the charts are still measured against its manifest")
     return problems

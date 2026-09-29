@@ -21,7 +21,6 @@ __pycache__/
 # next.js build artifacts
 web/node_modules/
 web/.next/
-web/out/
 web/next-env.d.ts
 web/*.tsbuildinfo
 cover_cache/

@@ -104,11 +104,6 @@ def chart_designer(record: Dict[str, Any], ref: ChartRef) -> str:
     return value if value and value != "-" else ""
 
 
-def all_titles() -> List[str]:
-    shared_index()
-    return _titles
-
-
 # title -> search keys: the title itself, its reading, the wiki's English name, and romaji skeletons of all of them
 _search: Dict[str, Tuple[str, ...]] = {}
 

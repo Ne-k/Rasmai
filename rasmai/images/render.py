@@ -5,13 +5,9 @@ from playwright.async_api import async_playwright
 from typing import List, Dict, Optional, Any
 import asyncio
 import base64
-import hashlib
-import os
-import re
-import requests
 import logging
 
-from rasmai.config import BROWSER_USER_AGENT, site_label
+from rasmai.config import site_label
 from rasmai.engine import analysis
 from rasmai.images.markup import styleimage
 from rasmai.storage.models import Recommendation
@@ -23,119 +19,21 @@ def _load_local_jacket(cover_url: str, jacket_path: str) -> str:
     if not cover_url:
         return ""
 
-    jacket_filename = cover_url
-    if '/' in jacket_filename:
-        jacket_filename = jacket_filename.split('/')[-1]
-    if '?' in jacket_filename:
-        jacket_filename = jacket_filename.split('?')[0]
-
-    stem = Path(jacket_filename).stem
-    possible_paths = [
-        Path(jacket_path) / f"{stem}.webp",
-        Path("otoge_cache/jackets") / f"{stem}.webp",
-        Path(jacket_path) / jacket_filename,
-        Path("otoge_cache/repo/maimai/jacket") / jacket_filename,
-        Path("maimai/jacket") / jacket_filename,
-        Path("jacket") / jacket_filename,
-        Path(jacket_path) / f"{Path(jacket_filename).stem}.jpg",
-        Path(jacket_path) / f"{Path(jacket_filename).stem}.png",
-        Path("otoge_cache/repo/maimai/jacket") / f"{Path(jacket_filename).stem}.jpg",
-        Path("otoge_cache/repo/maimai/jacket") / f"{Path(jacket_filename).stem}.png",
-    ]
-
-    for path in possible_paths:
-        if path.exists():
-            try:
-                with open(path, 'rb') as f:
-                    jacket_data = base64.b64encode(f.read()).decode('utf-8')
-                    ext = path.suffix.lower()
-                    content_type = {'.png': 'image/png', '.webp': 'image/webp'}.get(ext, 'image/jpeg')
-                    return f'<img src="data:{content_type};base64,{jacket_data}" class="cover-img" />'
-            except Exception as e:
-                print(f"Error loading jacket from {path}: {e}")
-                continue
-
-    jacket_dir = Path(jacket_path)
-    if jacket_dir.exists():
-        for file in jacket_dir.glob("*"):
-            if file.name.lower() == jacket_filename.lower():
-                try:
-                    with open(file, 'rb') as f:
-                        jacket_data = base64.b64encode(f.read()).decode('utf-8')
-                        ext = file.suffix.lower()
-                        content_type = {'.png': 'image/png', '.webp': 'image/webp'}.get(ext, 'image/jpeg')
-                        return f'<img src="data:{content_type};base64,{jacket_data}" class="cover-img" />'
-                except Exception as e:
-                    print(f"Error loading jacket from {file}: {e}")
-                    break
-
-    for base_path in ["otoge_cache/repo/maimai/jacket", "maimai/jacket", "jacket"]:
-        jacket_dir = Path(base_path)
-        if jacket_dir.exists():
-            for ext in ['.png', '.jpg', '.jpeg']:
-                test_path = jacket_dir / f"{Path(jacket_filename).stem}{ext}"
-                if test_path.exists():
-                    try:
-                        with open(test_path, 'rb') as f:
-                            jacket_data = base64.b64encode(f.read()).decode('utf-8')
-                            content_type = {'.png': 'image/png', '.webp': 'image/webp'}.get(ext, 'image/jpeg')
-                            return f'<img src="data:{content_type};base64,{jacket_data}" class="cover-img" />'
-                    except Exception:
-                        continue
-
+    name = cover_url.split('/')[-1].split('?')[0]
+    stem = Path(name).stem
+    folder = Path(jacket_path)
+    for path in (folder / f"{stem}.webp", Path("otoge_cache/jackets") / f"{stem}.webp", folder / name,
+                 folder / f"{stem}.jpg", folder / f"{stem}.png"):
+        if not path.exists():
+            continue
+        try:
+            jacket_data = base64.b64encode(path.read_bytes()).decode('utf-8')
+        except Exception as e:
+            print(f"Error loading jacket from {path}: {e}")
+            continue
+        content_type = {'.png': 'image/png', '.webp': 'image/webp'}.get(path.suffix.lower(), 'image/jpeg')
+        return f'<img src="data:{content_type};base64,{jacket_data}" class="cover-img" />'
     return ""
-
-
-def download_cover_image(cover_url: str, cache_dir: str = "cover_cache") -> Optional[str]:
-    if not cover_url:
-        return None
-
-    try:
-        if cover_url.startswith('data:image'):
-            return cover_url
-
-        if not cover_url.startswith('http'):
-            jacket_paths = [
-                "otoge_cache/repo/maimai/jacket/",
-                "maimai/jacket/",
-                "jacket/"
-            ]
-            for jacket_path in jacket_paths:
-                for ext in ['', '.png', '.jpg', '.jpeg']:
-                    full_filename = cover_url + ext if ext else cover_url
-                    jacket_result = _load_local_jacket(full_filename, jacket_path)
-                    if jacket_result:
-                        match = re.search(r'src="([^"]+)"', jacket_result)
-                        if match:
-                            return match.group(1)
-            return None
-
-        os.makedirs(cache_dir, exist_ok=True)
-
-        url_hash = hashlib.md5(cover_url.encode()).hexdigest()
-        cache_path = os.path.join(cache_dir, f"{url_hash}.jpg")
-
-        if os.path.exists(cache_path):
-            with open(cache_path, 'rb') as f:
-                img_data = base64.b64encode(f.read()).decode('utf-8')
-                return f"data:image/jpeg;base64,{img_data}"
-
-        headers = {'User-Agent': BROWSER_USER_AGENT}
-
-        response = requests.get(cover_url, headers=headers, timeout=10, stream=True)
-        if response.status_code == 200:
-            with open(cache_path, 'wb') as f:
-                f.write(response.content)
-
-            img_data = base64.b64encode(response.content).decode('utf-8')
-            content_type = response.headers.get('content-type', 'image/jpeg')
-            return f"data:{content_type};base64,{img_data}"
-
-        return None
-
-    except Exception as e:
-        print(f"Error downloading cover image: {e}")
-        return None
 
 
 DIFFICULTY_STYLES = {
@@ -165,12 +63,7 @@ def _plays_text(plays: int) -> str:
 
 
 def _cover_markup(rec: "Recommendation", jacket_path: str, css_class: str) -> str:
-    cover_html = ""
-    if rec.cover_url and rec.cover_url.startswith("http"):
-        cover_data = download_cover_image(rec.cover_url)
-        cover_html = f'<img src="{cover_data}" class="{css_class}" />' if cover_data else _load_local_jacket(rec.cover_url, jacket_path)
-    elif rec.cover_url:
-        cover_html = _load_local_jacket(rec.cover_url, jacket_path)
+    cover_html = _load_local_jacket(rec.cover_url, jacket_path)
     if cover_html:
         return cover_html.replace('class="cover-img"', f'class="{css_class}"')
     return f'<div class="{css_class} no-cover"></div>'

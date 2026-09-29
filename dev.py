@@ -25,7 +25,7 @@ def _bin(name: str) -> Path:
     return VENV / folder / f"{name}{suffix}"
 
 
-def _run(command, cwd=None, check=True, env=None):
+def _run(command, cwd=None, check=True):
     """Run a command and show it first, so a failure is easy to repeat by hand.
 
     :param command: The command and its arguments.
@@ -34,15 +34,12 @@ def _run(command, cwd=None, check=True, env=None):
     :type cwd: Optional[Path]
     :param check: Whether a non-zero exit should stop the script.
     :type check: bool
-    :param env: Extra environment variables to add to the child's own.
-    :type env: Optional[dict]
     :returns: The finished process.
     :rtype: subprocess.CompletedProcess
     """
     printable = " ".join(str(part) for part in command)
     print(f"  $ {printable}")
-    merged = {**os.environ, **(env or {})}
-    return subprocess.run([str(part) for part in command], cwd=str(cwd or ROOT), check=check, env=merged)
+    return subprocess.run([str(part) for part in command], cwd=str(cwd or ROOT), check=check)
 
 
 def _npm() -> str:

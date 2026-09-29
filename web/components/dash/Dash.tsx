@@ -12,7 +12,7 @@ import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
 import { Account } from "./Account";
-import { AdminPanel } from "./admin";
+import { AdminPanel } from "./admin/Panel";
 import { Best50 } from "./Best50";
 import { Frame } from "./Frame";
 import { OverviewTab } from "./OverviewTab";

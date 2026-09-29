@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { HistoryPoint } from "./api";
 import { day } from "./bits";
 
-type Props = { points: HistoryPoint[]; field?: "rating" | "best50" };
-
 /** Rating over time. The drawing is sized to the box it sits in, so the labels stay readable on a phone. */
-export function Sparkline({ points, field = "rating" }: Props) {
+export function Sparkline({ points }: { points: HistoryPoint[] }) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   useEffect(() => {
@@ -20,7 +18,7 @@ export function Sparkline({ points, field = "rating" }: Props) {
   }, []);
 
   const sorted = [...points].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
-  const values = sorted.map((p) => p[field]);
+  const values = sorted.map((p) => p.rating);
   if (sorted.length < 2) {
     return (
       <div className="spark one" ref={box}>
@@ -55,7 +53,7 @@ export function Sparkline({ points, field = "rating" }: Props) {
           {gain} since {day(sorted[0].recordedAt)}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${field} history`}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label="rating history">
         <line className="grid" x1={padX} x2={W - padX} y1={y(max)} y2={y(max)} />
         <line className="grid" x1={padX} x2={W - padX} y1={y(min)} y2={y(min)} />
         <path className="line" d={path} />

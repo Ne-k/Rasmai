@@ -68,8 +68,5 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      - name: Type-check
-        run: npm run typecheck
-
       - name: Build
         run: npm run build

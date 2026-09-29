@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 import json
 import logging
 import threading
@@ -269,24 +269,6 @@ def cached_facts() -> ChartFacts:
     facts = ChartFacts(_load(source_state_get(SOURCE) or {}))
     _memo = (time.monotonic(), facts)
     return facts
-
-
-def note_traits(row: Dict[str, Any]) -> List[Tuple[str, str]]:
-    """What a chart's note mix says about it: only the top quarter of each note type is called out.
-
-    :param row: One row of the table.
-    :type row: Dict[str, Any]
-    :rtype: List[Tuple[str, str]]
-    """
-    total = int(row.get("n") or 0)
-    if total <= 0:
-        return []
-    return [(dimension, label) for field, dimension, high, label in SHARE_BANDS
-            if int(row.get(field) or 0) / total >= high]
-
-
-def pattern_traits(row: Dict[str, Any]) -> List[Tuple[str, str]]:
-    return [("pattern", pattern_label(tag)) for tag in (row.get("g") or [])]
 
 
 # the genre names as the international version prints them

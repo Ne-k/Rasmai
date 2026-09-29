@@ -2,8 +2,6 @@ import { clientKey, json } from "@/lib/http";
 import { internal } from "@/lib/internal";
 import { apiLimiter } from "@/lib/limiter";
 
-export const dynamic = "force-dynamic";
-
 const TTL = 30_000;
 
 // the band is on every page, so this is the busiest call the site makes. One answer is good for

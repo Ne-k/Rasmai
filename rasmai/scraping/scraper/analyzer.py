@@ -18,17 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
-    def __init__(self, debug: bool = False):
+    def __init__(self):
         self.player = PlayerInfo()
         self.songs: List[SongInfo] = []
         self.recommendations: List[Recommendation] = []
-        self.browser = None
-        self.context = None
-        self.page = None
-        self.playwright = None
-        self.debug = debug
         # the weekly refresh runs from the bot's own upkeep, never inside the request that happens to come first
-        self.otoge_db = CachedOtogeDB(debug=debug)
+        self.otoge_db = CachedOtogeDB()
         self.jacket_path = str(self.otoge_db.jacket_dir) + "/"
         self._chart_index: Optional[ChartIndex] = None
         self.recent_songs: List[Dict[str, Any]] = []
@@ -314,9 +309,3 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
             plays=candidate.plays,
             expected=candidate.expected,
         )
-
-    async def close(self):
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()

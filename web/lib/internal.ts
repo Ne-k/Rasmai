@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "./env";
+import { json } from "./http";
 import type { DiscordUser } from "./session";
 
 type Options = {
@@ -54,9 +55,9 @@ export async function passthroughJson(upstream: Response, extra: Record<string, 
   } catch {
     payload = { ok: false, error: "bad_upstream" };
   }
-  return NextResponse.json({ ...payload, ...extra }, { status: upstream.status, headers: { "Cache-Control": "no-store" } });
+  return json(upstream.status, { ...payload, ...extra });
 }
 
 export function unavailable(): NextResponse {
-  return NextResponse.json({ ok: false, error: "bot_unreachable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  return json(503, { ok: false, error: "bot_unreachable" });
 }

@@ -36,17 +36,6 @@ def entry_note(cached: CachedAnalysis, ref: ChartRef, song: Any) -> str:
     return f"needs {need:.2f}% to enter"
 
 
-def _level_value(level: str) -> float:
-    text = str(level or "").strip()
-    if not text:
-        return 0.0
-    plus = text.endswith("+")
-    try:
-        return float(text.rstrip("+")) + (0.6 if plus else 0.0)
-    except ValueError:
-        return 0.0
-
-
 def _version_label(cached: Optional[CachedAnalysis], ref: Optional[ChartRef]) -> str:
     if ref is None:
         return ""

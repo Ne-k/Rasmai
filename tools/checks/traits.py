@@ -278,16 +278,9 @@ def _traits_are_skills():
 def _bands():
     from rasmai.engine.analysis import ChartRef
     from rasmai.engine.insights.tags import chart_traits
-    from rasmai.scraping.mai_notes import note_traits
 
     problems = []
-    # a chart light in every note type asks nothing of the hands for any of them, so it is named for none
-    if note_traits({"n": 1000, "t": 940, "h": 20, "s": 20, "u": 10, "b": 10}):
-        problems.append(f"a chart light in every note type was still given traits: {note_traits({'n': 1000, 't': 940, 'h': 20, 's': 20, 'u': 10, 'b': 10})}")
-    heavy = dict(note_traits({"n": 1000, "t": 700, "h": 40, "s": 200, "u": 30, "b": 30}))
-    if heavy.get("slide") != "slide-heavy" or len(heavy) != 1:
-        problems.append(f"a slide-heavy chart was read as {heavy}")
-    # and a chart in the middle of the game's tempo and note count is in no band at all: a band holding
+    # a chart in the middle of the game's tempo and note count is in no band at all: a band holding
     # the bulk of the game sits on the player's own average and can never say anything
     middle = [trait for trait in chart_traits(ChartRef(title="middling", chart_type="dx", difficulty="master", constant=13.0,
                                                       level="13", notes=750, genre="", artist="", cover="", version=26, bpm=170.0))

@@ -10,16 +10,12 @@ services:
         # arg rather than a setting because it decides what goes into the image, so changing it
         # means rebuilding: docker compose build bot && docker compose up -d bot
         WITH_LAYA: ${WITH_LAYA:-0}
-      cache_from:
-        - ghcr.io/ne-k/rasmai:latest
     container_name: rasmai
     env_file: .env
     environment:
       MAIMAI_WEBSERVER_HOST: 0.0.0.0
       MAIMAI_DATABASE_PATH: /app/data/maimai.sqlite3
       MAIMAI_TUNNEL_ORIGIN: http://web:3000
-    expose:
-      - "8765"
     volumes:
       - ./data:/app/data
       - ./otoge_cache:/app/otoge_cache
@@ -44,13 +40,10 @@ services:
     build:
       context: .
       target: web
-      cache_from:
-        - ghcr.io/ne-k/rasmai-web:latest
     container_name: rasmai-web
     env_file: .env
     environment:
       MAIMAI_INTERNAL_URL: http://bot:8765
-      PORT: "3000"
     ports:
       - "127.0.0.1:8765:3000"
     depends_on:

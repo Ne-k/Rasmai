@@ -21,17 +21,6 @@ def chart_traits(chart: ChartRef) -> List[Tuple[str, str]]:
         traits.extend(simai.chart_traits(chart.key))
     except Exception:            # the model must never fail because a chart would not parse
         pass
-    # mai-notes' own tags used to be the trait source, and are parked here rather than deleted in
-    # case reading the charts turns out worse in the wild. It is still read for the manifest every
-    # chart is measured against (its level and published note count), so only the tags are off.
-    # try:
-    #     from rasmai.scraping import mai_notes
-    #     row = mai_notes.cached_facts().get(chart.key)
-    # except Exception:                 # the model must never fail because a fan site is unreadable
-    #     row = None
-    # if row:
-    #     traits.extend(mai_notes.note_traits(row))
-    #     traits.extend(mai_notes.pattern_traits(row))
     # only the tails of tempo and density are named. A band holding a third of the game sits on the
     # player's own average by construction, so it can never say anything, and it takes a place on the
     # wheel that a trait with something to say would have had. These are the deciles and the quartiles

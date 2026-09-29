@@ -97,7 +97,7 @@ def _laya_is_optional():
     # and an analysis a page is waiting on is never allowed to, however much the player wants it:
     # the model is most of a minute, the dashboard rebuilds its analysis inside the request, and
     # every retry while it waited queued another one behind the same lock
-    if MaimaiRatingAnalyzer(debug=True).background:
+    if MaimaiRatingAnalyzer().background:
         problems.append("an analysis is allowed to take its time unless told otherwise, so the page "
                         "that rebuilds one inside a request will sit there waiting on the model")
     for path, wants_it in (("rasmai/web/dashboard/refresh.py", True),

@@ -72,8 +72,8 @@ export function buttons(...items: { label: string; url: string }[]): Row {
 }
 
 /** A dividing line. */
-export function rule(spacing: 1 | 2 = 1): Rule {
-  return { type: 14, spacing };
+export function rule(): Rule {
+  return { type: 14, spacing: 1 };
 }
 
 /** Pictures in a strip, up to ten. */

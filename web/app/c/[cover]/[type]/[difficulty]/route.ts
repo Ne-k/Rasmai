@@ -1,7 +1,5 @@
 import { json, redirect } from "@/lib/http";
 
-export const dynamic = "force-dynamic";
-
 type Params = { params: Promise<{ cover: string; type: string; difficulty: string }> };
 
 const TIERS: Record<string, string> = { bas: "basic", adv: "advanced", exp: "expert", mas: "master", rem: "remaster", utg: "utage" };

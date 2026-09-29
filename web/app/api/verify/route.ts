@@ -3,8 +3,6 @@ import { internal, passthrough, unavailable } from "@/lib/internal";
 import { verifyLimiter } from "@/lib/limiter";
 import { verifyTurnstile } from "@/lib/turnstile";
 
-export const dynamic = "force-dynamic";
-
 /** The connect page's Turnstile token. Verified with Cloudflare here, then remembered on the login code by the bot. */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return json(403, { ok: false, error: "cross_origin" });

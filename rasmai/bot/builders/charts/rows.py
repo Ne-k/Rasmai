@@ -8,7 +8,7 @@ from rasmai.bot.state.snapshots import chart_key
 from rasmai.bot.core import try_render
 from rasmai.images.cards import song_card_html
 from rasmai.images.render import cover_html_factory
-from rasmai.images.pages import star_text, stars_for
+from rasmai.images.pages import stars_for
 from rasmai.bot.builders.charts.index import song_for_chart, songs_by_loose_key
 from rasmai.bot.builders.charts.ladder import _cutoffs, _version_label, entry_note
 
@@ -43,31 +43,6 @@ def _chart_rows(cached: Optional[CachedAnalysis], refs: List[ChartRef]) -> List[
             })
         rows.append(row)
     return rows
-
-
-def _score_lines(row: Dict[str, Any]) -> str:
-    """The per-chart block of the /chart embed.
-
-    :param row: One row of the table.
-    :type row: Dict[str, Any]
-    :rtype: str
-    """
-    if not row["played"]:
-        return "never played" + (f"\n-# {row['note']}" if row.get("note") else "")
-    lines = [f"**{row['accuracy']:.4f}%** {row['rank']} · rating **{row['rating']}**"]
-    extras = []
-    lamp = " · ".join(b for b in (str(row.get("fc") or "").upper(), str(row.get("fs") or "").upper()) if b and b != "NONE")
-    if lamp:
-        extras.append(lamp)
-    if row.get("plays"):
-        extras.append(f"{row['plays']} play{'s' if row['plays'] != 1 else ''}")
-    if row.get("max_dx"):
-        extras.append(f"DX {row['dx']:,}/{row['max_dx']:,} {star_text(row['stars'])}")
-    if extras:
-        lines.append("-# " + " · ".join(extras))
-    if row.get("note"):
-        lines.append(f"-# {row['note']}")
-    return "\n".join(lines)
 
 
 async def _song_card(cached: Optional[CachedAnalysis], title: str, refs: List[ChartRef], rows: List[Dict[str, Any]],

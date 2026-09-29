@@ -1,29 +1,9 @@
 import base64
-import re
 import requests
 import threading
 import time
 
 from rasmai.config import BROWSER_USER_AGENT, REQUESTS_PER_SECOND
-
-
-def extract_cookie_header_value(header_value: str, cookie_name: str) -> str:
-    match = re.search(rf"(?:^|;\s*){re.escape(cookie_name)}=([^;]+)", header_value)
-    return match.group(1) if match else ""
-
-
-def response_set_cookie_header(response: requests.Response) -> str:
-    cookie_headers = []
-    if hasattr(response.raw, "headers") and hasattr(response.raw.headers, "get_all"):
-        try:
-            cookie_headers = response.raw.headers.get_all("Set-Cookie") or []
-        except Exception:
-            cookie_headers = []
-    if not cookie_headers:
-        header = response.headers.get("set-cookie")
-        if header:
-            cookie_headers = [header]
-    return "; ".join(header.split(";")[0] for header in cookie_headers)
 
 
 class SessionRejected(ValueError):

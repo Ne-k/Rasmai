@@ -174,12 +174,3 @@ def load_recorded_plays(user_id: str) -> List[Dict[str, Any]]:
                         "best_before": best_so_far.get(key, 0.0)})
         best_so_far[key] = max(best_so_far.get(key, 0.0), achievement)
     return out
-
-
-def delete_chart_scores(user_id: str) -> None:
-    connection = get_database_connection()
-    try:
-        with connection:
-            connection.execute("DELETE FROM chart_scores WHERE user_id = ?", (user_id,))
-    finally:
-        connection.close()

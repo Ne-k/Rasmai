@@ -57,7 +57,7 @@ const SCENARIOS = {
   // the dashboard's first request on its own, cached, at a steady load: the A/B scenario
   overview: {
     executor: "constant-vus",
-    exec: "overviewOnly",
+    exec: "cachedOverview",
     vus: 20,
     duration: "25s",
   },
@@ -79,7 +79,7 @@ const SCENARIOS = {
   // visitors: whether the people already here are held up by the people arriving
   probe: {
     executor: "constant-vus",
-    exec: "probe",
+    exec: "cachedOverview",
     vus: 2,
     duration: "50s",
   },
@@ -145,12 +145,9 @@ export function warm() {
   read(name, path, user);
 }
 
-export function overviewOnly() {
-  read("overview", "/internal/me", USERS[Math.floor(Math.random() * Math.min(WARM, USERS.length))]);
-}
-
-export function probe() {
-  read("probe", "/internal/me", USERS[Math.floor(Math.random() * Math.min(WARM, USERS.length))]);
+// the overview and probe scenarios: a cached /internal/me, tagged with the scenario's own name
+export function cachedOverview() {
+  read(exec.scenario.name, "/internal/me", USERS[Math.floor(Math.random() * Math.min(WARM, USERS.length))]);
 }
 
 export function visit() {

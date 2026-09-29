@@ -11,7 +11,7 @@ from rasmai.bot.ui.formatting import stamp, NOT_CONNECTED_MESSAGE
 from rasmai.bot.ui.progress import Progress
 from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
-from rasmai.config import DEBUG_EXPORT_JSON, DEBUG_MODE, MAIMAI_BASE_URLS
+from rasmai.config import DEBUG_EXPORT_JSON, MAIMAI_BASE_URLS
 from rasmai.storage.db import (
     get_connected_account, load_judgements, load_play_counts, load_recorded_plays, save_play_counts,
 )
@@ -141,7 +141,7 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
             return stored
 
     # the constructor may refresh the chart database, which is minutes of git and image work
-    analyzer = await asyncio.to_thread(lambda: MaimaiRatingAnalyzer(debug=DEBUG_MODE))
+    analyzer = await asyncio.to_thread(MaimaiRatingAnalyzer)
     progress = Progress(interaction)
     await progress.flush(force=True)
     try:

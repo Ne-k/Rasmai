@@ -5,8 +5,6 @@ import { clientKey, parseBody, redirect, sameOrigin } from "@/lib/http";
 import { STATE_COOKIE, STATE_TTL, cookieHeader, sign } from "@/lib/session";
 import { verifyTurnstile } from "@/lib/turnstile";
 
-export const dynamic = "force-dynamic";
-
 /** Remember a state nonce in a signed cookie and send the browser to Discord. */
 function start() {
   const state = randomBytes(24).toString("base64url");

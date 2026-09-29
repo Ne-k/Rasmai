@@ -27,12 +27,6 @@ AREAS_TTL = timedelta(days=7)
 _AREA_PAGE = re.compile(r'href="/maimai_DX:([^/"]+)/Areas"')
 
 
-_AREA_HEADING = re.compile(r"<h3[^>]*>([\s\S]*?)</h3>")
-
-
-_H2 = re.compile(r"<h2[^>]*>([\s\S]*?)</h2>")
-
-
 _TAGS = re.compile(r"<[^>]+>")
 
 

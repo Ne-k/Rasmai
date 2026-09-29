@@ -80,7 +80,7 @@ for run in $RUNS; do
   docker run --rm --network "$NET" --ulimit nofile=65536:65536 --user "$(id -u):$(id -g)" \
     -v "$REPO/k6":/src/k6:ro -v "$OUT":/results \
     -e RASMAI_K6_USERS=/results/users.json -e RASMAI_K6_BASE="http://$SERVER:18765" \
-    -e SCENARIO=crowd,probe -e RASMAI_K6_CROWD="$crowd" -e RASMAI_K6_HOLD="$hold" -e RASMAI_K6_WARM=8 \
+    -e SCENARIO=crowd,probe -e RASMAI_K6_CROWD="$crowd" -e RASMAI_K6_HOLD="$hold" \
     "$K6_IMAGE" run --quiet --summary-export "/results/$label-summary.json" /src/k6/dashboard.js \
     > "$OUT/$label-k6.txt" 2>&1 || code=$?    # non-zero when a threshold is crossed; the numbers are still wanted
   # 99 is a threshold crossed; 137 is k6 itself killed, which with thousands of VUs is out of memory

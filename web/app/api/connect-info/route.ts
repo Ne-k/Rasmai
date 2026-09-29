@@ -3,8 +3,6 @@ import { clientKey, json } from "@/lib/http";
 import { internal, passthroughJson, unavailable } from "@/lib/internal";
 import { apiLimiter } from "@/lib/limiter";
 
-export const dynamic = "force-dynamic";
-
 /** What the connect page needs. The gateway link and the bookmark wait until the human check has passed. */
 export async function GET(request: Request) {
   if (!apiLimiter.allow(clientKey(request))) return json(429, { ok: false, kind: "rate_limited" });

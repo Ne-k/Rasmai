@@ -77,12 +77,6 @@ def _runs(notes: Sequence[Note]) -> List[List[Note]]:
     return out
 
 
-def _alternating(run: Sequence[Note]) -> bool:
-    """A B A B: two places, swapped every note."""
-    spots = [n.position for n in run]
-    return len(set(spots)) == 2 and all(spots[i] != spots[i + 1] for i in range(len(spots) - 1))
-
-
 def _same_spot(run: Sequence[Note]) -> bool:
     return len({n.position for n in run}) == 1
 

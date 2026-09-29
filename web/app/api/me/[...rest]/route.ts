@@ -3,8 +3,6 @@ import { internal, passthrough, unavailable } from "@/lib/internal";
 import { apiLimiter } from "@/lib/limiter";
 import { currentUser } from "@/lib/session";
 
-export const dynamic = "force-dynamic";
-
 type Params = { params: Promise<{ rest: string[] }> };
 
 const SAFE = /^[a-z-]{1,32}$/;

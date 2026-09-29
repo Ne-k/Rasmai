@@ -190,13 +190,13 @@ def warm_up(recorded_plays: Sequence[Dict[str, Any]], chart_index: ChartIndex, p
     if spread_u <= 0:
         return {}
     z = (u - mean_u) / spread_u
-    p_value = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(abs(z) / math.sqrt(2.0))))
+    p_value = 2.0 * (1.0 - statistics.NormalDist().cdf(abs(z)))
     if p_value > WARM_UP_P:
         return {}
-    gap = float(np.median(first) - np.median(later))
+    gap = statistics.median(first) - statistics.median(later)
     return {
-        "firstTrack": round(float(np.median(first)), 2),
-        "laterTracks": round(float(np.median(later)), 2),
+        "firstTrack": round(statistics.median(first), 2),
+        "laterTracks": round(statistics.median(later), 2),
         "gap": round(gap, 2),
         "plays": n1 + n2,
         "p": round(p_value, 3),

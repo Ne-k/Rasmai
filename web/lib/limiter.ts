@@ -1,3 +1,5 @@
+const MAX_KEYS = 20000;
+
 /** Sliding window per key: at most `limit` events in `windowSeconds`. In-process; the site runs as one server. */
 export class RateLimiter {
   private events = new Map<string, number[]>();
@@ -5,7 +7,6 @@ export class RateLimiter {
   constructor(
     private limit: number,
     private windowSeconds: number,
-    private maxKeys = 20000,
   ) {}
 
   allow(key: string): boolean {
@@ -17,10 +18,10 @@ export class RateLimiter {
     }
     recent.push(now);
     this.events.set(key, recent);
-    if (this.events.size > this.maxKeys) {
+    if (this.events.size > MAX_KEYS) {
       for (const [k, ts] of this.events) {
         if (!ts.length || now - ts[ts.length - 1] >= this.windowSeconds) this.events.delete(k);
-        if (this.events.size <= this.maxKeys / 2) break;
+        if (this.events.size <= MAX_KEYS / 2) break;
       }
     }
     return true;

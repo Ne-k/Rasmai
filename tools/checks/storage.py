@@ -341,7 +341,7 @@ def _clone_timeout():
         seen.append(kwargs.get("timeout"))
 
     instance = otoge.CachedOtogeDB.__new__(otoge.CachedOtogeDB)
-    instance.repo_path, instance.debug = pathlib.Path(tempfile.mkdtemp()) / "repo", False
+    instance.repo_path = pathlib.Path(tempfile.mkdtemp()) / "repo"
     real = otoge.subprocess.run
     try:
         otoge.subprocess.run = fine

@@ -2,9 +2,6 @@ import { ImageResponse } from "next/og";
 import { clientKey } from "@/lib/http";
 import { internal } from "@/lib/internal";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 
 // shorter than the 1200x630 a link preview usually is. Discord gives a picture the full width of

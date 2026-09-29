@@ -21,7 +21,6 @@ WORKDIR /web
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
-RUN apk add --no-cache wget
 COPY --from=webbuild /web/.next/standalone ./
 COPY --from=webbuild /web/.next/static ./.next/static
 COPY --from=webbuild /web/public ./public
@@ -49,10 +48,10 @@ RUN apt-get update \
 WORKDIR /app
 
 # Chromium and its system libraries get their own layer, keyed only on the
-# Playwright version, so editing requirements.txt never re-downloads them.
-ARG PLAYWRIGHT_VERSION=1.60.0
+# Playwright version, so editing requirements.txt never re-downloads them. Keep it the same as the
+# pin there.
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip install "playwright==${PLAYWRIGHT_VERSION}" \
+    pip install "playwright==1.60.0" \
  && playwright install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/*
 

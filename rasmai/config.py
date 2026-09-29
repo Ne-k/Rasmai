@@ -9,7 +9,8 @@ import threading
 load_dotenv()
 
 
-logging.basicConfig(level=logging.INFO)
+# MAIMAI_DEBUG turns on the verbose logs: what used to print only with a debug flag passed down by hand is logged at debug
+logging.basicConfig(level=logging.DEBUG if os.getenv("MAIMAI_DEBUG", "false").lower() == "true" else logging.INFO)
 
 
 DEBUG_EXPORT_JSON = os.getenv("MAIMAI_DEBUG_EXPORT_JSON", "false").lower() == "true"
@@ -110,11 +111,6 @@ ANALYSIS_WAIT = float(os.getenv("MAIMAI_ANALYSIS_WAIT", "20"))
 SHARD_COUNT = int(os.getenv("DISCORD_SHARD_COUNT", "0") or 0)              # 0 lets Discord pick
 
 
-# ---- the web dashboard signs people in with Discord; both come from the application's OAuth2 page
-DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "").strip()
-DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
-
-
 # the link that adds the bot to a server; /invite in Discord and /invite on the site both hand it out
 DISCORD_BOT_INVITE = os.getenv("DISCORD_BOT_INVITE", "").strip()
 
@@ -149,9 +145,6 @@ USER_AGENT = os.getenv("USER_AGENT", "").strip() or f"rasmai/1.0 (+{PUBLIC_URL})
 # maimai DX NET serves its mobile pages to browsers and to nothing else, so those reads carry this
 # instead. It is not a setting: a string that does not read as a browser gets the scraper turned away.
 BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-
-
-DEBUG_MODE = os.getenv("MAIMAI_DEBUG", "false").lower() == "true"
 
 
 GUILD_ID = int(os.getenv("MAIMAI_GUILD_ID", "0") or 0)

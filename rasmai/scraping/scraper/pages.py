@@ -7,6 +7,7 @@ import unicodedata
 import logging
 
 from rasmai.config import get_maimai_base_url
+from rasmai.scraping.otoge.search import search_song
 from rasmai.scraping.scraper.session import SessionRejected
 from rasmai.engine.analysis import calculate_rating
 from rasmai.storage.models import SongInfo
@@ -152,7 +153,7 @@ class ScorePages:
 
             if song.name:
                 try:
-                    extra_data = self.otoge_db.search_song(song.name)
+                    extra_data = search_song(self.otoge_db, song.name)
                     if extra_data:
                         song.artist = extra_data.get("artist", song.artist)
                         cover = extra_data.get("cover", "")

@@ -13,22 +13,7 @@ import { useEffect, useRef, useState } from "react";
 export function Term({ word, means }: { word: string; means: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (event: MouseEvent) => {
-      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
-    };
-    const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", key);
-    };
-  }, [open]);
+  useDismiss(open, box, setOpen);
 
   return (
     <span className="term" ref={box}>
@@ -51,4 +36,23 @@ export function Term({ word, means }: { word: string; means: string }) {
       </span>
     </span>
   );
+}
+
+/** Closes a popover when a click lands outside `box` or Escape is pressed, while it is open. */
+export function useDismiss(open: boolean, box: React.RefObject<HTMLElement | null>, setOpen: (open: boolean) => void) {
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open, box, setOpen]);
 }

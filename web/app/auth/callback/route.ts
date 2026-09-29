@@ -4,8 +4,6 @@ import { clientKey, redirect } from "@/lib/http";
 import { oauthLimiter } from "@/lib/limiter";
 import { SESSION_COOKIE, SESSION_TTL, STATE_COOKIE, cookieHeader, readCookies, sign, verify } from "@/lib/session";
 
-export const dynamic = "force-dynamic";
-
 function same(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);

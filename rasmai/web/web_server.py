@@ -13,7 +13,6 @@ import logging
 
 from rasmai.config import (
     DEBUG_EXPORT_JSON,
-    DEBUG_MODE,
     INTERNAL_API_SECRET,
     MAIMAI_BASE_URLS,
     WEBSERVER_HOST,
@@ -400,7 +399,7 @@ class InternalApiServer:
                 region = record[1] if record[1] in MAIMAI_BASE_URLS else "intl"
                 final_token = normalize_login_token(token)
                 try:
-                    official_profile = MaimaiRatingAnalyzer(debug=DEBUG_MODE).fetch_official_player_profile(final_token, region)
+                    official_profile = MaimaiRatingAnalyzer().fetch_official_player_profile(final_token, region)
                 except Exception as error:
                     reason = public_reason(error)
                     # a 5xx from the score site is the site, not the session: name it as such and keep the link alive

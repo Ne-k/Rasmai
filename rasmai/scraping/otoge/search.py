@@ -1,12 +1,19 @@
 from typing import Any, Dict
+import logging
 import re
+
+logger = logging.getLogger(__name__)
+
+
+def _covers(db: Any):
+    return ((key, data['cover']) for key, data in db.songs_data.items() if isinstance(data, dict) and data.get('cover'))
 
 
 def search_song(db: Any, song_name: str) -> Dict:
     if not song_name:
         return {}
 
-    db._log(f"Searching for song: '{song_name}'", "debug")
+    logger.debug(f"Searching for song: '{song_name}'")
     song_name_lower = song_name.lower().strip()
 
     cleaned_search = song_name_lower
@@ -18,32 +25,25 @@ def search_song(db: Any, song_name: str) -> Dict:
     cleaned_search = cleaned_search.replace('♢', '')
     cleaned_search = re.sub(r'\s+', ' ', cleaned_search).strip()
 
-    db._log(f"Cleaned search: '{cleaned_search}'", "debug")
+    logger.debug(f"Cleaned search: '{cleaned_search}'")
 
     if song_name_lower in db.songs_data:
-        db._log(f"Exact match found for '{song_name_lower}'", "debug")
+        logger.debug(f"Exact match found for '{song_name_lower}'")
         result = db.songs_data[song_name_lower]
         if isinstance(result, dict):
-            if not result.get('cover') and song_name_lower in db.cover_cache:
-                result['cover'] = db.cover_cache[song_name_lower]
-                db._log(f"Added cover from cache for '{song_name_lower}': {result['cover']}", "debug")
             return result
 
     if cleaned_search in db.songs_data:
-        db._log(f"Cleaned match found for '{cleaned_search}'", "debug")
+        logger.debug(f"Cleaned match found for '{cleaned_search}'")
         result = db.songs_data[cleaned_search]
         if isinstance(result, dict):
-            if not result.get('cover') and cleaned_search in db.cover_cache:
-                result['cover'] = db.cover_cache[cleaned_search]
-                db._log(f"Added cover from cache for '{cleaned_search}': {result['cover']}", "debug")
             return result
 
     best_match = None
     best_score = 0
-    best_match_key = None
 
     search_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', cleaned_search)
-    db._log(f"Normalized search: '{search_normalized}'", "debug")
+    logger.debug(f"Normalized search: '{search_normalized}'")
 
     for title, data in db.songs_data.items():
         if not isinstance(data, dict):
@@ -58,7 +58,7 @@ def search_song(db: Any, song_name: str) -> Dict:
 
         if search_normalized and search_normalized == title_normalized:
             match_score = 1000
-            db._log(f"Normalized exact match: '{title}' (score: {match_score})", "debug")
+            logger.debug(f"Normalized exact match: '{title}' (score: {match_score})")
         elif song_name_lower in title_lower:
             match_score = 200 + (len(song_name_lower) / max(1, len(title_lower))) * 50
         elif title_lower in song_name_lower:
@@ -82,43 +82,34 @@ def search_song(db: Any, song_name: str) -> Dict:
         if match_score > best_score:
             best_score = match_score
             best_match = data
-            best_match_key = title
-            db._log(f"New best match: '{title}' (score: {match_score})", "debug")
+            logger.debug(f"New best match: '{title}' (score: {match_score})")
 
     if best_match and best_score > 0:
-        db._log(f"Best match found: '{best_match.get('title')}' with score {best_score}", "info")
+        logger.debug(f"Best match found: '{best_match.get('title')}' with score {best_score}")
 
         if best_match.get('cover'):
-            db._log(f"  Cover already in data: {best_match['cover']}", "debug")
-        elif best_match_key and best_match_key in db.cover_cache:
-            best_match['cover'] = db.cover_cache[best_match_key]
-            db._log(f"  Added cover from cache by key: {best_match['cover']}", "debug")
+            logger.debug(f"  Cover already in data: {best_match['cover']}")
         else:
-            for key, cover in db.cover_cache.items():
+            for key, cover in _covers(db):
                 key_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', key.lower())
                 if search_normalized and (
                         search_normalized == key_normalized or search_normalized in key_normalized):
                     best_match['cover'] = cover
-                    db._log(f"  Found cover in cache by normalized key: {cover}", "debug")
+                    logger.debug(f"  Found cover in cache by normalized key: {cover}")
                     break
                 elif song_name_lower in key or key in song_name_lower:
                     best_match['cover'] = cover
-                    db._log(f"  Found cover in cache by partial match: {cover}", "debug")
+                    logger.debug(f"  Found cover in cache by partial match: {cover}")
                     break
 
         return best_match
 
-    db._log("No match found, checking cover cache directly", "debug")
-    if song_name_lower in db.cover_cache:
-        db._log(f"Found in cover cache directly: {db.cover_cache[song_name_lower]}", "info")
-        return {'cover': db.cover_cache[song_name_lower]}
-
     if search_normalized:
-        for key, cover in db.cover_cache.items():
+        for key, cover in _covers(db):
             key_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', key.lower())
             if search_normalized == key_normalized:
-                db._log(f"Found in cover cache by normalized key: {cover}", "info")
+                logger.debug(f"Found in cover cache by normalized key: {cover}")
                 return {'cover': cover}
 
-    db._log(f"No match found for '{song_name}'", "debug")
+    logger.debug(f"No match found for '{song_name}'")
     return {}

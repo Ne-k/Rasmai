@@ -118,12 +118,3 @@ def judged_ids(user_id: str) -> set:
         return {row["idx"] for row in connection.execute("SELECT idx FROM play_judgements WHERE user_id = ?", (user_id,))}
     finally:
         connection.close()
-
-
-def delete_judgements(user_id: str) -> None:
-    connection = get_database_connection()
-    try:
-        with connection:
-            connection.execute("DELETE FROM play_judgements WHERE user_id = ?", (user_id,))
-    finally:
-        connection.close()

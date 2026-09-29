@@ -2,8 +2,6 @@ import { clientKey, json } from "@/lib/http";
 import { internal, passthrough, unavailable } from "@/lib/internal";
 import { apiLimiter } from "@/lib/limiter";
 
-export const dynamic = "force-dynamic";
-
 const SLUG = /^[A-Za-z0-9_-]{10,64}$/;
 
 type Params = { params: Promise<{ slug: string }> };

@@ -14,7 +14,8 @@ from rasmai.storage.db import get_connected_account
 from rasmai.bot.builders.results.embeds import (
     FOCUS_LABELS, SESSION_DEFAULT, build_analyze, build_new, build_plan, build_profile, build_session,
 )
-from rasmai.bot.builders.results.loading import ensure_target_play_counts, load_analysis, note_read_age
+from rasmai.bot.builders.results.loading import ensure_target_play_counts, load_analysis
+from rasmai.bot.builders.results.stored import note_read_age
 from rasmai.bot.builders.traits import build_traits
 
 logger = logging.getLogger(__name__)

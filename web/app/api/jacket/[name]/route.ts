@@ -1,8 +1,6 @@
 import { json } from "@/lib/http";
 import { internal, passthrough, unavailable } from "@/lib/internal";
 
-export const dynamic = "force-dynamic";
-
 type Params = { params: Promise<{ name: string }> };
 
 /** Song jackets from the bot's chart-database cache. */

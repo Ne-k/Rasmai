@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useDismiss } from "@/components/Term";
 
 const TIER: Record<string, string> = {
   basic: "BASIC",
@@ -107,21 +108,7 @@ export function Ago({ iso, prefix = "" }: { iso: string | null | undefined; pref
 export function Info({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", key);
-    };
-  }, [open]);
+  useDismiss(open, box, setOpen);
   return (
     <span className={`info${open ? " open" : ""}`} ref={box}>
       <button type="button" className="info-btn" aria-label="what this is" aria-expanded={open} onClick={() => setOpen(!open)}>

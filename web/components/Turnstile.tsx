@@ -15,7 +15,6 @@ type RenderOptions = {
 type TurnstileApi = {
   render: (container: HTMLElement, options: RenderOptions) => string;
   remove: (widgetId: string) => void;
-  reset: (widgetId?: string) => void;
 };
 
 declare global {

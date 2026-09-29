@@ -246,23 +246,3 @@ class PlaylogPages:
         elif misses:
             logger.info(f"Play counts: {misses} chart(s) had no count on their detail page")
         return results
-
-    def fetch_official_recent_plays(self, token: str, region: str = "intl") -> List[Dict[str, Any]]:
-        """Sign in and read the recent-plays page only: one page, for the daily history read.
-
-        :param token: The saved maimai session.
-        :type token: str
-        :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
-        :type region: str
-        :rtype: List[Dict[str, Any]]
-        """
-        self.region = region
-        self.fetch_official_player_profile(token, region)
-        session = getattr(self, "_official_session", None)
-        if session is None:
-            raise ValueError("Official session was not preserved after login")
-        base_url = get_maimai_base_url(region)
-        recent_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/record/", f"{base_url}/maimai-mobile/")
-        recent = self._parse_official_recent_songs(recent_html, region)
-        self.enrich_recent_play_judgements(recent, region)
-        return recent

@@ -2,8 +2,6 @@ import { turnstileReady } from "@/lib/env";
 import { clientKey, json, parseBody, redirect, wantsHtml } from "@/lib/http";
 import { internal, unavailable } from "@/lib/internal";
 
-export const dynamic = "force-dynamic";
-
 type LoginResult = {
   ok: boolean;
   kind?: string;

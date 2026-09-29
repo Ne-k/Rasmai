@@ -9,7 +9,6 @@ import subprocess
 import logging
 
 from rasmai.scraping.otoge.loader import load_songs_from_repo
-from rasmai.scraping.otoge.search import search_song
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ _read_lock = threading.Lock()
 
 
 class CachedOtogeDB:
-    def __init__(self, cache_dir: str = "otoge_cache", debug: bool = False):
+    def __init__(self, cache_dir: str = "otoge_cache"):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
         self.repo_path = self.cache_dir / "repo"
@@ -36,24 +35,7 @@ class CachedOtogeDB:
         self.last_update_file = self.cache_dir / "last_update.txt"
         self.refresh_after = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
         self.songs_data = {}
-        self.cover_cache = {}
-        self.debug = debug
         self._load_cache()
-
-    def _log(self, message: str, level: str = "info"):
-        if self.debug:
-            if level == "debug":
-                logger.debug(message)
-            elif level == "warning":
-                logger.warning(message)
-            elif level == "error":
-                logger.error(message)
-            else:
-                logger.info(message)
-        elif level == "error":
-            logger.error(message)
-        elif level == "warning":
-            logger.warning(message)
 
     def _load_cache(self):
         try:
@@ -64,59 +46,43 @@ class CachedOtogeDB:
         with _read_lock:
             held = _read.get("file")
             if held is not None and held[0] == stamp:
-                self.songs_data, self.cover_cache = held[1], held[2]
+                self.songs_data = held[1]
                 return
             self._read_cache_file()
             if self.songs_data:
-                _read["file"] = (stamp, self.songs_data, self.cover_cache)
+                _read["file"] = (stamp, self.songs_data)
+
+    def _has_covers(self) -> bool:
+        return any(song.get('cover') for song in self.songs_data.values())
 
     def _read_cache_file(self):
         if self.cache_file.exists():
             try:
                 with open(self.cache_file, 'rb') as f:
                     cached_data = pickle.load(f)
-                    if isinstance(cached_data, dict):
-                        if 'songs' in cached_data:
-                            self.songs_data = cached_data.get('songs', {})
-                            self.cover_cache = cached_data.get('covers', {})
-                            self._log(
-                                f"Loaded {len(self.songs_data)} songs and {len(self.cover_cache)} covers from cache",
-                                "info")
-                        else:
-                            self.songs_data = cached_data
-                            self.cover_cache = {}
-                            for key, data in cached_data.items():
-                                if isinstance(data, dict) and data.get('cover'):
-                                    self.cover_cache[key] = data.get('cover')
-                            self._log(
-                                f"Converted old cache: {len(self.songs_data)} songs, {len(self.cover_cache)} covers",
-                                "info")
+                if isinstance(cached_data, dict) and 'songs' in cached_data:
+                    self.songs_data = cached_data['songs']
+                    logger.debug(f"Loaded {len(self.songs_data)} songs from cache")
 
-                if len(self.cover_cache) == 0:
-                    self._log("Cache has no cover data - forcing refresh", "warning")
+                if not self._has_covers():
+                    logger.warning("Cache has no cover data - forcing refresh")
                     self.songs_data = {}
-                    self.cover_cache = {}
                     self.cache_file.unlink(missing_ok=True)
 
             except Exception as e:
-                self._log(f"Error loading cache: {e}", "error")
+                logger.error(f"Error loading cache: {e}")
                 self.songs_data = {}
-                self.cover_cache = {}
 
     def _save_cache(self):
         try:
-            cache_data = {
-                'songs': self.songs_data,
-                'covers': self.cover_cache
-            }
             with open(self.cache_file, 'wb') as f:
-                pickle.dump(cache_data, f)
-            self._log(f"Saved {len(self.songs_data)} songs and {len(self.cover_cache)} covers to cache", "info")
+                pickle.dump({'songs': self.songs_data}, f)
+            logger.debug(f"Saved {len(self.songs_data)} songs to cache")
         except Exception as e:
-            self._log(f"Error saving cache: {e}", "error")
+            logger.error(f"Error saving cache: {e}")
 
     def _should_update(self) -> bool:
-        if not self.songs_data or not self.cover_cache:
+        if not self._has_covers():
             return True
         if not any(self.jacket_dir.glob("*")):
             return True
@@ -136,7 +102,7 @@ class CachedOtogeDB:
         """
         self._discard_repo()     # a checkout left by an interrupted run is stale, and a forced fetch wants today's files
         try:
-            self._log("Fetching otoge-db (maimai data + jackets only)", "info")
+            logger.debug("Fetching otoge-db (maimai data + jackets only)")
             # Both run under _update_lock, so a stalled GitHub would hold up every analysis waiting on
             # the chart database for good; a timeout lands in the except below like any other failure.
             subprocess.run(["git", "clone", "--depth=1", "--filter=blob:none", "--sparse",
@@ -146,7 +112,7 @@ class CachedOtogeDB:
                            check=True, capture_output=True, timeout=120)
             return True
         except Exception as error:
-            self._log(f"Error fetching otoge-db: {error}", "error")
+            logger.error(f"Error fetching otoge-db: {error}")
             return False
 
     def _keep_jackets(self) -> None:
@@ -172,9 +138,6 @@ class CachedOtogeDB:
                     except OSError:
                         pass
                 shutil.rmtree(self.repo_path, ignore_errors=True)
-
-    def _load_songs_from_repo(self) -> bool:
-        return load_songs_from_repo(self)
 
     def refresh_now(self) -> bool:
         """Fetch the database again whatever its age, because a read met a song it does not know.
@@ -203,7 +166,7 @@ class CachedOtogeDB:
         """
         with _update_lock:
             if not self._should_update():
-                self._log("Using cached otoge-db data", "info")
+                logger.debug("Using cached otoge-db data")
                 if self.repo_path.exists():
                     self._discard_repo()
                 return False
@@ -215,20 +178,17 @@ class CachedOtogeDB:
         :returns: True when the songs were read from a fresh checkout.
         :rtype: bool
         """
-        self._log("Updating otoge-db cache...", "info")
+        logger.debug("Updating otoge-db cache...")
         before = len(self.songs_data)
         if not self._clone_or_update_repo():
-            self._log("Keeping the chart database already held" if before else "No otoge-db data available", "error")
+            logger.error("Keeping the chart database already held" if before else "No otoge-db data available")
             return False
-        if not self._load_songs_from_repo():
+        if not load_songs_from_repo(self):
             self._discard_repo()
-            self._log("The checkout held no song data; keeping the chart database already held", "error")
+            logger.error("The checkout held no song data; keeping the chart database already held")
             return False
         self._keep_jackets()
         self._discard_repo()
         self.last_update_file.write_text(datetime.now().isoformat())
         logger.info("chart database fetched: %d songs, %d before", len(self.songs_data), before)
         return bool(self.songs_data)
-
-    def search_song(self, song_name: str) -> Dict:
-        return search_song(self, song_name)
