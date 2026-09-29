@@ -129,21 +129,24 @@ _normal_cdf = statistics.NormalDist().cdf
 
 # The rating colour bands, from SilentBlue RemyWiki's "maimai DX:Rating". The game also cuts gold,
 # platinum and rainbow into 250-point steps (JiETNG lists 14250, 14750, 15250...); those are frame
-# variants inside one colour, so the table keeps the colours and rating_step the steps. The fills are Rasmai's tints of
-# the game's colours, chosen so ink type reads on every one. Bronze to platinum carry a diagonal sheen and
-# rainbow runs corner to corner, as the game's frames do. web/components/dash/band.ts carries the same table.
+# variants inside one colour, so the table keeps the colours and rating_step the steps. The fills follow the game's
+# frames: white to purple a flat colour with deeper sides, bronze dark to light left to right, silver an icy blue
+# sheen, gold and platinum (a pale champagne) a diagonal glint, rainbow pastel bands corner to corner, kiwami
+# (16000+, CiRCLE PLUS) the same bands saturated. Bronze and kiwami are lifted a little so ink type still reads.
+# web/components/dash/band.ts carries the same table.
 RATING_BANDS: List[Tuple[int, str, str]] = [
-    (15000, "rainbow", "linear-gradient(135deg, #ff3d8f, #ff8a3d 22%, #f0c04a 38%, #6cc57a 56%, #5cd3e8 74%, #b98cf0)"),
-    (14500, "platinum", "linear-gradient(120deg, #d3f1f6, #ffffff 16%, #a6dce6 30%, #c4ebf1 60%, #8ccbd6)"),
-    (14000, "gold", "linear-gradient(120deg, #f2c457, #fff1bd 16%, #e3a82a 30%, #f3c85c 60%, #cf9420)"),
-    (13000, "silver", "linear-gradient(120deg, #cfd2da, #f7f8fa 16%, #a9adba 30%, #d3d6de 60%, #979ba8)"),
-    (12000, "bronze", "linear-gradient(120deg, #d68a50, #f5c393 16%, #b3672f 30%, #d38f58 60%, #9c5a2a)"),
-    (10000, "purple", "#b98cf0"),
-    (7000, "red", "#f0606e"),
-    (4000, "yellow", "#f5e06a"),
-    (2000, "green", "#6cc57a"),
-    (1000, "blue", "#5cd3e8"),
-    (0, "white", "#f3efe4"),
+    (16000, "kiwami", "linear-gradient(120deg, #c070f4, #ff6cc8 18%, #ffd23a 36%, #62e070 54%, #3cc8f5 72%, #9a7cff)"),
+    (15000, "rainbow", "linear-gradient(120deg, #ffa0d2, #ffe07a 20%, #c6f27c 38%, #8ee6f2 58%, #aab8ff 78%, #f0a8f0)"),
+    (14500, "platinum", "linear-gradient(120deg, #f4de78, #fffbe2 16%, #f9e99a 32%, #fff5c6 60%, #eed266)"),
+    (14000, "gold", "linear-gradient(120deg, #ffc81a, #fff4a8 16%, #ffd83a 32%, #f7b02a 62%, #ffcf2a)"),
+    (13000, "silver", "linear-gradient(120deg, #b2d2ef, #e9f5fd 18%, #bcd8f2 34%, #d9ecfa 62%, #a2c4e5)"),
+    (12000, "bronze", "linear-gradient(90deg, #c0683e, #d47f48 45%, #f0a462)"),
+    (10000, "purple", "linear-gradient(90deg, #b070ec, #d8a4f6 22%, #d8a4f6 78%, #b070ec)"),
+    (7000, "red", "linear-gradient(90deg, #e8606c, #f59a9a 22%, #f59a9a 78%, #e8606c)"),
+    (4000, "yellow", "linear-gradient(90deg, #f0a030, #f9c848 22%, #f9c848 78%, #f0a030)"),
+    (2000, "green", "linear-gradient(90deg, #7fd045, #a8e864 22%, #a8e864 78%, #7fd045)"),
+    (1000, "blue", "linear-gradient(90deg, #a4dcfa, #78c6f5 22%, #78c6f5 78%, #a4dcfa)"),
+    (0, "white", "linear-gradient(90deg, #a9dcf8, #f4fbff 20%, #ffffff 50%, #f4fbff 80%, #a9dcf8)"),
 ]
 
 def rating_band(rating: Any) -> Tuple[str, str]:
@@ -151,7 +154,7 @@ def rating_band(rating: Any) -> Tuple[str, str]:
 
     :param rating: The player's rating.
     :type rating: Any
-    :returns: The band's name (``"gold"``) and its CSS fill, a colour or, for rainbow, a gradient.
+    :returns: The band's name (``"gold"``) and its CSS fill, a gradient.
     :rtype: Tuple[str, str]
     """
     try:
@@ -160,12 +163,12 @@ def rating_band(rating: Any) -> Tuple[str, str]:
         value = 0
     return next((key, fill) for minimum, key, fill in RATING_BANDS if value >= minimum or minimum == 0)
 
-# the bands the game cuts into 250-point frame steps; the plate marks them with 1 to 3 stars
-STEPPED_BANDS = ("gold", "platinum", "rainbow")
+# the bands the game cuts into 250-point steps, marked with stars: 2 in gold and platinum, up to 4 in rainbow and kiwami
+STEPPED_BANDS = ("gold", "platinum", "rainbow", "kiwami")
 
 
 def rating_step(rating: Any) -> int:
-    """Which 250-point step of a gold, platinum or rainbow band a rating is on, from 1; 0 in the other bands.
+    """Which 250-point step of a gold, platinum, rainbow or kiwami band a rating is on, 1 to 4; 0 in the other bands.
 
     :param rating: The player's rating.
     :type rating: Any
@@ -176,7 +179,7 @@ def rating_step(rating: Any) -> int:
     except (TypeError, ValueError):
         return 0
     minimum, key, _fill = next(band for band in RATING_BANDS if value >= band[0] or band[0] == 0)
-    return min(3, 1 + (value - minimum) // 250) if key in STEPPED_BANDS else 0
+    return min(4, 1 + (value - minimum) // 250) if key in STEPPED_BANDS else 0
 
 def parse_constant(raw: Any) -> float:
     if raw is None:

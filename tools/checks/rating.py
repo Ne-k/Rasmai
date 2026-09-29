@@ -9,7 +9,7 @@ def _bands():
     problems = []
     expected = {0: "white", 999: "white", 1000: "blue", 2000: "green", 4000: "yellow", 7000: "red", 10000: "purple",
                 12000: "bronze", 13000: "silver", 13999: "silver", 14000: "gold", 14499: "gold", 14500: "platinum",
-                15000: "rainbow", 16800: "rainbow", -5: "white"}
+                15000: "rainbow", 15999: "rainbow", 16000: "kiwami", 16800: "kiwami", -5: "white"}
     for rating, want in expected.items():
         if rating_band(rating)[0] != want:
             problems.append(f"rating_band({rating}) is {rating_band(rating)[0]!r}, expected {want!r}")
@@ -18,13 +18,14 @@ def _bands():
     if site != list(RATING_BANDS):
         problems.append(f"band.ts and rating.py disagree: site {site}, bot {RATING_BANDS}")
     from rasmai.engine.analysis.rating import rating_step
-    steps = {0: 0, 13999: 0, 14000: 1, 14249: 1, 14250: 2, 14499: 2, 14500: 1, 14750: 2, 15000: 1, 15250: 2,
-             15500: 3, 16500: 3, None: 0}
+    steps = {0: 0, 13999: 0, 14000: 1, 14249: 1, 14250: 2, 14499: 2, 14500: 1, 14750: 2, 14999: 2, 15000: 1, 15250: 2,
+             15500: 3, 15750: 4, 15999: 4, 16000: 1, 16250: 2, 16800: 4, None: 0}
     for rating, want in steps.items():
         if rating_step(rating) != want:
             problems.append(f"rating_step({rating}) is {rating_step(rating)}, expected {want}")
-    if 'const band = ratingBand(rating);' not in source or "Math.min(3, 1 + Math.floor((rating - band.min) / 250))" not in source:
-        problems.append("band.ts no longer steps gold, platinum and rainbow the way rating_step does")
+    if ('const band = ratingBand(rating);' not in source or '["gold", "platinum", "rainbow", "kiwami"]' not in source
+            or "Math.min(4, 1 + Math.floor((rating - band.min) / 250))" not in source):
+        problems.append("band.ts no longer steps gold, platinum, rainbow and kiwami the way rating_step does")
     return problems
 
 
