@@ -1,8 +1,16 @@
 from typing import Any, Dict
 import logging
 import re
+import unicodedata
 
 logger = logging.getLogger(__name__)
+
+_SYMBOLS = re.compile(r'[◆☆★♪♡♢•·−\s]')
+
+
+def _fold(text: str) -> str:
+    # the official site's names arrive NFKC-folded, so the database's full-width ～ ！ ？ have to be folded to meet them
+    return unicodedata.normalize('NFKC', text or '').lower()
 
 
 def _covers(db: Any):
@@ -14,7 +22,7 @@ def search_song(db: Any, song_name: str) -> Dict:
         return {}
 
     logger.debug(f"Searching for song: '{song_name}'")
-    song_name_lower = song_name.lower().strip()
+    song_name_lower = _fold(song_name).strip()
 
     cleaned_search = song_name_lower
     cleaned_search = cleaned_search.replace('◆', '')
@@ -42,17 +50,17 @@ def search_song(db: Any, song_name: str) -> Dict:
     best_match = None
     best_score = 0
 
-    search_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', cleaned_search)
+    search_normalized = _SYMBOLS.sub('', cleaned_search)
     logger.debug(f"Normalized search: '{search_normalized}'")
 
     for title, data in db.songs_data.items():
         if not isinstance(data, dict):
             continue
 
-        title_lower = data.get('title', '').lower()
-        alt_title = data.get('alt_title', '').lower()
+        title_lower = _fold(data.get('title', ''))
+        alt_title = _fold(data.get('alt_title', ''))
 
-        title_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', title_lower)
+        title_normalized = _SYMBOLS.sub('', title_lower)
 
         match_score = 0
 
@@ -91,7 +99,7 @@ def search_song(db: Any, song_name: str) -> Dict:
             logger.debug(f"  Cover already in data: {best_match['cover']}")
         else:
             for key, cover in _covers(db):
-                key_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', key.lower())
+                key_normalized = _SYMBOLS.sub('', _fold(key))
                 if search_normalized and (
                         search_normalized == key_normalized or search_normalized in key_normalized):
                     best_match['cover'] = cover
@@ -106,7 +114,7 @@ def search_song(db: Any, song_name: str) -> Dict:
 
     if search_normalized:
         for key, cover in _covers(db):
-            key_normalized = re.sub(r'[◆☆★♪♡♢•·−\s]', '', key.lower())
+            key_normalized = _SYMBOLS.sub('', _fold(key))
             if search_normalized == key_normalized:
                 logger.debug(f"Found in cover cache by normalized key: {cover}")
                 return {'cover': cover}

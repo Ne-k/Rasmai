@@ -331,8 +331,10 @@ def admin_payload() -> Dict[str, Any]:
         pass
     try:
         from rasmai.bot.state.cache import ANALYSIS_TTL, _analysis_cache
+        from rasmai.config import ANALYSIS_CACHE_MAX
         now = datetime.now()
         live["analysesCached"] = len(_analysis_cache)
+        live["analysesMax"] = ANALYSIS_CACHE_MAX
         live["analysisTtlMinutes"] = int(ANALYSIS_TTL / timedelta(minutes=1))
         live["cacheAges"] = sorted(int((now - c.created).total_seconds()) for c in _analysis_cache.values())[:10]
     except Exception:

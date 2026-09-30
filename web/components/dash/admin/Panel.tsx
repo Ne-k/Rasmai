@@ -113,7 +113,7 @@ export function AdminPanel() {
             </div>
             <Gauge label="score reads in flight" used={n("scrapesMax") - n("scrapesFree")} total={n("scrapesMax")} />
             <Gauge label="image renders in flight" used={n("rendersMax") - n("rendersFree")} total={n("rendersMax")} />
-            <Gauge label="analyses held in memory" used={n("analysesCached")} total={Math.max(n("analysesCached"), 20)} />
+            <Gauge label="analyses held in memory" used={n("analysesCached")} total={n("analysesMax") || Math.max(n("analysesCached"), 20)} />
             <Facts
               rows={[
                 ["servers", `${num(n("guilds"))} over ${num(n("shards") || 1)} shard${n("shards") === 1 ? "" : "s"}`],
