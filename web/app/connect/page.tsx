@@ -379,6 +379,32 @@ function Connect() {
   );
 }
 
+// what "Save my login" keeps, on this device only: the SEGA ID and card, never the password, which is
+// left to the browser's own password manager
+const SAVED_LOGIN_KEY = "rasmai.jp.savedLogin";
+
+function readSavedLogin(): { segaId: string; aime: string } | null {
+  try {
+    const raw = window.localStorage.getItem(SAVED_LOGIN_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { segaId?: unknown; aime?: unknown };
+    return typeof saved.segaId === "string" && saved.segaId
+      ? { segaId: saved.segaId, aime: typeof saved.aime === "string" && saved.aime ? saved.aime : "1" }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedLogin(saved: { segaId: string; aime: string } | null) {
+  try {
+    if (saved) window.localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify(saved));
+    else window.localStorage.removeItem(SAVED_LOGIN_KEY);
+  } catch {
+    /* storage blocked: nothing is remembered, which is the safe outcome */
+  }
+}
+
 /** Japan's maimai DX NET has no session Rasmai can borrow, so the account is linked with its SEGA ID. */
 function JapanConnect({
   info,
@@ -397,6 +423,15 @@ function JapanConnect({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [player, setPlayer] = useState<string | null>(null);
+  const [remember, setRemember] = useState(false);
+
+  useEffect(() => {
+    const saved = readSavedLogin();
+    if (!saved) return;
+    setSegaId(saved.segaId);
+    setAime(saved.aime);
+    setRemember(true);
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -415,10 +450,17 @@ function JapanConnect({
           onExpired();
           return;
         }
+        if (data.kind === "credentials") {
+          // the bot's own words say to run /login again, but on this page the link still works
+          const copy = errorCopy("credentials");
+          setProblem(`${copy.detail} ${copy.hint}`);
+          return;
+        }
         setProblem(String(data.error ?? "The sign-in didn't work. Try again in a moment."));
         return;
       }
       setPassword("");
+      writeSavedLogin(remember ? { segaId: segaId.trim(), aime } : null);
       const name = String(data.player?.name ?? "");
       setPlayer(name);
       const q = new URLSearchParams({ player: name, region: "jp", rating: String(data.player?.rating ?? "") });
@@ -503,7 +545,27 @@ function JapanConnect({
                 disabled={busy || done}
               />
             </label>
-            <p className="hint">Leave the card at 1 unless several Aime cards are on this SEGA ID.</p>
+            <p className="hint">
+              One SEGA ID can hold several Aime cards, each its own player. Leave this at 1 unless yours has more than one.
+            </p>
+            <label className="remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => {
+                  setRemember(e.target.checked);
+                  if (!e.target.checked) writeSavedLogin(null);
+                }}
+                disabled={busy || done}
+              />
+              <span>
+                Save my login for next time
+                <small>
+                  Remembers your SEGA ID and card on this device only. Your password is never saved here; your browser can
+                  offer to save it.
+                </small>
+              </span>
+            </label>
             <div className="btn-row">
               <button className="button pink" type="submit" disabled={busy || done || !segaId || !password}>
                 {busy ? "signing in…" : "sign in and link"}

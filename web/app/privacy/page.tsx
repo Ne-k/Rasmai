@@ -120,6 +120,12 @@ export default function PrivacyPage() {
           .
         </li>
         <li>
+          <b>Saved login (Japan accounts, optional).</b> If you tick <b>Save my login for next time</b> on the SEGA ID
+          sign-in, your browser keeps your SEGA ID and Aime card number in its local storage so the form is filled in next
+          time. It stays on your device and is never sent anywhere until you sign in. Your password is never saved there.
+          Unticking the box removes it.
+        </li>
+        <li>
           <b>Home-screen app.</b> The site can be installed on a phone. Its service worker caches only the site&apos;s own static
           files (scripts, styles, fonts and icons) so the site opens offline. Scores, sign-in and API responses are
           never cached on the device.
