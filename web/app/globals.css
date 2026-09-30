@@ -96,6 +96,11 @@ button, input, select { font-family: inherit; }
 .masthead-nav a.tag::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--pink); transform: scaleX(0); transform-origin: left; transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
 .masthead-nav a.tag:hover { color: var(--ink); }
 .masthead-nav a.tag:hover::after { transform: scaleX(1); }
+.status-lamp { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
+a.status-lamp:hover { color: var(--ink); }
+.status-lamp-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); border: 2px solid var(--edge); }
+.status-lamp-dot.up { background: var(--ok); }
+.status-lamp-dot.down { background: var(--pink); animation: throb 1.3s ease-in-out infinite; }
 .masthead-nav a.tag:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 2px; }
 /* the light/dark switch: a round button after the nav, moon in the light theme and sun in the dark one */
 .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 2px solid var(--edge); border-radius: 999px; background: var(--paper-2); color: var(--ink); cursor: pointer; flex: 0 0 auto; transition: transform .18s cubic-bezier(.2, .8, .2, 1), background .18s; }
@@ -289,7 +294,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 @media (max-width: 560px) {
   .masthead { padding-bottom: 12px; gap: 10px 12px; }
   .masthead-nav { margin-left: 0; flex-basis: 100%; order: 10; justify-content: space-between; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
-  .masthead .theme-toggle { margin-left: auto; }
+  .masthead .status-lamp { margin-left: auto; }
+  .masthead .theme-toggle { margin-left: 0; }
   .masthead-nav .tag { font-size: 11.5px; letter-spacing: .8px; padding: 6px 2px; }
   .masthead-nav span.tag { padding-bottom: 4px; }
   .foot { flex-direction: column; gap: 6px; margin-top: 36px; }
