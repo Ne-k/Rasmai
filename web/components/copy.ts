@@ -19,13 +19,18 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
   no_login: {
     headline: ["Couldn't read your ", "session"],
     detail: "You may not be signed in to the SEGA gateway yet, or the sign-in didn't stick.",
-    hint: "Sign out of the gateway, sign back in, then press the bookmark again. Japan and China accounts can't be linked yet.",
+    hint: "Sign out of the gateway, sign back in, then press the bookmark again. A Japan account links with its SEGA ID instead: run /login region:Japan in Discord.",
   },
   region: {
-    headline: ["Only International accounts ", "for now"],
+    headline: ["China accounts can't be linked ", "yet"],
     detail:
-      "Rasmai signs in through SEGA's international Aime gateway. Japan accounts sign in with SEGA ID on maimaidx.jp and China accounts with WeChat, so this login can't finish, and signing out and in again won't change that.",
-    hint: "Support for more regions is planned. If you also play on an International account, run /login in Discord without a region.",
+      "China's maimai DX NET only opens inside WeChat, and Rasmai has no way to sign in there yet, so this login can't finish however many times you try.",
+    hint: "International and Japan accounts can be linked. If you also play on one of those, run /login in Discord and pick its region.",
+  },
+  credentials: {
+    headline: ["maimaidx.jp said ", "no"],
+    detail: "maimaidx.jp didn't accept that SEGA ID, password or Aime card.",
+    hint: "Check them on maimaidx.jp, then try again. Your login link still works.",
   },
   rate_limited: {
     headline: ["Too many ", "attempts"],

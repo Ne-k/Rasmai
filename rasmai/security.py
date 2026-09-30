@@ -1,9 +1,12 @@
+from cryptography.exceptions import InvalidTag
 from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from datetime import timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import base64
 import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -169,10 +172,29 @@ def public_reason(error: BaseException, limit: int = 160) -> str:
     return (text or name)[:limit]
 
 
+# Stored sign-ins (an International session key, or a Japan account's SEGA ID and password) are
+# encrypted with AES-256-GCM: authenticated encryption, so a stored value that was altered or moved
+# fails to open instead of opening as something else. Each value is bound to the account it belongs to
+# (its user id is the additional data), so one account's value copied onto another's row does not
+# open either. The key is stretched from the secret with scrypt, which makes guessing a weak secret
+# expensive; set MAIMAI_TOKEN_KEY to keep it apart from the login secret and out of the data folder.
+# Values written before this (``enc:``, Fernet: AES-128-CBC with HMAC-SHA256) still open, and are
+# re-encrypted the first time the database is opened (see `upgrade_token`).
+TOKEN_PREFIX = "enc2:"
+LEGACY_TOKEN_PREFIX = "enc:"
+_TOKEN_KDF_SALT = b"rasmai/stored-token-key/v2"
+_TOKEN_AAD = b"rasmai/stored-token/v2|"
+
 _token_cipher: Optional[Fernet] = None
+_token_keys: Optional[List[AESGCM]] = None
+_token_lock = threading.Lock()
 
 
 def _cipher() -> Fernet:
+    """The key values written before AES-256-GCM were encrypted with; kept only to read them.
+
+    :rtype: Fernet
+    """
     global _token_cipher
     if _token_cipher is None:
         digest = hashlib.sha256(("token:" + get_master_secret()).encode("utf-8")).digest()
@@ -180,18 +202,98 @@ def _cipher() -> Fernet:
     return _token_cipher
 
 
-def encrypt_token(token: str) -> str:
-    return "enc:" + _cipher().encrypt(token.encode("utf-8")).decode("ascii")
+def _stretch(secret: str) -> AESGCM:
+    key = hashlib.scrypt(secret.encode("utf-8"), salt=_TOKEN_KDF_SALT, n=2 ** 15, r=8, p=1,
+                         maxmem=64 * 1024 * 1024, dklen=32)
+    return AESGCM(key)
 
 
-def decrypt_token(stored: str) -> str:
-    if not stored.startswith("enc:"):
-        return stored
-    try:
-        return _cipher().decrypt(stored[4:].encode("ascii")).decode("utf-8")
-    except (InvalidToken, ValueError):
-        logger.error("Stored session key could not be decrypted (login secret changed?)")
-        return ""
+def _aead_keys() -> List[AESGCM]:
+    """The AES-256-GCM keys, current first, each stretched once per process with scrypt.
+
+    With MAIMAI_TOKEN_KEY set, the key from the login secret stays second, so values sealed before the
+    setting was made still open and are moved onto it the next time the database is opened.
+
+    :rtype: List[AESGCM]
+    """
+    global _token_keys
+    with _token_lock:
+        if _token_keys is None:
+            configured = os.getenv("MAIMAI_TOKEN_KEY", "").strip()
+            _token_keys = [_stretch(configured)] if configured else []
+            if not configured or configured != get_master_secret():
+                _token_keys.append(_stretch(get_master_secret()))
+        return _token_keys
+
+
+def encrypt_token(token: str, owner: str = "") -> str:
+    """A sign-in, encrypted for storage with AES-256-GCM and bound to the account it belongs to.
+
+    :param token: The sign-in to store.
+    :type token: str
+    :param owner: The Discord user id of the account it belongs to.
+    :type owner: str
+    :rtype: str
+    """
+    nonce = os.urandom(12)
+    sealed = _aead_keys()[0].encrypt(nonce, token.encode("utf-8"), _TOKEN_AAD + str(owner).encode("utf-8"))
+    return TOKEN_PREFIX + base64.urlsafe_b64encode(nonce + sealed).decode("ascii")
+
+
+def _open_token(stored: str, owner: str) -> Tuple[str, bool]:
+    """A stored sign-in opened, and whether it is sealed the current way (so needs no re-encrypting).
+
+    :param stored: The stored value.
+    :type stored: str
+    :param owner: The Discord user id of the account whose row it was read from.
+    :type owner: str
+    :rtype: Tuple[str, bool]
+    """
+    if stored.startswith(TOKEN_PREFIX):
+        try:
+            raw = base64.urlsafe_b64decode(stored[len(TOKEN_PREFIX):].encode("ascii"))
+        except ValueError:
+            raw = b""
+        for position, key in enumerate(_aead_keys()):
+            try:
+                opened = key.decrypt(raw[:12], raw[12:], _TOKEN_AAD + str(owner).encode("utf-8")).decode("utf-8")
+                return opened, position == 0
+            except (InvalidTag, ValueError):
+                continue
+        logger.error("A stored sign-in could not be opened (key changed, or the value was altered)")
+        return "", True
+    if stored.startswith(LEGACY_TOKEN_PREFIX):
+        try:
+            return _cipher().decrypt(stored[len(LEGACY_TOKEN_PREFIX):].encode("ascii")).decode("utf-8"), False
+        except (InvalidToken, ValueError):
+            logger.error("Stored session key could not be decrypted (login secret changed?)")
+            return "", True
+    return stored, not stored
+
+
+def decrypt_token(stored: str, owner: str = "") -> str:
+    """A stored sign-in, opened; "" when it cannot be (a changed key, or a value altered or moved).
+
+    :param stored: The stored value, as `encrypt_token` wrote it or as an older version did.
+    :type stored: str
+    :param owner: The Discord user id of the account whose row it was read from.
+    :type owner: str
+    :rtype: str
+    """
+    return _open_token(stored, owner)[0]
+
+
+def upgrade_token(stored: str, owner: str) -> Optional[str]:
+    """The stored value re-encrypted the current way, or None when it already is or cannot be opened.
+
+    :param stored: The stored value.
+    :type stored: str
+    :param owner: The Discord user id of the account it belongs to.
+    :type owner: str
+    :rtype: Optional[str]
+    """
+    opened, current = _open_token(str(stored or ""), owner)
+    return encrypt_token(opened, owner) if opened and not current else None
 
 
 def normalize_login_token(raw_token: str) -> str:
@@ -199,3 +301,45 @@ def normalize_login_token(raw_token: str) -> str:
     if trimmed.startswith("cookie://"):
         return trimmed
     return f"cookie://{trimmed}"
+
+
+SEGA_ID_TOKEN = "segaid://"
+
+
+def sega_id_token(sega_id: str, password: str, aime: int = 0) -> str:
+    """The stored sign-in of a Japan account: its SEGA ID, password and which Aime card to open.
+
+    maimaidx.jp has no session a server can replay the way the international Aime gateway's is, so a
+    Japan account is signed in afresh from these on every read. The whole token is encrypted before it
+    is stored (`encrypt_token`), like every other one, and never leaves the bot.
+
+    :param sega_id: The SEGA ID.
+    :type sega_id: str
+    :param password: Its password.
+    :type password: str
+    :param aime: Which card on the account's Aime list, counting from 0.
+    :type aime: int
+    :rtype: str
+    """
+    body = json.dumps({"id": sega_id, "password": password, "aime": int(aime)}, separators=(",", ":"))
+    return SEGA_ID_TOKEN + base64.urlsafe_b64encode(body.encode("utf-8")).decode("ascii")
+
+
+def read_sega_id_token(token: str) -> Optional[Tuple[str, str, int]]:
+    """The SEGA ID, password and Aime card in a token from `sega_id_token`; None for anything else.
+
+    :param token: The stored sign-in.
+    :type token: str
+    :rtype: Optional[Tuple[str, str, int]]
+    """
+    token = str(token or "").strip()
+    if not token.startswith(SEGA_ID_TOKEN):
+        return None
+    try:
+        body = json.loads(base64.urlsafe_b64decode(token[len(SEGA_ID_TOKEN):].encode("ascii")).decode("utf-8"))
+        sega_id, password, aime = str(body["id"]), str(body["password"]), int(body.get("aime", 0))
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not sega_id or not password or aime < 0:
+        return None
+    return sega_id, password, aime

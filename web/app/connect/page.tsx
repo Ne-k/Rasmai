@@ -7,6 +7,7 @@ import { Turnstile } from "@/components/Turnstile";
 import { errorCopy } from "@/components/copy";
 
 type ConnectInfo = {
+  method?: "bookmark" | "segaid";
   loginLink: string;
   bookmarklet: string;
   expiresDisplay: string;
@@ -138,24 +139,36 @@ function Connect() {
     );
   }
 
+  const japan = info?.method === "segaid";
+
   if (info && !info.verified) {
     return (
-      <Shell tag="step 2 of 3" lit={2} footLeft="Rasmai never sees your password" footRight={`link valid until ${info.expiresDisplay}`}>
+      <Shell
+        tag="step 2 of 3"
+        lit={2}
+        footLeft={japan ? "your SEGA ID is stored encrypted" : "Rasmai never sees your password"}
+        footRight={`link valid until ${info.expiresDisplay}`}
+      >
         <h1>
           One quick <em>check</em>.
         </h1>
         <p className="lede">
-          Pass the human check to get your link and the connect bookmark.
+          {japan ? "Pass the human check to get the sign-in form." : "Pass the human check to get your link and the connect bookmark."}
         </p>
         <div className="check">
           <Turnstile siteKey={info.turnstile} action="connect" onToken={passCheck} onError={() => setCheckFailed("failed")} />
           {checkFailed === "failed" && <p className="hint">The check failed. Reload the page and try again.</p>}
         </div>
         <div className="aside">
-          <b>Why?</b> The next screen gives Rasmai your maimai session, and the check stops bots from grabbing it.
+          <b>Why?</b> The next screen gives Rasmai {japan ? "your maimaidx.jp sign-in" : "your maimai session"}, and the check
+          stops bots from grabbing it.
         </div>
       </Shell>
     );
+  }
+
+  if (info && japan) {
+    return <JapanConnect info={info} code={code} user={user} onExpired={() => setErrorKind("expired")} />;
   }
 
   const done = status === "done";
@@ -358,9 +371,167 @@ function Connect() {
 
       <div className="aside">
         <b>Stuck?</b> If the bookmark says it can&apos;t read your login, sign out of the gateway, sign in again, then
-        run it again. If the link expired, run <code>/login</code> in Discord for a new one. Only International accounts
-        can be linked for now: an account from the Japanese or Chinese version signs in somewhere else, so the bookmark
-        can&apos;t read it however many times you sign in.
+        run it again. If the link expired, run <code>/login</code> in Discord for a new one. This bookmark is for
+        International accounts. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>.
+        Accounts from the Chinese version can&apos;t be linked yet.
+      </div>
+    </Shell>
+  );
+}
+
+/** Japan's maimai DX NET has no session Rasmai can borrow, so the account is linked with its SEGA ID. */
+function JapanConnect({
+  info,
+  code,
+  user,
+  onExpired,
+}: {
+  info: ConnectInfo;
+  code: string;
+  user: string;
+  onExpired: () => void;
+}) {
+  const [segaId, setSegaId] = useState("");
+  const [password, setPassword] = useState("");
+  const [aime, setAime] = useState("1");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const [player, setPlayer] = useState<string | null>(null);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setProblem("");
+    try {
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ code, user, region: "jp", segaId, password, aime }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) {
+        if (data.kind === "expired" || data.kind === "invalid_user") {
+          onExpired();
+          return;
+        }
+        setProblem(String(data.error ?? "The sign-in didn't work. Try again in a moment."));
+        return;
+      }
+      setPassword("");
+      const name = String(data.player?.name ?? "");
+      setPlayer(name);
+      const q = new URLSearchParams({ player: name, region: "jp", rating: String(data.player?.rating ?? "") });
+      setTimeout(() => {
+        window.location.href = `/connected/?${q.toString()}`;
+      }, 900);
+    } catch {
+      setProblem("Couldn't reach Rasmai. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const done = player !== null;
+  return (
+    <Shell
+      tag="step 2 of 3"
+      lit={done ? 3 : 2}
+      done={done}
+      footLeft="your SEGA ID is stored encrypted"
+      footRight={`link valid until ${info.expiresDisplay}`}
+    >
+      <h1>
+        Sign in with your <em>SEGA ID</em>.
+      </h1>
+      <p className="lede">
+        maimaidx.jp has no sign-in Rasmai can borrow the way the international site does, so Rasmai signs in there with
+        your SEGA ID whenever it reads your scores.
+      </p>
+
+      <section className="step">
+        <div className="n">1</div>
+        <div>
+          <h2>Your maimaidx.jp sign-in</h2>
+          <p>
+            The SEGA ID and password you use on{" "}
+            <a href="https://maimaidx.jp/maimai-mobile/" target="_blank" rel="noopener noreferrer">
+              maimaidx.jp
+            </a>
+            .
+          </p>
+          <form className="signin" onSubmit={submit}>
+            <label>
+              <span>SEGA ID</span>
+              <input
+                type="text"
+                name="segaId"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                maxLength={256}
+                value={segaId}
+                onChange={(e) => setSegaId(e.target.value)}
+                disabled={busy || done}
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                required
+                maxLength={256}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy || done}
+              />
+            </label>
+            <label className="narrow">
+              <span>Aime card</span>
+              <input
+                type="number"
+                name="aime"
+                inputMode="numeric"
+                min={1}
+                max={20}
+                required
+                value={aime}
+                onChange={(e) => setAime(e.target.value)}
+                disabled={busy || done}
+              />
+            </label>
+            <p className="hint">Leave the card at 1 unless several Aime cards are on this SEGA ID.</p>
+            <div className="btn-row">
+              <button className="button pink" type="submit" disabled={busy || done || !segaId || !password}>
+                {busy ? "signing in…" : "sign in and link"}
+              </button>
+            </div>
+            {problem && (
+              <p className="hint bad" role="alert">
+                {problem}
+              </p>
+            )}
+          </form>
+          <div className="readout">
+            <span className="lbl">link valid until</span>
+            <span className="val">{info.expiresDisplay}</span>
+            <span className="lbl">region</span>
+            <span className="val">JP</span>
+          </div>
+          <div className="status">
+            <span className={`lamp ${done ? "done" : "wait"}`} />
+            <span>{done ? (player ? `Connected as ${player}.` : "Connected.") : busy ? "Signing in to maimaidx.jp…" : "Waiting for the sign-in…"}</span>
+          </div>
+        </div>
+      </section>
+
+      <div className="aside">
+        <b>What Rasmai keeps.</b> Your SEGA ID and password are encrypted before they&apos;re stored, and they&apos;re
+        used only to sign in to maimaidx.jp and read your scores. They&apos;re deleted when you run{" "}
+        <code>/logout</code> or <code>/delete-account</code>. If you change the password, run <code>/login</code> again.
       </div>
     </Shell>
   );

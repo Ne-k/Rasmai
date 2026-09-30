@@ -33,8 +33,8 @@ export default function TermsPage() {
           account is prohibited.
         </li>
         <li>
-          By linking, you authorise Rasmai to read maimai DX NET using your session, in the same way you would in a
-          browser. You are responsible for deciding whether that is acceptable to you under SEGA&apos;s own terms for maimai
+          By linking, you authorise Rasmai to read maimai DX NET using your session, or for a Japan account to sign in to
+          maimaidx.jp with the SEGA ID you give it, in the same way you would in a browser. You are responsible for deciding whether that is acceptable to you under SEGA&apos;s own terms for maimai
           DX NET.
         </li>
         <li>

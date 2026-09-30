@@ -188,7 +188,7 @@ def upsert_connected_account(user_id: str, region: str, token: str, official_pro
                 (
                     user_id,
                     region,
-                    encrypt_token(token),
+                    encrypt_token(token, user_id),
                     _dump_json_column(official_profile),
                     avatar,
                     _dump_json_column(snapshot, packed=True),
@@ -231,7 +231,7 @@ def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[
     account = {
         "userId": row["user_id"],
         "region": row["region"],
-        "token": decrypt_token(str(row["token"] or "")),
+        "token": decrypt_token(str(row["token"] or ""), str(row["user_id"])),
         "officialProfile": profile,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],

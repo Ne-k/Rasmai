@@ -31,9 +31,15 @@ export default function PrivacyPage() {
           <b>Your maimai region</b> (international, Japan or China).
         </li>
         <li>
-          <b>A maimai DX NET session key.</b> This is the <code>clal</code> cookie the official site issues after you sign
-          in on SEGA&apos;s page. It is <b>not your password</b>. Rasmai never sees your SEGA ID or password. The key is
-          encrypted before it is written to disk.
+          <b>International accounts: a maimai DX NET session key.</b> This is the <code>clal</code> cookie the official site
+          issues after you sign in on SEGA&apos;s page. It is <b>not your password</b>, and for an International account Rasmai
+          never sees your SEGA ID or password. The key is encrypted with AES-256-GCM before it is written to disk.
+        </li>
+        <li>
+          <b>Japan accounts: your SEGA ID, password and Aime card number.</b> Japan&apos;s maimai DX NET has no session key
+          Rasmai can borrow, so you enter these on Rasmai&apos;s connect page and Rasmai signs in to maimaidx.jp with them each
+          time it reads your scores. They are encrypted with AES-256-GCM before they are written to disk, are only ever sent
+          to maimaidx.jp, and are never shown, logged or included in an export.
         </li>
         <li>
           <b>Your player profile</b> as shown on maimai DX NET: player name, rating, title, dan and avatar, refreshed each time
@@ -82,7 +88,7 @@ export default function PrivacyPage() {
       <p>
         Scores are read when you run a command, press the read-now button on the dashboard, or, if you turned on{" "}
         <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key
-        and loads only the recent-plays page, so plays aren&apos;t lost between commands. <code>/settings</code> shows when it last ran and how many plays it
+        (for a Japan account, your stored SEGA ID) and loads only the recent-plays page, so plays aren&apos;t lost between commands. <code>/settings</code> shows when it last ran and how many plays it
         found.
       </p>
 
@@ -123,7 +129,10 @@ export default function PrivacyPage() {
 
       <h2>What is not stored</h2>
       <ul>
-        <li>Your SEGA ID, password, Aime card number or payment details. Sign-in happens on SEGA&apos;s own site.</li>
+        <li>
+          Payment details. For an International account, also your SEGA ID, password and Aime card number: sign-in happens
+          on SEGA&apos;s own site.
+        </li>
         <li>
           Your IP address. Sign-in attempts and reads are rate-limited with a short-lived in-memory counter that is never
           written to disk.
@@ -135,8 +144,8 @@ export default function PrivacyPage() {
       <h2>Who else sees it</h2>
       <ul>
         <li>
-          <b>SEGA (maimai DX NET).</b> Rasmai uses your session key to load your score pages from the official site, the
-          same pages you see when you sign in yourself.
+          <b>SEGA (maimai DX NET).</b> Rasmai uses your session key, or for a Japan account your SEGA ID, to load your score
+          pages from the official site, the same pages you see when you sign in yourself.
         </li>
         <li>
           <b>Discord.</b> Rasmai&apos;s replies, including the images it makes from your scores, are posted to Discord in the
@@ -157,7 +166,7 @@ export default function PrivacyPage() {
       <h2>How long it is kept, and how to delete it</h2>
       <p>
         Your linked account, its scores and its play history stay until you remove them, with one exception: if maimai DX NET
-        stops accepting your session key and you don&apos;t link again with <code>/login</code> within 30 days, everything listed
+        stops accepting your session key (for a Japan account, your SEGA ID and password) and you don&apos;t link again with <code>/login</code> within 30 days, everything listed
         under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired,
         and two days before it Rasmai sends you a Discord message saying so, with a button to link again, if Discord lets it
         message you. Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires
@@ -166,7 +175,7 @@ export default function PrivacyPage() {
       <ul>
         <li>
           <b>Yourself, at once.</b> Run <code>/delete-account</code> in Discord, or press <b>unlink</b> on the dashboard&apos;s Account
-          tab. Either deletes your session key, profile, profile link, stored scores, play history, judgement details, area
+          tab. Either deletes your session key or SEGA ID sign-in, profile, profile link, stored scores, play history, judgement details, area
           progress, rating readings, settings, beta feedback, play-count cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds
           your Discord ID and name.
         </li>
@@ -194,7 +203,20 @@ export default function PrivacyPage() {
 
       <h2>Security</h2>
       <ul>
-        <li>Session keys are encrypted at rest with a key that lives only on the server.</li>
+        <li>
+          Stored sign-ins (session keys, and Japan accounts&apos; SEGA IDs and passwords) are encrypted with AES-256-GCM, which
+          also detects any change to a stored value. The 256-bit key is derived with scrypt from a secret that lives only on
+          the server, never in the database. Each sign-in is tied to its own account, so a copy moved onto another account
+          can&apos;t be opened.
+        </li>
+        <li>
+          When a sign-in is replaced or deleted, the old copy is overwritten in the database file, not just marked free. Sign-ins
+          stored under the older encryption were re-encrypted the same way.
+        </li>
+        <li>
+          A Japan account&apos;s SEGA ID and password are only ever sent to maimaidx.jp, over HTTPS, to sign in. They are never
+          shown back to you or anyone else, never written to a log and never included in <code>/export</code>.
+        </li>
         <li>Login links are single-use, tied to your Discord account, and expire after ten minutes.</li>
         <li>All connections to this site and to maimai DX NET use HTTPS with certificate verification.</li>
         <li>Sign-in attempts are rate-limited and gated by a human check.</li>

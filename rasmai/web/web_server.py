@@ -34,8 +34,9 @@ from rasmai.storage.db import (
 from rasmai.web import dashboard
 from rasmai.web.links import build_login_link_payload
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+from rasmai.scraping.scraper.session import SessionRejected
 from rasmai.security import (decode_opaque_user_id, login_attempt_allowed, normalize_login_token,
-                             public_limiter, public_reason)
+                             public_limiter, public_reason, sega_id_token)
 from rasmai.util import _json_safe, export_debug_payload
 
 logger = logging.getLogger(__name__)
@@ -320,6 +321,7 @@ class InternalApiServer:
                     expires_at = login_code_expiry()
                 self._send_json(200, {
                     "ok": True,
+                    "method": login_info["method"],        # "bookmark" (International) or "segaid" (Japan)
                     "loginLink": login_info["loginLink"],
                     "bookmarklet": login_info["bookmarklet"],
                     "expiresAt": expires_at.isoformat(),
@@ -380,7 +382,9 @@ class InternalApiServer:
                 self._send_json(200, {"ok": True, "verified": True})
 
             def _login(self, payload: Dict[str, Any]) -> None:
-                """The bookmarklet's hand-off: a login code plus the session cookie it read on SEGA's gateway.
+                """A login code plus what proves the account: for International, the session cookie the
+                bookmarklet read on SEGA's gateway; for Japan, the SEGA ID, password and Aime card typed on
+                the connect page.
 
                 :param payload: The data to store or send.
                 :type payload: Dict[str, Any]
@@ -388,6 +392,8 @@ class InternalApiServer:
                 opaque_user = str(payload.get("user", "")).strip()
                 code = str(payload.get("code", "")).strip()
                 token = str(payload.get("token", "")).strip()
+                sega_id = str(payload.get("segaId", "")).strip()
+                password = str(payload.get("password", ""))
                 require_verified = bool(payload.get("requireVerified"))
 
                 def fail(status: int, kind: str, message: str) -> None:
@@ -396,15 +402,12 @@ class InternalApiServer:
                 if not login_attempt_allowed(self._client_key()):
                     fail(429, "rate_limited", "too many sign-in attempts")
                     return
-                if not opaque_user or not code or not token:
+                if not opaque_user or not code or not (token or (sega_id and password)):
                     fail(400, "no_login", "missing required form fields")
                     return
                 user_id = decode_opaque_user_id(opaque_user)
                 if not user_id:
                     fail(401, "invalid_user", "invalid user identifier")
-                    return
-                if not re.fullmatch(r"[A-Za-z0-9]{64}", token):
-                    fail(400, "no_login", "session token has an unexpected format")
                     return
                 record = peek_login_code(code)
                 if not record or record[0] != user_id:
@@ -420,13 +423,34 @@ class InternalApiServer:
                     return
                 # the session can only be proved against the score site, and the Aime gateway being up says
                 # nothing about that one. Refusing here leaves the login code unspent, so the same link works later.
-                down = dashboard.servers_down_note()
+                if region == "jp":
+                    try:
+                        aime = int(str(payload.get("aime") or "1").strip())
+                    except ValueError:
+                        aime = 0
+                    if not sega_id or not password:
+                        fail(400, "no_login", "enter the SEGA ID and password you use on maimaidx.jp")
+                        return
+                    if len(sega_id) > 256 or len(password) > 256 or not 1 <= aime <= 20:
+                        fail(400, "no_login", "the SEGA ID, password or Aime card number is not valid")
+                        return
+                    final_token = sega_id_token(sega_id, password, aime - 1)
+                else:
+                    if not re.fullmatch(r"[A-Za-z0-9]{64}", token):
+                        fail(400, "no_login", "session token has an unexpected format")
+                        return
+                    final_token = normalize_login_token(token)
+                down = dashboard.servers_down_note(region)
                 if down:
                     fail(503, "maintenance", down)
                     return
-                final_token = normalize_login_token(token)
                 try:
                     official_profile = MaimaiRatingAnalyzer().fetch_official_player_profile(final_token, region)
+                except SessionRejected as error:
+                    # the sign-in itself was turned down: for Japan, a wrong SEGA ID, password or card
+                    logger.info("A sign-in was refused while linking (%s): %s", region, public_reason(error))
+                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error))
+                    return
                 except Exception as error:
                     reason = public_reason(error)
                     # a 5xx from the score site is the site, not the session: name it as such and keep the link alive

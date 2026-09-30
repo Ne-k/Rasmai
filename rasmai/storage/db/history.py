@@ -171,7 +171,7 @@ def quiet_reads_due(every: timedelta) -> List[Dict[str, Any]]:
     for row in rows:
         settings = _load_json_column(row["settings"]) or {}
         if settings.get("history"):
-            out.append({"userId": row["user_id"], "region": row["region"], "token": decrypt_token(str(row["token"] or ""))})
+            out.append({"userId": row["user_id"], "region": row["region"], "token": decrypt_token(str(row["token"] or ""), str(row["user_id"]))})
     return out
 
 

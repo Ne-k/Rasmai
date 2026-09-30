@@ -1,11 +1,13 @@
 from bs4 import BeautifulSoup
 from typing import List, Dict, Tuple, Any
+from urllib.parse import urljoin
 import re
 import logging
 
 from rasmai.config import BROWSER_USER_AGENT, get_maimai_base_url, region_supported, unsupported_region_text
 from rasmai.storage.models import PlayerInfo
 from rasmai.scraping.scraper.session import PacedSession, SessionRejected, cookie_jar_to_header, download_image_base64
+from rasmai.security import read_sega_id_token
 
 logger = logging.getLogger(__name__)
 
@@ -133,30 +135,16 @@ class ProfilePages:
         return parse_nameplate_url(html, base_url)
 
     def _login_and_fetch_official_profile(self, token: str, region: str) -> PlayerInfo:
-        sanitized_token = token.strip()
+        if not region_supported(region):
+            # a region with no sign-in: refuse before anything is sent anywhere
+            raise ValueError(unsupported_region_text(region))
         session = PacedSession()
         session.headers.update({'User-Agent': BROWSER_USER_AGENT})
-
-        if not sanitized_token.startswith('cookie://'):
-            raise ValueError("Official profile token must start with 'cookie://'.")
-        if not region_supported(region):
-            # the only sign-in there is replays the international Aime gateway's cookie
-            raise ValueError(unsupported_region_text(region))
-        cookie_value = sanitized_token[len('cookie://'):].strip().removeprefix('clal=')
-        if not cookie_value:
-            raise ValueError('Cookie token is empty.')
+        if region == "jp":
+            self._sign_in_japan(session, token)
+        else:
+            self._sign_in_international(session, token)
         base_url = get_maimai_base_url(region)
-        login_url = 'https://lng-tgk-aime-gw.am-all.net/common_auth/login?site_id=maimaidxex&redirect_url=https://maimaidx-eng.com/maimai-mobile/&back_url=https://maimai.sega.com/'
-        session.cookies.set('clal', cookie_value, domain='lng-tgk-aime-gw.am-all.net')
-        response = session.get(login_url, allow_redirects=False, timeout=30)
-        if response.status_code != 302:
-            logger.warning(f"Gateway refused the saved session: HTTP {response.status_code}, "
-                           f"{len(response.text)} bytes, content-type {response.headers.get('Content-Type', '?')}")
-            raise SessionRejected(f"maimai no longer accepts the saved sign-in (gateway answered HTTP {response.status_code}); run /login again.")
-        redirect_url = response.headers.get('Location', '')
-        if not redirect_url:
-            raise SessionRejected('maimai answered without a redirect; run /login again.')
-        session.get(redirect_url, allow_redirects=False, timeout=30)
         player_url = f'{base_url}/maimai-mobile/playerData/'
         player_response = session.get(
             player_url,
@@ -173,6 +161,83 @@ class ProfilePages:
         self._official_session = session
         self._official_cookie_header = cookie_jar_to_header(session)
         return player
+
+    def _sign_in_international(self, session: PacedSession, token: str) -> None:
+        """Replay the international Aime gateway's session cookie, which signs `session` in to maimaidx-eng.com.
+
+        :param session: The session to sign in.
+        :type session: PacedSession
+        :param token: The saved sign-in, ``cookie://`` and the gateway's ``clal`` cookie.
+        :type token: str
+        """
+        sanitized_token = token.strip()
+        if not sanitized_token.startswith('cookie://'):
+            raise ValueError("Official profile token must start with 'cookie://'.")
+        cookie_value = sanitized_token[len('cookie://'):].strip().removeprefix('clal=')
+        if not cookie_value:
+            raise ValueError('Cookie token is empty.')
+        login_url = 'https://lng-tgk-aime-gw.am-all.net/common_auth/login?site_id=maimaidxex&redirect_url=https://maimaidx-eng.com/maimai-mobile/&back_url=https://maimai.sega.com/'
+        session.cookies.set('clal', cookie_value, domain='lng-tgk-aime-gw.am-all.net')
+        response = session.get(login_url, allow_redirects=False, timeout=30)
+        if response.status_code != 302:
+            logger.warning(f"Gateway refused the saved session: HTTP {response.status_code}, "
+                           f"{len(response.text)} bytes, content-type {response.headers.get('Content-Type', '?')}")
+            raise SessionRejected(f"maimai no longer accepts the saved sign-in (gateway answered HTTP {response.status_code}); run /login again.")
+        redirect_url = response.headers.get('Location', '')
+        if not redirect_url:
+            raise SessionRejected('maimai answered without a redirect; run /login again.')
+        session.get(redirect_url, allow_redirects=False, timeout=30)
+
+    def _sign_in_japan(self, session: PacedSession, token: str) -> None:
+        """Sign `session` in to maimaidx.jp with the account's SEGA ID, then open its Aime card.
+
+        maimaidx.jp hands out a form token as the ``_t`` cookie on its sign-in page. Posting the SEGA ID
+        and password with it answers with a redirect to the account's Aime list when they are right, and
+        opening a card from that list is what the rest of the site reads from. The flow is the one other
+        open-source Japan trackers use, Tomomai among them.
+
+        :param session: The session to sign in.
+        :type session: PacedSession
+        :param token: The saved sign-in, from `sega_id_token`.
+        :type token: str
+        """
+        credentials = read_sega_id_token(token)
+        if credentials is None:
+            raise SessionRejected("A Japan account signs in with its SEGA ID; run /login again to link it.")
+        sega_id, password, aime = credentials
+        base_url = get_maimai_base_url("jp")
+        home = f'{base_url}/maimai-mobile/'
+        page = session.get(home, timeout=30)
+        if page.status_code >= 500:
+            raise ValueError(f"maimaidx.jp could not show its sign-in page: HTTP {page.status_code}")
+        form_token = session.cookies.get('_t') or ''
+        if not form_token:
+            field = BeautifulSoup(page.text or '', 'html.parser').select_one('input[name="token"]')
+            form_token = str(field.get('value') or '') if field else ''
+        if not form_token:
+            # seen when the site is busy or turning sign-ins away for a while: not the player's doing
+            raise ValueError("maimaidx.jp did not hand out a sign-in form; it may be busy, try again in a few minutes")
+        answer = session.post(
+            f'{base_url}/maimai-mobile/submit/',
+            data={'segaId': sega_id, 'password': password, 'token': form_token},
+            headers={'Referer': home},
+            allow_redirects=False,
+            timeout=30,
+        )
+        if answer.status_code >= 500:
+            raise ValueError(f"maimaidx.jp could not sign in right now: HTTP {answer.status_code}")
+        if answer.status_code not in (301, 302, 303) or '/aimeList/' not in answer.headers.get('Location', ''):
+            raise SessionRejected("maimaidx.jp did not accept the SEGA ID and password; run /login again with the right ones.")
+        chosen = session.get(f'{base_url}/maimai-mobile/aimeList/submit/?idx={aime}', headers={'Referer': home},
+                             allow_redirects=False, timeout=30)
+        if chosen.status_code >= 500:
+            raise ValueError(f"maimaidx.jp could not open the Aime card: HTTP {chosen.status_code}")
+        onward = chosen.headers.get('Location', '') if chosen.is_redirect else ''
+        if chosen.status_code >= 400 or '/error/' in onward or '/aimeList/' in onward:
+            raise SessionRejected(f"maimaidx.jp has no Aime card {aime + 1} on this SEGA ID; run /login again and pick another.")
+        if onward:
+            # the card is opened by the page it sends on to, which hands out the session the rest reads with
+            session.get(urljoin(home, onward), headers={'Referer': home}, allow_redirects=True, timeout=30)
 
     def fetch_official_player_profile(self, token: str, region: str = "intl") -> PlayerInfo:
         return self._login_and_fetch_official_profile(token, region)

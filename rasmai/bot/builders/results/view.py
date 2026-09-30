@@ -29,7 +29,8 @@ OUTPUT_LABELS = {"both": "Image + text", "image": "Image only", "embed": "Text o
 VIEW_TIMEOUT = min(ANALYSIS_TTL.total_seconds(), 14 * 60)
 
 
-NOT_LINKED_INTRO = "**No maimai account linked yet.** Connect one first; it takes about a minute, and the card below walks you through it."
+NOT_LINKED_INTRO = ("**No maimai account linked yet.** Connect one first; it takes about a minute, and the card below "
+                    "walks you through it. Playing on a Japan account? Run `/login region:Japan` instead.")
 
 
 def failure_text(failure: str, error: Exception) -> str:

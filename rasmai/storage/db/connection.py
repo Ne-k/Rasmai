@@ -266,6 +266,7 @@ def get_database_connection() -> sqlite3.Connection:
                     )
                     """
                 )
+                _upgrade_stored_tokens(setup)
             _database_ready = True
 
     # Keyed by the path as well as the thread: the sweep points DATABASE_PATH at a scratch file and
@@ -281,12 +282,39 @@ def get_database_connection() -> sqlite3.Connection:
         # per connection, so set here rather than with the journal mode. NORMAL under WAL can lose the last
         # write to a power cut but never corrupts, and skips an fsync per commit; the mapping lets threads share pages
         connection.execute("PRAGMA synchronous=NORMAL")
+        # a sign-in that is replaced or deleted is overwritten with zeroes, not left in a free page
+        connection.execute("PRAGMA secure_delete=ON")
         connection.execute("PRAGMA mmap_size=268435456")
         connection.execute("PRAGMA temp_store=MEMORY")
         _kept.held = (path, connection)
     # set on every hand-out, so one caller changing it cannot change what the next caller reads
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def _upgrade_stored_tokens(setup: sqlite3.Connection) -> None:
+    """Re-encrypt every stored sign-in not yet under the current encryption and key (see `rasmai.security`).
+
+    Runs once, when the database is first opened. The old values are overwritten with zeroes as they
+    are replaced, and the write-ahead log is checkpointed and emptied, so no copy under the old
+    encryption is left in either file. A value that cannot be opened is left as it is, to be found
+    and relinked the way an expired session is.
+
+    :param setup: The connection the database is being set up on.
+    :type setup: sqlite3.Connection
+    """
+    from rasmai.security import upgrade_token
+    rows = setup.execute("SELECT user_id, token FROM connected_accounts").fetchall()
+    changed = [(sealed, user_id) for user_id, token in rows
+               if (sealed := upgrade_token(str(token or ""), str(user_id)))]
+    if not changed:
+        return
+    setup.execute("PRAGMA secure_delete=ON")
+    setup.executemany("UPDATE connected_accounts SET token = ? WHERE user_id = ?", changed)
+    upgraded = len(changed)
+    setup.commit()
+    setup.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    logger.info("Re-encrypted %d stored sign-in(s) with AES-256-GCM", upgraded)
 
 
 def _dump_json_column(value: Optional[Dict[str, Any]], packed: bool = False) -> Optional[Any]:

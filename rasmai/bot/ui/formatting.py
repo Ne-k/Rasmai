@@ -267,7 +267,7 @@ REGION_LABELS = {"intl": "International", "jp": "Japan", "cn": "China"}
 
 NOT_CONNECTED_MESSAGE = (
     "**No maimai account connected yet.**\n"
-    "Run `/login` and follow the link - it takes about a minute."
+    "Run `/login` and follow the link - it takes about a minute. On a Japan account, run `/login region:Japan`."
 )
 
 
@@ -281,19 +281,37 @@ def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> di
         ),
         color=discord.Color.from_rgb(255, 182, 46),
     )
-    embed.add_field(
-        name="What you'll do there",
-        value=(
-            "1. Save the connect button to your bookmarks\n"
-            "2. Sign in at [my-aime.net](https://my-aime.net/en/) with the account you play on\n"
-            "3. Open the Aime authentication from the setup page\n"
-            "4. Click the bookmark - that's it"
-        ),
-        inline=False,
-    )
+    if region == "jp":
+        embed.add_field(
+            name="What you'll do there",
+            value=(
+                "1. Pass a quick check\n"
+                "2. Enter the SEGA ID and password you use on [maimaidx.jp](https://maimaidx.jp/maimai-mobile/)\n"
+                "3. That's it: Rasmai signs in and links the account"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Your SEGA ID",
+            value=("maimaidx.jp has no sign-in Rasmai can borrow, so it keeps your SEGA ID and password, encrypted, "
+                   "and uses them only to sign in there and read your scores. `/logout` deletes them."),
+            inline=False,
+        )
+    else:
+        embed.add_field(
+            name="What you'll do there",
+            value=(
+                "1. Save the connect button to your bookmarks\n"
+                "2. Sign in at [my-aime.net](https://my-aime.net/en/) with the account you play on\n"
+                "3. Open the Aime authentication from the setup page\n"
+                "4. Click the bookmark - that's it"
+            ),
+            inline=False,
+        )
     embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)
     embed.add_field(name="Link expires", value=expires, inline=True)
-    embed.set_footer(text="Stuck? The Show me buttons play the whole thing · this card updates itself once you are connected")
+    embed.set_footer(text="This card updates itself once you are connected" if region == "jp"
+                     else "Stuck? The Show me buttons play the whole thing · this card updates itself once you are connected")
     return embed
 
 

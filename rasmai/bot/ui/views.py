@@ -95,13 +95,19 @@ def from_cache(owner_id: int, build: Callable[..., Awaitable[Any]]) -> Callable[
 
 
 class LoginView(OwnerOnlyView):
-    def __init__(self, owner_id: int, connect_url: str):
+    def __init__(self, owner_id: int, connect_url: str, region: str = "intl"):
         super().__init__(owner_id, timeout=LOGIN_CODE_TTL.total_seconds())
-        self.add_item(discord.ui.Button(label="1 · Sign in at my-aime", url="https://my-aime.net/en/"))
-        self.add_item(discord.ui.Button(label="2 · Start setup", url=connect_url))
+        if region == "jp":
+            # a Japan account is linked with its SEGA ID on the setup page itself: no my-aime, no bookmark
+            self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
+        else:
+            self.add_item(discord.ui.Button(label="1 · Sign in at my-aime", url="https://my-aime.net/en/"))
+            self.add_item(discord.ui.Button(label="2 · Start setup", url=connect_url))
         check = discord.ui.Button(label="Check connection", style=discord.ButtonStyle.success)
         check.callback = self._check
         self.add_item(check)
+        if region == "jp":
+            return
         # the same steps as a recording, played in Discord rather than sending anyone to a browser
         for label, clip in (("Show me: computer", "desktop"), ("Show me: iPhone", "ios-safari")):
             watch = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, row=1)

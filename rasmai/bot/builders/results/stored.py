@@ -11,25 +11,28 @@ from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.ui.formatting import stamp
 from rasmai.bot.state.snapshots import analyzer_from_snapshot, collect_judgements, record_plays
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
-from rasmai.config import MAIMAI_BASE_URLS, SNAPSHOT_MAX_AGE
+from rasmai.config import MAIMAI_BASE_URLS, PRESENCE_REGION, SNAPSHOT_MAX_AGE
 from rasmai.security import public_reason
 from rasmai.storage.db import get_connected_account, mark_session_expired, record_area_progress
 
 logger = logging.getLogger(__name__)
 
 
-def downtime_note() -> str:
-    """Why maimai DX NET cannot be read right now, or "" when it can.
+def downtime_note(region: str = "intl") -> str:
+    """Why the region's maimai DX NET cannot be read right now, or "" when it can.
 
     The presence watch already knows the maintenance schedule and whether the site answers;
     a read attempted during either only fails slowly and used to blame the player's session.
+    The watch only probes its own region's site, so another region is judged on its schedule alone.
 
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
     :rtype: str
     """
-    window = maintenance_at()
+    window = maintenance_at(region=region)
     if window.active:
         return f"maimai DX NET is in maintenance, back {stamp(window.moment, 'R')}."
-    if not getattr(watch, "reachable", True):
+    if region == PRESENCE_REGION and not getattr(watch, "reachable", True):
         return "maimai DX NET is not answering right now."
     return ""
 
@@ -159,7 +162,7 @@ async def _still_current(user_id: str, cached: CachedAnalysis) -> bool:
     :type cached: CachedAnalysis
     :rtype: bool
     """
-    if downtime_note():
+    if downtime_note(getattr(cached, "region", "intl") or "intl"):
         cached.checked = datetime.now()
         return True
     account = await asyncio.to_thread(get_connected_account, user_id)

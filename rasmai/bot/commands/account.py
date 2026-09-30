@@ -91,7 +91,7 @@ async def help_command(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="login", description="Connect your maimai account to the bot")
-@app_commands.describe(region="Which maimai region you play in (default International; only International can be linked for now)")
+@app_commands.describe(region="Which maimai region you play in (default International; Japan links with your SEGA ID)")
 @app_commands.choices(region=REGION_CHOICES)
 async def login(interaction: discord.Interaction, region: Optional[app_commands.Choice[str]] = None):
     chosen = region.value if region else "intl"
@@ -101,7 +101,7 @@ async def login(interaction: discord.Interaction, region: Optional[app_commands.
         # a link that can never finish is worse than none: say so before anyone signs in anywhere
         await interaction.response.send_message(
             f"**{unsupported_region_text(chosen)}**\n\nSupport for more regions is planned. If you also play on an "
-            "International account, run `/login` without a region to link that one.", ephemeral=True)
+            "International or Japan account, run `/login` and pick its region to link that one.", ephemeral=True)
         return
     await send_login_card(interaction, chosen)
 

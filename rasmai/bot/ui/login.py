@@ -71,7 +71,7 @@ async def send_login_card(interaction: discord.Interaction, region: str = "intl"
     """
     login_info = build_login_session_payload(str(interaction.user.id), region)
     embed = build_login_walkthrough_embed(region, login_info)
-    view = LoginView(interaction.user.id, login_info["connectUrl"])
+    view = LoginView(interaction.user.id, login_info["connectUrl"], region)
     if interaction.response.is_done() and interaction.response.type is discord.InteractionResponseType.deferred_channel_message:
         # a public "thinking" placeholder cannot carry the card: the link on it is personal
         try:
@@ -108,7 +108,7 @@ async def dm_login_card(bot: discord.Client, user_id: str, region: str, intro: s
     try:
         user = bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
         login_info = build_login_session_payload(user_id, region)
-        view = LoginView(int(user_id), login_info["connectUrl"])
+        view = LoginView(int(user_id), login_info["connectUrl"], region)
         message = await user.send(content=intro, embed=build_login_walkthrough_embed(region, login_info), view=view)
     except (discord.HTTPException, ValueError) as error:
         logger.info("login card could not be sent to %s: %s", user_id, error)

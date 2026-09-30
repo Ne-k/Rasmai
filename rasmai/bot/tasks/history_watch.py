@@ -11,7 +11,7 @@ from rasmai.bot.state.prefs import get_prefs
 from rasmai.bot.state.snapshots import collect_judgements, play_rows, store_recent
 from rasmai.bot.ui.formatting import chart_link, stamp
 from rasmai.bot.ui.login import dm_login_card
-from rasmai.config import MAIMAI_BASE_URLS
+from rasmai.config import MAIMAI_BASE_URLS, PRESENCE_REGION
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
@@ -99,9 +99,16 @@ class HistoryWatch:
             set_notified_rating(user_id, rating)
 
     async def run_due(self) -> None:
-        if maintenance_at().active or not getattr(self.watch, "reachable", True):
+        reachable = getattr(self.watch, "reachable", True)
+
+        def readable(account: Dict[str, Any]) -> bool:
+            # each region's site has its own maintenance; the watch only probes its own region's
+            region = str(account.get("region") or "intl")
+            return not maintenance_at(region=region).active and (reachable or region != PRESENCE_REGION)
+
+        due: List[Dict[str, Any]] = [account for account in quiet_reads_due(READ_EVERY) if readable(account)][:PER_TICK]
+        if not due:
             return
-        due: List[Dict[str, Any]] = quiet_reads_due(READ_EVERY)[:PER_TICK]
         for account in due:
             user_id = str(account["userId"])
             try:
@@ -121,8 +128,11 @@ class HistoryWatch:
                     deletes = session_deletes_at((get_connected_account(user_id) or {}).get("sessionExpired") or "")
                     warning = (f" If it isn't linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, "
                                "everything Rasmai stores for it is deleted." if deletes else "")
-                    await dm_login_card(self.bot, user_id, str(account.get("region", "intl")),
-                                        "Your daily history read could not sign in to maimai DX NET: the saved session has expired. "
+                    region = str(account.get("region", "intl"))
+                    why = ("maimaidx.jp no longer accepts the saved SEGA ID and password (was the password changed?)"
+                           if region == "jp" else "the saved session has expired")
+                    await dm_login_card(self.bot, user_id, region,
+                                        f"Your daily history read could not sign in to maimai DX NET: {why}. "
                                         f"Link again below and the reads carry on.{warning}")
             except Exception as error:
                 quiet_read_done(user_id, 0, public_reason(error))

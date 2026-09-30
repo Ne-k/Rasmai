@@ -21,8 +21,10 @@ class AreaPages:
         def parse_period(period_str: Optional[str]) -> Optional[List[int]]:
             if not period_str:
                 return None
+            # the label reads "Event period：" on the international site and differently on Japan's; the
+            # dates themselves are written the same way on both, so only they are matched
             match = re.search(
-                r"Event period：(?P<sy>\d{4})/(?P<sm>\d{2})/(?P<sd>\d{2})\s+(?P<sh>\d{2}):(?P<smin>\d{2})～(?P<ey>\d{4})/(?P<em>\d{2})/(?P<ed>\d{2})\s+(?P<eh>\d{2}):(?P<emin>\d{2})",
+                r"(?P<sy>\d{4})/(?P<sm>\d{2})/(?P<sd>\d{2})\s+(?P<sh>\d{2}):(?P<smin>\d{2})～(?P<ey>\d{4})/(?P<em>\d{2})/(?P<ed>\d{2})\s+(?P<eh>\d{2}):(?P<emin>\d{2})",
                 period_str,
             )
             if not match:

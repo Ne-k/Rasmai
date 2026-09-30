@@ -121,7 +121,7 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
     if not token:
         await interaction.edit_original_response(content=NOT_CONNECTED_MESSAGE, embed=None, attachments=[], view=None)
         return None
-    down = downtime_note()
+    down = downtime_note(region)
     if down:
         stored = await _analysis_from_store(user_id, account)
         if stored is not None:

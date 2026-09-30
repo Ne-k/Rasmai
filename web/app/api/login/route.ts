@@ -10,12 +10,15 @@ type LoginResult = {
   player?: { name?: string; rating?: number | string };
 };
 
-/** The bookmarklet's hand-off, posted as a form from SEGA's gateway page. The bot validates the session and links the account. */
+/**
+ * A login hand-off. International: the bookmarklet's form post from SEGA's gateway page, carrying its session cookie.
+ * Japan: the connect page's SEGA ID form, posted as JSON. The bot proves the sign-in works and links the account.
+ */
 export async function POST(request: Request) {
   const html = wantsHtml(request);
   const client = clientKey(request);
   const fail = (status: number, kind: string, message: string) =>
-    html ? redirect(`/error/?kind=${encodeURIComponent(kind)}`) : json(status, { ok: false, error: message });
+    html ? redirect(`/error/?kind=${encodeURIComponent(kind)}`) : json(status, { ok: false, kind, error: message });
 
   let body: Record<string, string>;
   try {
@@ -28,7 +31,17 @@ export async function POST(request: Request) {
     upstream = await internal("/internal/login", {
       method: "POST",
       client,
-      body: { code: body.code ?? "", user: body.user ?? "", token: body.token ?? "", region: body.region ?? "intl", requireVerified: turnstileReady() },
+      body: {
+        code: body.code ?? "",
+        user: body.user ?? "",
+        token: body.token ?? "",
+        region: body.region ?? "intl",
+        // Japan only: typed on the connect page, passed straight through and never kept here
+        segaId: body.segaId ?? "",
+        password: body.password ?? "",
+        aime: body.aime ?? "",
+        requireVerified: turnstileReady(),
+      },
     });
   } catch {
     return html ? redirect("/error/?kind=unknown") : unavailable();

@@ -18,14 +18,28 @@ def build_login_link_payload(opaque_user_id: str, code: str, region: str) -> Dic
     """
     base_url = get_public_base_url()
     script_url = f"{base_url}/api/login.js"
+    connect_url = f"{base_url}/connect/?code={code}&user={opaque_user_id}"
+    if region == "jp":
+        # a Japan account is linked on the connect page itself, with its SEGA ID: no gateway, no bookmark
+        return {
+            "code": code,
+            "expiresAt": login_code_expiry().isoformat(),
+            "opaqueUserId": opaque_user_id,
+            "method": "segaid",
+            "loginLink": "",
+            "scriptUrl": "",
+            "bookmarklet": "",
+            "connectUrl": connect_url,
+        }
     return {
         "code": code,
         "expiresAt": login_code_expiry().isoformat(),
         "opaqueUserId": opaque_user_id,
+        "method": "bookmark",
         "loginLink": f"https://lng-tgk-aime-gw.am-all.net/common_auth/#code={code}&user={opaque_user_id}&region={region}",
         "scriptUrl": script_url,
         "bookmarklet": f"javascript:void(function(d){{var s=d.createElement(\"script\");s.src=\"{script_url}\";d.body.append(s);}}(document))",
-        "connectUrl": f"{base_url}/connect/?code={code}&user={opaque_user_id}",
+        "connectUrl": connect_url,
     }
 
 

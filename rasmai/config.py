@@ -80,19 +80,18 @@ MAIMAI_BASE_URLS = {
     "cn": "https://maimai.wahlap.com",
 }
 
-# The regions an account can actually be linked from. Signing in goes through SEGA's international
-# Aime gateway and replays its session cookie, which only an International account has: a Japan
-# account signs in with SEGA ID on maimaidx.jp, and a China account with WeChat on Wahlap's site.
-# Both are kept in the tables above so their scores and pages have somewhere to point once a sign-in
-# exists for them; until then nothing hands their players a login that cannot finish.
-SUPPORTED_REGIONS = ("intl",)
+# The regions an account can actually be linked from. International signs in through SEGA's Aime
+# gateway, whose session cookie the bookmarklet hands over and the bot replays. Japan has no session a
+# server can replay, so a Japan account is linked with its SEGA ID and password, which the bot keeps
+# encrypted and signs in to maimaidx.jp with on every read. China's site only opens inside WeChat and
+# has no sign-in here yet; it is kept in the tables above so its pages have somewhere to point.
+SUPPORTED_REGIONS = ("intl", "jp")
 
 REGION_NAMES = {"intl": "International", "jp": "Japan", "cn": "China"}
 
 # how each unsupported region signs in, for saying why its account cannot be linked
 REGION_SIGN_IN = {
-    "jp": "Japan accounts sign in with SEGA ID on maimaidx.jp",
-    "cn": "China accounts sign in with WeChat on Wahlap's site",
+    "cn": "China accounts sign in with WeChat on Wahlap's site, which only opens inside WeChat",
 }
 
 
@@ -109,15 +108,24 @@ def region_supported(region: str) -> bool:
 def unsupported_region_text(region: str) -> str:
     """Why an account from this region cannot be linked, in a sentence or two for the player.
 
-    :param region: ``"jp"`` or ``"cn"``.
+    :param region: ``"cn"``, or any other region with no sign-in.
     :type region: str
     :rtype: str
     """
     name = REGION_NAMES.get(region, region)
     how = REGION_SIGN_IN.get(region, f"{name} accounts sign in somewhere else")
-    return (f"{name}-region accounts can't be linked yet. Rasmai signs in through SEGA's international Aime gateway, "
-            f"which only International accounts use; {how}, so the login could never finish, however many times you "
-            f"signed out and in again.")
+    return (f"{name}-region accounts can't be linked yet. {how}, and Rasmai has no way to sign in there yet, "
+            f"so the login could never finish, however many times you tried. International and Japan accounts "
+            f"can be linked.")
+
+
+# maimai DX NET's daily maintenance, in JST, as (opens, closes) hours: the international site is down
+# 01:00-02:00 (01:00-04:00 on Wednesdays), Japan's and China's 04:00-07:00 every day
+MAINTENANCE_HOURS = {
+    "intl": {"daily": (1, 2), "wednesday": (1, 4)},
+    "jp": {"daily": (4, 7), "wednesday": (4, 7)},
+    "cn": {"daily": (4, 7), "wednesday": (4, 7)},
+}
 
 
 def get_maimai_base_url(region: str) -> str:

@@ -1035,50 +1035,122 @@ def _seam_fails_closed():
     return problems
 
 
-@check("only International accounts are sent to a login, and a Japan or China one is told why at every step")
+@check("International and Japan accounts are sent to a login, a China one is told why at every step, and a Japan sign-in is kept encrypted")
 def _regions():
     import json as jsonlib
     import pathlib
     import tempfile
+    import threading
     import urllib.error
+    import urllib.parse
     import urllib.request
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+    from rasmai import config
     from rasmai.config import SUPPORTED_REGIONS, region_supported, unsupported_region_text
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
-    from rasmai.security import create_opaque_user_id
+    from rasmai.security import create_opaque_user_id, decrypt_token, encrypt_token, read_sega_id_token
     from rasmai.storage.db import connection as store
     from rasmai.web import web_server
 
     problems = []
-    if SUPPORTED_REGIONS != ("intl",) or not region_supported("intl") or region_supported("jp") or region_supported("cn"):
-        problems.append(f"the supported regions are {SUPPORTED_REGIONS}; only the international gateway's sign-in exists")
-    for region, where in (("jp", "SEGA ID"), ("cn", "WeChat")):
-        if where not in unsupported_region_text(region):
-            problems.append(f"the {region} explanation does not say how that region signs in")
+    if SUPPORTED_REGIONS != ("intl", "jp") or not region_supported("jp") or region_supported("cn"):
+        problems.append(f"the supported regions are {SUPPORTED_REGIONS}; International and Japan have a sign-in, China has none")
+    if "WeChat" not in unsupported_region_text("cn"):
+        problems.append("the China explanation does not say how that region signs in")
     try:
         MaimaiRatingAnalyzer().fetch_official_player_profile("cookie://" + "a" * 64, "cn")
-        problems.append("a China account was sent to the international gateway")
+        problems.append("a China account was sent somewhere to sign in")
     except ValueError as error:
         if "China" not in str(error):
             problems.append(f"refusing a China account did not say why: {error}")
 
-    # the bookmarklet runs on SEGA's page, so its own words are all a player sees there
+    # a stored sign-in only opens on the account it was stored for
+    sealed = encrypt_token("segaid://x", "100000000000000001")
+    if not sealed.startswith("enc2:") or decrypt_token(sealed, "100000000000000001") != "segaid://x":
+        problems.append("a stored sign-in is not written with AES-256-GCM, or does not open again")
+    if decrypt_token(sealed, "100000000000000002"):
+        problems.append("a stored sign-in moved onto another account's row still opened")
+
+    # the bookmarklet runs on SEGA's international page, so its own words are all a player sees there
     script = (ROOT / "web" / "app" / "api" / "login.js" / "route.ts").read_text(encoding="utf-8")
     if "if(region!=='intl')" not in script:
-        problems.append("the bookmarklet sends a Japan or China login on to be refused instead of saying so")
-    if "Japanese or Chinese" not in script:
-        problems.append("the bookmarklet's missing-login message does not mention the region, which is why a JP player saw it")
+        problems.append("the bookmarklet sends a Japan or China login on instead of saying where it goes")
+    if "SEGA ID" not in script or "Japanese or Chinese" not in script:
+        problems.append("the bookmarklet's messages do not send a Japan player to the SEGA ID sign-in")
     copy = (ROOT / "web" / "components" / "copy.ts").read_text(encoding="utf-8")
-    if "\n  region: {" not in copy:
-        problems.append("the site has no words for the region refusal, so it would show 'Something went wrong'")
+    for kind in ("region", "credentials"):
+        if f"\n  {kind}: {{" not in copy:
+            problems.append(f"the site has no words for the {kind} refusal, so it would show 'Something went wrong'")
+    if 'method === "segaid"' not in (ROOT / "web" / "app" / "connect" / "page.tsx").read_text(encoding="utf-8"):
+        problems.append("the connect page has no SEGA ID form for a Japan code")
+
+    # a stand-in for maimaidx.jp: the sign-in page hands out a form token as _t, the right SEGA ID and
+    # password send on to the Aime list, card 1 opens and the profile page answers
+    right = {"segaId": "player@example.jp", "password": "correct horse:battery/staple"}
+    player_page = ('<div class="see_through_block m_15 m_t_0 p_10 t_l f_0 p_r">'
+                   '<div class="name_block f_l f_16">ＪＰプレイヤー</div><div class="rating_block">15123</div></div>')
+
+    class FakeJapan(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _cookies(self):
+            return dict(part.strip().split("=", 1) for part in (self.headers.get("Cookie") or "").split(";") if "=" in part)
+
+        def _answer(self, status, body="", location="", cookie=""):
+            self.send_response(status)
+            if location:
+                self.send_header("Location", location)
+            if cookie:
+                self.send_header("Set-Cookie", f"{cookie}; Path=/")
+            data = body.encode("utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            path = urllib.parse.urlparse(self.path)
+            cookies = self._cookies()
+            if path.path == "/maimai-mobile/":
+                self._answer(200, "<form><input name='token' value='form-token'></form>", cookie="_t=form-token")
+            elif path.path == "/maimai-mobile/aimeList/submit/":
+                card = urllib.parse.parse_qs(path.query).get("idx", [""])[0]
+                if cookies.get("signed") == "1" and card == "0":
+                    self._answer(302, location="/maimai-mobile/home/", cookie="userId=opened")
+                else:
+                    self._answer(302, location="/maimai-mobile/error/")
+            elif path.path == "/maimai-mobile/home/":
+                self._answer(200, "home")
+            elif path.path == "/maimai-mobile/playerData/" and cookies.get("userId") == "opened":
+                self._answer(200, player_page)
+            else:
+                self._answer(404, "not here")
+
+        def do_POST(self):
+            form = dict(urllib.parse.parse_qsl(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()))
+            if (self.path == "/maimai-mobile/submit/" and form.get("token") == "form-token"
+                    and form.get("segaId") == right["segaId"] and form.get("password") == right["password"]):
+                self._answer(302, location=f"http://127.0.0.1:{fake.server_address[1]}/maimai-mobile/aimeList/", cookie="signed=1")
+            else:
+                self._answer(200, "<form><input name='token' value='form-token'></form>")
+
+    fake = ThreadingHTTPServer(("127.0.0.1", 0), FakeJapan)
+    threading.Thread(target=fake.serve_forever, daemon=True).start()
+    real_jp = config.MAIMAI_BASE_URLS["jp"]
+    config.MAIMAI_BASE_URLS["jp"] = f"http://127.0.0.1:{fake.server_address[1]}"
 
     was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
     store._database_ready = False
     kept = web_server.INTERNAL_API_SECRET
     web_server.INTERNAL_API_SECRET = "check-only-secret"
+    # neither the maintenance clock nor a first score read may run against the stand-in
+    kept_down, kept_start = web_server.dashboard.servers_down_note, web_server.dashboard.refresh_jobs.start
+    web_server.dashboard.servers_down_note = lambda region="intl": ""
+    web_server.dashboard.refresh_jobs.start = lambda *args, **kwargs: None
     server = web_server.InternalApiServer(host="127.0.0.1", port=0)
     try:
-        from rasmai.storage.db import issue_login_code, peek_login_code
+        from rasmai.storage.db import get_connected_account, issue_login_code, peek_login_code
         server.start()
         port = server.httpd.server_address[1]
 
@@ -1088,29 +1160,61 @@ def _regions():
                                              headers={"X-Rasmai-Internal": "check-only-secret",
                                                       "Content-Type": "application/json"})
             try:
-                with urllib.request.urlopen(request, timeout=10) as answer:
+                with urllib.request.urlopen(request, timeout=30) as answer:
                     return answer.status, jsonlib.loads(answer.read() or b"{}")
             except urllib.error.HTTPError as error:
                 return error.code, jsonlib.loads(error.read() or b"{}")
 
         user_id = "100000000000000077"
         opaque = create_opaque_user_id(user_id)
-        for region in ("jp", "cn"):
-            code = issue_login_code(user_id, region)
-            status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
-            if status != 400 or body.get("kind") != "region" or body.get("loginLink"):
-                problems.append(f"the connect page for a {region} code answered {status} {body}, expected the region refusal")
-            status, body = ask("/internal/login", {"code": code, "user": opaque, "token": "a" * 64})
-            if status != 400 or body.get("kind") != "region":
-                problems.append(f"a {region} hand-off answered {status} {body}, expected the region refusal")
-            if not peek_login_code(code):
-                problems.append(f"refusing a {region} hand-off spent its login code")
+        code = issue_login_code(user_id, "cn")
+        status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
+        if status != 400 or body.get("kind") != "region" or body.get("loginLink"):
+            problems.append(f"the connect page for a China code answered {status} {body}, expected the region refusal")
+        status, body = ask("/internal/login", {"code": code, "user": opaque, "token": "a" * 64})
+        if status != 400 or body.get("kind") != "region":
+            problems.append(f"a China hand-off answered {status} {body}, expected the region refusal")
+        if not peek_login_code(code):
+            problems.append("refusing a China hand-off spent its login code")
+
         code = issue_login_code(user_id, "intl")
         status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
-        if status != 200 or "lng-tgk-aime-gw.am-all.net" not in str(body.get("loginLink")):
+        if status != 200 or "lng-tgk-aime-gw.am-all.net" not in str(body.get("loginLink")) or body.get("method") != "bookmark":
             problems.append(f"an International code no longer gets its gateway link: {status} {body}")
+
+        code = issue_login_code(user_id, "jp")
+        status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
+        if status != 200 or body.get("method") != "segaid" or body.get("loginLink") or body.get("bookmarklet"):
+            problems.append(f"a Japan code was not offered the SEGA ID sign-in: {status} {body}")
+        status, body = ask("/internal/login", {"code": code, "user": opaque})
+        if status != 400 or body.get("kind") != "no_login":
+            problems.append(f"a Japan hand-off with no SEGA ID answered {status} {body}")
+        for wrong, why in (({**right, "password": "wrong"}, "a wrong password"), ({**right, "aime": "2"}, "an Aime card that is not there")):
+            status, body = ask("/internal/login", {"code": code, "user": opaque, **wrong})
+            if status != 401 or body.get("kind") != "credentials":
+                problems.append(f"a Japan sign-in with {why} answered {status} {body}, expected the credentials refusal")
+            if not peek_login_code(code):
+                problems.append(f"a Japan sign-in with {why} spent its login code")
+        status, body = ask("/internal/login", {"code": code, "user": opaque, **right, "aime": "1"})
+        if status != 200 or body.get("region") != "jp" or (body.get("player") or {}).get("name") != "ＪＰプレイヤー":
+            problems.append(f"a right SEGA ID and password did not link the Japan account: {status} {body}")
+        else:
+            stored = read_sega_id_token((get_connected_account(user_id) or {}).get("token", ""))
+            if stored != (right["segaId"], right["password"], 0):
+                problems.append(f"the linked Japan account's sign-in does not open to what was typed: {stored}")
+            raw = store.get_database_connection().execute(
+                "SELECT token FROM connected_accounts WHERE user_id = ?", (user_id,)).fetchone()[0]
+            if not str(raw).startswith("enc2:"):
+                problems.append("the Japan sign-in was stored without AES-256-GCM")
+            files = b"".join(path.read_bytes() for path in store.DATABASE_PATH.parent.iterdir() if path.is_file())
+            for secret in (right["password"], right["segaId"]):
+                if secret.encode("utf-8") in files:
+                    problems.append(f"the Japan account's {'password' if secret == right['password'] else 'SEGA ID'} is readable in the database files")
     finally:
         server.stop()
+        fake.shutdown()
+        config.MAIMAI_BASE_URLS["jp"] = real_jp
+        web_server.dashboard.servers_down_note, web_server.dashboard.refresh_jobs.start = kept_down, kept_start
         web_server.INTERNAL_API_SECRET = kept
         store.DATABASE_PATH = was
         store._database_ready = False

@@ -8,14 +8,15 @@ import discord
 import requests
 
 from rasmai.bot.ui.formatting import stamp
-from rasmai.config import BROWSER_USER_AGENT, PRESENCE_ENABLED, PRESENCE_REGION, get_maimai_base_url
+from rasmai.config import BROWSER_USER_AGENT, MAINTENANCE_HOURS, PRESENCE_ENABLED, PRESENCE_REGION, get_maimai_base_url
 
 logger = logging.getLogger(__name__)
 
 JST = timezone(timedelta(hours=9))
 
 # Published maintenance for the international version, from 1 September 2026:
-# every day 01:00-02:00 JST, and 01:00-04:00 JST on Wednesdays.
+# every day 01:00-02:00 JST, and 01:00-04:00 JST on Wednesdays. Japan's site is down 04:00-07:00 JST
+# every day (see MAINTENANCE_HOURS).
 DAILY_WINDOW = (time(1, 0), time(2, 0))
 WEDNESDAY_WINDOW = (time(1, 0), time(4, 0))
 WEDNESDAY = 2
@@ -42,32 +43,40 @@ class Maintenance:
         return not self.active and self.moment - datetime.now(JST) <= WARN_AHEAD
 
 
-def window_on(day: date) -> Tuple[datetime, datetime]:
+def window_on(day: date, region: str = "intl") -> Tuple[datetime, datetime]:
     """The maintenance window for one JST day.
 
     :param day: The day to group under.
     :type day: date
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
     :rtype: Tuple[datetime, datetime]
     """
-    opens, closes = WEDNESDAY_WINDOW if day.weekday() == WEDNESDAY else DAILY_WINDOW
+    if region == "intl" or region not in MAINTENANCE_HOURS:
+        opens, closes = WEDNESDAY_WINDOW if day.weekday() == WEDNESDAY else DAILY_WINDOW
+    else:
+        hours = MAINTENANCE_HOURS[region]["wednesday" if day.weekday() == WEDNESDAY else "daily"]
+        opens, closes = time(hours[0], 0), time(hours[1], 0)
     return datetime.combine(day, opens, JST), datetime.combine(day, closes, JST)
 
 
-def maintenance_at(now: Optional[datetime] = None) -> Maintenance:
-    """Whether the servers are down on the published schedule, and until (or from) when.
+def maintenance_at(now: Optional[datetime] = None, region: str = "intl") -> Maintenance:
+    """Whether the region's servers are down on the published schedule, and until (or from) when.
 
     :param now: The moment to measure from.
     :type now: Optional[datetime]
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
     :rtype: Maintenance
     """
     now = now or datetime.now(JST)
     now = now.astimezone(JST)
-    opens, closes = window_on(now.date())
+    opens, closes = window_on(now.date(), region)
     if opens <= now < closes:
         return Maintenance(True, closes)
     if now < opens:
         return Maintenance(False, opens)
-    return Maintenance(False, window_on(now.date() + timedelta(days=1))[0])
+    return Maintenance(False, window_on(now.date() + timedelta(days=1), region)[0])
 
 
 def _probe_once(region: str) -> bool:

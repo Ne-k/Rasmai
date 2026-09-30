@@ -26,19 +26,23 @@ def notice_payload() -> Dict[str, Any]:
     return {key: value for key, value in notice.items() if key != "setBy"}
 
 
-def servers_payload() -> Dict[str, Any]:
-    """Whether maimai DX NET can be read right now, from the presence watch: maintenance on the schedule, or a site that does not answer.
+def servers_payload(region: str = "intl") -> Dict[str, Any]:
+    """Whether a region's maimai DX NET can be read right now, from the presence watch: maintenance on the schedule, or a site that does not answer.
 
     Public and player-free, so the site can show a band saying that what it shows is the last read.
+    The watch only probes its own region's site, so another region is judged on its schedule alone.
 
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
     :rtype: Dict[str, Any]
     """
     from rasmai.bot.tasks.presence import maintenance_at
-    window = maintenance_at()
+    from rasmai.config import PRESENCE_REGION
+    window = maintenance_at(region=region)
     try:
         from rasmai.bot.core import watch
-        reachable = bool(getattr(watch, "reachable", True))
-        checked = getattr(watch, "checked_at", None)
+        reachable = bool(getattr(watch, "reachable", True)) if region == PRESENCE_REGION else True
+        checked = getattr(watch, "checked_at", None) if region == PRESENCE_REGION else None
     except Exception:
         reachable, checked = True, None
     return {
@@ -50,15 +54,17 @@ def servers_payload() -> Dict[str, Any]:
     }
 
 
-def servers_down_note() -> str:
-    """Why maimai DX NET cannot be read right now, in plain words; "" when it can be.
+def servers_down_note(region: str = "intl") -> str:
+    """Why a region's maimai DX NET cannot be read right now, in plain words; "" when it can be.
 
     SEGA's Aime gateway is a separate site that stays up through maintenance, so someone can sign in
     there and still not be able to link an account. Saying which site is down is the whole point.
 
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
     :rtype: str
     """
-    state = servers_payload()
+    state = servers_payload(region)
     if state["maintenance"]:
         until = ""
         try:
