@@ -193,7 +193,8 @@ export function AdminPanel() {
                     <Who person={e} id={e.userId} />
                     <span className="mono bad">
                       expired {when(e.since)}
-                      {e.deletesAt ? <span className="dim"> · deleted {when(e.deletesAt)}</span> : null}
+                      {e.deletesAt ? <span className="dim"> · to be deleted {when(e.deletesAt)}</span> : null}
+                      {e.warnedAt ? <span className="dim"> · warned by DM</span> : null}
                     </span>
                   </li>
                 ))}

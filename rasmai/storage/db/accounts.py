@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import base64
 import re
 import secrets
+import sqlite3
 
-from rasmai.config import EXPIRED_ACCOUNT_DAYS
+from rasmai.config import EXPIRED_ACCOUNT_DAYS, EXPIRED_ACCOUNT_WARN_DAYS
 from rasmai.security import LOGIN_CODE_TTL, _hash_code, decrypt_token, encrypt_token
 from rasmai.storage.db.connection import _dump_json_column, _load_json_column, get_database_connection
 from rasmai.util import _json_safe
@@ -180,7 +182,8 @@ def upsert_connected_account(user_id: str, region: str, token: str, official_pro
                     avatar           = COALESCE(excluded.avatar, connected_accounts.avatar),
                     latest_snapshot  = COALESCE(excluded.latest_snapshot, connected_accounts.latest_snapshot),
                     updated_at       = excluded.updated_at,
-                    session_expired  = ''
+                    session_expired  = '',
+                    deletion_warned  = ''
                 """,
                 (
                     user_id,
@@ -321,24 +324,90 @@ def mark_session_expired(user_id: str, when: str = "") -> None:
         connection.close()
 
 
-# everything else stored against a Discord account, which goes with it
-_ACCOUNT_TABLES = ("chart_play_counts", "area_progress", "chart_scores", "quiet_reads", "login_codes", "rating_history",
-                   "user_settings", "play_judgements", "notify_state", "beta_feedback")
+def _account_tables(connection: Any) -> List[str]:
+    """Every table with a ``user_id`` column: all of it is one person's, and all of it goes with them.
+
+    Read from the schema rather than listed by hand, so a table added later is never left behind.
+    """
+    tables = [row[0] for row in connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+    return [name for name in tables
+            if any(column[1] == "user_id" for column in connection.execute(f'PRAGMA table_info("{name}")'))]
 
 
 def _delete_account_rows(connection: Any, user_id: str) -> bool:
     """Delete the account and every row stored against it, inside the caller's transaction."""
+    tables = _account_tables(connection)
     cursor = connection.execute("DELETE FROM connected_accounts WHERE user_id = ?", (user_id,))
-    for table in _ACCOUNT_TABLES:
-        connection.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+    for table in tables:
+        if table != "connected_accounts":
+            connection.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (user_id,))
     return cursor.rowcount > 0
+
+
+def _erase(connection: Any, user_id: str, keep_if: Optional[Any] = None) -> bool:
+    """Delete one account so its data cannot be read back out of the file.
+
+    SQLite marks deleted rows free and leaves their bytes on disk until something else happens to
+    overwrite them, and a copy of each changed page waits in the write-ahead log beside the file.
+    ``secure_delete`` zeroes the freed space as the rows go, and the checkpoint afterwards writes the
+    log back and empties it. A reader holding the log open can stop that emptying; the zeroed pages
+    are then copied in by the next checkpoint instead, and the old frames overwritten as the log is reused.
+
+    `keep_if` is asked inside the delete's own transaction, so a check it makes cannot go stale first.
+    """
+    connection.execute("PRAGMA secure_delete = ON")
+    with connection:
+        if keep_if is not None and keep_if(connection):
+            return False
+        deleted = _delete_account_rows(connection, user_id)
+    try:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception:
+        pass
+    _erase_from_backup(user_id)
+    _erase_debug_exports(user_id)
+    return deleted
+
+
+def _erase_debug_exports(user_id: str) -> None:
+    """Debug exports that name this account, when the operator has them switched on: they hold its whole read."""
+    from rasmai.config import DEBUG_EXPORT_DIR
+    try:
+        exports = list(Path(DEBUG_EXPORT_DIR).glob("maimai-export-*.json"))
+    except OSError:
+        return
+    mark = f'"userId": "{user_id}"'
+    for path in exports:
+        try:
+            if mark in path.read_text(encoding="utf-8", errors="replace"):
+                path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _erase_from_backup(user_id: str) -> None:
+    """The same delete in the copy the one-off pack keeps beside the database, when there is one."""
+    from rasmai.storage.db import connection as store     # the path is read at call time, as the checks swap it
+    backup = Path(str(store.DATABASE_PATH) + ".before-pack")
+    if not backup.exists():
+        return
+    copy = sqlite3.connect(str(backup))
+    try:
+        copy.execute("PRAGMA secure_delete = ON")
+        with copy:
+            _delete_account_rows(copy, user_id)
+        copy.execute("VACUUM")      # a file nothing else writes to: rebuilt without the freed pages at all
+    except sqlite3.Error:
+        pass
+    finally:
+        copy.close()
 
 
 def delete_connected_account(user_id: str) -> bool:
     connection = get_database_connection()
     try:
-        with connection:
-            return _delete_account_rows(connection, user_id)
+        return _erase(connection, user_id)
     finally:
         connection.close()
 
@@ -415,19 +484,74 @@ def purge_expired_accounts(now: Optional[datetime] = None, days: Optional[int] =
     cutoff = (now or datetime.now()) - timedelta(days=days)
     deleted: List[str] = []
     for entry in expired_accounts_due(now, days):
+        def relinked(connection: Any, user_id: str = entry["userId"]) -> bool:
+            row = connection.execute("SELECT session_expired FROM connected_accounts WHERE user_id = ?",
+                                     (user_id,)).fetchone()
+            when = _expired_moment(row["session_expired"]) if row else None
+            return when is None or when > cutoff      # linked again since the listing: kept
+
         connection = get_database_connection()
         try:
-            with connection:
-                row = connection.execute("SELECT session_expired FROM connected_accounts WHERE user_id = ?",
-                                         (entry["userId"],)).fetchone()
-                when = _expired_moment(row["session_expired"]) if row else None
-                if when is None or when > cutoff:
-                    continue
-                if _delete_account_rows(connection, entry["userId"]):
-                    deleted.append(entry["userId"])
+            if _erase(connection, entry["userId"], keep_if=relinked):
+                deleted.append(entry["userId"])
         finally:
             connection.close()
     return deleted
+
+
+def accounts_to_warn(now: Optional[datetime] = None, days: Optional[int] = None,
+                     warn_days: Optional[int] = None) -> List[Dict[str, str]]:
+    """Accounts to be deleted within `warn_days` whose owner has not been warned yet. Reads only.
+
+    :param now: The moment to measure from.
+    :type now: Optional[datetime]
+    :param days: How long an account may stay expired; the configured allowance by default.
+    :type days: Optional[int]
+    :param warn_days: How far ahead of the deletion to warn; the configured lead by default.
+    :type warn_days: Optional[int]
+    :returns: ``{"userId", "region", "since", "deletesAt"}`` for each account, soonest first.
+    :rtype: List[Dict[str, str]]
+    """
+    days = EXPIRED_ACCOUNT_DAYS if days is None else days
+    warn_days = EXPIRED_ACCOUNT_WARN_DAYS if warn_days is None else warn_days
+    if days <= 0 or warn_days <= 0:
+        return []
+    now = now or datetime.now()
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            "SELECT user_id, region, session_expired FROM connected_accounts "
+            "WHERE session_expired <> '' AND deletion_warned = ''").fetchall()
+    finally:
+        connection.close()
+    due = []
+    for row in rows:
+        since = _expired_moment(row["session_expired"])
+        if since is None:
+            continue
+        deletes = since + timedelta(days=days)
+        if deletes - timedelta(days=warn_days) <= now < deletes:
+            due.append((deletes, {"userId": str(row["user_id"]), "region": str(row["region"] or "intl"),
+                                  "since": str(row["session_expired"]),
+                                  "deletesAt": deletes.isoformat(timespec="seconds")}))
+    return [entry for _when, entry in sorted(due, key=lambda pair: pair[0])]
+
+
+def mark_deletion_warned(user_id: str, when: str = "") -> None:
+    """Record that the owner was sent the deletion warning, or that one was tried, so it goes once.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param when: When, ISO 8601; now by default.
+    :type when: str
+    """
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute("UPDATE connected_accounts SET deletion_warned = ? WHERE user_id = ?",
+                               (when or datetime.now().isoformat(timespec="seconds"), user_id))
+    finally:
+        connection.close()
 
 
 def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, Any]], snapshot: Optional[Dict[str, Any]]) -> None:
@@ -451,7 +575,8 @@ def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, A
                     latest_snapshot  = COALESCE(?, latest_snapshot),
                     updated_at       = ?,
                     -- a read that landed proves the session works, whatever an earlier one thought
-                    session_expired  = ''
+                    session_expired  = '',
+                    deletion_warned  = ''
                 WHERE user_id = ?
                 """,
                 (_dump_json_column(official_profile), avatar, _dump_json_column(snapshot, packed=True),

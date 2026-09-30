@@ -65,7 +65,8 @@ def get_database_connection() -> sqlite3.Connection:
                 for column in ("session_expired TEXT NOT NULL DEFAULT ''",
                                "share_slug TEXT",                          # the public profile link, unset until asked for
                                "seen_at TEXT",                             # last time the person used the bot or the site
-                               "avatar BLOB"):                             # the profile picture's PNG, kept out of official_profile's JSON
+                               "avatar BLOB",                              # the profile picture's PNG, kept out of official_profile's JSON
+                               "deletion_warned TEXT NOT NULL DEFAULT ''"):  # when the DM saying it will be deleted went out
                     try:
                         setup.execute(f"ALTER TABLE connected_accounts ADD COLUMN {column}")
                     except sqlite3.OperationalError:

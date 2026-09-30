@@ -158,9 +158,10 @@ export default function PrivacyPage() {
       <p>
         Your linked account, its scores and its play history stay until you remove them, with one exception: if maimai DX NET
         stops accepting your session key and you don&apos;t link again with <code>/login</code> within 30 days, everything listed
-        under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired.
-        Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires it, and the
-        caches listed above.
+        under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired,
+        and two days before it Rasmai sends you a Discord message saying so, with a button to link again, if Discord lets it
+        message you. Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires
+        it, and the caches listed above.
       </p>
       <ul>
         <li>
@@ -168,6 +169,14 @@ export default function PrivacyPage() {
           tab. Either deletes your session key, profile, profile link, stored scores, play history, judgement details, area
           progress, rating readings, settings, beta feedback, play-count cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds
           your Discord ID and name.
+        </li>
+        <li>
+          <b>How it is deleted.</b> The same way however it happens: by you, by the operator, or automatically after 30 days. Every
+          row stored under your Discord account is removed and its space in the database file is overwritten, so it can&apos;t
+          be read back out of the file, and the database&apos;s change log is written back and emptied straight after. Any copy
+          the bot is holding in memory is dropped at the same moment, and so is your data in the one backup copy the server
+          keeps from a past database upgrade, and in any debugging copies the operator has switched on. Once it is gone it
+          can&apos;t be restored.
         </li>
         <li>
           <b>By contact.</b> If you cannot use either, for example because you no longer have access to the Discord account, or

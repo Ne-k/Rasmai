@@ -3,7 +3,8 @@ import asyncio
 import logging
 import discord
 
-from rasmai.bot.state.cache import cache_get, forget_analysis
+from rasmai.bot.state.cache import cache_get
+from rasmai.bot.state.forget import forget_user
 from rasmai.config import WALKTHROUGH_DIR, get_public_base_url
 from rasmai.storage.db import delete_connected_account, get_connected_account
 from rasmai.security import LOGIN_CODE_TTL, public_reason
@@ -185,7 +186,7 @@ class DeleteAccountView(OwnerOnlyView):
     @discord.ui.button(label="Disconnect", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, _button: discord.ui.Button) -> None:
         delete_connected_account(str(self.owner_id))
-        forget_analysis(str(self.owner_id))
+        forget_user(str(self.owner_id))
         for item in self.children:
             item.disabled = True
         await interaction.response.edit_message(content="Disconnected. Your session key and cached data are gone.", view=self)

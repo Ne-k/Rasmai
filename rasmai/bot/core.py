@@ -2,6 +2,7 @@ from discord import app_commands
 from discord.app_commands.installs import AppCommandContext, AppInstallationType
 from discord.ext import commands, tasks
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Dict, Optional, Any
 import asyncio
 import discord
@@ -338,7 +339,7 @@ async def _status_heartbeat() -> None:
 
 
 def _purge_expired_accounts() -> None:
-    from rasmai.bot.state.cache import forget_analysis
+    from rasmai.bot.state.forget import forget_user
     from rasmai.storage.db import purge_expired_accounts
     try:
         gone = purge_expired_accounts()
@@ -346,14 +347,46 @@ def _purge_expired_accounts() -> None:
         logger.exception("deleting accounts whose session expired failed")
         return
     for user_id in gone:
-        forget_analysis(user_id)      # an analysis held in memory is stored data too
+        forget_user(user_id)          # what the running bot holds in memory is their data too
     if gone:
         logger.info("Deleted %d account(s) whose maimai session had been expired for %d days or more",
                     len(gone), EXPIRED_ACCOUNT_DAYS)
 
 
-@tasks.loop(hours=6)
+async def _warn_expiring_accounts() -> None:
+    """DM each owner once, a couple of days before their account is deleted, with a card to link again.
+
+    Discord refuses a DM from someone who shares no server with the bot or has DMs closed; the
+    attempt is recorded either way, so a closed inbox is not tried again every hour.
+    """
+    from rasmai.bot.ui.formatting import stamp
+    from rasmai.bot.ui.login import dm_login_card
+    from rasmai.storage.db import accounts_to_warn, mark_deletion_warned
+    try:
+        due = await asyncio.to_thread(accounts_to_warn)
+    except Exception:
+        logger.exception("listing the accounts to warn about deletion failed")
+        return
+    sent = 0
+    for account in due:
+        deletes = datetime.fromisoformat(account["deletesAt"])
+        since = datetime.fromisoformat(account["since"])
+        intro = (f"**Your Rasmai data will be deleted {stamp(deletes, 'R')}** ({stamp(deletes, 'f')}). maimai DX NET "
+                 f"stopped accepting your saved sign-in on {stamp(since, 'D')}, and accounts left unlinked for "
+                 f"{EXPIRED_ACCOUNT_DAYS} days are deleted: your scores, play history, judgement pages, rating readings "
+                 "and settings. Link again below to keep everything. To have it gone now instead, run `/delete-account`.")
+        try:
+            if await dm_login_card(bot, account["userId"], account["region"], intro):
+                sent += 1
+        finally:
+            await asyncio.to_thread(mark_deletion_warned, account["userId"])
+    if due:
+        logger.info("Deletion warnings: %d of %d delivered by DM", sent, len(due))
+
+
+@tasks.loop(hours=1)
 async def _expired_account_sweep() -> None:
+    await _warn_expiring_accounts()
     await asyncio.get_running_loop().run_in_executor(None, _purge_expired_accounts)
 
 

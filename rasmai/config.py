@@ -70,6 +70,9 @@ DATABASE_PATH = Path(os.getenv("MAIMAI_DATABASE_PATH", "data/maimai.sqlite3"))
 # the way /delete-account deletes it; 0 keeps such accounts until someone deletes them by hand
 EXPIRED_ACCOUNT_DAYS = max(0, int(os.getenv("MAIMAI_EXPIRED_ACCOUNT_DAYS", "30") or 0))
 
+# how many days before that deletion its owner is sent a DM saying so, when Discord lets the bot; 0 sends none
+EXPIRED_ACCOUNT_WARN_DAYS = max(0, int(os.getenv("MAIMAI_EXPIRED_ACCOUNT_WARN_DAYS", "2") or 0))
+
 
 MAIMAI_BASE_URLS = {
     "jp": "https://maimaidx.jp",

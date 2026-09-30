@@ -8,6 +8,7 @@ from rasmai.bot.builders.charts.index import search_titles
 from rasmai.security import import_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account
 from rasmai.bot.state.cache import cache_get, forget_analysis
+from rasmai.bot.state.forget import forget_user
 from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_payload, guilds_payload,
                                         is_admin, start_update)
 from rasmai.web.dashboard.analysis import analysis_for_user
@@ -267,7 +268,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         return True
     if path == "/internal/me/unlink":
         delete_connected_account(user["id"])
-        forget_analysis(user["id"])
+        forget_user(user["id"])
         handler._send_json(200, {"ok": True})
         return True
     return False

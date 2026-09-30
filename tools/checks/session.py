@@ -481,3 +481,145 @@ def _profile_lists_link():
     if embeds._highlight("Oshama Scramble!") != "Oshama Scramble!":
         problems.append("an analysis made before the lists carried charts no longer shows its titles")
     return problems
+
+
+@check("a deleted account cannot be read back out of the database file, its backup copy, debug exports or memory")
+def _secure_erase():
+    import json, sqlite3, tempfile, pathlib
+    from rasmai.storage.db import connection as store
+    folder = pathlib.Path(tempfile.mkdtemp())
+    was, store.DATABASE_PATH = store.DATABASE_PATH, folder / "t.sqlite3"
+    store._database_ready = False
+    import rasmai.config as config
+    kept_exports = config.DEBUG_EXPORT_DIR
+    config.DEBUG_EXPORT_DIR = folder / "exports"
+    problems = []
+    try:
+        from rasmai.storage.db import (delete_connected_account, get_connected_account, get_database_connection,
+                                       set_user_settings, upsert_connected_account)
+        marker = "ERASE-ME-7f3c9a"
+        for user_id, name in (("gone", marker), ("stays", "KEEP-ME-18d2")):
+            upsert_connected_account(user_id, "intl", f"cookie://{user_id}", official_profile={"name": name * 40})
+            set_user_settings(user_id, {"layout": "both", "note": name * 40})
+        # the one-off copy a database upgrade leaves beside the file
+        source = sqlite3.connect(str(store.DATABASE_PATH))
+        copy = sqlite3.connect(str(store.DATABASE_PATH) + ".before-pack")
+        source.backup(copy)
+        copy.close()
+        source.close()
+        config.DEBUG_EXPORT_DIR.mkdir(parents=True)
+        for user_id in ("gone", "stays"):
+            (config.DEBUG_EXPORT_DIR / f"maimai-export-2026-{user_id}.json").write_text(
+                json.dumps({"userId": user_id, "player": "x"}, indent=2), encoding="utf-8")
+
+        from rasmai.bot.state import cache, reads
+        from rasmai.bot.state.cache import CachedAnalysis
+        from rasmai.bot.state.forget import forget_user
+        from rasmai.web.dashboard import admin
+        cache._analysis_cache["gone"] = CachedAnalysis(user_id="gone", region="intl", analyzer=None,   # type: ignore[arg-type]
+                                                       recommendations=[], value_charts=[])
+        reads.claim("gone", reads.DISCORD)
+        admin._PEOPLE["gone"] = {"name": "Gone"}
+
+        # SQLite as Debian builds it zeroes deleted rows on its own, and as Windows' Python ships it does
+        # not: start every connection with it off, so this passes only if the delete turns it on itself
+        from rasmai.storage.db import accounts as account_store
+        opened = account_store.get_database_connection
+
+        def plain_connection():
+            connection = opened()
+            connection.execute("PRAGMA secure_delete = OFF")
+            return connection
+
+        account_store.get_database_connection = plain_connection
+        try:
+            delete_connected_account("gone")
+        finally:
+            account_store.get_database_connection = opened
+        forget_user("gone")
+
+        if get_connected_account("gone") is not None or get_connected_account("stays") is None:
+            problems.append("the delete took the wrong account")
+        get_database_connection().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        for path in (store.DATABASE_PATH, pathlib.Path(str(store.DATABASE_PATH) + "-wal"),
+                     pathlib.Path(str(store.DATABASE_PATH) + ".before-pack")):
+            if path.exists() and marker.encode() in path.read_bytes():
+                problems.append(f"the deleted account's text can still be read out of {path.name}")
+        if b"KEEP-ME-18d2" not in store.DATABASE_PATH.read_bytes() + pathlib.Path(str(store.DATABASE_PATH) + "-wal").read_bytes():
+            problems.append("the account that stays lost its data")
+        left = sorted(p.name for p in config.DEBUG_EXPORT_DIR.glob("*.json"))
+        if left != ["maimai-export-2026-stays.json"]:
+            problems.append(f"debug exports after the delete: {left}, expected only the other account's")
+        if "gone" in cache._analysis_cache or reads.running("gone") or "gone" in admin._PEOPLE:
+            problems.append("the running bot still holds the deleted account in memory")
+    finally:
+        config.DEBUG_EXPORT_DIR = kept_exports
+        store.DATABASE_PATH = was
+        store._database_ready = False
+    return problems
+
+
+@check("the owner is warned once, two days before the deletion, and the developer page stops listing what is gone")
+def _deletion_warning():
+    import tempfile, pathlib
+    from datetime import datetime
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    problems = []
+    try:
+        from rasmai.storage.db import (accounts_to_warn, get_database_connection, mark_deletion_warned,
+                                       mark_session_expired, upsert_connected_account)
+        now = datetime(2026, 10, 14, 12, 0, 0)
+        for user_id in ("soon", "later", "past", "fine"):
+            upsert_connected_account(user_id, "intl", f"cookie://{user_id}")
+        mark_session_expired("soon", "2026-09-15T13:00:00")     # deleted 15 Oct 13:00, a day and an hour away
+        mark_session_expired("later", "2026-09-20T12:00:00")    # six days away
+        mark_session_expired("past", "2026-09-10T12:00:00")     # already due: the sweep deletes, nobody is warned
+        due = [a["userId"] for a in accounts_to_warn(now)]
+        if due != ["soon"]:
+            problems.append(f"warned {due}, expected only the account two days or less from deletion")
+        mark_deletion_warned("soon", "2026-10-14T12:00:00")
+        if accounts_to_warn(now):
+            problems.append("an owner already warned would be messaged again")
+        upsert_connected_account("soon", "intl", "cookie://again")
+        mark_session_expired("soon", "2026-10-20T00:00:00")
+        row = get_database_connection().execute(
+            "SELECT deletion_warned FROM connected_accounts WHERE user_id = 'soon'").fetchone()
+        if row["deletion_warned"]:
+            problems.append("linking again kept the old warning, so a later expiry would never be warned about")
+
+        # the developer page, which measures from the real now: an account past its deletion date is not
+        # something to fix, nor is its failing read
+        from datetime import timedelta
+        real = datetime.now()
+        connection = get_database_connection()
+        with connection:
+            connection.execute("UPDATE connected_accounts SET session_expired = ? WHERE user_id = 'past'",
+                               ((real - timedelta(days=40)).isoformat(timespec="seconds"),))
+            connection.execute("UPDATE connected_accounts SET session_expired = ? WHERE user_id = 'later'",
+                               ((real - timedelta(days=10)).isoformat(timespec="seconds"),))
+            for user_id in ("past", "later"):
+                connection.execute("INSERT OR REPLACE INTO quiet_reads (user_id, read_at, plays_added, error) "
+                                   "VALUES (?, '2026-10-14T00:00:00', 0, 'session expired')", (user_id,))
+            connection.execute("INSERT OR REPLACE INTO quiet_reads (user_id, read_at, plays_added, error) "
+                               "VALUES ('deleted-long-ago', '2026-10-14T00:00:00', 0, 'session expired')")
+        from rasmai.web.dashboard import admin
+        kept_people = admin.people
+        admin.people = lambda ids: {}
+        try:
+            payload = admin.admin_payload()
+        finally:
+            admin.people = kept_people
+        listed = [e["userId"] for e in payload["expired"]]
+        failing = [r["userId"] for r in payload["failingReads"]]
+        if "past" in listed:
+            problems.append("an account past its deletion date still needs attention on the developer page")
+        if "later" not in listed:
+            problems.append("an expired account not yet due fell off the developer page")
+        if failing:
+            problems.append(f"failing reads listed for accounts that are expired or gone: {failing}")
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+    return problems

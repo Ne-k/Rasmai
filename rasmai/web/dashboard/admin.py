@@ -7,7 +7,7 @@ import threading
 import time
 
 from rasmai.config import ADMIN_USER_ID, DATABASE_PATH, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES
-from rasmai.storage.db.accounts import session_deletes_at
+from rasmai.storage.db.accounts import expired_accounts_due, session_deletes_at
 from rasmai.storage.db.connection import get_database_connection
 from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally
 
@@ -310,6 +310,14 @@ def _simai_progress() -> Dict[str, Any]:
         return {}
 
 
+def _rows_due() -> List[Dict[str, Any]]:
+    """Accounts past their deletion date that the hourly sweep has not reached yet."""
+    try:
+        return [{"user_id": entry["userId"]} for entry in expired_accounts_due()]
+    except Exception:
+        return []
+
+
 def admin_payload() -> Dict[str, Any]:
     """Everything the developer page shows: who is linked, what is stored, and what the process is doing.
 
@@ -321,9 +329,12 @@ def admin_payload() -> Dict[str, Any]:
     try:
         accounts = _rows(connection, "SELECT region, COUNT(*) AS n, SUM(session_expired <> '') AS dead "
                                      "FROM connected_accounts GROUP BY region ORDER BY n DESC")
-        stale = _rows(connection, "SELECT user_id, region, session_expired FROM connected_accounts "
+        stale = _rows(connection, "SELECT user_id, region, session_expired, deletion_warned FROM connected_accounts "
                                   "WHERE session_expired <> '' ORDER BY session_expired")
-        reads = _rows(connection, "SELECT user_id, read_at, error FROM quiet_reads WHERE error <> '' ORDER BY read_at DESC LIMIT 10")
+        # a failing daily read only for an account still linked: one deleted since has nothing to fix
+        reads = _rows(connection, "SELECT q.user_id, q.read_at, q.error FROM quiet_reads q "
+                                  "JOIN connected_accounts a ON a.user_id = q.user_id "
+                                  "WHERE q.error <> '' ORDER BY q.read_at DESC LIMIT 10")
         sources = _rows(connection, "SELECT source, checked_at, LENGTH(payload) AS bytes, etag <> '' AS tagged "
                                     "FROM news_state ORDER BY source")
         busiest = _rows(connection, "SELECT user_id, COUNT(*) AS plays FROM chart_scores GROUP BY user_id ORDER BY plays DESC LIMIT 5")
@@ -394,13 +405,23 @@ def admin_payload() -> Dict[str, Any]:
         running += int(row["n"])
         growth.append({"day": row["day"], "accounts": running})
 
+    # Past its deletion date an account is gone as far as anyone should act on it, and the next sweep
+    # takes the rows; until then it is left off the list rather than shown as something to fix. A
+    # failing daily read for an account already listed as expired is the same problem said twice.
+    now = datetime.now().isoformat(timespec="seconds")
+    stale = [r for r in stale if not (session_deletes_at(r["session_expired"]) and session_deletes_at(r["session_expired"]) <= now)]
+    expired_ids = {r["user_id"] for r in stale}
+    due_ids = {r["user_id"] for r in _rows_due()}
+    reads = [r for r in reads if r["user_id"] not in expired_ids and r["user_id"] not in due_ids]
+
     said = beta_feedback()
     known = people([r["user_id"] for r in busiest] + [r["user_id"] for r in stale]
                    + [r["user_id"] for r in reads] + [r["userId"] for r in said])
     return {
         "accounts": [{"region": r["region"], "count": int(r["n"]), "expired": int(r["dead"] or 0)} for r in accounts],
         "expired": _named([{"userId": r["user_id"], "region": r["region"], "since": r["session_expired"],
-                            "deletesAt": session_deletes_at(r["session_expired"])} for r in stale], known),
+                            "deletesAt": session_deletes_at(r["session_expired"]),
+                            "warnedAt": r["deletion_warned"] or ""} for r in stale], known),
         "failingReads": _named([{"userId": r["user_id"], "lastRead": r["read_at"], "error": r["error"]} for r in reads], known),
         "sources": [{"source": r["source"], "checkedAt": r["checked_at"], "bytes": int(r["bytes"] or 0),
                      "etag": bool(r["tagged"])} for r in sources],

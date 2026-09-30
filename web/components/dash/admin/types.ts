@@ -2,7 +2,7 @@ export type Person = { name?: string; handle?: string; avatar?: string };
 export type Table = { name: string; bytes: number | null; rows?: number };
 export type AdminData = {
   accounts: { region: string; count: number; expired: number }[];
-  expired: ({ userId: string; region: string; since: string; deletesAt?: string } & Person)[];
+  expired: ({ userId: string; region: string; since: string; deletesAt?: string; warnedAt?: string } & Person)[];
   failingReads: ({ userId: string; lastRead: string; error: string } & Person)[];
   sources: { source: string; checkedAt: string; bytes: number; etag: boolean }[];
   simai?: { read: number; refused: number; waiting: number; sheets?: number; sheetBytes?: number; checked_at?: string };
