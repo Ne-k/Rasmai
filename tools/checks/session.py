@@ -36,6 +36,71 @@ def _expired():
         store._database_ready = False
 
 
+@check("an account left expired for 30 days is deleted with everything stored for it, and no other")
+def _expired_purge():
+    import tempfile, pathlib
+    from datetime import datetime
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    try:
+        from rasmai.storage.db import (expired_accounts_due, get_connected_account, get_database_connection,
+                                       mark_session_expired, purge_expired_accounts, session_deletes_at,
+                                       upsert_connected_account)
+        now = datetime(2026, 10, 20, 12, 0, 0)
+        problems = []
+        for user_id in ("old", "edge", "young", "fine", "relinked"):
+            upsert_connected_account(user_id, "intl", f"cookie://{user_id}")
+        mark_session_expired("old", "2026-09-16T07:08:00")        # 34 days before `now`
+        mark_session_expired("edge", "2026-09-20T12:00:00")       # exactly 30 days
+        mark_session_expired("young", "2026-09-30T15:51:00")      # 20 days
+        mark_session_expired("relinked", "2026-09-01T00:00:00")
+        upsert_connected_account("relinked", "intl", "cookie://again")   # linked again: the flag is cleared
+        connection = get_database_connection()
+        try:
+            with connection:
+                for user_id in ("old", "young"):
+                    connection.execute("INSERT INTO rating_history (user_id, recorded_at, rating, best50, new_total, "
+                                       "old_total, charts, plays) VALUES (?, ?, 13000, 13000, 4000, 9000, 1, 1)",
+                                       (user_id, "2026-09-10T00:00:00"))
+        finally:
+            connection.close()
+
+        if session_deletes_at("2026-09-16T07:08:00") != "2026-10-16T07:08:00":
+            problems.append(f"the deletion date is not 30 days on: {session_deletes_at('2026-09-16T07:08:00')}")
+        if session_deletes_at(""):
+            problems.append("an account that is not expired was given a deletion date")
+        due = [row["userId"] for row in expired_accounts_due(now)]
+        if due != ["old", "edge"]:
+            problems.append(f"due for deletion {due}, expected ['old', 'edge'] oldest first")
+        if get_connected_account("old") is None:
+            problems.append("listing what is due deleted something; it has to read only")
+        gone = purge_expired_accounts(now)
+        if sorted(gone) != ["edge", "old"]:
+            problems.append(f"deleted {gone}, expected old and edge")
+        for user_id in ("old", "edge"):
+            if get_connected_account(user_id) is not None:
+                problems.append(f"{user_id} was reported deleted but is still linked")
+        for user_id in ("young", "fine", "relinked"):
+            if get_connected_account(user_id) is None:
+                problems.append(f"{user_id} was deleted, but it is not 30 days expired")
+        connection = get_database_connection()
+        try:
+            left = {row["user_id"] for row in connection.execute("SELECT user_id FROM rating_history")}
+        finally:
+            connection.close()
+        if left != {"young"}:
+            problems.append(f"rating history left behind after the delete: {sorted(left)}")
+        if purge_expired_accounts(now):
+            problems.append("a second sweep deleted something again")
+        if purge_expired_accounts(now, days=0) or expired_accounts_due(now, days=0):
+            problems.append("an allowance of 0 days should keep expired accounts, not delete them")
+        return problems
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+
 @check("a play-count refresh drops every poster built for that level and nothing else")
 def _forget():
     from rasmai.bot.state.cache import CachedAnalysis

@@ -77,6 +77,7 @@ export type Overview = {
   settings?: Record<string, string | boolean>;
   refresh?: RefreshStatus;
   sessionExpired?: string;
+  sessionDeletesAt?: string;
   admin?: boolean;
   sharing?: Sharing;
   beta?: Beta;

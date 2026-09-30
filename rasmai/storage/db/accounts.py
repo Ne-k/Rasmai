@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 import base64
 import re
 import secrets
 
+from rasmai.config import EXPIRED_ACCOUNT_DAYS
 from rasmai.security import LOGIN_CODE_TTL, _hash_code, decrypt_token, encrypt_token
 from rasmai.storage.db.connection import _dump_json_column, _load_json_column, get_database_connection
 from rasmai.util import _json_safe
@@ -320,26 +321,113 @@ def mark_session_expired(user_id: str, when: str = "") -> None:
         connection.close()
 
 
+# everything else stored against a Discord account, which goes with it
+_ACCOUNT_TABLES = ("chart_play_counts", "area_progress", "chart_scores", "quiet_reads", "login_codes", "rating_history",
+                   "user_settings", "play_judgements", "notify_state", "beta_feedback")
+
+
+def _delete_account_rows(connection: Any, user_id: str) -> bool:
+    """Delete the account and every row stored against it, inside the caller's transaction."""
+    cursor = connection.execute("DELETE FROM connected_accounts WHERE user_id = ?", (user_id,))
+    for table in _ACCOUNT_TABLES:
+        connection.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+    return cursor.rowcount > 0
+
+
 def delete_connected_account(user_id: str) -> bool:
     connection = get_database_connection()
     try:
         with connection:
-            cursor = connection.execute(
-                "DELETE FROM connected_accounts WHERE user_id = ?", (user_id,)
-            )
-            connection.execute("DELETE FROM chart_play_counts WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM area_progress WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM chart_scores WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM quiet_reads WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM login_codes WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM rating_history WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM play_judgements WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM notify_state WHERE user_id = ?", (user_id,))
-            connection.execute("DELETE FROM beta_feedback WHERE user_id = ?", (user_id,))
-        return cursor.rowcount > 0
+            return _delete_account_rows(connection, user_id)
     finally:
         connection.close()
+
+
+def _expired_moment(text: Any) -> Optional[datetime]:
+    """The moment written in ``session_expired``, as local time; ``None`` when it is empty or unreadable."""
+    try:
+        when = datetime.fromisoformat(str(text or "").strip())
+    except ValueError:
+        return None
+    if when.tzinfo is not None:
+        when = when.astimezone().replace(tzinfo=None)      # the column is written in the server's local time
+    return when
+
+
+def session_deletes_at(expired_since: str) -> str:
+    """When an account whose sign-in was refused at `expired_since` is deleted unless it is linked again.
+
+    :param expired_since: The account's ``sessionExpired``.
+    :type expired_since: str
+    :returns: ISO 8601, or empty when it is not expired or expired accounts are kept.
+    :rtype: str
+    """
+    when = _expired_moment(expired_since)
+    if when is None or EXPIRED_ACCOUNT_DAYS <= 0:
+        return ""
+    return (when + timedelta(days=EXPIRED_ACCOUNT_DAYS)).isoformat(timespec="seconds")
+
+
+def expired_accounts_due(now: Optional[datetime] = None, days: Optional[int] = None) -> List[Dict[str, str]]:
+    """Accounts whose sign-in has been refused for `days` or longer, oldest first. Reads only.
+
+    :param now: The moment to measure from.
+    :type now: Optional[datetime]
+    :param days: How long an account may stay expired; the configured allowance by default.
+    :type days: Optional[int]
+    :returns: ``{"userId", "since"}`` for each account due.
+    :rtype: List[Dict[str, str]]
+    """
+    days = EXPIRED_ACCOUNT_DAYS if days is None else days
+    if days <= 0:
+        return []
+    cutoff = (now or datetime.now()) - timedelta(days=days)
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            "SELECT user_id, session_expired FROM connected_accounts WHERE session_expired <> ''").fetchall()
+    finally:
+        connection.close()
+    due = []
+    for row in rows:
+        when = _expired_moment(row["session_expired"])
+        if when is not None and when <= cutoff:
+            due.append((when, {"userId": str(row["user_id"]), "since": str(row["session_expired"])}))
+    return [entry for _when, entry in sorted(due, key=lambda pair: pair[0])]
+
+
+def purge_expired_accounts(now: Optional[datetime] = None, days: Optional[int] = None) -> List[str]:
+    """Delete every account whose sign-in has been refused for `days` or longer, as ``/delete-account`` would.
+
+    Each account is looked at again inside its own delete, so one linked again between the listing
+    and the delete is kept: a fresh ``/login`` clears ``session_expired``.
+
+    :param now: The moment to measure from.
+    :type now: Optional[datetime]
+    :param days: How long an account may stay expired; the configured allowance by default.
+    :type days: Optional[int]
+    :returns: The Discord ids of the accounts deleted.
+    :rtype: List[str]
+    """
+    days = EXPIRED_ACCOUNT_DAYS if days is None else days
+    if days <= 0:
+        return []
+    cutoff = (now or datetime.now()) - timedelta(days=days)
+    deleted: List[str] = []
+    for entry in expired_accounts_due(now, days):
+        connection = get_database_connection()
+        try:
+            with connection:
+                row = connection.execute("SELECT session_expired FROM connected_accounts WHERE user_id = ?",
+                                         (entry["userId"],)).fetchone()
+                when = _expired_moment(row["session_expired"]) if row else None
+                if when is None or when > cutoff:
+                    continue
+                if _delete_account_rows(connection, entry["userId"]):
+                    deleted.append(entry["userId"])
+        finally:
+            connection.close()
+    return deleted
 
 
 def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, Any]], snapshot: Optional[Dict[str, Any]]) -> None:

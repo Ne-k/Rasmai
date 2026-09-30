@@ -85,7 +85,8 @@ export default function TermsPage() {
 
       <h2>Stopping</h2>
       <p>
-        You can stop using Rasmai whenever you like. <code>/delete-account</code> removes your data. The operator may remove linked
+        You can stop using Rasmai whenever you like. <code>/delete-account</code> removes your data, and an account whose maimai session stays expired for 30 days
+        without being linked again is deleted automatically. The operator may remove linked
         accounts or restrict access, for example in response to abuse, without notice.
       </p>
 

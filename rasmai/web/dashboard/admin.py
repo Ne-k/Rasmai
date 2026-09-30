@@ -7,6 +7,7 @@ import threading
 import time
 
 from rasmai.config import ADMIN_USER_ID, DATABASE_PATH, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES
+from rasmai.storage.db.accounts import session_deletes_at
 from rasmai.storage.db.connection import get_database_connection
 from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally
 
@@ -398,7 +399,8 @@ def admin_payload() -> Dict[str, Any]:
                    + [r["user_id"] for r in reads] + [r["userId"] for r in said])
     return {
         "accounts": [{"region": r["region"], "count": int(r["n"]), "expired": int(r["dead"] or 0)} for r in accounts],
-        "expired": _named([{"userId": r["user_id"], "region": r["region"], "since": r["session_expired"]} for r in stale], known),
+        "expired": _named([{"userId": r["user_id"], "region": r["region"], "since": r["session_expired"],
+                            "deletesAt": session_deletes_at(r["session_expired"])} for r in stale], known),
         "failingReads": _named([{"userId": r["user_id"], "lastRead": r["read_at"], "error": r["error"]} for r in reads], known),
         "sources": [{"source": r["source"], "checkedAt": r["checked_at"], "bytes": int(r["bytes"] or 0),
                      "etag": bool(r["tagged"])} for r in sources],

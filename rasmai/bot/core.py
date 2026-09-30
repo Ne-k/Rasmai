@@ -14,7 +14,7 @@ from rasmai.bot.tasks.history_watch import HistoryWatch
 from rasmai.bot.tasks.presence import ServerWatch
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
-    CONTROL_GUILD_ID, DATABASE_PATH, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
+    CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
 )
 from rasmai.images.render import render_html_to_image
 from rasmai.scraping import wiki
@@ -337,6 +337,26 @@ async def _status_heartbeat() -> None:
     await asyncio.get_running_loop().run_in_executor(None, _status_sample)
 
 
+def _purge_expired_accounts() -> None:
+    from rasmai.bot.state.cache import forget_analysis
+    from rasmai.storage.db import purge_expired_accounts
+    try:
+        gone = purge_expired_accounts()
+    except Exception:
+        logger.exception("deleting accounts whose session expired failed")
+        return
+    for user_id in gone:
+        forget_analysis(user_id)      # an analysis held in memory is stored data too
+    if gone:
+        logger.info("Deleted %d account(s) whose maimai session had been expired for %d days or more",
+                    len(gone), EXPIRED_ACCOUNT_DAYS)
+
+
+@tasks.loop(hours=6)
+async def _expired_account_sweep() -> None:
+    await asyncio.get_running_loop().run_in_executor(None, _purge_expired_accounts)
+
+
 def _crawl_wiki_titles() -> None:
     try:
         wiki.wiki_titles()
@@ -375,6 +395,8 @@ async def on_ready():
         _chart_db_daily.start()      # on_ready fires again after a reconnect; the loop must not
     if not _status_heartbeat.is_running():
         _status_heartbeat.start()    # the same again: one heartbeat however many times Discord reconnects
+    if not _expired_account_sweep.is_running():
+        _expired_account_sweep.start()   # accounts left expired past the allowance are deleted; once, not per reconnect
     # the chart table, and then the charts themselves: nothing to do with the wiki, so not behind its switch
     asyncio.get_running_loop().run_in_executor(None, _read_mai_notes_then_simai)
     if WIKI_VIDEOS:

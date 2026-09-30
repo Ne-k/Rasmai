@@ -272,7 +272,7 @@ export function Dash() {
   const s = me.snapshot!;
   return (
     <Frame user={me.user} onSignOut={signOut}>
-      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} /> : null}
+      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} /> : null}
       <section className="ident">
         <div className="ident-who">
           <div className="label">
@@ -395,15 +395,20 @@ export function Dash() {
 }
 
 /** Shown above everything when maimai DX NET has refused the saved sign-in: reads stop until it is linked again. */
-function SessionExpired({ since }: { since: string }) {
+function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: string }) {
   const when = new Date(since);
   const on = Number.isNaN(when.getTime())
     ? ""
     : ` on ${when.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+  const gone = deletesAt ? new Date(deletesAt) : null;
+  const until = gone && !Number.isNaN(gone.getTime())
+    ? gone.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+    : "";
   return (
     <aside className="expired" role="status">
       <b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on}, so your scores aren&apos;t updating.
       Everything below is from your last refresh. Run <code>/login</code> in Discord to link again.
+      {until ? <> If it isn&apos;t linked again by <b>{until}</b>, everything stored for this account is deleted.</> : null}
     </aside>
   );
 }

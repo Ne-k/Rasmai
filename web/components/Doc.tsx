@@ -13,7 +13,7 @@ export function Contact() {
     </>
   );
 }
-export const EFFECTIVE_DATE = "29 September 2026";
+export const EFFECTIVE_DATE = "30 September 2026";
 
 type DocProps = { tag: string; title: React.ReactNode; intro: string; dated?: boolean; children: React.ReactNode };
 

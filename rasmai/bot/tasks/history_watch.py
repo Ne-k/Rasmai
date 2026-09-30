@@ -15,7 +15,7 @@ from rasmai.config import MAIMAI_BASE_URLS
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
-    best_recorded_scores, mark_session_expired, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
+    best_recorded_scores, get_connected_account, mark_session_expired, session_deletes_at, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
     record_chart_scores, set_notified_rating,
 )
 
@@ -118,9 +118,12 @@ class HistoryWatch:
                 logger.info("history: %s needs /login again (%s)", user_id, public_reason(error))
                 # the first failure after a run of good reads gets a card; a link that stays dead is not nagged about daily
                 if not (previous or {}).get("error"):
+                    deletes = session_deletes_at((get_connected_account(user_id) or {}).get("sessionExpired") or "")
+                    warning = (f" If it isn't linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, "
+                               "everything Rasmai stores for it is deleted." if deletes else "")
                     await dm_login_card(self.bot, user_id, str(account.get("region", "intl")),
                                         "Your daily history read could not sign in to maimai DX NET: the saved session has expired. "
-                                        "Link again below and the reads carry on.")
+                                        f"Link again below and the reads carry on.{warning}")
             except Exception as error:
                 quiet_read_done(user_id, 0, public_reason(error))
                 logger.warning("history: quiet read for %s failed: %s", user_id, public_reason(error))

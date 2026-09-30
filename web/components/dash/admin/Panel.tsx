@@ -191,7 +191,10 @@ export function AdminPanel() {
                 {data.expired.map((e) => (
                   <li key={`x${e.userId}`}>
                     <Who person={e} id={e.userId} />
-                    <span className="mono bad">expired {when(e.since)}</span>
+                    <span className="mono bad">
+                      expired {when(e.since)}
+                      {e.deletesAt ? <span className="dim"> · deleted {when(e.deletesAt)}</span> : null}
+                    </span>
                   </li>
                 ))}
                 {data.failingReads.map((r) => (

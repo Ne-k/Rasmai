@@ -3,7 +3,7 @@ from typing import Dict, Optional, Any
 
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.engine.insights import rating_forecast
-from rasmai.storage.db import count_play_history, load_rating_history, since_last_look
+from rasmai.storage.db import count_play_history, load_rating_history, session_deletes_at, since_last_look
 from rasmai.util import _json_safe
 from rasmai.web.dashboard.analysis import analysis_for_user
 from rasmai.web.dashboard.picks import _englished, trait_practice
@@ -105,6 +105,7 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
         "settings": get_prefs(user["id"]),
         "refresh": refresh_jobs.status(user["id"]),
         "sessionExpired": account.get("sessionExpired") or "",
+        "sessionDeletesAt": session_deletes_at(account.get("sessionExpired") or ""),
         "sharing": sharing_payload(user["id"], account),
         "beta": beta_state(user["id"]),
     })

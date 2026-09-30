@@ -8,6 +8,7 @@ from rasmai.bot.state.cache import ANALYSIS_TTL, CachedAnalysis, cache_get
 from rasmai.bot.core import private_only
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping.scraper import SessionRejected
+from rasmai.config import EXPIRED_ACCOUNT_DAYS
 from rasmai.security import public_reason
 from rasmai.bot.ui.login import send_login_card
 from rasmai.storage.db import get_connected_account
@@ -41,7 +42,9 @@ def failure_text(failure: str, error: Exception) -> str:
     :rtype: str
     """
     if isinstance(error, SessionRejected):
-        return f"{failure} Your maimai session has expired: run `/login` to link again."
+        kept = (f" An account left unlinked for {EXPIRED_ACCOUNT_DAYS} days after its session expires is deleted."
+                if EXPIRED_ACCOUNT_DAYS else "")
+        return f"{failure} Your maimai session has expired: run `/login` to link again.{kept}"
     return f"{failure}\n-# {public_reason(error)}"
 
 

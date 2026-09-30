@@ -156,8 +156,11 @@ export default function PrivacyPage() {
 
       <h2>How long it is kept, and how to delete it</h2>
       <p>
-        Your linked account, its scores and its play history stay until you remove them. Nothing expires on its own except the
-        session key, which stops working when SEGA expires it, and the caches listed above.
+        Your linked account, its scores and its play history stay until you remove them, with one exception: if maimai DX NET
+        stops accepting your session key and you don&apos;t link again with <code>/login</code> within 30 days, everything listed
+        under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired.
+        Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires it, and the
+        caches listed above.
       </p>
       <ul>
         <li>

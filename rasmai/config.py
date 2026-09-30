@@ -66,6 +66,11 @@ _public_url_lock = threading.Lock()
 DATABASE_PATH = Path(os.getenv("MAIMAI_DATABASE_PATH", "data/maimai.sqlite3"))
 
 
+# an account whose maimai sign-in has been refused this many days, and not linked again since, is deleted
+# the way /delete-account deletes it; 0 keeps such accounts until someone deletes them by hand
+EXPIRED_ACCOUNT_DAYS = max(0, int(os.getenv("MAIMAI_EXPIRED_ACCOUNT_DAYS", "30") or 0))
+
+
 MAIMAI_BASE_URLS = {
     "jp": "https://maimaidx.jp",
     "intl": "https://maimaidx-eng.com",
