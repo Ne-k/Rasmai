@@ -164,6 +164,35 @@ def command_tree_fingerprint() -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _where(installs: Any, contexts: Any) -> tuple:
+    """Where a command may be used, as plain flags: installed to a server or an account, and in a server, a DM or a group DM."""
+    return (bool(installs and installs.guild), bool(installs and installs.user),
+            bool(contexts and contexts.guild), bool(contexts and contexts.dm_channel), bool(contexts and contexts.private_channel))
+
+
+async def discord_holds_the_tree() -> bool:
+    """Whether Discord's global commands are the ones the tree defines: the same names, each usable in the same places.
+
+    The saved fingerprint says what this bot last sent, not what Discord holds now, so anything else that
+    rewrote the list (a second copy of the bot on the same token, a sync cut short) would go unnoticed
+    and the commands, an account install's most of all, would stay missing across restarts. One read at
+    startup settles it. When Discord cannot be asked, the fingerprint is trusted as before.
+
+    :rtype: bool
+    """
+    def defined(command: Any) -> tuple:
+        installs = command.allowed_installs if command.allowed_installs is not None else bot.tree.allowed_installs
+        contexts = command.allowed_contexts if command.allowed_contexts is not None else bot.tree.allowed_contexts
+        return (command.name, *_where(installs, contexts))
+
+    try:
+        held = await bot.tree.fetch_commands()
+    except discord.HTTPException as error:
+        logger.warning(f"Could not read the registered commands to compare them ({error}); trusting the saved fingerprint")
+        return True
+    return {(c.name, *_where(c.allowed_installs, c.allowed_contexts)) for c in held} == {defined(c) for c in bot.tree.get_commands()}
+
+
 async def sync_commands_if_changed() -> None:
     """Register slash commands with Discord, but only when their definitions differ from the last sync."""
     commands_found = bot.tree.get_commands()
@@ -179,8 +208,11 @@ async def sync_commands_if_changed() -> None:
     except OSError:
         pass
     if previous == fingerprint:
-        logger.info(f"Slash commands unchanged ({len(bot.tree.get_commands())}), skipping sync")
-        return
+        # the fingerprint matches what was last sent; a guild-only development run never touches the global set, so has nothing to compare
+        if GUILD_ID or await discord_holds_the_tree():
+            logger.info(f"Slash commands unchanged ({len(bot.tree.get_commands())}), skipping sync")
+            return
+        logger.warning("Discord's commands differ from the ones defined here although the definitions have not changed; syncing to put them back")
 
     try:
         if GUILD_ID:

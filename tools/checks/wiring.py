@@ -157,3 +157,54 @@ print("RESULT:", repr(config.ADMIN_USER_ID), is_admin("178277628522921984"), is_
     if line != "RESULT: '' False False False False":
         return [f"an unconfigured deployment has an admin or a /notice: {line}"]
     return []
+
+
+@check("a restart re-syncs when Discord's commands differ from the tree, whatever the saved fingerprint says")
+def _discord_drift():
+    import asyncio
+    import types
+
+    import discord
+    from discord.app_commands.installs import AppCommandContext, AppInstallationType
+
+    import rasmai.bot.commands  # noqa: F401  registers the tree, as setup_hook does
+    from rasmai.bot import core
+
+    tree = core.bot.tree
+    ours = list(tree.get_commands())
+    everywhere = (AppInstallationType(guild=True, user=True), AppCommandContext(guild=True, dm_channel=True, private_channel=True))
+
+    def held(command, installs=None):
+        return types.SimpleNamespace(
+            name=command.name,
+            allowed_installs=installs or (command.allowed_installs if command.allowed_installs is not None else tree.allowed_installs),
+            allowed_contexts=command.allowed_contexts if command.allowed_contexts is not None else tree.allowed_contexts)
+
+    stray = types.SimpleNamespace(name="stray", allowed_installs=everywhere[0], allowed_contexts=everywhere[1])
+    cases = [
+        ("Discord holds exactly the tree", [held(c) for c in ours], True),
+        ("one command is missing from Discord", [held(c) for c in ours[1:]], False),
+        ("Discord holds one the tree no longer has", [held(c) for c in ours] + [stray], False),
+        ("a command lost its account install", [held(ours[0], AppInstallationType(guild=True, user=False))] + [held(c) for c in ours[1:]], False),
+    ]
+
+    def answering(commands):
+        async def fetch(*, guild=None):
+            return commands
+        return fetch
+
+    async def down(*, guild=None):
+        raise discord.HTTPException(types.SimpleNamespace(status=500, reason="down"), "down")
+
+    problems = []
+    try:
+        for label, remote, expected in cases:
+            tree.fetch_commands = answering(remote)
+            if asyncio.run(core.discord_holds_the_tree()) is not expected:
+                problems.append(f"{label}: expected {expected}")
+        tree.fetch_commands = down
+        if asyncio.run(core.discord_holds_the_tree()) is not True:
+            problems.append("when Discord cannot be asked the saved fingerprint should be trusted, not a sync forced on every restart")
+    finally:
+        tree.__dict__.pop("fetch_commands", None)
+    return problems
