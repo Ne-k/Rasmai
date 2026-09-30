@@ -150,12 +150,53 @@ class _TraitDesign:
         self.w = np.array([o["weight"] for o in observations])
         self.penalty = np.full(self.CONTROLS + len(self.tags), _TAG_PENALTY)
         self.penalty[: self.CONTROLS] = _CONTROL_PENALTY
+        # what a permuted fit needs, summed per chart once: the tags belong to a chart and not to an
+        # observation, so shuffling them only reorders these rows and never touches the observations
+        fixed = self.controls[:, : self.CONTROLS - 1]
+        self.chart_w = np.bincount(self.key_idx, self.w, self.n_keys)
+        self.chart_wy = np.bincount(self.key_idx, self.w * self.y, self.n_keys)
+        self.chart_wc = np.stack([np.bincount(self.key_idx, self.w * fixed[:, j], self.n_keys)
+                                  for j in range(fixed.shape[1])], axis=1)
+        self.gram_fixed = (fixed.T * self.w) @ fixed
+        # every (tag, tag) pair a chart carries, as its cell in the tag-by-tag matrix, with the chart it belongs to
+        cells, owners = [], []
+        for row in range(self.n_keys):
+            on = np.nonzero(self.tagvec[row])[0]
+            cells.append(np.repeat(on, len(on)) * len(self.tags) + np.tile(on, len(on)))
+            owners.append(np.full(len(on) * len(on), row))
+        self.pair_cell = np.concatenate(cells) if cells else np.zeros(0, dtype=int)
+        self.pair_chart = np.concatenate(owners) if owners else np.zeros(0, dtype=int)
+        self.rhs_fixed = (fixed.T * self.w) @ self.y
 
-    def fit(self, permutation=None, rows=None):
-        """Tag coefficients; `permutation` reassigns every chart's tags to another chart, `rows` restricts the observations."""
+    def fit_permuted(self, permutation):
+        """The tag coefficients when chart `k` wears the tags of chart `permutation[k]`; the same numbers as `fit` on the shuffled rows.
+
+        Written from the tag-carrying chart's side: the weight a chart's tags carry is that of the
+        chart wearing them, so nothing bigger than a per-chart vector is reordered, and the tag
+        pairs' sums come from one bincount over the pairs that exist rather than a dense product."""
+        np = self.np
+        c, n = self.CONTROLS, self.CONTROLS + len(self.tags)
+        worn_by = np.empty_like(permutation)
+        worn_by[permutation] = np.arange(len(permutation))
+        w, wy, wc = self.chart_w[worn_by], self.chart_wy[worn_by], self.chart_wc[worn_by]
+        pattern = self.has_pattern
+        gram = np.empty((n, n))
+        gram[: c - 1, : c - 1] = self.gram_fixed
+        gram[: c - 1, c - 1] = wc.T @ pattern
+        gram[: c - 1, c:] = wc.T @ self.tagvec
+        gram[c - 1, c - 1] = w @ pattern
+        gram[c - 1, c:] = (w * pattern) @ self.tagvec
+        gram[c:, c:] = np.bincount(self.pair_cell, w[self.pair_chart], (n - c) ** 2).reshape(n - c, n - c)
+        gram[c - 1 :, : c - 1] = gram[: c - 1, c - 1 :].T
+        gram[c:, c - 1] = gram[c - 1, c:]
+        rhs = np.concatenate([self.rhs_fixed, [wy @ pattern], self.tagvec.T @ wy])
+        return np.linalg.solve(gram + np.diag(self.penalty), rhs)[c:]
+
+    def fit(self, rows=None):
+        """Tag coefficients; `rows` restricts the observations."""
         np = self.np
         key_idx = self.key_idx if rows is None else self.key_idx[rows]
-        chart_rows = key_idx if permutation is None else permutation[key_idx]
+        chart_rows = key_idx
         controls = self.controls if rows is None else self.controls[rows]
         controls = controls.copy()
         controls[:, 4] = self.has_pattern[chart_rows]
@@ -222,7 +263,7 @@ def trait_residuals(scored: Sequence[Any], chart_index: ChartIndex, profile: Pla
     exceed = np.zeros(len(tags))
     for seed in range(TRAIT_PERMUTATIONS):
         rng = np.random.default_rng(1000 + seed)
-        exceed += np.abs(design.fit(permutation=rng.permutation(design.n_keys))) >= np.abs(full)
+        exceed += np.abs(design.fit_permuted(rng.permutation(design.n_keys))) >= np.abs(full)
     p_values = (exceed + 1.0) / (TRAIT_PERMUTATIONS + 1.0)
     # stability: the same sign out of both halves of the player's charts, every split
     agree = np.ones(len(tags), dtype=bool)
