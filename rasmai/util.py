@@ -10,6 +10,23 @@ from rasmai.config import DEBUG_EXPORT_DIR
 DEBUG_EXPORTS_KEPT = 40
 
 
+def instant(text: Any) -> float:
+    """When a stored timestamp happened, as seconds since the epoch, whatever offset it was written with.
+
+    Plays carry the arcade's own offset (+09:00) and the bot stamps its reads in the machine's, so
+    comparing the strings compares clock faces in different time zones. A stamp with no offset is
+    this machine's local time, which is how the bot writes them. One that cannot be read is 0.
+
+    :param text: An ISO 8601 moment.
+    :type text: Any
+    :rtype: float
+    """
+    try:
+        return datetime.fromisoformat(str(text)).timestamp()
+    except ValueError:
+        return 0.0
+
+
 def _json_safe(value: Any) -> Any:
     if hasattr(value, "__dataclass_fields__"):
         return {key: _json_safe(item) for key, item in asdict(value).items()}

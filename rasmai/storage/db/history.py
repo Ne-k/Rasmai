@@ -4,6 +4,7 @@ import json
 
 from rasmai.security import decrypt_token
 from rasmai.storage.db.connection import _load_json_column, get_database_connection
+from rasmai.util import instant
 
 
 def record_rating_point(user_id: str, rating: int, best50: int, new_total: int, old_total: int,
@@ -88,6 +89,9 @@ def load_play_history(user_id: str, limit: Optional[int] = None) -> List[Dict[st
         ).fetchall()
     finally:
         connection.close()
+    # a best is stamped when it was read and a play when it was played, in different offsets: order by the
+    # moment, or a read made after a play sorts before it on the clock face and hides the play's new best
+    rows = sorted(rows, key=lambda row: (instant(row["played_at"]), row["source"] != "play"))
     best_so_far: Dict[str, float] = {}
     plays: List[Dict[str, Any]] = []
     for row in rows:
@@ -229,17 +233,11 @@ def since_last_look(user_id: str, rating: int, plays: int) -> Optional[Dict[str,
     since = str(previous.get("recorded_at") or "")
     if not since:
         return None
-    connection = get_database_connection()
-    try:
-        row = connection.execute(
-            "SELECT COUNT(*) AS n FROM chart_scores WHERE user_id = ? AND source = 'play' AND played_at > ?", (user_id, since)
-        ).fetchone()
-    finally:
-        connection.close()
-    new_bests = sum(1 for play in load_play_history(user_id) if play["played_at"] > since and play["achievement"] > play["best_before"] + 0.00005)
+    cut = instant(since)
+    since_then = [play for play in load_play_history(user_id) if instant(play["played_at"]) > cut]
     return {
         "since": since,
         "ratingDelta": int(rating) - int(previous.get("rating") or 0),
-        "plays": int(row["n"]) if row else 0,
-        "newBests": new_bests,
+        "plays": len(since_then),
+        "newBests": sum(1 for play in since_then if play["achievement"] > play["best_before"] + 0.00005),
     }

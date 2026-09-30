@@ -370,3 +370,42 @@ def _model_outside_data():
     elif f":{home.group(1)}" not in (ROOT / "docker-compose.yml").read_text(encoding="utf-8"):
         problems.append(f"docker-compose.yml does not mount {home.group(1)}, so the checkpoint is fetched again on every recreate")
     return problems
+
+
+@check("a play is measured against the bests stored before it in real time, whatever offset each stamp was written with")
+def _play_order_by_moment():
+    import pathlib
+    import tempfile
+
+    from rasmai.storage.db import connection as store
+    from rasmai.storage.db import history, scores
+
+    problems = []
+    was = store.DATABASE_PATH
+    try:
+        store.DATABASE_PATH, store._database_ready = pathlib.Path(tempfile.mkdtemp()) / "o.sqlite3", False
+        chart = "song|dx|master"
+        # a read stamped 06:06 at -04:00 is 10:06 UTC; it already holds the 98.5 set by the 11:52 +09:00 play
+        # (02:52 UTC, hours earlier), which on the clock faces alone sorts after it
+        scores.record_chart_scores("u", [
+            (chart, "2026-09-29T20:00:00+09:00", 97.0, 900, "", "", "play", 1000, 1),       # an earlier play: 97.0
+            (chart, "2026-09-30T11:52:00+09:00", 98.5, 950, "", "", "play", 1000, 1),       # the play that set 98.5
+            (chart, "2026-09-30T06:06:40-04:00", 98.5, 950, "", "", "best"),                # the read that afterwards saw it
+            (chart, "2026-09-30T23:30:00+09:00", 98.5, 950, "", "", "play", 1000, 2),       # a later play that only ties it
+        ])
+        marked = {p["played_at"]: p["achievement"] > p["best_before"] + 0.00005 for p in history.load_play_history("u")}
+        if marked.get("2026-09-30T11:52:00+09:00") is not True:
+            problems.append("the play that set the best was not marked a new best: the read made after it was counted as older")
+        if marked.get("2026-09-30T23:30:00+09:00") is not False:
+            problems.append("a play that only tied a stored best was marked a new best")
+        if marked.get("2026-09-29T20:00:00+09:00") is not True:
+            problems.append("the first play on the chart was not a new best")
+        ordered = [row["played_at"] for row in scores.load_chart_scores("u", [chart])]
+        if ordered != ["2026-09-29T20:00:00+09:00", "2026-09-30T11:52:00+09:00", "2026-09-30T06:06:40-04:00", "2026-09-30T23:30:00+09:00"]:
+            problems.append(f"a chart's scores are not in the order they happened: {ordered}")
+        recorded = {p["played_at"]: p["best_before"] for p in scores.load_recorded_plays("u")}
+        if recorded.get("2026-09-30T11:52:00+09:00") != 97.0:
+            problems.append(f"the model's self-check saw best {recorded.get('2026-09-30T11:52:00+09:00')} before the play, not 97.0")
+    finally:
+        store.DATABASE_PATH, store._database_ready = was, False
+    return problems

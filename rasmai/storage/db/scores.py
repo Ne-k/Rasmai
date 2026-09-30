@@ -4,7 +4,7 @@ import json
 
 from rasmai.config import PLAY_COUNT_TTL
 from rasmai.storage.db.connection import get_database_connection
-from rasmai.util import _json_safe
+from rasmai.util import _json_safe, instant
 
 
 def load_play_counts(
@@ -138,6 +138,9 @@ def load_chart_scores(user_id: str, chart_keys: List[str]) -> List[Dict[str, Any
         ).fetchall()
     finally:
         connection.close()
+    # in the order things happened, not the order their clock faces read; a play a bit before a read that
+    # already holds its score stays first. Plays go ahead of a best stamped at the same moment.
+    rows = sorted(rows, key=lambda row: (instant(row["played_at"]), row["source"] != "play"))
     out = []
     for row in rows:
         item = dict(row)
@@ -164,6 +167,7 @@ def load_recorded_plays(user_id: str) -> List[Dict[str, Any]]:
         ).fetchall()
     finally:
         connection.close()
+    rows = sorted(rows, key=lambda row: (str(row["chart_key"]), instant(row["played_at"]), row["source"] != "play"))
     out: List[Dict[str, Any]] = []
     best_so_far: Dict[str, float] = {}
     for row in rows:
