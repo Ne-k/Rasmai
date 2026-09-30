@@ -27,6 +27,27 @@ def _losses():
     lost = note_losses({"tap": {"critical": 100, "perfect": 0, "great": 0, "good": 0, "miss": 0}, "break": breaks}, 101 - (500 / 150 + 0.1) - 0.25)
     if abs(lost.get("break", 0) - (500 / 150 + 0.1 + 0.25)) > 1e-9 or lost.get("tap", 0) > 1e-9:
         problems.append(f"one break miss and one break perfect: {lost}")
+    # a break great keeps 80%, 60% or 50% of the break and the page does not say which, so the
+    # achievement has to: one that kept 80% and one that kept 50% cost 1 + 2.5 shares of 2/3 each,
+    # and the break itself, not the bonus, is where that goes
+    breaks = {"critical": 8, "perfect": 0, "great": 2, "good": 0, "miss": 0}
+    tap = {"critical": 100, "perfect": 0, "great": 0, "good": 0, "miss": 0}
+    greats = 3.5 * 100 / 150
+    apart = note_losses({"tap": tap, "break": breaks}, 101 - greats - 2 * 0.6 / 10, bonus_apart=True)
+    if abs(apart.get("break", 0) - greats) > 1e-9 or abs(apart.get("bonus", 0) - 0.12) > 1e-9:
+        problems.append(f"two break greats of different grades: {apart}")
+    # a perfect that kept three quarters of its slice gave up a quarter, not a half
+    breaks = {"critical": 9, "perfect": 1, "great": 0, "good": 0, "miss": 0}
+    lost = note_losses({"tap": tap, "break": breaks}, 101 - 0.025)
+    if abs(sum(lost.values()) - 0.025) > 1e-9:
+        problems.append(f"one break perfect that kept three quarters of the bonus was charged {lost}")
+    # a page that could have given its achievement is kept, one that could not is not
+    from rasmai.engine.losses import counts_fit
+    two_greats = {"tap": tap, "break": {"critical": 8, "perfect": 0, "great": 2, "good": 0, "miss": 0}}
+    if not counts_fit(two_greats, 101 - greats - 2 * 0.6 / 10):
+        problems.append("a play whose counts give its achievement exactly was called unsound")
+    if counts_fit(two_greats, 26.33):
+        problems.append("a 26% play with two break greats and nothing else was taken as sound")
     if note_losses({}, 100.0):
         problems.append("no judgements should cost nothing")
     return problems
@@ -357,7 +378,8 @@ def _break_bonus():
         notes["break"] = {"critical": crit, "perfect": landed - crit, "great": great, "good": good, "miss": miss}
         total = sum(WEIGHTS[k] * sum(v.values()) for k, v in notes.items())
         base = 100.0 / total
-        lost = sum(row["good"] * 3 * base + row["miss"] * 5 * base if kind == "break"
+        # a break great here is the kind that keeps 80% of the break
+        lost = sum(row["great"] * base + row["good"] * 3 * base + row["miss"] * 5 * base if kind == "break"
                    else WEIGHTS[kind] * base * (row["great"] / 5 + row["good"] / 2 + row["miss"])
                    for kind, row in notes.items())
         lost += sum(count * (1 - kept[judged]) / breaks for judged, count in notes["break"].items())
@@ -396,6 +418,10 @@ def _break_bonus():
         problems.append(f"a player dropping breaks every play was measured at {offset}")
     if judgement_profile(dropped)["weak"] != "break":
         problems.append("the panel did not name breaks for a player dropping them every play")
+    # one stored play carrying a page its achievement cannot come from changes nothing
+    stray = dict(ordinary[0], achievement=26.33)
+    if judgement_traits(ordinary + [stray]) != judgement_traits(ordinary):
+        problems.append("one play whose counts cannot give its achievement moved the note-type traits")
 
     # and the bonus is only told apart when it is asked for
     counts = ordinary[0]["notes"]

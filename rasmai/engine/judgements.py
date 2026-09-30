@@ -1,10 +1,20 @@
 from typing import Any, Dict, List, Optional
 
-from rasmai.engine.losses import WEIGHTS, note_losses
+from rasmai.engine.losses import WEIGHTS, counts_fit, note_losses
 
 KINDS = tuple(WEIGHTS)
 MIN_PLAYS = 3            # one play says little; three is enough to name the note type that costs most
 TILT = 1.5               # a type carrying this many times its share of the loss is called out
+
+
+def sound(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The stored plays whose judgement page could have given their achievement (see `counts_fit`).
+
+    :param rows: The stored judgement pages.
+    :type rows: List[Dict[str, Any]]
+    :rtype: List[Dict[str, Any]]
+    """
+    return [row for row in rows if counts_fit(row.get("notes") or {}, float(row.get("achievement") or 0))]
 
 
 def judgement_profile(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -14,6 +24,7 @@ def judgement_profile(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     :type rows: List[Dict[str, Any]]
     :rtype: Optional[Dict[str, Any]]
     """
+    rows = sound(rows)
     if len(rows) < MIN_PLAYS:
         return None
     notes = {k: 0 for k in KINDS}
@@ -97,6 +108,7 @@ def judgement_traits(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     :returns: Trait rows shaped like the chart ones, so both lists read the same.
     :rtype: List[Dict[str, Any]]
     """
+    rows = sound(rows)
     if len(rows) < JUDGEMENT_LEAN_PLAYS:
         return []
     notes = {k: 0 for k in KINDS}
