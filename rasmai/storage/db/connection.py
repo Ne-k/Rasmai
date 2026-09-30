@@ -267,6 +267,11 @@ def get_database_connection() -> sqlite3.Connection:
         if held is not None:
             held[1].really_close()
         connection = sqlite3.connect(DATABASE_PATH, timeout=10, factory=_KeptConnection)
+        # per connection, so set here rather than with the journal mode. NORMAL under WAL can lose the last
+        # write to a power cut but never corrupts, and skips an fsync per commit; the mapping lets threads share pages
+        connection.execute("PRAGMA synchronous=NORMAL")
+        connection.execute("PRAGMA mmap_size=268435456")
+        connection.execute("PRAGMA temp_store=MEMORY")
         _kept.held = (path, connection)
     # set on every hand-out, so one caller changing it cannot change what the next caller reads
     connection.row_factory = sqlite3.Row

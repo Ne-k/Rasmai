@@ -6,6 +6,7 @@ import logging
 import discord
 
 from rasmai.bot.tasks.presence import maintenance_at
+from rasmai.bot.state.cache import forget_analysis
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.bot.state.snapshots import collect_judgements, play_rows, store_recent
 from rasmai.bot.ui.formatting import chart_link, stamp
@@ -106,6 +107,8 @@ class HistoryWatch:
             try:
                 found = await asyncio.to_thread(self._read_one, account)
                 quiet_read_done(user_id, found["added"], "")
+                if found["added"]:
+                    forget_analysis(user_id)     # the cached one predates these plays
                 logger.info("history: quiet read for %s added %d play(s)", user_id, found["added"])
                 await self._note(user_id, found)
             except SessionRejected as error:

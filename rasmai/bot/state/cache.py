@@ -8,7 +8,9 @@ from rasmai.storage.models import Recommendation
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
 
 
-ANALYSIS_TTL = timedelta(minutes=15)
+# An hour: a rebuild is CPU under the interpreter lock, a few megabytes each is nothing on this machine, and every
+# fresh read, refresh or quiet read replaces or drops the entry, so a longer life does not show old scores.
+ANALYSIS_TTL = timedelta(minutes=60)
 
 
 IMAGES_PER_USER = 12
