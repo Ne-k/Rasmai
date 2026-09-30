@@ -77,6 +77,45 @@ MAIMAI_BASE_URLS = {
     "cn": "https://maimai.wahlap.com",
 }
 
+# The regions an account can actually be linked from. Signing in goes through SEGA's international
+# Aime gateway and replays its session cookie, which only an International account has: a Japan
+# account signs in with SEGA ID on maimaidx.jp, and a China account with WeChat on Wahlap's site.
+# Both are kept in the tables above so their scores and pages have somewhere to point once a sign-in
+# exists for them; until then nothing hands their players a login that cannot finish.
+SUPPORTED_REGIONS = ("intl",)
+
+REGION_NAMES = {"intl": "International", "jp": "Japan", "cn": "China"}
+
+# how each unsupported region signs in, for saying why its account cannot be linked
+REGION_SIGN_IN = {
+    "jp": "Japan accounts sign in with SEGA ID on maimaidx.jp",
+    "cn": "China accounts sign in with WeChat on Wahlap's site",
+}
+
+
+def region_supported(region: str) -> bool:
+    """Whether an account from this region can be linked.
+
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
+    :rtype: bool
+    """
+    return region in SUPPORTED_REGIONS
+
+
+def unsupported_region_text(region: str) -> str:
+    """Why an account from this region cannot be linked, in a sentence or two for the player.
+
+    :param region: ``"jp"`` or ``"cn"``.
+    :type region: str
+    :rtype: str
+    """
+    name = REGION_NAMES.get(region, region)
+    how = REGION_SIGN_IN.get(region, f"{name} accounts sign in somewhere else")
+    return (f"{name}-region accounts can't be linked yet. Rasmai signs in through SEGA's international Aime gateway, "
+            f"which only International accounts use; {how}, so the login could never finish, however many times you "
+            f"signed out and in again.")
+
 
 def get_maimai_base_url(region: str) -> str:
     return MAIMAI_BASE_URLS.get(region, MAIMAI_BASE_URLS["intl"])

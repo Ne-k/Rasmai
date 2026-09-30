@@ -19,7 +19,13 @@ export const ERROR_COPY: Record<string, ErrorCopy> = {
   no_login: {
     headline: ["Couldn't read your ", "session"],
     detail: "You may not be signed in to the SEGA gateway yet, or the sign-in didn't stick.",
-    hint: "Sign out of the gateway, sign back in, then press the bookmark again.",
+    hint: "Sign out of the gateway, sign back in, then press the bookmark again. Japan and China accounts can't be linked yet.",
+  },
+  region: {
+    headline: ["Only International accounts ", "for now"],
+    detail:
+      "Rasmai signs in through SEGA's international Aime gateway. Japan accounts sign in with SEGA ID on maimaidx.jp and China accounts with WeChat, so this login can't finish, and signing out and in again won't change that.",
+    hint: "Support for more regions is planned. If you also play on an International account, run /login in Discord without a region.",
   },
   rate_limited: {
     headline: ["Too many ", "attempts"],

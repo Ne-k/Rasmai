@@ -358,7 +358,9 @@ function Connect() {
 
       <div className="aside">
         <b>Stuck?</b> If the bookmark says it can&apos;t read your login, sign out of the gateway, sign in again, then
-        run it again. If the link expired, run <code>/login</code> in Discord for a new one.
+        run it again. If the link expired, run <code>/login</code> in Discord for a new one. Only International accounts
+        can be linked for now: an account from the Japanese or Chinese version signs in somewhere else, so the bookmark
+        can&apos;t read it however many times you sign in.
       </div>
     </Shell>
   );

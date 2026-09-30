@@ -70,7 +70,8 @@ export default function CommandsPage() {
       <div className="cmds">
         <Cmd name="/login">
           Links your maimai account. You get a link, sign in at maimai DX NET and press one button. It takes about a
-          minute and you only do it once. You need to do this before any other command works.
+          minute and you only do it once. You need to do this before any other command works. Only International
+          accounts can be linked for now; Japan and China accounts sign in elsewhere and aren&apos;t supported yet.
         </Cmd>
         <Cmd name="/help">A short version of this page in Discord.</Cmd>
         <Cmd name="/invite">Add Rasmai to a server or to your account, and get the dashboard link.</Cmd>

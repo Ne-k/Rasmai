@@ -17,6 +17,8 @@ from rasmai.config import (
     MAIMAI_BASE_URLS,
     WEBSERVER_HOST,
     WEBSERVER_PORT,
+    region_supported,
+    unsupported_region_text,
 )
 from rasmai.storage.db import (
     consume_login_code,
@@ -306,6 +308,11 @@ class InternalApiServer:
                     self._send_json(400, {"ok": False, "kind": "expired"})
                     return
                 region = record[1] if record[1] in MAIMAI_BASE_URLS else "intl"
+                if not region_supported(region):
+                    # a code issued for a region nobody can sign in from yet: no gateway link to follow
+                    self._send_json(400, {"ok": False, "kind": "region", "region": region,
+                                          "error": unsupported_region_text(region)})
+                    return
                 login_info = build_login_link_payload(opaque, code, region)
                 try:
                     expires_at = login_code_expiry(datetime.fromisoformat(record[2]))
@@ -406,13 +413,17 @@ class InternalApiServer:
                 if require_verified and not login_code_verified(code):
                     fail(403, "verify", "complete the check on the connect page first")
                     return
+                region = record[1] if record[1] in MAIMAI_BASE_URLS else "intl"
+                if not region_supported(region):
+                    # before the maintenance check: a server coming back would not make this one work
+                    fail(400, "region", unsupported_region_text(region))
+                    return
                 # the session can only be proved against the score site, and the Aime gateway being up says
                 # nothing about that one. Refusing here leaves the login code unspent, so the same link works later.
                 down = dashboard.servers_down_note()
                 if down:
                     fail(503, "maintenance", down)
                     return
-                region = record[1] if record[1] in MAIMAI_BASE_URLS else "intl"
                 final_token = normalize_login_token(token)
                 try:
                     official_profile = MaimaiRatingAnalyzer().fetch_official_player_profile(final_token, region)

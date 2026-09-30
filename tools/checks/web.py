@@ -1033,3 +1033,85 @@ def _seam_fails_closed():
             each.stop()
         web_server.INTERNAL_API_SECRET = kept
     return problems
+
+
+@check("only International accounts are sent to a login, and a Japan or China one is told why at every step")
+def _regions():
+    import json as jsonlib
+    import pathlib
+    import tempfile
+    import urllib.error
+    import urllib.request
+
+    from rasmai.config import SUPPORTED_REGIONS, region_supported, unsupported_region_text
+    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+    from rasmai.security import create_opaque_user_id
+    from rasmai.storage.db import connection as store
+    from rasmai.web import web_server
+
+    problems = []
+    if SUPPORTED_REGIONS != ("intl",) or not region_supported("intl") or region_supported("jp") or region_supported("cn"):
+        problems.append(f"the supported regions are {SUPPORTED_REGIONS}; only the international gateway's sign-in exists")
+    for region, where in (("jp", "SEGA ID"), ("cn", "WeChat")):
+        if where not in unsupported_region_text(region):
+            problems.append(f"the {region} explanation does not say how that region signs in")
+    try:
+        MaimaiRatingAnalyzer().fetch_official_player_profile("cookie://" + "a" * 64, "cn")
+        problems.append("a China account was sent to the international gateway")
+    except ValueError as error:
+        if "China" not in str(error):
+            problems.append(f"refusing a China account did not say why: {error}")
+
+    # the bookmarklet runs on SEGA's page, so its own words are all a player sees there
+    script = (ROOT / "web" / "app" / "api" / "login.js" / "route.ts").read_text(encoding="utf-8")
+    if "if(region!=='intl')" not in script:
+        problems.append("the bookmarklet sends a Japan or China login on to be refused instead of saying so")
+    if "Japanese or Chinese" not in script:
+        problems.append("the bookmarklet's missing-login message does not mention the region, which is why a JP player saw it")
+    copy = (ROOT / "web" / "components" / "copy.ts").read_text(encoding="utf-8")
+    if "\n  region: {" not in copy:
+        problems.append("the site has no words for the region refusal, so it would show 'Something went wrong'")
+
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    kept = web_server.INTERNAL_API_SECRET
+    web_server.INTERNAL_API_SECRET = "check-only-secret"
+    server = web_server.InternalApiServer(host="127.0.0.1", port=0)
+    try:
+        from rasmai.storage.db import issue_login_code, peek_login_code
+        server.start()
+        port = server.httpd.server_address[1]
+
+        def ask(path, body=None):
+            request = urllib.request.Request(f"http://127.0.0.1:{port}{path}",
+                                             data=jsonlib.dumps(body).encode() if body is not None else None,
+                                             headers={"X-Rasmai-Internal": "check-only-secret",
+                                                      "Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(request, timeout=10) as answer:
+                    return answer.status, jsonlib.loads(answer.read() or b"{}")
+            except urllib.error.HTTPError as error:
+                return error.code, jsonlib.loads(error.read() or b"{}")
+
+        user_id = "100000000000000077"
+        opaque = create_opaque_user_id(user_id)
+        for region in ("jp", "cn"):
+            code = issue_login_code(user_id, region)
+            status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
+            if status != 400 or body.get("kind") != "region" or body.get("loginLink"):
+                problems.append(f"the connect page for a {region} code answered {status} {body}, expected the region refusal")
+            status, body = ask("/internal/login", {"code": code, "user": opaque, "token": "a" * 64})
+            if status != 400 or body.get("kind") != "region":
+                problems.append(f"a {region} hand-off answered {status} {body}, expected the region refusal")
+            if not peek_login_code(code):
+                problems.append(f"refusing a {region} hand-off spent its login code")
+        code = issue_login_code(user_id, "intl")
+        status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
+        if status != 200 or "lng-tgk-aime-gw.am-all.net" not in str(body.get("loginLink")):
+            problems.append(f"an International code no longer gets its gateway link: {status} {body}")
+    finally:
+        server.stop()
+        web_server.INTERNAL_API_SECRET = kept
+        store.DATABASE_PATH = was
+        store._database_ready = False
+    return problems

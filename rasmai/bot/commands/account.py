@@ -7,7 +7,7 @@ from rasmai.bot.core import bot
 from rasmai.bot.ui.login import send_login_card
 from rasmai.bot.tasks.presence import describe
 from rasmai.bot.ui.views import DeleteAccountView
-from rasmai.config import DISCORD_BOT_INVITE, MAIMAI_BASE_URLS, get_public_base_url
+from rasmai.config import DISCORD_BOT_INVITE, MAIMAI_BASE_URLS, get_public_base_url, region_supported, unsupported_region_text
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import REGION_CHOICES
 
@@ -91,12 +91,18 @@ async def help_command(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="login", description="Connect your maimai account to the bot")
-@app_commands.describe(region="Which maimai region you play in (default International)")
+@app_commands.describe(region="Which maimai region you play in (default International; only International can be linked for now)")
 @app_commands.choices(region=REGION_CHOICES)
 async def login(interaction: discord.Interaction, region: Optional[app_commands.Choice[str]] = None):
     chosen = region.value if region else "intl"
     if chosen not in MAIMAI_BASE_URLS:
         chosen = "intl"
+    if not region_supported(chosen):
+        # a link that can never finish is worse than none: say so before anyone signs in anywhere
+        await interaction.response.send_message(
+            f"**{unsupported_region_text(chosen)}**\n\nSupport for more regions is planned. If you also play on an "
+            "International account, run `/login` without a region to link that one.", ephemeral=True)
+        return
     await send_login_card(interaction, chosen)
 
 

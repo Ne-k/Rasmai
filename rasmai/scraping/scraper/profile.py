@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple, Any
 import re
 import logging
 
-from rasmai.config import BROWSER_USER_AGENT, get_maimai_base_url
+from rasmai.config import BROWSER_USER_AGENT, get_maimai_base_url, region_supported, unsupported_region_text
 from rasmai.storage.models import PlayerInfo
 from rasmai.scraping.scraper.session import PacedSession, SessionRejected, cookie_jar_to_header, download_image_base64
 
@@ -139,8 +139,9 @@ class ProfilePages:
 
         if not sanitized_token.startswith('cookie://'):
             raise ValueError("Official profile token must start with 'cookie://'.")
-        if region == 'jp':
-            raise ValueError('cookie:// token format is not supported for Japan region.')
+        if not region_supported(region):
+            # the only sign-in there is replays the international Aime gateway's cookie
+            raise ValueError(unsupported_region_text(region))
         cookie_value = sanitized_token[len('cookie://'):].strip().removeprefix('clal=')
         if not cookie_value:
             raise ValueError('Cookie token is empty.')
