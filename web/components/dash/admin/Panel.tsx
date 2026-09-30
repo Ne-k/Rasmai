@@ -117,6 +117,12 @@ export function AdminPanel() {
             <Facts
               rows={[
                 ["servers", `${num(n("guilds"))} over ${num(n("shards") || 1)} shard${n("shards") === 1 ? "" : "s"}`],
+                ...((live.discordServers === undefined
+                  ? []
+                  : [
+                      ["Discord's server count", `${num(n("discordServers"))} · daily, approximate`],
+                      ["user installs", `${num(n("discordUserInstalls"))} · none are servers`],
+                    ]) as [string, string][]),
                 ["charts indexed", num(n("chartsIndexed"))],
                 ["analysis lifetime", `${num(n("analysisTtlMinutes"))} min`],
                 ["site reads running", num(n("refreshesRunning"))],

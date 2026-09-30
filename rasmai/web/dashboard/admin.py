@@ -19,6 +19,34 @@ STARTED = time.time()
 _PEOPLE: Dict[str, Dict[str, str]] = {}
 
 
+# Discord's own install counts (application info): approximate, and Discord refreshes them about daily,
+# so the page asks at most every ten minutes rather than on each poll
+_DISCORD_COUNTS: Dict[str, Any] = {"at": 0.0, "value": {}}
+_DISCORD_COUNTS_EVERY = 600
+
+
+def _discord_counts(bot: Any) -> Dict[str, int]:
+    """What Discord says about installs of this application, for setting beside the live gateway count.
+
+    The server figure counts installs Discord has recorded, so it lags a bot that was removed since;
+    the user figure counts people who installed the app to their own account, none of whom are servers.
+    A failed lookup returns what was last read, or nothing.
+
+    :rtype: Dict[str, int]
+    """
+    import asyncio
+    if time.time() - _DISCORD_COUNTS["at"] < _DISCORD_COUNTS_EVERY:
+        return _DISCORD_COUNTS["value"]
+    _DISCORD_COUNTS["at"] = time.time()          # a failure waits out the interval too, rather than retrying on every poll
+    try:
+        app = asyncio.run_coroutine_threadsafe(bot.application_info(), bot.loop).result(timeout=5)
+        found = {"discordServers": app.approximate_guild_count, "discordUserInstalls": app.approximate_user_install_count}
+        _DISCORD_COUNTS["value"] = {key: int(value) for key, value in found.items() if value is not None}
+    except Exception:
+        logger.debug("could not read the application's install counts", exc_info=True)
+    return _DISCORD_COUNTS["value"]
+
+
 def _shape(user: Any) -> Dict[str, str]:
     return {"name": getattr(user, "global_name", None) or user.name, "handle": user.name,
             "avatar": str(user.display_avatar.url) if getattr(user, "display_avatar", None) else ""}
@@ -326,6 +354,7 @@ def admin_payload() -> Dict[str, Any]:
             "ready": bot.is_ready(), "latencyMs": round((bot.latency or 0) * 1000),
             "scrapesFree": SCRAPE_SEMAPHORE._value, "scrapesMax": MAX_CONCURRENT_SCRAPES,
             "rendersFree": RENDER_SEMAPHORE._value, "rendersMax": MAX_CONCURRENT_RENDERS,
+            **_discord_counts(bot),
         })
     except Exception:
         pass
