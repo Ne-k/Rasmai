@@ -12,6 +12,7 @@ export const env = {
   botInvite: () => (process.env.DISCORD_BOT_INVITE ?? "").trim(),
   turnstileSiteKey: () => (process.env.CF_KEY ?? "").trim(),
   turnstileSecret: () => (process.env.CF_SECRET ?? "").trim(),
+  behindCloudflare: () => ["1", "true", "yes"].includes((process.env.MAIMAI_BEHIND_CLOUDFLARE ?? "").trim().toLowerCase()),
 };
 
 export const oauthReady = () => Boolean(env.discordClientId() && env.discordClientSecret());

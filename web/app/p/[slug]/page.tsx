@@ -5,6 +5,7 @@ import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { PublicProfile } from "@/components/PublicProfile";
 import { buttons, embed, gallery, headline, type Embed } from "@/lib/embed";
 import { env } from "@/lib/env";
+import { clientKeyFromHeaders } from "@/lib/http";
 import { internal } from "@/lib/internal";
 import "../../me/dashboard.css";
 
@@ -29,8 +30,7 @@ type Shared = {
 const shared = cache(async (slug: string): Promise<Shared | null> => {
   if (!SLUG.test(slug)) return null;
   try {
-    const client = (await headers()).get("cf-connecting-ip") ?? (await headers()).get("x-forwarded-for") ?? "";
-    const answer = await internal(`/internal/public/${slug}`, { client: client.split(",")[0].trim() || "local" });
+    const answer = await internal(`/internal/public/${slug}`, { client: clientKeyFromHeaders(await headers()) });
     if (!answer.ok) return null;
     const payload = (await answer.json()) as Shared;
     return String(payload.name || "").trim() ? payload : null;

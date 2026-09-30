@@ -24,12 +24,13 @@ DEBUG_EXPORT_DIR = Path("debug/maimai-exports")
 WEBSERVER_HOST = os.getenv("MAIMAI_WEBSERVER_HOST", "127.0.0.1")
 INTERNAL_API_SECRET = os.getenv("RASMAI_INTERNAL_SECRET", "").strip()
 
-# the only Discord account the developer page answers to; everyone else gets a 404 from it
-ADMIN_USER_ID = os.getenv("MAIMAI_ADMIN_ID", "178277628522921984").strip()
+# the only Discord account the developer page answers to; everyone else gets a 404 from it. Empty
+# means nobody: the developer page and /notice stay off until this is set
+ADMIN_USER_ID = os.getenv("MAIMAI_ADMIN_ID", "").strip()
 
 # where /notice is registered. A guild command exists only in that one server, so the rest of
 # Discord never sees it in the picker; the admin check is what actually stops anyone using it.
-CONTROL_GUILD_ID = int(os.getenv("MAIMAI_CONTROL_GUILD_ID", "1326596020146143283") or 0)
+CONTROL_GUILD_ID = int(os.getenv("MAIMAI_CONTROL_GUILD_ID", "0") or 0)
 
 # the band the site shows until one is set from Discord; taking that one down leaves the site bare
 DEFAULT_NOTICE = {

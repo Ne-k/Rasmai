@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 # falls back to global, which is what a fork without a control server wants
 _SCOPE = {"guilds": [discord.Object(id=CONTROL_GUILD_ID)]} if CONTROL_GUILD_ID else {}
 
+# with no admin configured nobody could ever run it, so it is not registered at all
+if not ADMIN_USER_ID:
+    logger.warning("MAIMAI_ADMIN_ID is not set, so the developer page and /notice are disabled until it is")
+elif not CONTROL_GUILD_ID:
+    logger.info("MAIMAI_CONTROL_GUILD_ID is not set, so /notice is registered globally; only MAIMAI_ADMIN_ID can run it")
+
 
 def _describe(notice: Optional[dict]) -> str:
     if notice is None:
@@ -134,7 +140,6 @@ class NoticeModal(discord.ui.Modal, title="Site banner"):
             await interaction.response.send_message(message, ephemeral=True)
 
 
-@bot.tree.command(name="notice", description="Set the banner every visitor sees on the website", **_SCOPE)
 @app_commands.describe(
     clear="Take the banner down entirely.",
     show="Say what is up now instead of opening the form.",
@@ -142,7 +147,7 @@ class NoticeModal(discord.ui.Modal, title="Site banner"):
 async def notice(interaction: discord.Interaction, clear: bool = False, show: bool = False):
     # a guild command is invisible outside its server, but a user-installed bot carries it into DMs,
     # so the only thing that actually decides who may set a banner is this line
-    if str(interaction.user.id) != ADMIN_USER_ID:
+    if not ADMIN_USER_ID or str(interaction.user.id) != ADMIN_USER_ID:
         await interaction.response.send_message("That command is not yours to run.", ephemeral=True)
         return
 
@@ -158,3 +163,7 @@ async def notice(interaction: discord.Interaction, clear: bool = False, show: bo
 
     # nothing set yet means the site is showing its built-in notice, so that is what the form edits
     await interaction.response.send_modal(NoticeModal(current if current is not None else DEFAULT_NOTICE))
+
+
+if ADMIN_USER_ID:
+    notice = bot.tree.command(name="notice", description="Set the banner every visitor sees on the website", **_SCOPE)(notice)

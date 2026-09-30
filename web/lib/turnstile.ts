@@ -6,8 +6,17 @@ const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export type Verdict = { ok: boolean; codes: string[] };
 
+let warnedOff = false;
+
 export async function verifyTurnstile(token: string, remoteIp: string, action: string): Promise<Verdict> {
-  if (!turnstileReady()) return { ok: true, codes: [] };
+  if (!turnstileReady()) {
+    // fine while developing, but in production it means the human check lets everything through
+    if (!warnedOff && process.env.NODE_ENV === "production") {
+      warnedOff = true;
+      console.warn("turnstile: the human check is OFF because CF_KEY/CF_SECRET are unset");
+    }
+    return { ok: true, codes: [] };
+  }
   const clean = (token ?? "").trim();
   if (!clean || clean.length > 2048) return { ok: false, codes: ["missing-input-response"] };
   const form = new URLSearchParams({ secret: env.turnstileSecret(), response: clean });

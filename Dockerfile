@@ -71,15 +71,35 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
    && pip install -r requirements-laya.txt; \
     fi
 
+# The bot and the headless Chromium it drives (launched with --no-sandbox, see images/render.py) run
+# as this user rather than root, so a renderer exploit lands in an account that can write the data
+# folders and nothing else. The ids are build args because a bind mount on a Linux host keeps the
+# host's numbers: build with the ids that own ./data, or chown those folders to these.
+ARG BOT_UID=1000
+ARG BOT_GID=1000
+RUN groupadd --gid "$BOT_GID" bot \
+ && useradd --uid "$BOT_UID" --gid "$BOT_GID" --create-home --home-dir /home/bot --shell /usr/sbin/nologin bot \
+ && git config --system --add safe.directory /app/otoge_cache/repo \
+ && git config --system --add safe.directory /app/simai_cache/repo
+ENV HOME=/home/bot
+
+# Everything the process writes at run time lives in these folders (the relative paths in config.py,
+# otoge/db.py and simai_bulk.py resolve against /app; HF_HOME is models). They are made and owned
+# here, before VOLUME, so a fresh named or anonymous volume copies this ownership. /app itself and
+# the code stay root-owned and read-only to the bot.
+RUN mkdir -p /app/data /app/otoge_cache /app/models /app/simai_cache /app/debug \
+ && chown -R bot:bot /app/data /app/otoge_cache /app/models /app/simai_cache /app/debug
+
 COPY rasmai/ ./rasmai/
 COPY brand/emoji/png/ ./brand/emoji/png/
 # the linking walkthroughs, so /login can play one in Discord rather than sending people away
 COPY web/public/walkthrough/ ./walkthrough/
 
-VOLUME ["/app/data", "/app/otoge_cache", "/app/models"]
+VOLUME ["/app/data", "/app/otoge_cache", "/app/models", "/app/simai_cache", "/app/debug"]
 EXPOSE 8765
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=90s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=4)" || exit 1
 
+USER bot
 CMD ["python", "-m", "rasmai"]

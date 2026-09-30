@@ -130,3 +130,30 @@ def _forward_refs():
                         if later is not None and later > index:
                             problems.append(f"{path}: {inner.name}() is annotated with {name}, which this file only defines further down")
     return sorted(set(problems))
+
+
+@check("with no admin configured the developer page and /notice answer nobody")
+def _no_admin_by_default():
+    # a fork that never sets MAIMAI_ADMIN_ID must not inherit anyone as admin. Run in a clean
+    # interpreter with the variable blank, so this process's config is left as it was.
+    script = """
+import sys
+sys.path.insert(0, %r)
+from rasmai import config
+from rasmai.web.dashboard.admin import is_admin
+import rasmai.bot.commands.notice
+from rasmai.bot.core import bot
+names = [c.name for c in bot.tree.get_commands()]
+for guild in bot.tree._guild_commands:
+    names += [c.name for c in bot.tree.get_commands(guild=__import__("discord").Object(id=guild))]
+print("RESULT:", repr(config.ADMIN_USER_ID), is_admin("178277628522921984"), is_admin("1"), is_admin(""), "notice" in names)
+"""
+    env = {**__import__("os").environ, "MAIMAI_ADMIN_ID": "", "MAIMAI_CONTROL_GUILD_ID": "123"}
+    result = subprocess.run([sys.executable, "-c", script % str(ROOT)], cwd=str(ROOT), env=env,
+                            capture_output=True, text=True)
+    line = next((l for l in result.stdout.splitlines() if l.startswith("RESULT:")), None)
+    if line is None:
+        return [f"could not load the config with no admin: {result.stderr.strip().splitlines()[-1:]}"]
+    if line != "RESULT: '' False False False False":
+        return [f"an unconfigured deployment has an admin or a /notice: {line}"]
+    return []

@@ -160,6 +160,16 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute(
                     """
+                    CREATE TABLE IF NOT EXISTS status_samples (   -- the bot's own heartbeat, for the status page: nobody's data
+                        at         TEXT PRIMARY KEY,
+                        states     TEXT NOT NULL,
+                        gateway_ms INTEGER NOT NULL DEFAULT 0,
+                        waiting    INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                setup.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS notify_state (
                         user_id     TEXT PRIMARY KEY,
                         rating      INTEGER NOT NULL DEFAULT 0,

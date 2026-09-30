@@ -1,9 +1,15 @@
 from pathlib import Path
+import os
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# the admin id and the control server come from the environment and default to nobody, so the checks that
+# exercise the developer page and /notice are given stand-ins before rasmai.config is first read
+os.environ.setdefault("MAIMAI_ADMIN_ID", "100000000000000042")
+os.environ.setdefault("MAIMAI_CONTROL_GUILD_ID", "100000000000000043")
 
 FAILURES = []
 

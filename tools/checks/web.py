@@ -903,3 +903,133 @@ def _nameplate_public():
         store._database_ready = False
         nameplates.NAMEPLATE_DIR, nameplates.requests.get = was_dir, was_get
     return problems
+
+
+@check("the status payload speaks Statuspage's words, ranks them, and counts people waiting on a build but not warm-ups")
+def _statuspage():
+    import pathlib
+    import tempfile
+    from concurrent.futures import Future
+
+    from rasmai.storage.db import connection as store
+    from rasmai.web import statuspage as S
+    from rasmai.web.dashboard import analysis as A
+
+    problems = []
+    if S.worst(["operational", "degraded_performance", "under_maintenance"]) != "degraded_performance":
+        problems.append("a degraded component did not outrank one under maintenance")
+    if S.worst(["operational", "major_outage", "partial_outage"]) != "major_outage" or S.worst([]) != "operational":
+        problems.append("the worst state, or the state of nothing at all, came out wrong")
+
+    def job(priority, taken):
+        future = Future()
+        future.priority, future.taken = priority, taken
+        return future
+
+    held = dict(A._pending)
+    A._pending.clear()
+    try:
+        A._pending.update({"asked": job(A.NOW, False), "warm": job(A.LATER, False), "building": job(A.NOW, True)})
+        got = S._analysis()
+        if got["waiting"] != 1 or got["state"] != S.OPERATIONAL:
+            problems.append(f"one person waiting, one warm-up and one running counted as {got['waiting']} waiting, {got['state']}")
+        A._pending.update({f"line-{i}": job(A.NOW, False) for i in range(S.LONG_LINE + 1)})
+        if S._analysis()["state"] != S.DEGRADED:
+            problems.append("a long line of people waiting did not read as degraded")
+    finally:
+        A._pending.clear()
+        A._pending.update(held)
+
+    was = store.DATABASE_PATH
+    try:
+        store.DATABASE_PATH, store._database_ready = pathlib.Path(tempfile.mkdtemp()) / "s.sqlite3", False
+        payload = S.status_payload()
+        words = {S.OPERATIONAL, S.MAINTENANCE, S.DEGRADED, S.PARTIAL, S.MAJOR}
+        if payload["components"].get("database") != S.OPERATIONAL or payload["metrics"].get("accounts") != 0:
+            problems.append(f"an empty, working database read as {payload['components'].get('database')!r}, {payload['metrics'].get('accounts')!r} accounts")
+        if not set(payload["components"].values()) <= words or payload["status"] not in words:
+            problems.append(f"a state outside Statuspage's vocabulary: {payload['components']}")
+    finally:
+        store.DATABASE_PATH, store._database_ready = was, False
+    return problems
+
+
+@check("the status history counts a stretch with no sample as down, and a slow component as still up")
+def _status_history():
+    import pathlib
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+
+    from rasmai.storage.db import connection as store
+    from rasmai.storage.db import status
+
+    problems = []
+    was = store.DATABASE_PATH
+    try:
+        store.DATABASE_PATH, store._database_ready = pathlib.Path(tempfile.mkdtemp()) / "h.sqlite3", False
+        if status.status_history()["days"]:
+            problems.append("a database with no samples reported days")
+        day = datetime(2026, 9, 29, tzinfo=timezone.utc)
+        now = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
+        for slot in range(288):
+            at = day + timedelta(minutes=5 * slot)
+            if 120 <= slot < 132:
+                continue                    # an hour with the bot not running
+            state = "degraded_performance" if slot < 3 else "operational"
+            status.record_status_sample({"components": {"bot": state}, "metrics": {"gatewayMs": 90, "analysisWaiting": 0}}, at)
+        history = status.status_history(now)
+        first, today = history["days"][0], history["days"][-1]
+        got = first["components"]["bot"]
+        if (first["day"], first["expected"], first["samples"], got["up"], got["degraded"]) != ("2026-09-29", 288, 276, 276, 3):
+            problems.append(f"the day with a gap read as {first}")
+        if (today["day"], today["expected"], today["samples"]) != ("2026-09-30", 144, 0):
+            problems.append(f"the day the bot has not recorded since midnight read as {today}")
+        # the last twenty-four hours before noon on the 30th hold the second half of the 29th: 144 slots
+        if len(history["recent"]) != 144 or history["since"] != "2026-09-29T00:00:00+00:00":
+            problems.append(f"{len(history['recent'])} recent readings, first sample {history['since']}")
+    finally:
+        store.DATABASE_PATH, store._database_ready = was, False
+    return problems
+
+
+@check("the bot's side of the website is not opened to the network without a secret, and an odd secret header is a refusal")
+def _seam_fails_closed():
+    import http.client
+    import urllib.error
+    import urllib.request
+    from rasmai.web import web_server
+
+    kept = web_server.INTERNAL_API_SECRET
+    problems = []
+    servers = []
+    try:
+        # no secret and a host the network can reach: the API must not start (port 0 so nothing collides)
+        web_server.INTERNAL_API_SECRET = ""
+        open_door = web_server.InternalApiServer(host="0.0.0.0", port=0)
+        servers.append(open_door)
+        open_door.start()
+        if open_door.httpd is not None or open_door.thread is not None:
+            problems.append("the internal API started on 0.0.0.0 with no shared secret")
+
+        # a header that is not ASCII is a wrong secret, not an error in the handler
+        web_server.INTERNAL_API_SECRET = "check-only-secret"
+        server = web_server.InternalApiServer(host="127.0.0.1", port=0)
+        servers.append(server)
+        server.start()
+        port = server.httpd.server_address[1]
+        for secret, want in (("café", 401), ("check-only-secret", 200)):
+            request = urllib.request.Request(f"http://127.0.0.1:{port}/internal/notice", headers={"X-Rasmai-Internal": secret})
+            try:
+                with urllib.request.urlopen(request, timeout=10) as answer:
+                    got = answer.status
+            except urllib.error.HTTPError as error:
+                got = error.code
+            except (urllib.error.URLError, http.client.HTTPException, OSError) as error:
+                got = f"no answer ({error})"
+            if got != want:
+                problems.append(f"/internal/notice with the header {secret!r} answered {got}, expected {want}")
+    finally:
+        for each in servers:
+            each.stop()
+        web_server.INTERNAL_API_SECRET = kept
+    return problems

@@ -3,15 +3,23 @@ import { env } from "./env";
 
 /** The visitor's address, for per-client limits.
 
- * Cloudflare states it outright in CF-Connecting-IP. Failing that, the *last* hop of X-Forwarded-For
- * is the one the proxy in front of us appended; the first hop is whatever the client chose to send,
- * and keying a limiter on it would let one client pick a fresh key per request. */
-export function clientKey(request: Request): string {
-  const cloudflare = (request.headers.get("cf-connecting-ip") ?? "").trim();
-  if (cloudflare) return cloudflare;
-  const forwarded = (request.headers.get("x-forwarded-for") ?? "").split(",").map((hop) => hop.trim()).filter(Boolean);
+ * Behind Cloudflare (MAIMAI_BEHIND_CLOUDFLARE) it states the address outright in CF-Connecting-IP.
+ * Behind anything else that header is whatever the client chose to send, so it is ignored unless the
+ * flag says Cloudflare is the only way in. Failing that, the *last* hop of X-Forwarded-For is the one
+ * the proxy in front of us appended; the first hop is client-chosen too, and keying a limiter on
+ * either would let one client pick a fresh key per request. */
+export function clientKeyFromHeaders(headers: Headers): string {
+  if (env.behindCloudflare()) {
+    const cloudflare = (headers.get("cf-connecting-ip") ?? "").trim();
+    if (cloudflare) return cloudflare;
+  }
+  const forwarded = (headers.get("x-forwarded-for") ?? "").split(",").map((hop) => hop.trim()).filter(Boolean);
   if (forwarded.length) return forwarded[forwarded.length - 1];
-  return request.headers.get("x-real-ip") ?? "local";
+  return (headers.get("x-real-ip") ?? "").trim() || "local";
+}
+
+export function clientKey(request: Request): string {
+  return clientKeyFromHeaders(request.headers);
 }
 
 /** True when a POST came from our own pages.

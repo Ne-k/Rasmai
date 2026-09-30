@@ -6,6 +6,9 @@ services:
       context: .
       target: bot
       args:
+        # the bot runs as this user; see the volumes note below
+        BOT_UID: ${BOT_UID:-1000}
+        BOT_GID: ${BOT_GID:-1000}
         # the decision model behind the "laya" beta, off unless .env says otherwise. It is a build
         # arg rather than a setting because it decides what goes into the image, so changing it
         # means rebuilding: docker compose build bot && docker compose up -d bot
@@ -16,6 +19,13 @@ services:
       MAIMAI_WEBSERVER_HOST: 0.0.0.0
       MAIMAI_DATABASE_PATH: /app/data/maimai.sqlite3
       MAIMAI_TUNNEL_ORIGIN: http://web:3000
+      # the bot's internal API trusts the identity header only from a caller holding this, so an
+      # empty one would make it open to anything on the network: compose refuses to start without it
+      RASMAI_INTERNAL_SECRET: ${RASMAI_INTERNAL_SECRET:?set RASMAI_INTERNAL_SECRET in .env (openssl rand -hex 32)}
+    # the bot runs as the image's non-root user (BOT_UID, default 1000), so these folders must be
+    # writable by it. Docker Desktop on macOS maps that automatically; on a Linux host run
+    #   sudo chown -R 1000:1000 data otoge_cache models simai_cache debug
+    # or build with BOT_UID/BOT_GID set to the ids that own them
     volumes:
       - ./data:/app/data
       - ./otoge_cache:/app/otoge_cache
@@ -23,6 +33,9 @@ services:
       - ./simai_cache:/app/simai_cache   # the charts themselves, packed, so a restart re-reads rather than re-downloads
       - ./debug:/app/debug            # the raw page exports MAIMAI_DEBUG writes, so they survive the container
     init: true
+    # Chromium runs with --no-sandbox, so it needs no capability and no privilege escalation
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     shm_size: "1gb"
     restart: unless-stopped
     stop_grace_period: 20s
@@ -44,11 +57,15 @@ services:
     env_file: .env
     environment:
       MAIMAI_INTERNAL_URL: http://bot:8765
+      # must match the bot's; the same required check, so neither half starts with it unset
+      RASMAI_INTERNAL_SECRET: ${RASMAI_INTERNAL_SECRET:?set RASMAI_INTERNAL_SECRET in .env (openssl rand -hex 32)}
     ports:
       - "127.0.0.1:8765:3000"
     depends_on:
       - bot
     init: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
     logging:
       driver: json-file

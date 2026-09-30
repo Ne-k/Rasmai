@@ -12,6 +12,7 @@ import logging
 from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
 from rasmai.bot.tasks.presence import ServerWatch
+from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
     CONTROL_GUILD_ID, DATABASE_PATH, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
 )
@@ -290,6 +291,20 @@ async def _chart_db_daily() -> None:
     await asyncio.get_running_loop().run_in_executor(None, _chart_db_upkeep)
 
 
+def _status_sample() -> None:
+    from rasmai.storage.db.status import record_status_sample
+    from rasmai.web.statuspage import status_payload
+    try:
+        record_status_sample(status_payload())
+    except Exception:
+        logger.exception("recording a status sample failed")
+
+
+@tasks.loop(minutes=SAMPLE_MINUTES)
+async def _status_heartbeat() -> None:
+    await asyncio.get_running_loop().run_in_executor(None, _status_sample)
+
+
 def _crawl_wiki_titles() -> None:
     try:
         wiki.wiki_titles()
@@ -326,6 +341,8 @@ async def on_ready():
     await sync_application_emojis(bot)
     if not _chart_db_daily.is_running():
         _chart_db_daily.start()      # on_ready fires again after a reconnect; the loop must not
+    if not _status_heartbeat.is_running():
+        _status_heartbeat.start()    # the same again: one heartbeat however many times Discord reconnects
     # the chart table, and then the charts themselves: nothing to do with the wiki, so not behind its switch
     asyncio.get_running_loop().run_in_executor(None, _read_mai_notes_then_simai)
     if WIKI_VIDEOS:

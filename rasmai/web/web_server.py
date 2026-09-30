@@ -106,8 +106,11 @@ class InternalApiServer:
 
     def start(self) -> None:
         if not INTERNAL_API_SECRET and self.host not in ("127.0.0.1", "localhost", "::1"):
-            logger.warning("RASMAI_INTERNAL_SECRET is empty while the internal API listens on %s; "
-                           "anything that can reach the port can read accounts", self.host)
+            # the API takes the caller's word for who they are, so with no secret anything that can reach
+            # the port is any user; the bot itself carries on without the website
+            logger.error("The internal API was NOT started: RASMAI_INTERNAL_SECRET is empty and %s is not a "
+                         "loopback address. Set RASMAI_INTERNAL_SECRET to start it.", self.host)
+            return
 
         class Handler(BaseHTTPRequestHandler):
             timeout = 20
@@ -125,7 +128,9 @@ class InternalApiServer:
             def _authorized(self) -> bool:
                 if not INTERNAL_API_SECRET:
                     return True
-                return hmac.compare_digest(self.headers.get("X-Rasmai-Internal", ""), INTERNAL_API_SECRET)
+                # bytes, because compare_digest raises on a str that is not ASCII, and a header can be anything
+                return hmac.compare_digest(self.headers.get("X-Rasmai-Internal", "").encode("utf-8"),
+                                           INTERNAL_API_SECRET.encode("utf-8"))
 
             def _user(self) -> Optional[Dict[str, Any]]:
                 """The signed-in Discord user, as the web server authenticated them.
@@ -221,6 +226,14 @@ class InternalApiServer:
                     return
                 if route.path == "/internal/status":
                     self._status(query)
+                    return
+                if route.path == "/internal/statuspage":
+                    from rasmai.web.statuspage import status_payload
+                    self._send_json(200, status_payload())
+                    return
+                if route.path == "/internal/statuspage/history":
+                    from rasmai.storage.db.status import status_history
+                    self._send_json(200, status_history())
                     return
                 if route.path.startswith("/internal/public/"):
                     # no sign-in: the slug is the whole credential, and the payload carries only
