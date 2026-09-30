@@ -6,7 +6,6 @@ export const env = {
   internalUrl: () => trim(process.env.MAIMAI_INTERNAL_URL, "http://127.0.0.1:8765"),
   internalSecret: () => (process.env.RASMAI_INTERNAL_SECRET ?? "").trim(),
   statuspageToken: () => (process.env.STATUSPAGE_TOKEN ?? "").trim(),
-  statusUrl: () => trim(process.env.STATUS_URL),
   discordClientId: () => (process.env.DISCORD_CLIENT_ID ?? "").trim(),
   discordClientSecret: () => (process.env.DISCORD_CLIENT_SECRET ?? "").trim(),
   botInvite: () => (process.env.DISCORD_BOT_INVITE ?? "").trim(),

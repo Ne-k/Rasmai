@@ -1,7 +1,6 @@
 import { Ring } from "./Ring";
 import { ThemeToggle } from "./Theme";
 import { ServersNotice } from "./Servers";
-import { StatusLamp } from "./StatusLamp";
 
 const STEPS = ["Get your link", "Sign in", "Connect"];
 
@@ -14,25 +13,20 @@ const NAV: [string, string][] = [
 ];
 
 export function MastheadNav({ current }: { current: string }) {
-  // the lamp is a sibling of the nav, not one of its links: on a phone the nav takes a row of its own and
-  // has no room for a sixth item, so the lamp stays up in the top row beside the theme switch
   return (
-    <>
-      <nav className="masthead-nav">
-        {NAV.map(([label, href]) =>
-          label === current ? (
-            <span key={label} className="tag">
-              {label}
-            </span>
-          ) : (
-            <a key={label} className="tag" href={href}>
-              {label}
-            </a>
-          ),
-        )}
-      </nav>
-      <StatusLamp />
-    </>
+    <nav className="masthead-nav">
+      {NAV.map(([label, href]) =>
+        label === current ? (
+          <span key={label} className="tag">
+            {label}
+          </span>
+        ) : (
+          <a key={label} className="tag" href={href}>
+            {label}
+          </a>
+        ),
+      )}
+    </nav>
   );
 }
 
