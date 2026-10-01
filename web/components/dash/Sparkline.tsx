@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import type { HistoryPoint } from "./api";
 import { day } from "./bits";
 
 /** Rating over time. The drawing is sized to the box it sits in, so the labels stay readable on a phone. */
 export function Sparkline({ points }: { points: HistoryPoint[] }) {
-  const t = useM().graphs;
+  const t = useTranslations("graphs");
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   useEffect(() => {
@@ -24,10 +24,10 @@ export function Sparkline({ points }: { points: HistoryPoint[] }) {
   if (sorted.length < 2) {
     return (
       <div className="spark one" ref={box}>
-        <span className="label">{t.ratingOverTime}</span>
+        <span className="label">{t("ratingOverTime")}</span>
         <p>
-          {sorted.length ? t.oneRating(values[0]) : t.noRating}
-          {t.eachRefresh}
+          {sorted.length ? t("oneRating", { n: values[0] }) : t("noRating")}
+          {t("eachRefresh")}
         </p>
       </div>
     );
@@ -50,12 +50,12 @@ export function Sparkline({ points }: { points: HistoryPoint[] }) {
   return (
     <div className="spark" ref={box}>
       <div className="spark-head">
-        <span className="label">{t.ratingOverTime}</span>
+        <span className="label">{t("ratingOverTime")}</span>
         <span className={`delta ${gain >= 0 ? "up" : "down"}`}>
-          {t.since(`${gain >= 0 ? "+" : ""}${gain}`, day(sorted[0].recordedAt))}
+          {t("since", { gain: `${gain >= 0 ? "+" : ""}${gain}`, when: day(sorted[0].recordedAt) })}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={t.ratingLabel}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={t("ratingLabel")}>
         <line className="grid" x1={padX} x2={W - padX} y1={y(max)} y2={y(max)} />
         <line className="grid" x1={padX} x2={W - padX} y1={y(min)} y2={y(min)} />
         <path className="line" d={path} />

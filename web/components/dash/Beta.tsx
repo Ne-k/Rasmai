@@ -1,33 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
-import { activeMessages, activeTag } from "@/lib/i18n/active";
+import { useTranslations } from "next-intl";
+import { activeTag } from "@/lib/i18n/active";
 import { getJSON, postJSON, type Beta as BetaState, type BetaFeature, type BetaVerdict } from "./api";
 import { Label } from "./bits";
 
 const POLL_MS = 4000;
 
 /** "about 12 minutes left", from seconds. */
-function left(seconds: number): string {
-  const t = activeMessages().beta;
+function left(seconds: number, t: ReturnType<typeof useTranslations<"beta">>): string {
   if (seconds <= 0) return "";
-  if (seconds < 60) return t.lessThanMinute;
+  if (seconds < 60) return t("lessThanMinute");
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return t.minutesLeft(minutes);
+  if (minutes < 60) return t("minutesLeft", { n: minutes });
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return t.hoursLeft(hours, rest);
+  return t("hoursLeft", { h: hours, m: rest });
 }
 
 /** How far a feature's groundwork has got, while it is still going. */
 function Progress({ feature }: { feature: BetaFeature }) {
-  const t = useM().beta;
+  const t = useTranslations("beta");
   const total = feature.total ?? 0;
   const done = feature.done ?? 0;
   if (!total || !feature.waiting) return null;
   const percent = Math.min(100, Math.max(0, feature.percent ?? 0));
-  const eta = left(feature.eta ?? 0);
+  const eta = left(feature.eta ?? 0, t);
   return (
     <span className="crawl">
       <span
@@ -36,12 +35,12 @@ function Progress({ feature }: { feature: BetaFeature }) {
         aria-valuenow={Math.round(percent)}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={t.readSoFar}
+        aria-label={t("readSoFar")}
       >
         <span style={{ width: `${percent}%` }} />
       </span>
       <span className="crawl-said mono">
-        {t.charts(done.toLocaleString(activeTag()), total.toLocaleString(activeTag()), percent.toFixed(1))}{eta ? ` · ${eta}` : ""}
+        {t("charts", { done: done.toLocaleString(activeTag()), total: total.toLocaleString(activeTag()), percent: percent.toFixed(1) })}{eta ? ` · ${eta}` : ""}
       </span>
     </span>
   );
@@ -51,7 +50,7 @@ const VERDICTS: BetaVerdict[] = ["better", "same", "worse"];
 
 /** What one tester made of one feature: a verdict, and optionally why. Only shown once it is on. */
 function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: BetaState) => void }) {
-  const t = useM().beta;
+  const t = useTranslations("beta");
   const said = feature.said ?? null;
   const [note, setNote] = useState(said?.said ?? "");
   const [open, setOpen] = useState(false);
@@ -66,14 +65,14 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
         onSaved(next);
         setOpen(false);
       })
-      .catch((e: Error) => setError(e.message || t.couldntSend))
+      .catch((e: Error) => setError(e.message || t("couldntSend")))
       .finally(() => setBusy(false));
   };
 
   return (
     <span className="beta-say">
       <span className="beta-say-row">
-        <span className="dim">{t.compared}</span>
+        <span className="dim">{t("compared")}</span>
         {VERDICTS.map((v) => (
           <button
             key={v}
@@ -83,11 +82,11 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
             aria-pressed={said?.verdict === v}
             onClick={() => send(v, note)}
           >
-            {t.verdicts[v]}
+            {t(`verdicts.${v}`)}
           </button>
         ))}
         <button type="button" className="beta-chip quiet" disabled={busy} onClick={() => setOpen((was) => !was)}>
-          {note ? t.editNote : t.addNote}
+          {note ? t("editNote") : t("addNote")}
         </button>
       </span>
       {open && (
@@ -96,7 +95,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
             type="text"
             className="beta-note"
             maxLength={500}
-            placeholder={t.placeholder}
+            placeholder={t("placeholder")}
             value={note}
             disabled={busy}
             onChange={(e) => setNote(e.target.value)}
@@ -106,15 +105,15 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
           />
           {said?.verdict && (
             <button type="button" className="beta-chip" disabled={busy} onClick={() => send(said.verdict, note)}>
-              {t.save}
+              {t("save")}
             </button>
           )}
-          {!said?.verdict && <span className="mono hint">{t.pickFirst}</span>}
+          {!said?.verdict && <span className="mono hint">{t("pickFirst")}</span>}
         </span>
       )}
       {said && !open && (
         <span className="mono hint ok">
-          {t.youSaid(t.verdicts[said.verdict] ?? said.verdict)}
+          {t("youSaid", { verdict: t.has(`verdicts.${said.verdict}`) ? t(`verdicts.${said.verdict}`) : said.verdict })}
           {said.said ? ` · ${said.said}` : ""}
         </span>
       )}
@@ -125,7 +124,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
 
 /** Features that work but are not finished. Each is off until its owner turns it on. */
 export function Beta({ state, onChange }: { state: BetaState; onChange: (next: BetaState) => void }) {
-  const t = useM().beta;
+  const t = useTranslations("beta");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const latest = useRef(onChange);
@@ -158,13 +157,13 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
         const feature = next.features.find((f) => f.key === key);
         setNote(
           !on
-            ? t.off
+            ? t("off")
             : feature && feature.ready === false
-              ? t.notReady
-              : t.on,
+              ? t("notReady")
+              : t("on"),
         );
       })
-      .catch((e: Error) => setNote(e.message || t.couldntSave))
+      .catch((e: Error) => setNote(e.message || t("couldntSave")))
       .finally(() => setBusy(false));
   };
 
@@ -173,8 +172,8 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info={t.info}>{t.title}</Label>
-        <span className={`mono hint${count ? " ok" : ""}`}>{count ? t.count(count) : t.none}</span>
+        <Label info={t("info")}>{t("title")}</Label>
+        <span className={`mono hint${count ? " ok" : ""}`}>{count ? t("count", { n: count }) : t("none")}</span>
       </div>
 
       <ul className="share-toggles">
@@ -202,7 +201,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">{t.hint}</p>
+      <p className="hint">{t("hint")}</p>
     </section>
   );
 }

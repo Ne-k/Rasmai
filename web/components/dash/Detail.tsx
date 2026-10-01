@@ -1,24 +1,25 @@
 import { useEffect, useState } from "react";
-import { useLocale, useM } from "@/components/I18n";
-import { activeMessages, activeTag } from "@/lib/i18n/active";
+import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/I18n";
+import { activeTag } from "@/lib/i18n/active";
 import { noteKind, traitName } from "@/lib/i18n/traits";
 import { getJSON, type ChartDetail, type SongLookup, type UnlockArea } from "./api";
 import { Chip, Empty, Jacket, Label, Lamp, num, pct } from "./bits";
 import { ScoreHistory } from "./ScoreHistory";
 
 /** A constant revised since the first recorded play: the history was scored against the old number until then. */
-function constNote(chart: { history: { when: string; constant: number }[]; constant: number }): string {
+function constNote(chart: { history: { when: string; constant: number }[]; constant: number }, t: ReturnType<typeof useTranslations<"detail">>): string {
   const first = chart.history.reduce((a, b) => (a.when < b.when ? a : b));
-  return Math.abs(first.constant - chart.constant) >= 0.05 ? activeMessages().detail.constNote(first.constant.toFixed(1)) : "";
+  return Math.abs(first.constant - chart.constant) >= 0.05 ? t("constNote", { n: first.constant.toFixed(1) }) : "";
 }
 
 const NOTE_KINDS = ["tap", "hold", "slide", "touch", "break"] as const;
 
 /** The five DX stars in Rasmai's star mark, the unearned ones faded. */
 function DxStars({ n }: { n: number }) {
-  const t = useM().detail;
+  const t = useTranslations("detail");
   return (
-    <span className="dxstars" role="img" aria-label={t.stars(n)}>
+    <span className="dxstars" role="img" aria-label={t("stars", { n })}>
       {[0, 1, 2, 3, 4].map((i) => (
         <img key={i} src="/marks/dxstar.svg" alt="" width={14} height={14} className={i < n ? undefined : "off"} />
       ))}
@@ -36,7 +37,7 @@ function arrived(iso: string): string {
 /** What the chart is made of, as one band: the share of each note type, with the counts beneath it. */
 function NoteMix({ split }: { split: Record<string, number> | null }) {
   const locale = useLocale();
-  const sep = useM().list.sep;
+  const sep = useTranslations("list")("sep");
   if (!split) return null;
   const parts = NOTE_KINDS.map((kind) => [kind, split[kind] ?? 0] as const).filter(([, n]) => n > 0);
   const total = parts.reduce((sum, [, n]) => sum + n, 0);
@@ -64,13 +65,13 @@ function NoteMix({ split }: { split: Record<string, number> | null }) {
 /** Which cabinets have this chart. The search spans every region, so the page says where each song
  *  can actually be played rather than leaving a player to find out at the machine. */
 function Where({ regions, intl }: { regions?: string[]; intl?: boolean }) {
-  const t = useM().detail;
+  const t = useTranslations("detail");
   const where = regions?.length ? regions : intl === false ? ["jp", "cn"] : ["jp", "intl", "cn"];
   const everywhere = where.length >= 3;
   return (
-    <span className={`chart-flag${everywhere ? " chart-flag-quiet" : ""}`} title={t.regionsTitle}>
-      {everywhere ? t.everywhere : where.map((r) => t.regions[r] ?? r).join(" · ")}
-      {where.length === 1 ? t.only : ""}
+    <span className={`chart-flag${everywhere ? " chart-flag-quiet" : ""}`} title={t("regionsTitle")}>
+      {everywhere ? t("everywhere") : where.map((r) => (t.has(`regions.${r}` as never) ? t(`regions.${r}` as never) : r)).join(" · ")}
+      {where.length === 1 ? t("only") : ""}
     </span>
   );
 }
@@ -78,10 +79,10 @@ function Where({ regions, intl }: { regions?: string[]; intl?: boolean }) {
 export const RANK_LINES: [string, number][] = [["S", 97], ["S+", 98], ["SS", 99], ["SS+", 99.5], ["SSS", 100], ["SSS+", 100.5]];
 
 export function Detail({ song, chart, selected, onSelect, onTrait }: { song: SongLookup; chart: ChartDetail; selected: number; onSelect: (i: number) => void; onTrait?: (key: string) => void }) {
-  const m = useM();
-  const t = m.detail;
-  const c = m.cols;
+  const t = useTranslations("detail");
+  const c = useTranslations("cols");
   const locale = useLocale();
+  const tier = (key: string) => (t.has(`tier.${key}` as never) ? t(`tier.${key}` as never) : key);
   // the chart videos and unlock notes come from the wiki and can take a few seconds the first time; the page does not wait for them
   const [wiki, setWiki] = useState<{ videos: Record<string, string>; unlock: string[]; unlockAreas: UnlockArea[]; wiki: string } | null>(null);
   useEffect(() => {
@@ -95,7 +96,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
     };
   }, [song.title]);
   const video = wiki?.videos[`${chart.chart_type}|${chart.difficulty}`] ?? chart.video;
-  const facts = [song.alias, song.reading, song.genre, song.bpm ? t.bpm(song.bpm) : "", song.version, chart.is_new ? t.currentVersion : ""].filter(Boolean);
+  const facts = [song.alias, song.reading, song.genre, song.bpm ? t("bpm", { n: song.bpm }) : "", song.version, chart.is_new ? t("currentVersion") : ""].filter(Boolean);
   const p = chart.prediction;
   const bothTypes = new Set(song.charts.map((c) => c.chart_type)).size > 1;
   return (
@@ -103,11 +104,11 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
       <div className="detail-head">
         <Jacket cover={song.cover} size={96} />
         <h2>{song.title}</h2>
-        <p className="artist">{song.artist || t.artistUnknown}</p>
+        <p className="artist">{song.artist || t("artistUnknown")}</p>
         <span className="facts label">{facts.join(" · ")}</span>
       </div>
 
-      <div className="chart-pick" role="group" aria-label={t.charts}>
+      <div className="chart-pick" role="group" aria-label={t("charts")}>
         {song.charts.map((c, i) => (
           <button key={`${c.chart_type}|${c.difficulty}`} type="button" aria-pressed={i === selected} className={i === selected ? "on" : ""} onClick={() => onSelect(i)}>
             <span className={c.played ? "" : "faded"} style={{ display: "contents" }}>
@@ -117,12 +118,12 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
         ))}
       </div>
       <p className="hint chart-meta">
-        {t.tier[chart.difficulty] ?? chart.difficulty} {chart.level}{t.constant(chart.constant.toFixed(1))}
-        {chart.notes ? t.notes(num(chart.notes)) : ""}
-        {chart.designer ? t.chartedBy(chart.designer) : ""}
-        {chart.released ? t.added(arrived(chart.released)) : ""}
+        {tier(chart.difficulty)} {chart.level}{t("constant", { n: chart.constant.toFixed(1) })}
+        {chart.notes ? t("notes", { n: num(chart.notes) }) : ""}
+        {chart.designer ? t("chartedBy", { who: chart.designer }) : ""}
+        {chart.released ? t("added", { when: arrived(chart.released) }) : ""}
         <Where regions={chart.regions} intl={chart.intl} />
-        {chart.deleted && <span className="chart-flag">{t.removed}</span>}
+        {chart.deleted && <span className="chart-flag">{t("removed")}</span>}
       </p>
       <NoteMix split={chart.noteSplit} />
       {chart.patterns.length > 0 && (
@@ -133,7 +134,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
                 <button
                   type="button"
                   onClick={() => onTrait?.(p.key)}
-                  title={`${p.community ? t.tagged : t.measured}${t.clickTrait}`}
+                  title={`${p.community ? t("tagged") : t("measured")}${t("clickTrait")}`}
                 >
                   {traitName(p.label, undefined, locale)}
                   {p.offset != null ? <span className="mono"> {p.offset > 0 ? "+" : ""}{p.offset.toFixed(1)}</span> : null}
@@ -142,9 +143,9 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
             ))}
           </ul>
           <p className="hint pattern-note">
-            {t.clickOne}
-            {chart.patterns.some((p) => p.community) ? t.communityNote : t.measuredNote}
-            {chart.patterns.some((p) => p.offset != null) ? t.offsetNote : ""}
+            {t("clickOne")}
+            {chart.patterns.some((p) => p.community) ? t("communityNote") : t("measuredNote")}
+            {chart.patterns.some((p) => p.offset != null) ? t("offsetNote") : ""}
           </p>
         </>
       )}
@@ -153,57 +154,57 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
         {chart.played ? (
           <>
             <div className="fact wide">
-              <div className="k">{t.yourScore}</div>
+              <div className="k">{t("yourScore")}</div>
               <div className="v">
                 {pct(chart.accuracy, 4)} <small>{chart.rank}</small>
-                <em>{t.rating(chart.rating ?? 0)}</em>
+                <em>{t("rating", { n: chart.rating ?? 0 })}</em>
               </div>
             </div>
             <div className="fact">
-              <div className="k">{t.lamp}</div>
+              <div className="k">{t("lamp")}</div>
               <div className="v">
                 <Lamp fc={chart.fc ?? ""} fs={chart.fs ?? ""} />
               </div>
             </div>
             <div className="fact">
-              <div className="k">{t.dx}</div>
+              <div className="k">{t("dx")}</div>
               <div className="v">{chart.dx ? num(chart.dx) : "—"}</div>
-              <div className="s">{chart.max_dx ? <>{t.of(num(chart.max_dx))}<DxStars n={chart.stars ?? 0} /></> : t.maxUnknown}</div>
+              <div className="s">{chart.max_dx ? <>{t("of", { n: num(chart.max_dx) })}<DxStars n={chart.stars ?? 0} /></> : t("maxUnknown")}</div>
             </div>
             <div className="fact">
-              <div className="k">{t.plays}</div>
+              <div className="k">{t("plays")}</div>
               <div className="v">{chart.plays ? num(chart.plays) : "—"}</div>
-              <div className="s">{chart.plays ? t.fromNet : t.playsUnknown}</div>
+              <div className="s">{chart.plays ? t("fromNet") : t("playsUnknown")}</div>
             </div>
             <div className="fact">
-              <div className="k">{t.best50}</div>
+              <div className="k">{t("best50")}</div>
               <div className="v" style={{ fontSize: 15 }}>{chart.note || "—"}</div>
             </div>
           </>
         ) : (
           <div className="fact wide">
-            <div className="k">{t.yourScore}</div>
+            <div className="k">{t("yourScore")}</div>
             <div className="v">
-              {t.neverPlayed}
-              {chart.usual != null && <em>{t.usual(chart.usual.toFixed(1))}</em>}
+              {t("neverPlayed")}
+              {chart.usual != null && <em>{t("usual", { n: chart.usual.toFixed(1) })}</em>}
             </div>
             <div className="s">{chart.note || ""}</div>
           </div>
         )}
         {p && (
           <div className="fact wide pink">
-            <div className="k">{t.prediction}</div>
+            <div className="k">{t("prediction")}</div>
             <div className="v">
               {pct(p.expected)} <small>{p.rank}</small>
               <em>
-                {t.range(p.low.toFixed(1), p.high.toFixed(1))}
+                {t("range", { low: p.low.toFixed(1), high: p.high.toFixed(1) })}
               </em>
             </div>
             <div className="s">
               {chart.played && p.new_best != null
-                ? t.newBest(Math.round(p.new_best * 100))
-                : t.firstTry}
-              {Math.abs(p.tier_offset) >= 0.5 ? t.tierOffset(t.tier[p.tier] ?? p.tier, `${p.tier_offset >= 0 ? "+" : ""}${p.tier_offset.toFixed(1)}`) : ""}
+                ? t("newBest", { n: Math.round(p.new_best * 100) })
+                : t("firstTry")}
+              {Math.abs(p.tier_offset) >= 0.5 ? t("tierOffset", { tier: tier(p.tier), n: `${p.tier_offset >= 0 ? "+" : ""}${p.tier_offset.toFixed(1)}` }) : ""}
             </div>
           </div>
         )}
@@ -212,17 +213,17 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
       {chart.ladder.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.ladderInfo}>{chart.played ? t.ladderPlayed : t.ladderNew}</Label>
-            <span className="mono hint">{chart.played ? t.ladderHintPlayed : t.ladderHintNew}</span>
+            <Label info={t("ladderInfo")}>{chart.played ? t("ladderPlayed") : t("ladderNew")}</Label>
+            <span className="mono hint">{chart.played ? t("ladderHintPlayed") : t("ladderHintNew")}</span>
           </div>
           <table className="tbl compact ladder keep">
             <thead>
               <tr>
-                <th>{c.rank}</th>
-                <th className="c-num">{t.need}</th>
-                <th className="c-num">{c.rating}</th>
-                <th className="c-num">{c.gain}</th>
-                <th>{c.odds}</th>
+                <th>{c("rank")}</th>
+                <th className="c-num">{t("need")}</th>
+                <th className="c-num">{c("rating")}</th>
+                <th className="c-num">{c("gain")}</th>
+                <th>{c("odds")}</th>
               </tr>
             </thead>
             <tbody>
@@ -247,11 +248,11 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
 
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={t.unlockInfo}>{t.unlock}</Label>
-          <span className="mono hint">{wiki?.wiki ? <a href={wiki.wiki} target="_blank" rel="noopener noreferrer">SilentBlue RemyWiki</a> : t.fromWiki}</span>
+          <Label info={t("unlockInfo")}>{t("unlock")}</Label>
+          <span className="mono hint">{wiki?.wiki ? <a href={wiki.wiki} target="_blank" rel="noopener noreferrer">SilentBlue RemyWiki</a> : t("fromWiki")}</span>
         </div>
         {wiki === null ? (
-          <Empty>{t.loadingWiki}</Empty>
+          <Empty>{t("loadingWiki")}</Empty>
         ) : wiki.unlock.length ? (
           <ul className="unlock">
             {wiki.unlock.map((line, i) => (
@@ -261,29 +262,29 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
                   .filter((a) => a.line === i)
                   .map((a) => (
                     <a key={a.name} className="unlock-area" href={`/me/?area=${encodeURIComponent(a.name)}#areas`}>
-                      {t.areaProgress(a.title, a.state === "not_started" ? t.notStarted : `${num(a.distance)} km`)}
-                      {a.state === "completed" ? t.completed : a.milestone ? t.nextAt(num(a.milestone)) : ""} →
+                      {t("areaProgress", { title: a.title, where: a.state === "not_started" ? t("notStarted") : `${num(a.distance)} km` })}
+                      {a.state === "completed" ? t("completed") : a.milestone ? t("nextAt", { km: num(a.milestone) }) : ""} →
                     </a>
                   ))}
               </li>
             ))}
           </ul>
         ) : (
-          <Empty>{wiki.wiki ? t.noUnlock : t.noPage}</Empty>
+          <Empty>{wiki.wiki ? t("noUnlock") : t("noPage")}</Empty>
         )}
       </section>
 
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={t.historyInfo}>{t.history}</Label>
-          <span className="mono hint">{chart.history.length ? `${t.points(chart.history.length)}${constNote(chart)}` : ""}</span>
+          <Label info={t("historyInfo")}>{t("history")}</Label>
+          <span className="mono hint">{chart.history.length ? `${t("points", { n: chart.history.length })}${constNote(chart, t)}` : ""}</span>
         </div>
         <ScoreHistory points={chart.history} />
       </section>
 
       <div className="btn-row" style={{ marginTop: 18 }}>
         <a className="button ghost" href={video ?? chart.youtube} target="_blank" rel="noopener noreferrer">
-          {video ? t.watch : t.searchYoutube}
+          {video ? t("watch") : t("searchYoutube")}
         </a>
       </div>
     </section>

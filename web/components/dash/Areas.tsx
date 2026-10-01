@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
-import { useM } from "@/components/I18n";
-import { activeMessages } from "@/lib/i18n/active";
+import { useTranslations } from "next-intl";
 import { getJSON, type AreaSummary, type AreaEntry, type AreaReward } from "./api";
 import { Empty, Label, LoadError, ago, day, num } from "./bits";
 
-function km(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : activeMessages().areasTab.km(num(value));
+type T = ReturnType<typeof useTranslations<"areasTab">>;
+
+function km(value: number | null | undefined, t: T): string {
+  return value === null || value === undefined ? "—" : t("km", { n: num(value) });
 }
 
-function endsIn(iso: string | null): string {
+function endsIn(iso: string | null, t: T): string {
   if (!iso) return "";
   const end = new Date(iso).getTime();
   if (Number.isNaN(end)) return "";
   const days = Math.round((end - Date.now()) / 86400000);
-  const t = activeMessages().areasTab;
-  if (days < 0) return t.ended(day(iso));
-  if (days === 0) return t.endsToday;
-  if (days === 1) return t.endsTomorrow;
-  return t.endsIn(days, day(iso));
+  if (days < 0) return t("ended", { when: day(iso) });
+  if (days === 0) return t("endsToday");
+  if (days === 1) return t("endsTomorrow");
+  return t("endsIn", { days, when: day(iso) });
 }
 
 function Reward({ step }: { step: AreaReward }) {
@@ -32,7 +32,7 @@ function Reward({ step }: { step: AreaReward }) {
 
 /** The dark panel of a card: the distance, and what the next reward is and how far it sits. */
 function Panel({ area }: { area: AreaEntry }) {
-  const t = useM().areasTab;
+  const t = useTranslations("areasTab");
   const travelling = area.state === "in_progress";
   const next = area.nextReward;
   const width = next && next.total > 0 ? Math.max(0, Math.min(100, (100 * area.distance) / next.total)) : area.state === "completed" ? 100 : 0;
@@ -40,11 +40,11 @@ function Panel({ area }: { area: AreaEntry }) {
   if (travelling && next) {
     const when =
       next.toGo === 0
-        ? t.ready
-        : `${t.toGo(km(next.toGo))}${next.playsToGo !== null ? t.playsAtPace(next.playsToGo) : ""}`;
+        ? t("ready")
+        : `${t("toGo", { km: km(next.toGo, t) })}${next.playsToGo !== null ? t("playsAtPace", { n: next.playsToGo }) : ""}`;
     reward = (
       <div className="area-next">
-        <span className="lbl">{t.nextReward}</span>
+        <span className="lbl">{t("nextReward")}</span>
         <Reward step={next} />
         <span className="w">{when}</span>
       </div>
@@ -52,29 +52,29 @@ function Panel({ area }: { area: AreaEntry }) {
   } else if (travelling) {
     reward = (
       <div className="area-next">
-        <span className="lbl">{t.nextReward}</span>
-        <span className="w">{t.notListed}</span>
+        <span className="lbl">{t("nextReward")}</span>
+        <span className="w">{t("notListed")}</span>
       </div>
     );
   } else if (area.state === "completed") {
     reward = (
       <div className="area-next done">
-        <span className="lbl">{t.completed}</span>
-        <span className="w">{t.everyReward}</span>
+        <span className="lbl">{t("completed")}</span>
+        <span className="w">{t("everyReward")}</span>
       </div>
     );
   } else {
     reward = (
       <div className="area-next gift">
-        <span className="lbl">{t.firstPlay}</span>
-        {area.firstGift ? <Reward step={area.firstGift} /> : <span className="w">{t.gift}</span>}
+        <span className="lbl">{t("firstPlay")}</span>
+        {area.firstGift ? <Reward step={area.firstGift} /> : <span className="w">{t("gift")}</span>}
       </div>
     );
   }
   return (
     <div className="area-panel">
       <div className="area-dist">
-        <span className="lbl">{t.totalDistance}</span>
+        <span className="lbl">{t("totalDistance")}</span>
         <b>
           {num(area.distance)}
           <small>km</small>
@@ -116,12 +116,12 @@ function slug(name: string): string {
 }
 
 function AreaCard({ area, focused }: { area: AreaEntry; focused?: boolean }) {
-  const t = useM().areasTab;
+  const t = useTranslations("areasTab");
   const english = area.english && area.english.toLowerCase() !== area.name.toLowerCase() ? area.english : "";
   const notes: string[] = [];
-  if (area.gained > 0 && area.since) notes.push(t.since(km(area.gained), day(area.since)));
-  if (area.pace && area.state === "in_progress") notes.push(t.pace(area.pace, Boolean(area.ownPace)));
-  const period = endsIn(area.periodEnd);
+  if (area.gained > 0 && area.since) notes.push(t("since", { km: km(area.gained, t), when: day(area.since) }));
+  if (area.pace && area.state === "in_progress") notes.push(t("pace", { n: area.pace, basis: area.ownPace ? "own" : "other" }));
+  const period = endsIn(area.periodEnd, t);
   if (period) notes.push(period);
   const later = area.nextRewards.filter((step) => !area.nextReward || step.total !== area.nextReward.total).slice(0, 2);
   return (
@@ -130,7 +130,7 @@ function AreaCard({ area, focused }: { area: AreaEntry; focused?: boolean }) {
       <div className="area-body">
         <div className="area-head">
           <span className="area-pill">{area.name}</span>
-          <span className={`area-state ${area.state}`}>{t.states[area.state] ?? area.stateLabel}</span>
+          <span className={`area-state ${area.state}`}>{t.has(`states.${area.state}` as never) ? t(`states.${area.state}` as never) : area.stateLabel}</span>
         </div>
         {english ? <span className="area-english">{english}</span> : null}
         <Panel area={area} />
@@ -141,7 +141,7 @@ function AreaCard({ area, focused }: { area: AreaEntry; focused?: boolean }) {
               <li key={step.total}>
                 <span className="mono">{num(step.total)} km</span> {step.kind}
                 {step.name ? <b> {step.name}</b> : null}
-                {step.playsToGo !== null ? <span className="dim">{t.plays(step.playsToGo)}</span> : null}
+                {step.playsToGo !== null ? <span className="dim">{t("plays", { n: step.playsToGo })}</span> : null}
               </li>
             ))}
           </ul>
@@ -164,7 +164,7 @@ function CompactRow({ area, right, focused }: { area: AreaEntry; right?: React.R
 }
 
 export function Areas({ focus = "" }: { focus?: string }) {
-  const t = useM().areasTab;
+  const t = useTranslations("areasTab");
   const [data, setData] = useState<AreaSummary | null>(null);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
@@ -179,11 +179,11 @@ export function Areas({ focus = "" }: { focus?: string }) {
     const card = document.getElementById(slug(focus));
     if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focus, data]);
-  if (error) return <LoadError what={t.yourAreas} message={error} onRetry={() => { setError(""); setData(null); setReload((n) => n + 1); }} />;
-  if (!data) return <Empty>{t.loading}</Empty>;
+  if (error) return <LoadError what={t("yourAreas")} message={error} onRetry={() => { setError(""); setData(null); setReload((n) => n + 1); }} />;
+  if (!data) return <Empty>{t("loading")}</Empty>;
   const all = [...data.areas, ...data.events, ...(data.ended ?? [])];
   if (!all.length) {
-    return <Empty>{t.none}</Empty>;
+    return <Empty>{t("none")}</Empty>;
   }
   const travelling = data.areas.filter((a) => a.state === "in_progress");
   const done = data.areas.filter((a) => a.state === "completed");
@@ -194,25 +194,25 @@ export function Areas({ focus = "" }: { focus?: string }) {
     <>
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={t.travelInfo}>{t.travel}</Label>
-          <span className="mono hint">{data.readAt ? t.updated(ago(data.readAt)) : t.lastRefresh}</span>
+          <Label info={t("travelInfo")}>{t("travel")}</Label>
+          <span className="mono hint">{data.readAt ? t("updated", { when: ago(data.readAt) }) : t("lastRefresh")}</span>
         </div>
         <dl className="facts">
-          <dt>{t.underWay}</dt>
+          <dt>{t("underWay")}</dt>
           <dd className="mono">{data.counts.travelling}</dd>
-          <dt>{t.completed}</dt>
+          <dt>{t("completed")}</dt>
           <dd className="mono">{data.counts.completed}</dd>
-          <dt>{t.notStarted}</dt>
+          <dt>{t("notStarted")}</dt>
           <dd className="mono">{data.counts.untouched}</dd>
-          <dt>{t.perPlay}</dt>
-          <dd className="mono">{data.pace ? t.paceValue(data.pace, data.readings) : t.notMeasured}</dd>
+          <dt>{t("perPlay")}</dt>
+          <dd className="mono">{data.pace ? t("paceValue", { pace: data.pace, readings: data.readings }) : t("notMeasured")}</dd>
         </dl>
-        <p className="hint">{t.hint}</p>
+        <p className="hint">{t("hint")}</p>
       </section>
       {travelling.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.progressInfo}>{t.progress}</Label>
+            <Label info={t("progressInfo")}>{t("progress")}</Label>
           </div>
           <ul className="areas">
             {travelling.map((a) => (
@@ -224,7 +224,7 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {liveEvents.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.eventsInfo}>{t.events}</Label>
+            <Label info={t("eventsInfo")}>{t("events")}</Label>
           </div>
           <ul className="areas">
             {liveEvents.map((a) => (
@@ -236,8 +236,8 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {untouched.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.untouchedInfo}>{t.untouched(untouched.length)}</Label>
-            <span className="mono hint">{t.firstGift}</span>
+            <Label info={t("untouchedInfo")}>{t("untouched", { n: untouched.length })}</Label>
+            <span className="mono hint">{t("firstGift")}</span>
           </div>
           <ul className="areas">
             {untouched.map((a) => (
@@ -249,11 +249,11 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {waitingEvents.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.waitingInfo}>{t.waiting}</Label>
+            <Label info={t("waitingInfo")}>{t("waiting")}</Label>
           </div>
           <ul className="areas compact">
             {waitingEvents.map((a) => (
-              <CompactRow key={`event:${a.name}`} area={a} focused={a.name === focus} right={<span className="hint">{endsIn(a.periodEnd)}</span>} />
+              <CompactRow key={`event:${a.name}`} area={a} focused={a.name === focus} right={<span className="hint">{endsIn(a.periodEnd, t)}</span>} />
             ))}
           </ul>
         </section>
@@ -261,8 +261,8 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {(data.ended ?? []).length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.endedInfo}>{t.endedEvents(data.ended.length)}</Label>
-            <span className="mono hint">{t.namesOnly}</span>
+            <Label info={t("endedInfo")}>{t("endedEvents", { n: data.ended.length })}</Label>
+            <span className="mono hint">{t("namesOnly")}</span>
           </div>
           <ul className="areas compact ended">
             {data.ended.map((a) => (
@@ -283,11 +283,11 @@ export function Areas({ focus = "" }: { focus?: string }) {
       {done.length > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info={t.doneInfo}>{t.done(done.length)}</Label>
+            <Label info={t("doneInfo")}>{t("done", { n: done.length })}</Label>
           </div>
           <ul className="areas compact">
             {done.map((a) => (
-              <CompactRow key={`area:${a.name}`} area={a} focused={a.name === focus} right={<span className="mono dim">{km(a.distance)}</span>} />
+              <CompactRow key={`area:${a.name}`} area={a} focused={a.name === focus} right={<span className="mono dim">{km(a.distance, t)}</span>} />
             ))}
           </ul>
         </section>

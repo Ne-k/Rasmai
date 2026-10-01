@@ -1,4 +1,4 @@
-import { activeMessages } from "@/lib/i18n/active";
+import type { useTranslations } from "next-intl";
 import type { Trait } from "../api";
 
 export const NOT_A_SKILL = new Set(["type", "era", "genre", "designer"]);
@@ -81,7 +81,7 @@ export function odds(p?: number): number {
   return p ? Math.max(1, Math.round(1 / Math.max(p, 0.001))) : 0;
 }
 
-export function chance(p?: number): string {
+export function chance(p: number | undefined, t: ReturnType<typeof useTranslations<"traitsTab">>): string {
   const n = odds(p);
-  return n ? activeMessages().traitsTab.chance(n) : "";
+  return n ? t("chance", { n }) : "";
 }

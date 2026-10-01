@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useLocale, useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import type { Trait, TraitFamily, TraitPractice } from "../api";
 import { Empty, Info, Label, type OpenChart } from "../bits";
@@ -13,7 +14,7 @@ import { JudgementProfile } from "./JudgementProfile";
 export { Radar, radarAxes, twoSides, JudgementProfile };
 
 export function Traits({ traits, axes, charts, families, practice, onOpen }: { traits: Trait[]; axes: Trait[]; charts: number; families?: TraitFamily[]; practice?: TraitPractice[]; onOpen?: OpenChart }) {
-  const t = useM().traitsTab;
+  const t = useTranslations("traitsTab");
   const locale = useLocale();
   // the confirmed list arrives already filtered; the leaning and level ones are built here, so
   // the same rule has to be applied before anything is counted or drawn
@@ -44,7 +45,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
   const { weak, strong } = twoSides(confirmed, all);
   const largest = [...all].filter((x) => x.count >= CONFIRM_CHARTS)
     .sort((a, b) => Math.abs(b.offset) - Math.abs(a.offset)).slice(0, 4);
-  const gate = t.gate;
+  const gate = t("gate");
 
   // the empty state is for a player with nothing to show on either side, which now includes what is
   // only worth watching: a list with rows in it is never called empty
@@ -52,14 +53,14 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
     return (
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={t.info(gate)}>{t.how}</Label>
-          <span className="mono hint">{t.measured(all.length, charts)}</span>
+          <Label info={t("info", { gate })}>{t("how")}</Label>
+          <span className="mono hint">{t("measured", { groups: all.length, charts })}</span>
         </div>
-        <Empty>{t.noClear}</Empty>
+        <Empty>{t("noClear")}</Empty>
         {largest.length ? (
           <>
             <div className="ledger-head">
-              <Label info={t.gapsInfo}>{t.gaps}</Label>
+              <Label info={t("gapsInfo")}>{t("gaps")}</Label>
             </div>
             <ul className="traits">
               {largest.map((x) => (
@@ -70,7 +71,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
                   </span>
                   <span className="trait-label">{traitName(x.label, x.english, locale)}</span>
                   <span className="mono dim">{x.count}</span>
-                  <span className="trait-when">{chance(x.p)}</span>
+                  <span className="trait-when">{chance(x.p, t)}</span>
                 </li>
               ))}
             </ul>
@@ -84,39 +85,39 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
     <>
       <section className="ledger">
         <div className="ledger-head">
-          <Label info={t.info(gate) + t.tagsFrom}>{t.how}</Label>
+          <Label info={t("info", { gate }) + t("tagsFrom")}>{t("how")}</Label>
           <span className="mono hint">
-            {t.counts(confirmed.length, leaning.length)}
-            {leaning.length && byChance ? t.byChance(byChance) : null}
-            {t.rest(watch.length, even.length, charts)}
+            {t("counts", { confirmed: confirmed.length, leaning: leaning.length })}
+            {leaning.length && byChance ? t("byChance", { n: byChance }) : null}
+            {t("rest", { watch: watch.length, even: even.length, charts })}
           </span>
         </div>
         <div className="two-up radar-split">
           <div className="radar-wrap">
-            <Info text={t.wheelInfo} />
+            <Info text={t("wheelInfo")} />
             {onFamilies.length >= RADAR_MIN ? (
               <Radar axes={onFamilies} />
             ) : wheel.length >= RADAR_MIN ? (
               <Radar axes={wheel} />
             ) : (
-              <p className="hint">{t.wheelLater}</p>
+              <p className="hint">{t("wheelLater")}</p>
             )}
           </div>
           <div>
             <div className="ledger-head">
-              <Label info={t.weakInfo}>{t.weak}</Label>
+              <Label info={t("weakInfo")}>{t("weak")}</Label>
             </div>
-            <List items={weak} tone="down" empty={t.noWeak} />
+            <List items={weak} tone="down" empty={t("noWeak")} />
             <div className="ledger-head">
-              <Label info={t.strongInfo}>{t.strong}</Label>
+              <Label info={t("strongInfo")}>{t("strong")}</Label>
             </div>
-            <List items={strong} tone="up" empty={t.noStrong} />
+            <List items={strong} tone="up" empty={t("noStrong")} />
           </div>
         </div>
         {families?.length ? (
           <>
             <div className="ledger-head">
-              <Label info={t.groupsInfo}>{t.groups}</Label>
+              <Label info={t("groupsInfo")}>{t("groups")}</Label>
             </div>
             <Families families={families} />
           </>
@@ -124,7 +125,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
         {practice?.length ? (
           <>
             <div className="ledger-head">
-              <Label info={t.practiceInfo}>{t.practice}</Label>
+              <Label info={t("practiceInfo")}>{t("practice")}</Label>
             </div>
             <Practice items={practice} onOpen={onOpen} />
           </>

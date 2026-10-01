@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { postJSON, type Sharing as SharingState } from "./api";
 import { Label } from "./bits";
 import { EmbedCard } from "./EmbedCard";
@@ -10,8 +10,7 @@ const SECTIONS: (keyof SharingState["sections"])[] = ["best50", "traits", "recen
 
 /** The public profile: a link anyone can open, carrying only the sections that are switched on. */
 export function Sharing({ state, onChange }: { state: SharingState; onChange: (next: SharingState) => void }) {
-  const m = useM();
-  const t = m.sharing;
+  const t = useTranslations("sharing");
   const [busy, setBusy] = useState(false);
   const [customising, setCustomising] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -22,7 +21,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
     setNote("");
     postJSON<SharingState>("/api/me/sharing", body)
       .then(onChange)
-      .catch((e: Error) => setNote(e.message || t.couldntSave))
+      .catch((e: Error) => setNote(e.message || t("couldntSave")))
       .finally(() => setBusy(false));
   };
 
@@ -33,25 +32,25 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
         setCopied(true);
         setTimeout(() => setCopied(false), 1600);
       })
-      .catch(() => setNote(t.couldntCopy));
+      .catch(() => setNote(t("couldntCopy")));
   };
 
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info={t.info}>{t.title}</Label>
-        <span className={`mono hint${state.on ? " ok" : ""}`}>{state.on ? t.shared : t.private}</span>
+        <Label info={t("info")}>{t("title")}</Label>
+        <span className={`mono hint${state.on ? " ok" : ""}`}>{state.on ? t("shared") : t("private")}</span>
       </div>
 
-      <p className="hint">{t.intro}</p>
+      <p className="hint">{t("intro")}</p>
 
       <div className="btn-row">
         <button type="button" className={state.on ? "button ghost" : "button"} onClick={() => save({ on: !state.on })} disabled={busy}>
-          {state.on ? t.stop : t.create}
+          {state.on ? t("stop") : t("create")}
         </button>
         {state.on && (
           <button type="button" className="button ghost" onClick={() => save({ on: true, rotate: true })} disabled={busy}>
-            {t.newLink}
+            {t("newLink")}
           </button>
         )}
       </div>
@@ -60,7 +59,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
         <div className="share-link">
           <code>{state.url}</code>
           <button type="button" className="button ghost" onClick={copy}>
-            {copied ? t.copied : t.copy}
+            {copied ? t("copied") : t("copy")}
           </button>
         </div>
       )}
@@ -77,8 +76,8 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
                   onChange={(e) => save({ sections: { [section]: e.target.checked } })}
                 />
                 <span>
-                  <b>{t.sections[section][0]}</b>
-                  <span className="dim">{t.sections[section][1]}</span>
+                  <b>{t(`sections.${section}.title`)}</b>
+                  <span className="dim">{t(`sections.${section}.hint`)}</span>
                 </span>
               </label>
             </li>
@@ -89,7 +88,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
       {state.on && (
         <div className="btn-row">
           <button type="button" className="button ghost" onClick={() => setCustomising(true)}>
-            {t.customise}
+            {t("customise")}
           </button>
         </div>
       )}
@@ -98,7 +97,7 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
       )}
 
       {note && <p className="hint">{note}</p>}
-      {state.on && <p className="hint">{t.breaks}</p>}
+      {state.on && <p className="hint">{t("breaks")}</p>}
     </section>
   );
 }

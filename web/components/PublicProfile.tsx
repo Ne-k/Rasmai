@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Ring } from "@/components/Ring";
 import { ThemeToggle } from "@/components/Theme";
-import { LangToggle, useLocale, useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
+import { LangToggle, useLocale } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import { Chip, Empty, Jacket, Label, num, pct, when } from "./dash/bits";
 import { RatingPlate } from "./dash/RatingPlate";
@@ -54,7 +55,7 @@ function Shell({ children, name }: { children: React.ReactNode; name?: string })
 }
 
 function RatingLine({ points }: { points: { recordedAt: string; rating: number }[] }) {
-  const t = useM().profile;
+  const t = useTranslations("profile");
   if (points.length < 2) return null;
   const values = points.map((p) => p.rating);
   const low = Math.min(...values);
@@ -63,12 +64,12 @@ function RatingLine({ points }: { points: { recordedAt: string; rating: number }
   const path = points.map((p, i) => `${(100 * i) / (points.length - 1)},${30 - (28 * (p.rating - low)) / span}`).join(" ");
   return (
     <>
-      <svg className="share-spark" viewBox="0 0 100 32" preserveAspectRatio="none" role="img" aria-label={t.ratingRange(low, high)}>
+      <svg className="share-spark" viewBox="0 0 100 32" preserveAspectRatio="none" role="img" aria-label={t("ratingRange", { low, high })}>
         <polyline points={path} fill="none" stroke="var(--pink)" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="admin-axis mono">
         <span>{num(low)}</span>
-        <span className="dim">{t.readings(points.length)}</span>
+        <span className="dim">{t("readings", { n: points.length })}</span>
         <span>{num(high)}</span>
       </div>
     </>
@@ -76,17 +77,17 @@ function RatingLine({ points }: { points: { recordedAt: string; rating: number }
 }
 
 function Pool({ title, rows, size }: { title: string; rows: Chart[]; size: number }) {
-  const t = useM().profile;
+  const t = useTranslations("profile");
   return (
     <section className="ledger">
       <div className="ledger-head">
         <Label>
           {title} · {rows.length}/{size}
         </Label>
-        <span className="mono hint">{t.poolRating(num(rows.reduce((sum, r) => sum + r.rating, 0)))}</span>
+        <span className="mono hint">{t("poolRating", { n: num(rows.reduce((sum, r) => sum + r.rating, 0)) })}</span>
       </div>
       {rows.length === 0 ? (
-        <Empty>{t.emptyPool}</Empty>
+        <Empty>{t("emptyPool")}</Empty>
       ) : (
         <div className="scroll">
           <table className="tbl compact b50 keep">
@@ -116,8 +117,10 @@ function Pool({ title, rows, size }: { title: string; rows: Chart[]; size: numbe
 }
 
 export function PublicProfile({ slug }: { slug: string }) {
-  const m = useM();
-  const t = m.profile;
+  const t = useTranslations("profile");
+  const dash = useTranslations("dash");
+  const best50 = useTranslations("best50Tab");
+  const areas = useTranslations("areasTab");
   const locale = useLocale();
   const [data, setData] = useState<Shared | null>(null);
   const [gone, setGone] = useState(false);
@@ -146,10 +149,10 @@ export function PublicProfile({ slug }: { slug: string }) {
     return (
       <Shell>
         <div className="gate">
-          <h1>{t.goneTitle}</h1>
-          <p className="lede">{t.goneLede}</p>
+          <h1>{t.rich("goneTitle", { em: (c) => <em>{c}</em> })}</h1>
+          <p className="lede">{t("goneLede")}</p>
           <a className="button" href="/">
-            {t.whatRasmai}
+            {t("whatRasmai")}
           </a>
         </div>
       </Shell>
@@ -159,7 +162,7 @@ export function PublicProfile({ slug }: { slug: string }) {
     return (
       <Shell>
         <div className="gate">
-          <p className="hint">{m.dash.loading}</p>
+          <p className="hint">{dash("loading")}</p>
         </div>
       </Shell>
     );
@@ -182,10 +185,10 @@ export function PublicProfile({ slug }: { slug: string }) {
     <Shell name={data.name}>
       <section className="ident">
         <div className="ident-who">
-          <div className="label">{data.region.toUpperCase()} · {t.shared}</div>
+          <div className="label">{data.region.toUpperCase()} · {t("shared")}</div>
           <h1>{data.name}</h1>
           <div className="ident-sub mono">
-            {t.sub([data.dan, data.title].filter(Boolean).join(" · ") || m.dash.noTitle, num(data.plays), when(data.updatedAt))}
+            {t("sub", { titles: [data.dan, data.title].filter(Boolean).join(" · ") || dash("noTitle"), plays: num(data.plays), read: when(data.updatedAt) })}
           </div>
           {data.nameplate ? (
             <img className="nameplate" src={data.nameplate} alt="" width={360} height={58}
@@ -193,18 +196,18 @@ export function PublicProfile({ slug }: { slug: string }) {
           ) : null}
         </div>
         <div className="readout big">
-          <span className="lbl">{m.dash.rating}</span>
+          <span className="lbl">{dash("rating")}</span>
           <span className="val"><RatingPlate rating={data.rating} /></span>
-          <span className="lbl">{t.charts}</span>
+          <span className="lbl">{t("charts")}</span>
           <span className="val">{num(data.charts)}</span>
         </div>
       </section>
 
       {panels.length > 1 && (
-        <nav className="tabs" aria-label={t.shares}>
+        <nav className="tabs" aria-label={t("shares")}>
           {panels.map((p) => (
             <button key={p} type="button" className={panel === p ? "on" : ""} onClick={() => setPanel(p)}>
-              {t.tabs[p]}
+              {t(`tabs.${p}`)}
             </button>
           ))}
         </nav>
@@ -216,38 +219,38 @@ export function PublicProfile({ slug }: { slug: string }) {
             {data.history && data.history.length > 1 && (
               <section className="ledger">
                 <div className="ledger-head">
-                  <Label>{t.overTime}</Label>
-                  <span className="mono hint">{t.fromChecks}</span>
+                  <Label>{t("overTime")}</Label>
+                  <span className="mono hint">{t("fromChecks")}</span>
                 </div>
                 <RatingLine points={data.history} />
               </section>
             )}
             <section className="ledger">
               <div className="ledger-head">
-                <Label>{t.glance}</Label>
+                <Label>{t("glance")}</Label>
               </div>
               <dl className="facts">
-                <dt>{m.dash.rating}</dt>
+                <dt>{dash("rating")}</dt>
                 <dd className="mono">{num(data.rating)}</dd>
-                <dt>{t.scored}</dt>
+                <dt>{t("scored")}</dt>
                 <dd className="mono">{num(data.charts)}</dd>
-                <dt>{t.totalPlays}</dt>
+                <dt>{t("totalPlays")}</dt>
                 <dd className="mono">{num(data.plays)}</dd>
                 {best ? (
                   <>
-                    <dt>{t.bestChart}</dt>
+                    <dt>{t("bestChart")}</dt>
                     <dd className="mono">
                       {best.title} · {best.rating}
                     </dd>
                   </>
                 ) : null}
-                <dt>{t.lastRead}</dt>
+                <dt>{t("lastRead")}</dt>
                 <dd className="mono">{when(data.updatedAt)}</dd>
               </dl>
               <p className="hint">
                 {panels.length > 1
-                  ? t.sharesTabs
-                  : t.onlyRating}
+                  ? t("sharesTabs")
+                  : t("onlyRating")}
               </p>
             </section>
           </>
@@ -255,22 +258,22 @@ export function PublicProfile({ slug }: { slug: string }) {
 
         {panel === "best50" && data.best50 && (
           <div className="two-up wide-right">
-            <Pool title={m.best50Tab.newVersion} rows={data.best50.new} size={15} />
-            <Pool title={m.best50Tab.older} rows={data.best50.old} size={35} />
+            <Pool title={best50("newVersion")} rows={data.best50.new} size={15} />
+            <Pool title={best50("older")} rows={data.best50.old} size={35} />
           </div>
         )}
 
         {panel === "traits" && (
           <section className="ledger">
             <div className="ledger-head">
-              <Label>{t.how}</Label>
-              <span className="mono hint">{t.ownCurve}</span>
+              <Label>{t("how")}</Label>
+              <span className="mono hint">{t("ownCurve")}</span>
             </div>
             <div className="two-up radar-split">
               <div className="radar-wrap">{wheel.length >= 3 ? <Radar axes={wheel} /> : null}</div>
               <div>
                 <div className="ledger-head">
-                  <Label>{t.weak}</Label>
+                  <Label>{t("weak")}</Label>
                 </div>
                 {weak.length ? (
                   <ul className="traits">
@@ -283,10 +286,10 @@ export function PublicProfile({ slug }: { slug: string }) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">{t.noWeak}</p>
+                  <p className="hint">{t("noWeak")}</p>
                 )}
                 <div className="ledger-head">
-                  <Label>{t.strong}</Label>
+                  <Label>{t("strong")}</Label>
                 </div>
                 {strong.length ? (
                   <ul className="traits">
@@ -299,7 +302,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">{t.noStrong}</p>
+                  <p className="hint">{t("noStrong")}</p>
                 )}
               </div>
             </div>
@@ -309,11 +312,11 @@ export function PublicProfile({ slug }: { slug: string }) {
         {panel === "recent" && data.recent && (
           <section className="ledger">
             <div className="ledger-head">
-              <Label>{t.recent}</Label>
-              <span className="mono hint">{t.newest}</span>
+              <Label>{t("recent")}</Label>
+              <span className="mono hint">{t("newest")}</span>
             </div>
             {data.recent.length === 0 ? (
-              <Empty>{t.noPlays}</Empty>
+              <Empty>{t("noPlays")}</Empty>
             ) : (
               <table className="tbl compact">
                 <tbody>
@@ -341,8 +344,8 @@ export function PublicProfile({ slug }: { slug: string }) {
         {panel === "areas" && data.areas && (
           <section className="ledger">
             <div className="ledger-head">
-              <Label>{m.areasTab.travel}</Label>
-              <span className="mono hint">{t.inProgress(data.areas.length)}</span>
+              <Label>{areas("travel")}</Label>
+              <span className="mono hint">{t("inProgress", { n: data.areas.length })}</span>
             </div>
             <ul className="areas compact">
               {data.areas.map((a) => (
@@ -352,7 +355,7 @@ export function PublicProfile({ slug }: { slug: string }) {
                     {a.english ? <span className="area-english">{a.english}</span> : null}
                   </span>
                   <span className="mono dim">
-                    {num(a.distance)} km{a.state === "completed" ? t.done : ""}
+                    {num(a.distance)} km{a.state === "completed" ? t("done") : ""}
                   </span>
                 </li>
               ))}
@@ -361,8 +364,8 @@ export function PublicProfile({ slug }: { slug: string }) {
         )}
 
         <footer className="foot">
-          <span>{t.footLeft}</span>
-          <span>{t.footRight}</span>
+          <span>{t.rich("footLeft", { link: (c) => <a href="/">{c}</a> })}</span>
+          <span>{t("footRight")}</span>
         </footer>
       </main>
     </Shell>

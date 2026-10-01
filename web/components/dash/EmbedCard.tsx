@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import type { Sharing as SharingState } from "./api";
 
 // the words for each switch are in the translation files, under the same key
@@ -25,8 +25,8 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   busy: boolean;
   onClose: () => void;
 }) {
-  const m = useM();
-  const t = m.embedCard;
+  const t = useTranslations("embedCard");
+  const sharing = useTranslations("sharing");
   const box = useRef<HTMLDialogElement>(null);
   const [drawn, setDrawn] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -67,9 +67,9 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   if (state.embed.region) bits.push("international");
   if (state.embed.charts) bits.push("551 charts scored");
 
-  const rows = <G extends "card" | "embed">(group: G, list: (keyof SharingState[G])[], words: Record<string, [string, string]>) => (
+  const rows = <G extends "card" | "embed">(group: G, list: (keyof SharingState[G])[], words: "picture" | "text") => (
     <ul className="share-toggles">
-      {list.map((key) => ({ key, label: words[key as string][0], note: words[key as string][1] })).map((row) => (
+      {list.map((key) => ({ key, label: t(`${words}.${String(key)}.title` as never), note: t(`${words}.${String(key)}.hint` as never) })).map((row) => (
         <li key={String(row.key)}>
           <label>
             <input
@@ -89,21 +89,21 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   );
 
   return (
-    <dialog className="sheet" ref={box} aria-label={t.label}>
+    <dialog className="sheet" ref={box} aria-label={t("label")}>
       <div className="sheet-head">
-        <b>{t.title}</b>
-        <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label={t.close}>
+        <b>{t("title")}</b>
+        <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label={t("close")}>
           ×
         </button>
       </div>
 
       <div className="sheet-body">
-        <p className="hint">{t.intro}</p>
+        <p className="hint">{t("intro")}</p>
 
-        <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label={t.looks}>
+        <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label={t("looks")}>
           {state.card.on && !failed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={picture} alt={t.imageAlt} onError={() => setFailed(true)} />
+            <img src={picture} alt={t("imageAlt")} onError={() => setFailed(true)} />
           ) : null}
           <div className="embed-body">
             <b className="embed-title" style={{ color: colour }}>
@@ -113,14 +113,13 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             <span className="embed-btn">See the profile</span>
           </div>
         </div>
-        {failed && <p className="hint">{t.notReady}</p>}
+        {failed && <p className="hint">{t("notReady")}</p>}
 
-        <p className="embed-group">{t.image}</p>
+        <p className="embed-group">{t("image")}</p>
         <ul className="visuals">
           {state.visuals.map((option) => {
-            const words = t.visuals[option.key];
-            if (!words) return null;
-            const about = { label: words[0], note: words[1] };
+            if (!t.has(`visuals.${option.key}.title` as never)) return null;
+            const about = { label: t(`visuals.${option.key}.title` as never), note: t(`visuals.${option.key}.hint` as never) };
             return (
               <li key={option.key}>
                 <label className={option.ready ? "" : "off"}>
@@ -134,7 +133,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
                   <span>
                     <b>{about.label}</b>
                     <span className="dim">
-                      {option.ready ? about.note : t.needs(m.sharing.sections[option.needs === "best50" ? "best50" : "traits"][0])}
+                      {option.ready ? about.note : t("needs", { section: sharing(option.needs === "best50" ? "sections.best50.title" : "sections.traits.title") })}
                     </span>
                   </span>
                 </label>
@@ -143,7 +142,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           })}
         </ul>
 
-        <p className="embed-group">{t.colour}</p>
+        <p className="embed-group">{t("colour")}</p>
         <div className="swatches">
           {state.colours.map((option) => (
             <button
@@ -159,7 +158,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           ))}
           <label className="swatch-own">
             <input type="color" value={colour} disabled={busy} onChange={(e) => pick(e.target.value)} />
-            <span>{t.custom}</span>
+            <span>{t("custom")}</span>
           </label>
         </div>
 
@@ -171,22 +170,22 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             onChange={(e) => onSave({ card: { on: e.target.checked } })}
           />
           <span>
-            <b>{t.showImage}</b>
-            <span className="dim">{t.showImageNote}</span>
+            <b>{t("showImage")}</b>
+            <span className="dim">{t("showImageNote")}</span>
           </span>
         </label>
 
         {state.card.on && (
           <>
-            <p className="embed-group">{t.onImage}</p>
-            {rows("card", PICTURE, t.picture)}
+            <p className="embed-group">{t("onImage")}</p>
+            {rows("card", PICTURE, "picture")}
           </>
         )}
 
-        <p className="embed-group">{t.underName}</p>
-        {rows("embed", TEXT, t.text)}
+        <p className="embed-group">{t("underName")}</p>
+        {rows("embed", TEXT, "text")}
 
-        <p className="hint">{t.cache}</p>
+        <p className="hint">{t("cache")}</p>
       </div>
     </dialog>
   );

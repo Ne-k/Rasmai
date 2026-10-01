@@ -1,4 +1,5 @@
-import { useLocale, useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import type { Axis } from "./rules";
 import { isLean } from "./rules";
@@ -50,7 +51,7 @@ function wrapLabel(text: string, width = 14): string[] {
 
 /** The wheel itself. The middle ring is the player's own average; outward is stronger. A hollow point is a leaning trait. */
 export function Radar({ axes }: { axes: Axis[] }) {
-  const t = useM().traitsTab;
+  const t = useTranslations("traitsTab");
   const locale = useLocale();
   const width = 520;
   const height = 420;
@@ -66,7 +67,7 @@ export function Radar({ axes }: { axes: Axis[] }) {
   const shape = axes.map((a, i) => at(i, reachOf(a)).join(",")).join(" ");
   const labelReach = (radius + 18) / radius;
   return (
-    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t.radarLabel}>
+    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("radarLabel")}>
       {[0.25, 0.5, 0.75, 1].map((r) => (
         <polygon key={r} points={ring(r)} className={r === 0.5 ? "ring mid" : "ring"} />
       ))}

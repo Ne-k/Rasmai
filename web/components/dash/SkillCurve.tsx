@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import type { ChartRow } from "./api";
 import { Label } from "./bits";
 
@@ -34,7 +34,7 @@ function nudge(key: string): number {
 }
 
 export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Props) {
-  const t = useM().graphs;
+  const t = useTranslations("graphs");
   const scored = useMemo(
     () =>
       (charts ?? [])
@@ -87,19 +87,19 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
   const { x, y, x0, x1, line, band, ticks, rows } = shape;
   const marks = (
     [
-      [comfort, t.comfortable, "comfort"],
-      [reach, t.sExpected, "reach"],
-      [playedCeiling, t.hardestPlayed, "ceiling"],
+      [comfort, t("comfortable"), "comfort"],
+      [reach, t("sExpected"), "reach"],
+      [playedCeiling, t("hardestPlayed"), "ceiling"],
     ] as [number | undefined, string, string][]
   ).filter(([value]) => value && value >= x0 && value <= x1);
 
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info={t.curveInfo}>{t.curve}</Label>
-        <span className="mono hint">{t.fromCharts(scored.length)}</span>
+        <Label info={t("curveInfo")}>{t("curve")}</Label>
+        <span className="mono hint">{t("fromCharts", { n: scored.length })}</span>
       </div>
-      <svg className="curve" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.curveLabel}>
+      <svg className="curve" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("curveLabel")}>
         {rows.map((a) => (
           <g key={a}>
             <line x1={PAD.left} y1={y(a)} x2={W - PAD.right} y2={y(a)} className="curve-grid" />
@@ -122,7 +122,7 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
             r={chart.recent ? 3.2 : 2}
             className={`curve-dot d-${chart.difficulty}${chart.recent ? " recent" : ""}`}
           >
-            <title>{`${chart.title} · ${chart.difficulty} ${chart.level} · ${chart.constant.toFixed(1)} · ${chart.accuracy.toFixed(4)}%${chart.recent ? ` · ${t.recentBest}` : ""}`}</title>
+            <title>{`${chart.title} · ${chart.difficulty} ${chart.level} · ${chart.constant.toFixed(1)} · ${chart.accuracy.toFixed(4)}%${chart.recent ? ` · ${t("recentBest")}` : ""}`}</title>
           </circle>
         ))}
         <polyline points={line} className="curve-line" />
@@ -148,10 +148,10 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
           );
         })}
         <text x={W - PAD.right} y={H - 4} textAnchor="end" className="curve-axis dim">
-          {t.constantAxis}
+          {t("constantAxis")}
         </text>
         <text x={4} y={PAD.top + 4} className="curve-axis dim">
-          {t.achievementAxis}
+          {t("achievementAxis")}
         </text>
       </svg>
       <div className="curve-keys">
@@ -166,11 +166,11 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
         {scored.some((c) => c.recent) && (
           <span>
             <i className="ring" />
-            {t.recentBest}
+            {t("recentBest")}
           </span>
         )}
       </div>
-      <p className="hint">{t.curveHint}</p>
+      <p className="hint">{t("curveHint")}</p>
     </section>
   );
 }
