@@ -1,5 +1,1 @@
-from rasmai.scraping.otoge.db import (  # noqa: F401
-    CachedOtogeDB,
-    FORCED_COOLDOWN,
-    _update_lock,
-)
+from rasmai.scraping.otoge.db import CachedOtogeDB  # noqa: F401

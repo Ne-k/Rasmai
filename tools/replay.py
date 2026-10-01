@@ -19,8 +19,6 @@ def load(path):
     :type path: Path
     :returns: ``(player name, rating, scores, recent plays)``.
     :rtype: Tuple[str, int, List[SongInfo], List[dict]]
-
-    :param path: The file to read or write.
     """
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if "player" in data and "songs" in data:

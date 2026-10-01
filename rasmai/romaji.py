@@ -44,7 +44,7 @@ def to_katakana(text: str) -> str:
 def romanize(text: str) -> str:
     """Hepburn romaji for the kana in `text`; other characters pass through.
 
-    :param text: The text to work on.
+    :param text: Romaji, kana or a mix.
     :type text: str
     :rtype: str
     """
@@ -99,7 +99,7 @@ def skeleton(text: str) -> str:
     The database readings are sort kana - dakuten dropped and small kana enlarged - so
     "obenkyoutaimu" and the stored reading "ohenkiyoutaimu" both become "ohenkotaimu".
 
-    :param text: The text to work on.
+    :param text: Romaji or kana.
     :type text: str
     :rtype: str
     """
@@ -125,7 +125,7 @@ _ENGLISH = (("tch", "c"), ("ph", "f"), ("th", "s"), ("sh", "s"), ("ch", "c"), ("
 def loanword(text: str) -> str:
     """A consonant skeleton on which an English word and its katakana rendering collide.
 
-    :param text: The text to work on.
+    :param text: An English word or its katakana rendering.
     :type text: str
     :rtype: str
     """

@@ -92,7 +92,7 @@ def distil(payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     manifest (top scores, release dates, editor bookkeeping) is dropped so the stored copy
     stays small.
 
-    :param payload: The data to store or send.
+    :param payload: The manifest as downloaded.
     :type payload: Dict[str, Any]
     :rtype: Dict[str, Dict[str, Any]]
     """

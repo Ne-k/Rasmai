@@ -1,7 +1,7 @@
 import { useLocale, useM } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import type { Axis } from "./rules";
-import { BASELINE, isLean } from "./rules";
+import { isLean } from "./rules";
 
 function textWidth(text: string): number {
   let cells = 0;

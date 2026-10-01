@@ -1,7 +1,7 @@
 "use client";
 
 import type { Trait, TraitFamily, TraitPractice } from "../api";
-import { Empty, Info, Jacket, Label, TitleLink, type OpenChart } from "../bits";
+import { Jacket, TitleLink, type OpenChart } from "../bits";
 import { useState } from "react";
 import { useLocale, useM } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
@@ -128,13 +128,13 @@ export function Families({ families }: { families: TraitFamily[] }) {
 
 
 export function EvenLine({ even }: { even: Trait[] }) {
-  const all = useM();
-  const m = all.traitsTab;
+  const messages = useM();
+  const m = messages.traitsTab;
   const locale = useLocale();
   const names = even.slice(0, 10).map((t) => traitName(t.label, t.english, locale));
   return (
     <p className="even-line">
-      <b>{m.aboutEven}</b> {names.join(all.list.sep)}
+      <b>{m.aboutEven}</b> {names.join(messages.list.sep)}
       {even.length > 10 ? m.andMore(even.length - 10) : ""}
       {m.evenNote(LEAN.toFixed(1))}
     </p>

@@ -74,7 +74,7 @@ def source_state_set(source: str, etag: Optional[str] = None, last_modified: Opt
     :type source: str
     :param etag: The tag the site gave the copy already held.
     :type etag: Optional[str]
-    :param payload: The data to store or send.
+    :param payload: The crawled copy to keep, or None to leave the stored one.
     :type payload: Optional[str]
     """
     stored: Any = payload

@@ -275,5 +275,5 @@ def video_payload(cached: Optional[CachedAnalysis], title: str) -> Dict[str, Any
         "videos": {f"{chart_type}|{difficulty}": wiki.video_url(video) for (chart_type, difficulty), video in found["videos"].items()},
         "unlock": unlock,
         "unlockAreas": areas,
-        "wiki": wiki.wiki_url(found["page"]) if found.get("page") else "",
+        "wiki": wiki.page_url(found["page"]) if found.get("page") else "",
     }

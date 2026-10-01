@@ -106,12 +106,7 @@ async def ensure_play_counts(cached: Optional[CachedAnalysis], refs: List[ChartR
 
 
 def _default_page(rows: List[Dict[str, Any]]) -> int:
-    """Open on the hardest chart the player has a score on, else the hardest chart.
-
-    :param rows: The rows to render.
-    :type rows: List[Dict[str, Any]]
-    :rtype: int
-    """
+    """Open on the hardest chart the player has a score on, else the hardest chart."""
     played = [i for i, r in enumerate(rows) if r.get("played")]
     return played[-1] if played else max(0, len(rows) - 1)
 

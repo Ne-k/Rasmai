@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import { INTL_TAG, LANG_COOKIE, type Locale } from "@/lib/i18n";
+import { LANG_COOKIE, type Locale } from "@/lib/i18n";
 import { messages, type Messages } from "@/lib/i18n/messages";
 
 const LocaleContext = createContext<Locale>("en");
@@ -18,13 +18,6 @@ export function useLocale(): Locale {
 /** The words for the reader's language, in a client component. */
 export function useM(): Messages {
   return messages[useContext(LocaleContext)];
-}
-
-/** Numbers formatted for the reader's language. */
-export function useNum(): (value: number, digits?: number) => string {
-  const tag = INTL_TAG[useContext(LocaleContext)];
-  return (value, digits) =>
-    Number(value || 0).toLocaleString(tag, digits === undefined ? undefined : { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 /** The language switch in the top bar: it names the other language, saves the choice for a year and reloads. */

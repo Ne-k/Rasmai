@@ -38,12 +38,6 @@ function textOf(node: ReactNode): string {
 // Japanese carries about twice as much in a character, so its bar is half as many.
 const SPLIT_PARAGRAPH: Record<Locale, number> = { en: 480, ja: 240 };
 
-/**
- * The page's flat run of headings, paragraphs and lists, cut into one section per heading so the
- * sections can sit side by side as panels across the whole width, the way the dashboard's do. A
- * section with a long list takes the full width and sets the list in two columns; two short sections
- * in a row share a row; a short section with no short neighbour takes the full width on its own.
- */
 /** The children with fragments opened up, so a page body written as one fragment per language still splits by heading. */
 function flat(children: ReactNode): ReactNode[] {
   return Children.toArray(children).flatMap((child) =>
@@ -51,6 +45,12 @@ function flat(children: ReactNode): ReactNode[] {
   );
 }
 
+/**
+ * The page's flat run of headings, paragraphs and lists, cut into one section per heading so the
+ * sections can sit side by side as panels across the whole width, the way the dashboard's do. A
+ * section with a long list takes the full width and sets the list in two columns; two short sections
+ * in a row share a row; a short section with no short neighbour takes the full width on its own.
+ */
 function toSections(children: ReactNode, locale: Locale): Section[] {
   const sections: Section[] = [];
   for (const child of flat(children)) {

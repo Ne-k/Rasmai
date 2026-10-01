@@ -56,7 +56,7 @@ def _resolve_untyped(videos: Dict[Tuple[str, str], str], chart_types: Sequence[s
     :type chart_types: Sequence[str]
     :rtype: Dict[Tuple[str, str], str]
     """
-    only = [ct for ct in dict.fromkeys(chart_types)]
+    only = list(dict.fromkeys(chart_types))
     fallback = only[0] if len(only) == 1 else "std"
     return {(ct if ct or diff == "official" else fallback, diff): vid for (ct, diff), vid in videos.items()}
 
@@ -194,7 +194,3 @@ def lookup_page(title: str, reading: str, chart_types: Sequence[str]) -> Dict[st
 
 def video_url(video_id: str) -> str:
     return f"https://youtu.be/{video_id}"
-
-
-def wiki_url(page_title: str) -> str:
-    return page_url(page_title)

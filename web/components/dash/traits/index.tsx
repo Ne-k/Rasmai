@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useLocale, useM } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import type { Trait, TraitFamily, TraitPractice } from "../api";
 import { Empty, Info, Label, type OpenChart } from "../bits";
-import { CONFIRM_CHARTS, LEAN, LEAN_P, NOT_A_SKILL, RADAR_FILL, RADAR_MIN, isEven, isLean, isWatch, radarAxes, twoSides, chance, odds } from "./rules";
+import { CONFIRM_CHARTS, LEAN_P, NOT_A_SKILL, RADAR_MIN, isEven, isLean, isWatch, radarAxes, twoSides, chance } from "./rules";
 import { Radar } from "./Radar";
 import { EvenLine, Families, List, Practice } from "./panels";
 import { JudgementProfile } from "./JudgementProfile";
@@ -31,7 +31,6 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
   const leaning = all.filter(isLean);
   const watch = all.filter(isWatch);
   const even = all.filter(isEven).sort((a, b) => b.count - a.count);
-  const shown = [...confirmed, ...leaning];
   // Both lists are filled from the same order - confirmed, then leaning, then worth watching - so
   // the strongest evidence always leads and the rest is there to give the tab a shape. A confirmed
   // trait is never dropped to make the two sides match: they are levelled up, never down.

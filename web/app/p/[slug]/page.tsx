@@ -103,10 +103,7 @@ function unfurl(slug: string, profile: Shared): Embed | null {
       ? null
       : gallery([{ url: card(slug, profile), description: `${name}, ${rating.toLocaleString("en")} rating` }]),
     headline(name, here, [parts.join(" · ")], { image: `${SITE}/app/icon-512.png` }),
-    buttons(
-      { label: "See the profile", url: here },
-      // { label: "What Rasmai is", url: `${SITE}/` },
-    ),
+    buttons({ label: "See the profile", url: here }),
   ]);
 }
 

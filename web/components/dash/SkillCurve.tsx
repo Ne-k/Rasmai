@@ -84,7 +84,7 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
   }, [curve, scored]);
 
   if (!shape) return null;
-  const { x, y, x0, x1, y0, line, band, ticks, rows } = shape;
+  const { x, y, x0, x1, line, band, ticks, rows } = shape;
   const marks = (
     [
       [comfort, t.comfortable, "comfort"],

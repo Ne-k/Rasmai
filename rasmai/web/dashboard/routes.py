@@ -42,9 +42,9 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
 
     :param handler: The request being answered.
     :type handler: Any
-    :param path: The file to read or write.
+    :param path: The request path.
     :type path: str
-    :param query: What the player typed.
+    :param query: The query string, parsed.
     :type query: Dict[str, List[str]]
     :param user: The signed-in person.
     :type user: Dict[str, Any]
@@ -130,15 +130,12 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         return True
     if path == "/internal/me/titles":
         q = query.get("q")
-        if q is not None and len(q[0].strip()) >= 1:
-            # Use the existing title search to find all matching titles
-            handler._send_json(200, {"titles": search_titles(q[0][:80], 100)})
+        if q is None:
+            handler._send_json(400, {"ok": False, "error": "query_required"})
+        elif not q[0].strip():
+            handler._send_json(400, {"ok": False, "error": "empty_query"})
         else:
-            if q is None:
-                handler._send_json(400, {"ok": False, "error": "query_required"})
-            else:
-                # Received a body that's just whitespace
-                handler._send_json(400, {"ok": False, "error": "empty_query"})
+            handler._send_json(200, {"titles": search_titles(q[0][:80], 100)})
         return True
     if path == "/internal/me/patterns":
         handler._send_json(200, patterns_payload(cached, (query.get("tag") or [""])[0][:60].strip(), (query.get("level") or [""])[0][:4].strip(),
@@ -193,7 +190,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
 
     :param handler: The request being answered.
     :type handler: Any
-    :param path: The file to read or write.
+    :param path: The request path.
     :type path: str
     :param user: The signed-in person.
     :type user: Dict[str, Any]

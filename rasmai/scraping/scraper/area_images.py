@@ -59,12 +59,7 @@ def area_image_key(image_url: str) -> str:
 
 
 def _period_bounds(text: str) -> Optional[List[int]]:
-    """[start, end] in milliseconds since the epoch from "YYYY/MM/DD HH:MM～YYYY/MM/DD HH:MM" anywhere in `text`, JST.
-
-    :param text: The text to work on.
-    :type text: str
-    :rtype: Optional[List[int]]
-    """
+    """[start, end] in milliseconds since the epoch from "YYYY/MM/DD HH:MM～YYYY/MM/DD HH:MM" anywhere in `text`, JST."""
     match = re.search(r"(\d{4})/(\d{2})/(\d{2})\s+(\d{2}):(\d{2})\s*～\s*(\d{4})/(\d{2})/(\d{2})\s+(\d{2}):(\d{2})", text or "")
     if not match:
         return None

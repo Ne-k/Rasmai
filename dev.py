@@ -13,41 +13,21 @@ DATA = ROOT / "data"
 
 
 def _bin(name: str) -> Path:
-    """The path to a program inside the virtual environment.
-
-    :param name: The program's name, without any extension.
-    :type name: str
-    :returns: The full path, with the extension this platform uses.
-    :rtype: Path
-    """
+    """The path to a program inside the virtual environment, given its name without an extension."""
     folder = "Scripts" if os.name == "nt" else "bin"
     suffix = ".exe" if os.name == "nt" else ""
     return VENV / folder / f"{name}{suffix}"
 
 
 def _run(command, cwd=None, check=True):
-    """Run a command and show it first, so a failure is easy to repeat by hand.
-
-    :param command: The command and its arguments.
-    :type command: list
-    :param cwd: The directory to run in, or ``None`` for the project root.
-    :type cwd: Optional[Path]
-    :param check: Whether a non-zero exit should stop the script.
-    :type check: bool
-    :returns: The finished process.
-    :rtype: subprocess.CompletedProcess
-    """
-    printable = " ".join(str(part) for part in command)
-    print(f"  $ {printable}")
-    return subprocess.run([str(part) for part in command], cwd=str(cwd or ROOT), check=check)
+    """Run a command from the project root, or `cwd`, and show it first, so a failure is easy to repeat by hand."""
+    command = [str(part) for part in command]
+    print(f"  $ {' '.join(command)}")
+    return subprocess.run(command, cwd=str(cwd or ROOT), check=check)
 
 
 def _npm() -> str:
-    """The npm executable, which is a batch file on Windows.
-
-    :returns: The name to invoke npm by.
-    :rtype: str
-    """
+    """The npm executable, which is a batch file on Windows."""
     found = shutil.which("npm") or shutil.which("npm.cmd")
     if not found:
         sys.exit("npm was not found. Install Node 20 or newer and try again.")

@@ -7,12 +7,7 @@ from rasmai.images.pages.common import _image
 
 
 def _text_width(text: str) -> int:
-    """How many character cells a label takes, counting East Asian characters as two.
-
-    :param text: The label.
-    :type text: str
-    :rtype: int
-    """
+    """How many character cells a label takes, counting East Asian characters as two."""
     return sum(2 if ord(char) > 0x2E7F else 1 for char in text)
 
 

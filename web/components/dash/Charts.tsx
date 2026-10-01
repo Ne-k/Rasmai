@@ -35,47 +35,27 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
   const [titles, setTitles] = useState<string[] | null>(null);
   const timerId = useRef<number | null>(null);
 
-  function getTitlesJson(query: string): Promise<{ titles: string[] }> {
-    return getJSON<{ titles: string[] }>(`/api/me/titles?q=${encodeURIComponent(query)}`);
-  }
-
   function executeTitleSearch(query: string): void {
-    // console.log(`Searching for titles with query ${query}`);
     query = query.trim();
-    if (query.length < 1) {
+    if (!query) {
       setTitles(null);
       return;
     }
-    getTitlesJson(query)
-      .then((result) => {
-        if (result.titles.length < 1) {
-          setTitles([]);
-          // console.log("Empty titles result");
-        } else {
-          setTitles(result.titles);
-          // console.log(result.titles);
-        }
-      })
-      .catch((err) => {
-        console.error(err); // TODO: this should probably display an actual error
-      })
+    getJSON<{ titles: string[] }>(`/api/me/titles?q=${encodeURIComponent(query)}`)
+      .then((found) => setTitles(found.titles))
+      .catch(console.error);
   }
 
   function searchTitles(query: string) {
     query = query.trim();
-    // console.log(`searching with query ${query}`);
-    if (timerId.current) {
-      window.clearTimeout(timerId.current);
-      // console.log(`cancelling previous search`);
-    }
-    if (query.length < 1) {
+    if (timerId.current) window.clearTimeout(timerId.current);
+    if (!query) {
       setTitles(null);
       return;
     }
-
     timerId.current = window.setTimeout(() => {
       timerId.current = null;
-      executeTitleSearch(query)
+      executeTitleSearch(query);
     }, 220);
   }
 
@@ -97,9 +77,9 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
       }
       if (constant !== null) return Math.abs(r.constant - constant) < 0.05;
       if (level !== null) return r.level === level;
-      // TODO: there's some small issue where it treats "13." as searching, could fix if you wanted to
+      // "13." half-typed lands here too and is searched as a title. A chart the title search missed
+      // (it stops at 100 hits) still shows when its title or artist contains the query
       if (titles && !titles.includes(r.title)) {
-        // Perform the old substring check as well, if it fails both, it's excluded, if it passes either it gets included
         if (q && !r.title.toLowerCase().includes(q) && !r.artist.toLowerCase().includes(q)) return false;
       }
       return true;
@@ -109,13 +89,13 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
       if (sort === "title") return dir * a.title.localeCompare(b.title, "ja");
       if (sort === "bestMatch") {
         if (titles) {
-          const aLocation = titles.findIndex((item) => item === a.title);
-          const bLocation = titles.findIndex((item) => item === b.title);
-
-          if (aLocation === bLocation) return b.rating - a.rating
-          else if (aLocation === -1) return 1 // If a doesn't exist in the titles array and b does, b comes first
-          else if (bLocation === -1) return -1 // If b doesn't exist in the titles array and a does, a comes first
-          else return aLocation - bLocation;
+          const aLocation = titles.indexOf(a.title);
+          const bLocation = titles.indexOf(b.title);
+          // a chart the search didn't return goes after every one it did
+          if (aLocation === bLocation) return b.rating - a.rating;
+          if (aLocation === -1) return 1;
+          if (bLocation === -1) return -1;
+          return aLocation - bLocation;
         } else return b.rating - a.rating;
       }
       const av = a[sort] as number;
@@ -160,11 +140,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
             searchTitles(e.target.value);
           }}
           onKeyDown={(e) => {
-            // If you wanted to, you could make this automatically redirect to a lookup for the top song result.
-            // I don't think this is actually a good idea though, since with the (good) default sorting (rating, high first),
-            // the top result can be a bad title match (if you have a better score on something that is a worse title match).
-            // And just redirecting to the best title match doesn't work either, since the user would expect to be redirected
-            // to the top search result.
+            // Enter searches now rather than opening the top row: sorted by rating, that row can be a poor title match
             const wanted = query.trim();
             if (e.key !== "Enter" || wanted.length < 1) return;
             if (timerId.current) {
@@ -277,7 +253,6 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
       {filtered.length > shown && (
         <div className="more">
           <button type="button" className="button ghost" onClick={() => setShown(shown + 200)}>
-            {/* TODO: I think I need to fix this to actually query the remaining titles from the backend when pressed, as of now I believe it won't show past 100 titles */}
             {t.more(Math.min(200, filtered.length - shown))}
           </button>
         </div>

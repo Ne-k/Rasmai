@@ -1,7 +1,5 @@
 export type Locale = "en" | "ja";
 
-export const LOCALES: readonly Locale[] = ["en", "ja"];
-
 // the reader's choice from the switch in the top bar; without it the browser's own languages decide
 export const LANG_COOKIE = "rasmai-lang";
 

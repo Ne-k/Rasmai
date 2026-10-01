@@ -368,7 +368,7 @@ class InternalApiServer:
             def _verify(self, payload: Dict[str, Any]) -> None:
                 """The web server verified a Turnstile token for this code; remember it on the code.
 
-                :param payload: The data to store or send.
+                :param payload: The request body.
                 :type payload: Dict[str, Any]
                 """
                 opaque_user = str(payload.get("user", "")).strip()
@@ -386,7 +386,7 @@ class InternalApiServer:
                 bookmarklet read on SEGA's gateway; for Japan, the SEGA ID, password and Aime card typed on
                 the connect page.
 
-                :param payload: The data to store or send.
+                :param payload: The request body.
                 :type payload: Dict[str, Any]
                 """
                 opaque_user = str(payload.get("user", "")).strip()

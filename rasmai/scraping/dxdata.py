@@ -35,7 +35,7 @@ def distil(payload: Dict[str, Any]) -> Dict[str, Any]:
     has it, its note split and the day it arrived. The keys are one letter because the table is
     every chart in the game and it is stored as one row.
 
-    :param payload: The data to store or send.
+    :param payload: The dxdata JSON as downloaded.
     :type payload: Dict[str, Any]
     :rtype: Dict[str, Any]
     """

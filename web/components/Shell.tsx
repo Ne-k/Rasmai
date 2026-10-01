@@ -14,8 +14,6 @@ const NAV = [
   ["invite", "/invite"],
 ] as const;
 
-export type NavKey = (typeof NAV)[number][0];
-
 // The language switch is a sibling of the nav, not one of its links: on a phone the nav takes a row
 // of its own, and the switch stays up in the top row beside the theme switch.
 export function MastheadNav({ current }: { current: string }) {

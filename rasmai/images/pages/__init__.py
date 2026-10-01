@@ -1,6 +1,5 @@
 from rasmai.images.pages.common import (  # noqa: F401
     _image,
-    _fc,
 )
 from rasmai.images.pages.scores import (  # noqa: F401
     best50_image_html,
@@ -12,16 +11,11 @@ from rasmai.images.pages.scores import (  # noqa: F401
     dxscore_image_html,
 )
 from rasmai.images.pages.progress import (  # noqa: F401
-    _progress_svg,
     progress_image_html,
 )
 from rasmai.images.pages.areas import (  # noqa: F401
-    _reward_text,
     area_image_html,
 )
 from rasmai.images.pages.traits import (  # noqa: F401
-    _text_width,
-    _wrap_label,
-    _radar_svg,
     traits_image_html,
 )

@@ -3,7 +3,7 @@
 import { useLocale, useM } from "@/components/I18n";
 import { noteKind } from "@/lib/i18n/traits";
 import type { JudgementProfileData } from "../api";
-import { Empty, Info, Label } from "../bits";
+import { Empty, Label } from "../bits";
 
 export function JudgementProfile({ data }: { data: JudgementProfileData | null }) {
   const t = useM().judgeTab;
