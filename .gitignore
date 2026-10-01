@@ -35,3 +35,4 @@ docs/screenshots/raw/
 
 # local helper, not part of the project
 tools/frame_shots.py
+.env.local

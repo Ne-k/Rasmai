@@ -6,10 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "i18n:push": "node scripts/i18n.mjs upload",
+    "i18n:pull": "node scripts/i18n.mjs download"
   },
   "dependencies": {
     "next": "15",
+    "next-intl": "4.3.12",
     "react": "19",
     "react-dom": "19"
   },
@@ -17,6 +20,7 @@
     "postcss": "^8.5.23"
   },
   "devDependencies": {
+    "@simplelocalize/cli": "^3.0.0",
     "@types/node": "22",
     "@types/react": "19",
     "@types/react-dom": "19",

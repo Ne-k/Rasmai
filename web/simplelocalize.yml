@@ -1,0 +1,6 @@
+uploadFormat: single-language-json
+uploadPath: ./messages/{lang}.json
+downloadFormat: single-language-json
+downloadPath: ./messages/{lang}.json
+downloadOptions:
+  - WRITE_NESTED

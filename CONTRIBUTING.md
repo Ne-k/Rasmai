@@ -51,6 +51,7 @@ Mostly whether it breaks something no check covers. Stuff that keeps coming up:
 * if you add a route in `rasmai/web/dashboard/routes.py`, `return True` after you answer. Fall through and the server writes a second response on top of yours.
 * no stray `print()` in anything that runs per request. It goes to the container logs in prod.
 * if you change how a chart is measured or how a pick is scored, I check it against real account exports before it goes in, so expect me to ask for numbers.
+* words on the website live in `web/messages/en.json` and `ja.json`, not in the components. Add a key to both, and use `npm run i18n:push` / `i18n:pull` (from `web/`) to sync with SimpleLocalize. If you don't have the project key, just edit the two files and say so in the PR.
 * keep the UI snappy. If you move a filter to the server, keep the instant client-side one as a pre-filter so typing doesn't lag.
 
 ## Style
