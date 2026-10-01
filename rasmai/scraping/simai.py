@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Optional, Tuple
+import html
 import json
 import logging
+import re
 import threading
 import time
 
@@ -18,7 +20,10 @@ logger = logging.getLogger(__name__)
 # there and has not read before. A chart does not change once it has been published, so the crawl
 # runs down over time instead of repeating: about 2,900 charts, then a handful per game version.
 SITE = "https://mai-notes.com"
-CHART_URL = f"{SITE}/data/charts/{{chart}}.txt"
+# The notation is in each chart's own page, in the box the editor shows it in. The plain file the
+# site used to serve for it, /data/charts/<id>.txt, is gone: every such address answers the front page.
+PAGE_URL = f"{SITE}/player/{{chart}}"
+NOTATION = re.compile(r'<textarea[^>]*\bid="simaiInput"[^>]*>(.*?)</textarea>', re.S)
 SOURCE = "simai_features"
 TIMEOUT = 20
 
@@ -34,12 +39,17 @@ SAVE_EVERY = 25
 MISSES = 5
 
 # Why the last fetch came back with nothing. A site that cannot be reached and a site that answers
-# its own front page instead of a chart are not the same thing and do not deserve the same answer:
-# the first is worth waiting out, the second means the notation is not there to be had, and saying
+# with a page that holds no chart are not the same thing and do not deserve the same answer: the
+# first is worth waiting out, the second means this chart is not there to be had, and saying
 # "stopped answering" about a site that replied in 400ms sends whoever reads the log the wrong way.
 UNREACHABLE = "unreachable"
 NOT_SERVED = "answered, but not with a chart"
 _last_refusal = UNREACHABLE
+
+# A chart whose page holds no notation (the manifest says it has some, and now and then the page
+# disagrees) is left alone for this long, so the same few are not the first thing every run asks for.
+GAP_RETRY = 6 * 3600
+_gaps: Dict[str, float] = {}
 
 _lock = threading.Lock()
 
@@ -98,16 +108,17 @@ def fetch_chart(chart_id: str) -> Optional[str]:
     global _last_refusal
     _last_refusal = UNREACHABLE
     try:
-        response = requests.get(CHART_URL.format(chart=chart_id),
-                                headers={"User-Agent": USER_AGENT, "Accept": "text/plain"}, timeout=TIMEOUT)
+        response = requests.get(PAGE_URL.format(chart=chart_id),
+                                headers={"User-Agent": USER_AGENT, "Accept": "text/html"}, timeout=TIMEOUT)
     except requests.RequestException as error:
         logger.info("simai fetch failed: %s", error)
         return None
     if response.status_code != 200:
         return None
-    text = response.text
-    # the site answers its own index page for an id it does not hold, rather than a 404
-    if text.lstrip().startswith("<"):
+    # the site answers its own front page for an id it has no page for, rather than a 404
+    found = NOTATION.search(response.text)
+    text = html.unescape(found.group(1)).strip() if found else ""
+    if not text:
         _last_refusal = NOT_SERVED
         return None
     return text
@@ -168,9 +179,10 @@ def _pending(known: Dict[str, Any]) -> List[Tuple[str, str, Dict[str, Any]]]:
     """Charts the manifest says have a file that has not been read yet: (key, chart id, row)."""
     from rasmai.scraping import mai_notes
     out = []
+    now = time.monotonic()
     for key, row in mai_notes.cached_facts().exact.items():
         chart_id = str(row.get("c") or "")
-        if chart_id and key not in known:
+        if chart_id and key not in known and now - _gaps.get(chart_id, -GAP_RETRY) >= GAP_RETRY:
             out.append((key, chart_id, row))
     return out
 
@@ -195,26 +207,30 @@ def refresh(budget: int = BATCH) -> Dict[str, Any]:
         waiting = _pending(known)
         if not waiting:
             return known
-        read = refused = missed = 0
+        read = refused = missed = unserved = 0
         started = time.monotonic()
         logger.info("simai: reading %d of the %d charts still to read", min(budget, len(waiting)), len(waiting))
         for key, chart_id, row in waiting[:budget]:
             text = fetch_chart(chart_id)
             if text is None:
-                # One front page in place of a chart is all the proof needed: the endpoint is not
-                # serving notation to anybody, so walking the rest of the list would be a few
-                # hundred requests to be told the same thing.
                 if _last_refusal == NOT_SERVED:
-                    logger.info("simai: %s answered, but with its own page instead of %s: it is no "
-                                "longer serving chart notation, so the charts already read are all "
-                                "there is from it. The repository is unaffected.", SITE, chart_id)
-                    break
-                # the site is not answering. A chart that was never fetched is left pending on
-                # purpose, so stop rather than walk the whole list against a site that is down.
-                missed += 1
-                if missed >= MISSES:
-                    logger.info("simai: %s could not be reached, leaving the rest for next time", SITE)
-                    break
+                    # One chart with no notation on its page is that chart's own gap, so it is set
+                    # aside and the rest go on. Several in a row with nothing read at all means the
+                    # site no longer serves notation to anybody, and the rest of the list would be
+                    # hundreds of requests to be told the same thing.
+                    unserved += 1
+                    _gaps[chart_id] = time.monotonic()
+                    if unserved >= MISSES and not (read or refused):
+                        logger.info("simai: %s answered %d charts with a page that holds no notation and none "
+                                    "could be read, so it is not serving any. The repository is unaffected.", SITE, unserved)
+                        break
+                else:
+                    # the site is not answering. A chart that was never fetched is left pending on
+                    # purpose, so stop rather than walk the whole list against a site that is down.
+                    missed += 1
+                    if missed >= MISSES:
+                        logger.info("simai: %s could not be reached, leaving the rest for next time", SITE)
+                        break
             else:
                 missed = 0
                 sheet_put(key, chart_id, text)

@@ -177,17 +177,39 @@ def _simai_down():
         if out:
             problems.append("a run that read nothing reported work done, so the caller would run it again")
 
-        # A site that answers with its own page is not a site to wait out: one is proof the endpoint
-        # serves nobody, and the rest of the list would be hundreds of requests to be told the same.
+        # A site whose pages hold no notation for the first few charts, with nothing read at all, is not
+        # a site to wait out: the rest of the list would be hundreds of requests to be told the same.
         asked.clear()
+        simai._gaps.clear()
         simai.fetch_chart = refusing(simai.NOT_SERVED)
         simai.refresh(40)
-        if len(asked) != 1:
-            problems.append(f"a site answering with its own page was asked {len(asked)} times, and "
-                            f"once is all it takes to know the notation is not there")
+        if len(asked) != simai.MISSES:
+            problems.append(f"a site whose pages hold no notation was asked {len(asked)} times, "
+                            f"expected to stop after {simai.MISSES}")
+
+        # One chart without notation on its page is that chart's own gap: the rest are still read,
+        # and the gap is not asked for again straight away.
+        asked.clear()
+        simai._gaps.clear()
+
+        def one_gap(chart_id):
+            asked.append(chart_id)
+            if chart_id == "id3":
+                simai._last_refusal = simai.NOT_SERVED
+                return None
+            return "(120){4}1,2,3,4,E"
+
+        simai.fetch_chart = one_gap
+        # the run also takes whatever the local copy of the repository holds, so only these charts are counted
+        read = sum(1 for key, row in simai.refresh(10).items() if row and key.startswith("song "))
+        if len(asked) != 10 or read != 9:
+            problems.append(f"one chart with no notation held up the run: asked {len(asked)}, read {read} of the 9 that had some")
+        if "id3" not in simai._gaps:
+            problems.append("a chart with no notation was not set aside, so every run would ask for it first")
     finally:
         simai.fetch_chart, simai._pending, simai.PAUSE = held_fetch, held_pending, held_pause
         simai._last_refusal = held_refusal
+        simai._gaps.clear()
         store.DATABASE_PATH = was
         store._database_ready = False
     return problems
