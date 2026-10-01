@@ -7,7 +7,7 @@ from rasmai.bot.core import bot
 from rasmai.bot.ui.login import send_login_card
 from rasmai.bot.tasks.presence import describe
 from rasmai.bot.ui.views import DeleteAccountView
-from rasmai.config import DISCORD_BOT_INVITE, MAIMAI_BASE_URLS, get_public_base_url, region_supported, unsupported_region_text
+from rasmai.config import DISCORD_BOT_INVITE, MAIMAI_BASE_URLS, SUPPORT_INVITE, get_public_base_url, region_supported, unsupported_region_text
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import REGION_CHOICES
 
@@ -70,6 +70,7 @@ async def help_command(interaction: discord.Interaction):
         name="Server and more",
         value=(
             "**`/invite`** - add the bot to a server or your account · **`/ping`** - is maimai DX NET up, and when the next maintenance is\n"
+            "**`/support`** - the support server, for problems and questions\n"
             "**`/server`** - switches for this server (Manage Server)"
             + f"\nEverything here is also on the web: [{site.split('://', 1)[-1]}/me]({site}/me/), sign in with Discord"
         ),
@@ -131,6 +132,22 @@ async def invite(interaction: discord.Interaction):
     if DISCORD_BOT_INVITE:
         view.add_item(discord.ui.Button(label="Invite", url=DISCORD_BOT_INVITE))
     view.add_item(discord.ui.Button(label="Dashboard", url=f"{site}/me/"))
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+@bot.tree.command(name="support", description="Join the Rasmai support server for problems, questions and suggestions")
+async def support(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Rasmai support",
+        description=(
+            "Something not working, or a question? Ask in the support server.\n"
+            "Say which region you play on, what you ran and the exact error. "
+            "**Never post your `/login` link, SEGA ID or password.**"
+        ),
+        color=discord.Color.from_rgb(255, 61, 143),
+    )
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Support server", url=SUPPORT_INVITE))
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 

@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { Support } from "@/components/Support";
 import { errorCopy } from "@/components/copy";
 import { useTranslations } from "next-intl";
 
@@ -38,6 +39,7 @@ function ErrorView() {
         )}
       </p>
       <div className="aside">{copy.hint}</div>
+      <Support />
     </Shell>
   );
 }

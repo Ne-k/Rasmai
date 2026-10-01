@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
+import { Support } from "@/components/Support";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -31,6 +32,7 @@ export default async function NotFound() {
         </div>
       </section>
       <div className="aside">{t.rich("bookmark", tags)}</div>
+      <Support />
     </Shell>
   );
 }

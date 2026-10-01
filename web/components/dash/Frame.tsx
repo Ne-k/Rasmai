@@ -5,6 +5,7 @@ import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
 import { ServersNotice } from "@/components/Servers";
 import { useTranslations } from "next-intl";
+import { TRANSLATE_URL } from "@/components/Contact";
 import { type Overview } from "./api";
 
 export function Frame({ children, user, onSignOut }: { children: React.ReactNode; user?: Overview["user"]; onSignOut?: () => void }) {
@@ -36,7 +37,8 @@ export function Frame({ children, user, onSignOut }: { children: React.ReactNode
       <footer className="foot">
         <span>
           {f.rich("createdBy", { b: (c) => <b>{c}</b> })} · {f("notAffiliated")} · <a href="/privacy/">{f("privacy")}</a> ·{" "}
-          <a href="/terms/">{f("terms")}</a>
+          <a href="/terms/">{f("terms")}</a> · <a href="/support">{f("support")}</a> ·{" "}
+          <a href={TRANSLATE_URL} target="_blank" rel="noopener noreferrer">{f("translate")}</a>
         </span>
         <span>{t("footRight")}</span>
       </footer>

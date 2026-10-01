@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { InstallHint } from "@/components/Pwa";
+import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
@@ -85,7 +86,12 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
           </button>
           <input ref={picker} type="file" accept="application/json,.json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
         </div>
-        {refresh?.stage === "failed" && <p className="hint">{t("failed", { why: refresh.error ?? "" })}</p>}
+        {refresh?.stage === "failed" && (
+          <>
+            <p className="hint">{t("failed", { why: refresh.error ?? "" })}</p>
+            <Support />
+          </>
+        )}
         {refresh?.stage === "done" && !refresh.running && (
           <p className="hint ok">
             {t("refreshed")}<Ago iso={refresh.finishedAt} />{common("period")}

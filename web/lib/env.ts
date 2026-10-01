@@ -9,6 +9,7 @@ export const env = {
   discordClientId: () => (process.env.DISCORD_CLIENT_ID ?? "").trim(),
   discordClientSecret: () => (process.env.DISCORD_CLIENT_SECRET ?? "").trim(),
   botInvite: () => (process.env.DISCORD_BOT_INVITE ?? "").trim(),
+  supportInvite: () => (process.env.DISCORD_SUPPORT_INVITE ?? "").trim() || "https://discord.gg/EhfdWeK8Aq",
   turnstileSiteKey: () => (process.env.CF_KEY ?? "").trim(),
   turnstileSecret: () => (process.env.CF_SECRET ?? "").trim(),
   behindCloudflare: () => ["1", "true", "yes"].includes((process.env.MAIMAI_BEHIND_CLOUDFLARE ?? "").trim().toLowerCase()),

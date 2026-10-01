@@ -169,6 +169,16 @@ SHARD_COUNT = int(os.getenv("DISCORD_SHARD_COUNT", "0") or 0)              # 0 l
 
 # the link that adds the bot to a server; /invite in Discord and /invite on the site both hand it out
 DISCORD_BOT_INVITE = os.getenv("DISCORD_BOT_INVITE", "").strip()
+# the support server; /support in Discord and /support on the site both hand it out
+SUPPORT_INVITE = os.getenv("DISCORD_SUPPORT_INVITE", "").strip() or "https://discord.gg/EhfdWeK8Aq"
+
+
+def support_line() -> str:
+    """The line that sends someone with a problem to the support server, for the end of an error message.
+
+    :rtype: str
+    """
+    return f"-# Still stuck? Ask in the support server: {SUPPORT_INVITE}"
 
 
 def site_label() -> str:

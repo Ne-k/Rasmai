@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Turnstile } from "@/components/Turnstile";
 import { InstallHint } from "@/components/Pwa";
+import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
 import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
@@ -231,7 +232,12 @@ export function Dash() {
           ) : (
             <p className="hint">{t("notSetUp")}</p>
           )}
-          {error && <p className="hint">{error}</p>}
+          {error && (
+            <>
+              <p className="hint">{error}</p>
+              <Support />
+            </>
+          )}
           <div className="aside">{t("gatePrivacy")}</div>
           <InstallHint />
         </div>
@@ -241,7 +247,7 @@ export function Dash() {
   if (!me) {
     return (
       <Frame>
-        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t("loading")}</p>}</div>
+        <div className="gate">{error ? <><p className="hint">{error}</p><Support /></> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t("loading")}</p>}</div>
       </Frame>
     );
   }

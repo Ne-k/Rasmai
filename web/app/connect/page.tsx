@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { Support } from "@/components/Support";
 import { Turnstile } from "@/components/Turnstile";
 import { errorCopy } from "@/components/copy";
 import { useTranslations } from "next-intl";
@@ -152,6 +153,7 @@ function Connect() {
         </h1>
         <p className="lede">{copy.detail}</p>
         <div className="aside">{copy.hint}</div>
+        <Support />
       </Shell>
     );
   }
@@ -518,9 +520,12 @@ function JapanConnect({
               </button>
             </div>
             {problem && (
-              <p className="hint bad" role="alert">
-                {problem}
-              </p>
+              <>
+                <p className="hint bad" role="alert">
+                  {problem}
+                </p>
+                <Support />
+              </>
             )}
           </form>
           <div className="readout">

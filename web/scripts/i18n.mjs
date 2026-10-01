@@ -1,11 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-// the project key stays out of the repo: it comes from the environment, or a web/.env.local
-if (existsSync(".env.local")) process.loadEnvFile(".env.local");
-const apiKey = process.env.SIMPLELOCALIZED_PROJECT_API_KEY ?? process.env.SIMPLELOCALIZE_API_KEY;
+// the project key stays out of the repo: it comes from the environment, the repo's .env, or a web/.env.local.
+// Only that one line is read, so nothing else in those files reaches the CLI.
+const NAME = "SIMPLELOCALIZED_PROJECT_API_KEY";
+const fromFile = (file) =>
+  existsSync(file) ? readFileSync(file, "utf8").match(new RegExp(`^\\s*${NAME}\\s*=\\s*(.+?)\\s*$`, "m"))?.[1]?.replace(/^["']|["']$/g, "") : undefined;
+
+const apiKey = process.env[NAME] ?? fromFile("../.env") ?? fromFile(".env.local");
 if (!apiKey) {
-  console.error("Set SIMPLELOCALIZED_PROJECT_API_KEY (SimpleLocalize > Settings > Credentials) in the environment or web/.env.local.");
+  console.error(`Set ${NAME} (SimpleLocalize > Settings > Credentials) in the environment, the repo's .env, or web/.env.local.`);
   process.exit(1);
 }
 

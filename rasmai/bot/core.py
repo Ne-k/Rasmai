@@ -16,6 +16,7 @@ from rasmai.bot.tasks.presence import ServerWatch
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
     CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
+    support_line,
 )
 from rasmai.images.render import render_html_to_image
 from rasmai.scraping import wiki
@@ -145,6 +146,15 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
                      age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
         return
     logger.error("Command failed", exc_info=error)
+    # the person is left looking at a command that did nothing, so say so and say where to ask
+    text = f"Something went wrong running that command.\n{support_line()}"
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(text, ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=True)
+    except discord.HTTPException:
+        pass
 
 
 def command_tree_fingerprint() -> str:

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "@/components/Term";
+import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
 import { activeT, activeTag } from "@/lib/i18n/active";
 
@@ -93,7 +94,8 @@ export function LoadError({ what, message, onRetry }: { what: string; message: s
             {t("tryAgain")}
           </button>
         </>
-      ) : null}
+      ) : null}{" "}
+      <Support inline />
     </p>
   );
 }

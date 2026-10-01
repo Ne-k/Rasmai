@@ -148,6 +148,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `CF_KEY` / `CF_SECRET` | Cloudflare Turnstile on both sign-ins. Off when empty. |
 | `MAIMAI_GUILD_ID` | Your server id, so new commands show up instantly instead of in an hour. |
 | `DISCORD_BOT_INVITE` | The install link `/invite` sends people to. |
+| `DISCORD_SUPPORT_INVITE` | The support server link `/support` sends people to. Defaults to the Rasmai server. |
 | `MAIMAI_SNAPSHOT_MAX_AGE_HOURS` | How long a stored read is reused before a full read. Default 168. |
 | `MAIMAI_RECHECK_MINUTES` | How old an in-memory analysis gets before a command checks the site again. Default 3. |
 | `MAIMAI_MAX_CONCURRENT` | Score reads at once. Default 24. |
