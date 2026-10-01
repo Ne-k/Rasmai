@@ -5,6 +5,7 @@ import re
 import requests
 import unicodedata
 import logging
+from urllib.parse import urlparse
 
 from rasmai.config import get_maimai_base_url
 from rasmai.scraping.otoge.search import search_song
@@ -46,6 +47,13 @@ class ScorePages:
             location = response.headers.get("Location", "")
             # maimai sends every dead session to the same error page part way through a read: signing
             # in elsewhere ends this one. Naming it lets the command say what to do instead of showing a 302.
+            if "/maimai-mobile/error" in location and urlparse(url).hostname == urlparse(get_maimai_base_url("jp")).hostname:
+                # Japan signs in afresh from the stored SEGA ID on every read, so being signed out part way
+                # (the player opening the site on their phone, say) says nothing about the password. Treated
+                # as a lost session it marked the account expired, stopped its reads and started the
+                # deletion clock on a sign-in that still worked; as a passing failure the next read retries.
+                raise ValueError("maimaidx.jp signed this read out part way through, usually because the account was "
+                                 "opened somewhere else at the same moment. Try again in a few minutes.")
             if "/maimai-mobile/error" in location:
                 raise SessionRejected(
                     "maimai DX NET signed this session out part way through the read. That usually means the "

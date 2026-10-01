@@ -707,3 +707,34 @@ def _maimai_tls():
     finally:
         tls.BUNDLE_DIR = was
     return problems
+
+
+@check("a Japan read signed out part way is a passing failure, and an International one still asks for /login")
+def _japan_mid_read():
+    import types
+
+    from rasmai.scraping.scraper.analyzer import MaimaiRatingAnalyzer
+    from rasmai.scraping.scraper.session import SessionRejected
+
+    problems = []
+    analyzer = MaimaiRatingAnalyzer()
+
+    def bounced(location):
+        return types.SimpleNamespace(get=lambda url, **kw: types.SimpleNamespace(status_code=302, headers={"Location": location}, text=""))
+
+    try:
+        analyzer._fetch_official_html(bounced("https://maimaidx.jp/maimai-mobile/error/"), "https://maimaidx.jp/maimai-mobile/record/", "")
+        problems.append("a bounced Japan page did not raise")
+    except SessionRejected:
+        problems.append("a Japan read signed out part way was treated as a dead sign-in: it would stop the account's reads "
+                        "and start its deletion clock while the stored SEGA ID still works")
+    except ValueError:
+        pass
+    try:
+        analyzer._fetch_official_html(bounced("https://maimaidx-eng.com/maimai-mobile/error/"), "https://maimaidx-eng.com/maimai-mobile/record/", "")
+        problems.append("a bounced International page did not raise")
+    except SessionRejected:
+        pass
+    except ValueError:
+        problems.append("an International read signed out part way no longer asks for /login")
+    return problems

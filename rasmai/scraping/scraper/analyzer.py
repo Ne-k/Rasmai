@@ -8,7 +8,7 @@ from rasmai.engine import insights
 from rasmai.config import get_maimai_base_url
 from rasmai.storage.models import PlayerInfo, Recommendation, SongInfo
 from rasmai.scraping.otoge import CachedOtogeDB
-from rasmai.scraping.scraper.session import download_image_base64
+from rasmai.scraping.scraper.session import SessionRejected, download_image_base64
 from rasmai.scraping.scraper.areas import AreaPages
 from rasmai.scraping.scraper.nameplates import cache_nameplate
 from rasmai.scraping.scraper.profile import ProfilePages
@@ -112,8 +112,15 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         tell("recent", 1, 1, detail=f"{len(recent_songs_data)} recent plays")
         tell("extras", 0, 1)
 
-        album_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/playerData/photo/", referer)
-        album_data = self._parse_official_albums(album_html, region)
+        # the photo album is a nicety: a page the site will not show must not cost the whole read
+        try:
+            album_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/playerData/photo/", referer)
+            album_data = self._parse_official_albums(album_html, region)
+        except SessionRejected:
+            raise
+        except Exception as error:
+            logger.warning(f"Photo album not read: {error}")
+            album_data = []
 
         events_data: Dict[str, Any] = {"areaEvents": [], "eventAreaEvents": []}
         try:
