@@ -30,7 +30,7 @@ const PAGES = {
   },
   terms: {
     about: ["p01"],
-    what: ["p01"],
+    what: ["p01", "p02"],
     account: ["u01"],
     share: ["u01"],
     fairUse: ["u01"],

@@ -1057,7 +1057,9 @@
           "i02": "<b>Human check.</b> The sign-in and account-connect pages show a Cloudflare Turnstile check, which loads a script from Cloudflare. Cloudflare also fronts this site, so it handles requests to it the way any content network does. Both are covered by <cloudflare>Cloudflare's privacy policy</cloudflare>.",
           "i03": "<b>Saved login (Japan accounts, optional).</b> If you tick <b>Save my login for next time</b> on the SEGA ID sign-in, your browser keeps your SEGA ID and Aime card number in its local storage so the form is filled in next time. It stays on your device and is never sent anywhere until you sign in. Your password is never saved there. Unticking the box removes it.",
           "i04": "<b>Home-screen app.</b> The site can be installed on a phone. Its service worker caches only the site's own static files (scripts, styles, fonts and icons) so the site opens offline. Scores, sign-in and API responses are never cached on the device.",
-          "i05": "No analytics, no advertising and no other third-party scripts."
+          "i05": "No analytics, no advertising and no other third-party scripts.",
+          "i04b": "<b>Your choices on this device.</b> The language switch saves a cookie, <code>rasmai-lang</code>, holding <code>en</code> or <code>ja</code> for a year. The light or dark theme and the notices and install tips you have closed are kept in your browser's local storage. None of it identifies you and none of it is used for anything but remembering your choice. The cookie is sent to this site with your requests so the page comes in your language; the rest never leaves your browser. Without the cookie the site follows your browser's language.",
+          "i04c": "<b>Links to other sites.</b> The support link opens Rasmai's Discord server, and the footer's <b>improve the translation</b> link opens a translation-suggestion page on SimpleLocalize. Both leave this site, and what you do there is covered by their own policies. The site's translations are built into it, so nothing about you is sent to SimpleLocalize when you read the site."
         }
       },
       "notStored": {
@@ -1075,7 +1077,8 @@
           "i01": "<b>SEGA (maimai DX NET).</b> Rasmai uses your session key, or for a Japan account your SEGA ID, to load your score pages from the official site, the same pages you see when you sign in yourself.",
           "i02": "<b>Discord.</b> Rasmai's replies, including the images it makes from your scores, are posted to Discord in the channel where you ran the command, and are subject to <discord>Discord's privacy policy</discord>. Use commands in a private channel if you would rather other members did not see your results.",
           "i03": "<b>Cloudflare</b>, as the network in front of the website and the provider of the human check, as described above.",
-          "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry."
+          "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry.",
+          "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you."
         }
       },
       "kept": {
@@ -1111,7 +1114,8 @@
     "terms": {
       "what": {
         "title": "What Rasmai is",
-        "p01": "Rasmai is a Discord bot that signs in to maimai DX NET on your behalf, reads your scores, and suggests which charts to play for the most rating. It is an independent hobby project. It is <b>not affiliated with, endorsed by or supported by SEGA</b>. maimai and maimai DX are trademarks of SEGA."
+        "p01": "Rasmai is a Discord bot that signs in to maimai DX NET on your behalf, reads your scores, and suggests which charts to play for the most rating. It is an independent hobby project. It is <b>not affiliated with, endorsed by or supported by SEGA</b>. maimai and maimai DX are trademarks of SEGA.",
+        "p02": "The support server is a separate Discord community run by the operator. Its own rules apply there, staff may remove posts or members, and help is given when someone has time, with no promise of an answer. Never post your login link, SEGA ID or password there."
       },
       "account": {
         "title": "Your account",

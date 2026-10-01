@@ -10,7 +10,7 @@ import { TRANSLATE_URL } from "./Contact";
 export { CONTACT_DISCORD, CONTACT_EMAIL, SITE_URL } from "./Contact";
 
 // written once, shown the way each language writes a date
-export const EFFECTIVE_DATE = "2026-09-30";
+export const EFFECTIVE_DATE = "2026-10-01";
 
 export function effectiveDate(locale: Locale): string {
   const [year, month, day] = EFFECTIVE_DATE.split("-").map(Number);
