@@ -1079,10 +1079,11 @@ def _regions():
     if "SEGA ID" not in script or "Japanese or Chinese" not in script:
         problems.append("the bookmarklet's messages do not send a Japan player to the SEGA ID sign-in")
     # the error words live in the translation files, one set per language
+    import json
     for lang in ("en", "ja"):
-        copy = (ROOT / "web" / "lib" / "i18n" / f"{lang}.tsx").read_text(encoding="utf-8")
+        errors = json.loads((ROOT / "web" / "messages" / f"{lang}.json").read_text(encoding="utf-8")).get("errors", {})
         for kind in ("region", "credentials"):
-            if f"\n  {kind}: {{" not in copy:
+            if not all(errors.get(kind, {}).get(part) for part in ("headline", "detail", "hint")):
                 problems.append(f"the site has no {lang} words for the {kind} refusal, so it would show 'Something went wrong'")
     if 'method === "segaid"' not in (ROOT / "web" / "app" / "connect" / "page.tsx").read_text(encoding="utf-8"):
         problems.append("the connect page has no SEGA ID form for a Japan code")
