@@ -1224,7 +1224,8 @@
     "link": "link",
     "commands": "commands",
     "dashboard": "dashboard",
-    "invite": "invite"
+    "invite": "invite",
+    "support": "support"
   },
   "shell": {
     "steps": {

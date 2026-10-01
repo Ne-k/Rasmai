@@ -325,11 +325,17 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
   .masthead-nav { margin-left: 0; flex-basis: 100%; order: 10; justify-content: space-between; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
   .masthead .lang-toggle { margin-left: auto; }
   .masthead .theme-toggle { margin-left: 0; }
-  .masthead-nav .tag { font-size: 11.5px; letter-spacing: .8px; padding: 6px 2px; }
+  .masthead-nav .tag { font-size: 11.5px; letter-spacing: .8px; padding: 6px 2px; white-space: nowrap; }
   .masthead-nav span.tag { padding-bottom: 4px; }
   .foot { flex-direction: column; gap: 6px; margin-top: 36px; }
   .cmds li { flex-direction: column; gap: 2px; }
   .card-row .stat .v { font-size: 24px; }
+}
+
+/* the narrowest phones: six words in a row need a little less room each */
+@media (max-width: 360px) {
+  .masthead-nav { gap: 2px; }
+  .masthead-nav .tag { font-size: 11px; letter-spacing: 0; }
 }
 
 /* opened from the home screen: the status bar is opaque, the home bar still needs its room */

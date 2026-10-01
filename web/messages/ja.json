@@ -1232,7 +1232,8 @@
     "link": "連携",
     "commands": "コマンド",
     "dashboard": "ダッシュボード",
-    "invite": "招待"
+    "invite": "招待",
+    "support": "サポート"
   },
   "shell": {
     "steps": {

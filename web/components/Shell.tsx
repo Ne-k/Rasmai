@@ -14,7 +14,11 @@ const NAV = [
   ["commands", "/commands/"],
   ["dashboard", "/me/"],
   ["invite", "/invite"],
+  ["support", "/support"],
 ] as const;
+
+// these leave for another site, so they open in a tab of their own
+const EXTERNAL = new Set(["support"]);
 
 // The language switch is a sibling of the nav, not one of its links: on a phone the nav takes a row
 // of its own, and the switch stays up in the top row beside the theme switch.
@@ -29,7 +33,7 @@ export function MastheadNav({ current }: { current: string }) {
               {t(key)}
             </span>
           ) : (
-            <a key={key} className="tag" href={href}>
+            <a key={key} className="tag" href={href} {...(EXTERNAL.has(key) ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
               {t(key)}
             </a>
           ),
