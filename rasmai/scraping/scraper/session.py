@@ -1,9 +1,14 @@
 import base64
+import logging
 import requests
 import threading
 import time
+from urllib.parse import urlparse
 
 from rasmai.config import BROWSER_USER_AGENT, REQUESTS_PER_SECOND
+from rasmai.scraping.tls import MAIMAI_HOSTS, learn_missing_intermediate, verify_for
+
+logger = logging.getLogger(__name__)
 
 
 class SessionRejected(ValueError):
@@ -40,7 +45,16 @@ class PacedSession(requests.Session):
 
     def request(self, method, url, *args, **kwargs):
         PACER.wait()
-        return super().request(method, url, *args, **kwargs)
+        kwargs.setdefault("verify", verify_for(url))
+        try:
+            return super().request(method, url, *args, **kwargs)
+        except requests.exceptions.SSLError as error:
+            # a maimai host that leaves out its intermediate certificate: fetch it once, if a trusted root vouches for it
+            host = urlparse(str(url)).hostname
+            if host in MAIMAI_HOSTS and "unable to get local issuer" in str(error) and learn_missing_intermediate(host):
+                kwargs["verify"] = verify_for(url)
+                return super().request(method, url, *args, **kwargs)
+            raise
 
 
 def cookie_jar_to_header(session: requests.Session) -> str:
@@ -56,7 +70,7 @@ def download_image_base64(image_url: str, cookies: str = "") -> str:
         if cookies:
             headers['Cookie'] = cookies
 
-        response = requests.get(image_url, headers=headers, timeout=30)
+        response = requests.get(image_url, headers=headers, timeout=30, verify=verify_for(image_url))
         if response.status_code != 200:
             return ""
 

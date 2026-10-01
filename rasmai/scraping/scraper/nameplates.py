@@ -10,6 +10,7 @@ import requests
 
 from rasmai.config import BROWSER_USER_AGENT, DATABASE_PATH, MAIMAI_BASE_URLS
 from rasmai.scraping.scraper.area_images import _image_suffix
+from rasmai.scraping.tls import verify_for
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ def cache_nameplate(image_url: str, cookies: str = "") -> str:
         for attempt in ({}, {"Cookie": cookies}) if cookies else ({},):
             try:
                 response = requests.get(image_url, headers={"User-Agent": BROWSER_USER_AGENT, **attempt},
-                                        timeout=15, allow_redirects=False, stream=True)
+                                        timeout=15, allow_redirects=False, stream=True, verify=verify_for(image_url))
                 body = response.raw.read(_MAX_BYTES + 1, decode_content=True) if response.status_code == 200 else b""
                 response.close()
             except Exception as error:

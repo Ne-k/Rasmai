@@ -623,3 +623,87 @@ def _deletion_warning():
         store.DATABASE_PATH = was
         store._database_ready = False
     return problems
+
+
+@check("maimaidx.jp's missing intermediate certificate is supplied, a forged one is refused, and a failed handshake is repaired once")
+def _maimai_tls():
+    import pathlib
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from unittest import mock
+
+    import requests
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    from rasmai.scraping import tls
+    from rasmai.scraping.scraper import session as scraper_session
+
+    problems = []
+    was = tls.BUNDLE_DIR
+    tls.BUNDLE_DIR = pathlib.Path(tempfile.mkdtemp()) / "ca"
+    try:
+        shipped = tls._shipped()
+        if not shipped:
+            return ["no intermediate certificate is shipped for maimaidx.jp"]
+        now = datetime.now(timezone.utc)
+        for path in shipped:
+            cert = x509.load_pem_x509_certificate(path.read_bytes())
+            if not tls.signed_by_a_trusted_root(cert):
+                problems.append(f"{path.name} is not a CA signed directly by a root Python trusts, or has expired: replace it")
+            elif cert.not_valid_after_utc - now < timedelta(days=60):
+                problems.append(f"{path.name} expires on {cert.not_valid_after_utc:%Y-%m-%d}: replace it")
+
+        bundle = pathlib.Path(tls.verify_for("https://maimaidx.jp/maimai-mobile/"))
+        text = bundle.read_text(encoding="ascii")
+        if shipped[0].read_text(encoding="ascii").strip() not in text or tls.certifi.where() and "BEGIN CERTIFICATE" not in text:
+            problems.append("the bundle for maimai hosts lacks the shipped intermediate or the normal roots")
+        if tls.verify_for("https://example.com/") is not True or tls.verify_for("https://discord.com/") is not True:
+            problems.append("a host that is not a maimai host did not get ordinary verification")
+
+        # a certificate that names a real root as its issuer but was signed by something else, and one that is not a CA
+        root = tls._roots()[0]
+        key = ec.generate_private_key(ec.SECP256R1())
+
+        def forged(ca: bool, days: int = 365):
+            builder = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Forged CA")]))
+                       .issuer_name(root.subject).public_key(key.public_key()).serial_number(x509.random_serial_number())
+                       .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=days))
+                       .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True))
+            return builder.sign(key, hashes.SHA256())
+
+        if tls.signed_by_a_trusted_root(forged(True)):
+            problems.append("an intermediate that only claims a trusted root as its issuer was accepted")
+        if tls.signed_by_a_trusted_root(forged(False)):
+            problems.append("a certificate that is not a CA was accepted as an intermediate")
+
+        # the session verifies against the bundle, and a missing-issuer failure on a maimai host is retried once
+        calls = []
+
+        def flaky(self, method, url, *args, **kwargs):
+            calls.append(kwargs.get("verify"))
+            if len(calls) == 1:
+                raise requests.exceptions.SSLError("certificate verify failed: unable to get local issuer certificate")
+            return "answered"
+
+        with mock.patch.object(requests.Session, "request", flaky), \
+                mock.patch.object(scraper_session.PACER, "wait", lambda: None), \
+                mock.patch.object(scraper_session, "learn_missing_intermediate", return_value=True) as learn:
+            got = scraper_session.PacedSession().get("https://maimaidx.jp/maimai-mobile/")
+        if got != "answered" or len(calls) != 2 or learn.call_count != 1 or not str(calls[1]).endswith("bundle.pem"):
+            problems.append(f"a missing intermediate was not repaired once and retried: {calls}, learned {learn.call_count}")
+        calls.clear()
+        with mock.patch.object(requests.Session, "request", flaky), \
+                mock.patch.object(scraper_session.PACER, "wait", lambda: None), \
+                mock.patch.object(scraper_session, "learn_missing_intermediate", return_value=True) as learn:
+            try:
+                scraper_session.PacedSession().get("https://example.com/")
+                problems.append("a failed handshake on a host that is not a maimai host was retried")
+            except requests.exceptions.SSLError:
+                if learn.call_count:
+                    problems.append("an intermediate was fetched for a host that is not a maimai host")
+    finally:
+        tls.BUNDLE_DIR = was
+    return problems

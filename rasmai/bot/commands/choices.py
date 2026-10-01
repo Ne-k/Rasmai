@@ -8,6 +8,7 @@ from rasmai.bot.builders.charts import LEVEL_PATTERN, LEVEL_SORTS
 from rasmai.engine.analysis import constant_span
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.bot.builders.results import OUTPUT_LABELS
+from rasmai.config import REGION_NAMES, SUPPORTED_REGIONS
 
 
 OUTPUT_CHOICES = [
@@ -92,8 +93,5 @@ LAYOUT_CHOICES = OUTPUT_CHOICES
 EXPORT_CHOICES = [app_commands.Choice(name="JSON", value="json"), app_commands.Choice(name="CSV", value="csv")]
 
 
-REGION_CHOICES = [
-    app_commands.Choice(name="International", value="intl"),
-    app_commands.Choice(name="Japan", value="jp"),
-    app_commands.Choice(name="China", value="cn"),
-]
+# only the regions an account can be linked from: China stays out of the picker until it has a sign-in
+REGION_CHOICES = [app_commands.Choice(name=REGION_NAMES[region], value=region) for region in SUPPORTED_REGIONS]

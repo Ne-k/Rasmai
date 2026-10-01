@@ -8,6 +8,7 @@ from pathlib import Path
 import logging
 
 from rasmai.config import BROWSER_USER_AGENT, DATABASE_PATH
+from rasmai.scraping.tls import verify_for
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ def _fetch_area_image(image_url: str, key: str, cookies: str) -> str:
     headers = {"User-Agent": BROWSER_USER_AGENT}
     for attempt in ({}, {"Cookie": cookies}) if cookies else ({},):
         try:
-            response = requests.get(image_url, headers={**headers, **attempt}, timeout=30)
+            response = requests.get(image_url, headers={**headers, **attempt}, timeout=30, verify=verify_for(image_url))
         except Exception as error:
             logger.info(f"Area image fetch failed: {error}")
             return ""

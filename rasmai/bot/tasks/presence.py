@@ -9,6 +9,7 @@ import requests
 
 from rasmai.bot.ui.formatting import stamp
 from rasmai.config import BROWSER_USER_AGENT, MAINTENANCE_HOURS, PRESENCE_ENABLED, PRESENCE_REGION, get_maimai_base_url
+from rasmai.scraping.tls import verify_for
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +88,11 @@ def _probe_once(region: str) -> bool:
     :rtype: bool
     """
     try:
+        url = f"{get_maimai_base_url(region)}/maimai-mobile/"
         response = requests.get(
-            f"{get_maimai_base_url(region)}/maimai-mobile/",
+            url,
             headers={"User-Agent": BROWSER_USER_AGENT},
-            allow_redirects=False, timeout=PROBE_TIMEOUT,
+            allow_redirects=False, timeout=PROBE_TIMEOUT, verify=verify_for(url),
         )
         return response.status_code < 500
     except requests.RequestException as error:
