@@ -1,5 +1,5 @@
+import path from "node:path";
 import type { NextConfig } from "next";
-import createNextIntlPlugin from "next-intl/plugin";
 
 // next dev evaluates code at runtime; the production build never does, so eval is only allowed there
 const dev = process.env.NODE_ENV !== "production";
@@ -73,4 +73,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default createNextIntlPlugin()(nextConfig);
+// next-intl's plugin loads the SWC native addon, which refuses a cache folder when any folder above it grants
+// rights to another app (a packaged app's entry on %LOCALAPPDATA%, for one). Unless a cache is chosen already,
+// it gets one inside the project, which is also out of the way of other tools. It has to be set before the plugin
+// loads, so the plugin is imported here rather than at the top.
+export default async function config() {
+  process.env.SWC_NATIVE_BINDING_CACHE ??= path.join(process.cwd(), ".next", "cache", "swc");
+  const { default: createNextIntlPlugin } = await import("next-intl/plugin");
+  return createNextIntlPlugin()(nextConfig);
+}
