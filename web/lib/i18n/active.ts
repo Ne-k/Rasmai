@@ -1,5 +1,6 @@
 import { INTL_TAG, isLocale, type Locale } from "./index";
-import { messages, type Messages } from "./messages";
+import { createTranslator, type AbstractIntlMessages, type NamespaceKeys, type NestedKeyOf } from "next-intl";
+import type en from "@/messages/en.json";
 
 /**
  * The page's language, for plain helper functions that cannot use a hook: dates, error messages.
@@ -12,10 +13,20 @@ export function activeLocale(): Locale {
   return isLocale(lang) ? lang : "en";
 }
 
-export function activeMessages(): Messages {
-  return messages[activeLocale()];
-}
-
 export function activeTag(): string {
   return INTL_TAG[activeLocale()];
+}
+
+let held: { locale: Locale; messages: AbstractIntlMessages } | null = null;
+
+/** Called by HoldMessages in the browser. The server never holds any: a module-level value there would be shared between readers. */
+export function holdMessages(locale: string, words: AbstractIntlMessages) {
+  if (typeof window !== "undefined" && isLocale(locale)) held = { locale, messages: words };
+}
+
+type Words = typeof en;
+
+/** A translator for plain functions that cannot use a hook, in the language the page is in; `activeT("dash.api")` is `useTranslations("dash.api")`. */
+export function activeT<N extends NamespaceKeys<Words, NestedKeyOf<Words>>>(namespace: N) {
+  return createTranslator({ locale: held?.locale ?? "en", messages: (held?.messages ?? {}) as unknown as Words, namespace });
 }

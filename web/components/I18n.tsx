@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { useTranslations } from "next-intl";
 import { LANG_COOKIE, type Locale } from "@/lib/i18n";
-import { messages, type Messages } from "@/lib/i18n/messages";
 
 const LocaleContext = createContext<Locale>("en");
 
@@ -15,23 +15,18 @@ export function useLocale(): Locale {
   return useContext(LocaleContext);
 }
 
-/** The words for the reader's language, in a client component. */
-export function useM(): Messages {
-  return messages[useContext(LocaleContext)];
-}
-
 /** The language switch in the top bar: it names the other language, saves the choice for a year and reloads. */
 export function LangToggle() {
   const locale = useLocale();
-  const m = useM();
+  const t = useTranslations("common");
   const next: Locale = locale === "ja" ? "en" : "ja";
   return (
     <button
       type="button"
       className="lang-toggle"
       lang={next}
-      aria-label={m.common.switchLanguage}
-      title={m.common.switchLanguage}
+      aria-label={t("switchLanguage")}
+      title={t("switchLanguage")}
       onClick={() => {
         document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
         window.location.reload();
