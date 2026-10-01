@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "@/components/Term";
-import { useM } from "@/components/I18n";
-import { activeMessages, activeTag } from "@/lib/i18n/active";
+import { useTranslations } from "next-intl";
+import { activeT, activeTag } from "@/lib/i18n/active";
 
 const TIER: Record<string, string> = {
   basic: "BASIC",
@@ -13,13 +13,13 @@ const TIER: Record<string, string> = {
 };
 
 export function Chip({ difficulty, level, constant, type }: { difficulty: string; level?: string; constant?: number; type?: string }) {
-  const m = useM();
+  const t = useTranslations("dash");
   const key = (difficulty || "master").toLowerCase();
   return (
     <span className={`chip chip-${key}`}>
       {TIER[key] ?? key.toUpperCase()}
       {level ? <b>{level}</b> : null}
-      {constant ? <em title={m.dash.chartConstant}>{constant.toFixed(1)}</em> : null}
+      {constant ? <em title={t("chartConstant")}>{constant.toFixed(1)}</em> : null}
       {type ? <i>{type.toUpperCase()}</i> : null}
     </span>
   );
@@ -42,7 +42,7 @@ export function num(value: number | null | undefined): string {
 }
 
 export function when(iso: string | null | undefined): string {
-  if (!iso) return activeMessages().dash.never;
+  if (!iso) return activeT("dash")("never");
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString(activeTag(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -56,16 +56,16 @@ export function day(iso: string | null | undefined): string {
 }
 
 export function ago(iso: string | null | undefined): string {
-  const t = activeMessages().dash;
-  if (!iso) return t.never;
+  const t = activeT("dash");
+  if (!iso) return t("never");
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return iso;
   const minutes = Math.round((Date.now() - then) / 60000);
-  if (minutes < 2) return t.justNow;
-  if (minutes < 60) return t.minAgo(minutes);
+  if (minutes < 2) return t("justNow");
+  if (minutes < 60) return t("minAgo", { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return t.hAgo(hours);
-  return t.daysAgo(Math.round(hours / 24));
+  if (hours < 48) return t("hAgo", { n: hours });
+  return t("daysAgo", { n: Math.round(hours / 24) });
 }
 
 export function Lamp({ fc, fs }: { fc: string; fs: string }) {
@@ -82,15 +82,15 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 /** What a section shows when its data could not be fetched: the reason, and a way to try again. Never the empty-state copy. */
 export function LoadError({ what, message, onRetry }: { what: string; message: string; onRetry?: () => void }) {
-  const m = useM();
+  const t = useTranslations("dash");
   return (
     <p className="empty error" role="alert">
-      {m.dash.couldntLoad(what, message)}
+      {t("couldntLoad", { what, message })}
       {onRetry ? (
         <>
           {" "}
           <button type="button" className="linkish" onClick={onRetry}>
-            {m.dash.tryAgain}
+            {t("tryAgain")}
           </button>
         </>
       ) : null}
@@ -100,8 +100,8 @@ export function LoadError({ what, message, onRetry }: { what: string; message: s
 
 /** "3 days ago" that reveals the exact moment on hover and to assistive tech. */
 export function Ago({ iso, prefix = "" }: { iso: string | null | undefined; prefix?: string }) {
-  const m = useM();
-  if (!iso) return <>{prefix}{m.dash.never}</>;
+  const t = useTranslations("dash");
+  if (!iso) return <>{prefix}{t("never")}</>;
   return (
     <time dateTime={iso} title={when(iso)}>
       {prefix}
@@ -112,13 +112,13 @@ export function Ago({ iso, prefix = "" }: { iso: string | null | undefined; pref
 
 /** A small circled i that opens a short explanation of the section it sits beside. */
 export function Info({ text }: { text: string }) {
-  const m = useM();
+  const t = useTranslations("dash");
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
   useDismiss(open, box, setOpen);
   return (
     <span className={`info${open ? " open" : ""}`} ref={box}>
-      <button type="button" className="info-btn" aria-label={m.dash.moreInfo} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="info-btn" aria-label={t("moreInfo")} aria-expanded={open} onClick={() => setOpen(!open)}>
         i
       </button>
       {open && (
@@ -155,8 +155,8 @@ export type ImageKind = "analyze" | "profile" | "new" | "traits" | "progress" | 
 
 /** Saves the picture the matching Discord command draws. Rendering takes a moment, so it says so. */
 export function SaveImage({ kind }: { kind: ImageKind }) {
-  const m = useM();
-  const label = m.dash.images[kind];
+  const t = useTranslations("dash");
+  const label = t(`images.${kind}`);
   const [state, setState] = useState<"" | "busy" | "empty" | "failed">("");
 
   const save = async () => {
@@ -187,11 +187,11 @@ export function SaveImage({ kind }: { kind: ImageKind }) {
 
   return (
     <button type="button" className="save-image" onClick={save} disabled={state === "busy"}
-            title={m.dash.saveTitle(label)}>
-      {state === "busy" ? m.dash.makingImage
-        : state === "empty" ? m.dash.noImageData
-        : state === "failed" ? m.dash.imageFailed
-        : m.dash.saveImage(label)}
+            title={t("saveTitle", { what: label })}>
+      {state === "busy" ? t("makingImage")
+        : state === "empty" ? t("noImageData")
+        : state === "failed" ? t("imageFailed")
+        : t("saveImage", { what: label })}
     </button>
   );
 }

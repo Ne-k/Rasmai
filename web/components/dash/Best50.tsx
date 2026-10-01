@@ -1,6 +1,6 @@
 "use client";
 
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { type ChartRow, type Overview } from "./api";
 import { Chip, Empty, Jacket, Label, TitleLink, num, pct, type OpenChart } from "./bits";
 
@@ -12,31 +12,31 @@ export function levelValue(level: string): number {
 type Cutoffs = NonNullable<Overview["analysis"]>["best50"];
 
 export function Best50({ charts, cutoffs, onOpen }: { charts: ChartRow[] | null; cutoffs?: Cutoffs; onOpen?: OpenChart }) {
-  const m = useM();
-  const t = m.best50Tab;
-  if (!charts) return <Empty>{m.dash.loading}</Empty>;
+  const t = useTranslations("best50Tab");
+  const d = useTranslations("dash");
+  if (!charts) return <Empty>{d("loading")}</Empty>;
   const inPool = charts.filter((c) => c.inBest50).sort((a, b) => b.rating - a.rating);
   const fresh = inPool.filter((c) => c.new);
   const older = inPool.filter((c) => !c.new);
   const pool = (title: string, rows: ChartRow[], size: number, total?: number, cutoff?: number) => (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info={size === 15 ? t.newInfo : t.oldInfo}>
+        <Label info={size === 15 ? t("newInfo") : t("oldInfo")}>
           {title} · {rows.length}/{size}
         </Label>
         <span className="mono hint">
-          {total != null ? t.total(num(total)) : ""}
-          {cutoff ? t.entersAt(cutoff) : ""}
+          {total != null ? t("total", { n: num(total) }) : ""}
+          {cutoff ? t("entersAt", { n: cutoff }) : ""}
         </span>
       </div>
       <table className="tbl compact b50 keep">
         <thead>
           <tr>
             <th className="c-n">#</th>
-            <th className="c-jacket" aria-label={t.jacket} />
-            <th>{t.chart}</th>
-            <th className="c-num">{t.achievement}</th>
-            <th className="c-num">{t.constRating}</th>
+            <th className="c-jacket" aria-label={t("jacket")} />
+            <th>{t("chart")}</th>
+            <th className="c-num">{t("achievement")}</th>
+            <th className="c-num">{t("constRating")}</th>
           </tr>
         </thead>
         <tbody>
@@ -68,18 +68,18 @@ export function Best50({ charts, cutoffs, onOpen }: { charts: ChartRow[] | null;
   return (
     <>
       {inPool.length > 0 && (
-        <div className="readout b50-avg" aria-label={t.averages(inPool.length)}>
-          <span className="lbl">{t.avgConstant}</span>
+        <div className="readout b50-avg" aria-label={t("averages", { n: inPool.length })}>
+          <span className="lbl">{t("avgConstant")}</span>
           <span className="val">{mean((c) => c.constant).toFixed(2)}</span>
-          <span className="lbl">{t.avgAchievement}</span>
+          <span className="lbl">{t("avgAchievement")}</span>
           <span className="val">{pct(mean((c) => c.accuracy))}</span>
-          <span className="lbl">{t.avgRating}</span>
+          <span className="lbl">{t("avgRating")}</span>
           <span className="val">{mean((c) => c.rating).toFixed(1)}</span>
         </div>
       )}
       <div className="two-up wide-right">
-        {pool(t.newVersion, fresh, 15, cutoffs?.newTotal, cutoffs?.newCutoff)}
-        {pool(t.older, older, 35, cutoffs?.oldTotal, cutoffs?.oldCutoff)}
+        {pool(t("newVersion"), fresh, 15, cutoffs?.newTotal, cutoffs?.newCutoff)}
+        {pool(t("older"), older, 35, cutoffs?.oldTotal, cutoffs?.oldCutoff)}
       </div>
     </>
   );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Turnstile } from "@/components/Turnstile";
 import { InstallHint } from "@/components/Pwa";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
@@ -35,20 +35,19 @@ const IMAGE_FOR: Partial<Record<Tab, ImageKind[]>> = {
 };
 
 function QueueNote({ spot }: { spot: NonNullable<QueueSpot> }) {
-  const m = useM();
-  const wait = spot.eta < 60 ? m.dash.seconds(Math.max(1, spot.eta)) : m.dash.minutes(Math.round(spot.eta / 60));
+  const t = useTranslations("dash");
+  const wait = spot.eta < 60 ? t("seconds", { n: Math.max(1, spot.eta) }) : t("minutes", { n: Math.round(spot.eta / 60) });
   return (
     <div className="notice" role="status" aria-live="polite">
       {spot.position <= 1
-        ? m.dash.queueNow
-        : m.dash.queueBusy(spot.position, wait)}
+        ? t("queueNow")
+        : t("queueBusy", { position: spot.position, wait })}
     </div>
   );
 }
 
 export function Dash() {
-  const m = useM();
-  const t = m.dash;
+  const t = useTranslations("dash");
   const [me, setMe] = useState<Overview | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [oauth, setOauth] = useState(true);
@@ -136,7 +135,7 @@ export function Dash() {
     load();
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("error");
-    if (kind && t.signInErrors[kind]) setError(t.signInErrors[kind]);
+    if (kind && t.has(`signInErrors.${kind}` as never)) setError(t(`signInErrors.${kind}` as never));
     applyLocation();
   }, [load, applyLocation, t]);
 
@@ -180,7 +179,7 @@ export function Dash() {
         .catch((e: ApiError) => {
           pollFailures.current += 1;
           if (pollFailures.current >= 5 || e.status === 401) {
-            setRefresh({ running: false, stage: "failed", error: t.lostConnection });
+            setRefresh({ running: false, stage: "failed", error: t("lostConnection") });
           }
         });
     }, 1500);
@@ -215,25 +214,25 @@ export function Dash() {
     return (
       <Frame>
         <div className="gate">
-          <h1>{t.gateTitle}</h1>
-          <p className="lede">{t.gateLede}</p>
+          <h1>{t.rich("gateTitle", { em: (c) => <em>{c}</em> })}</h1>
+          <p className="lede">{t("gateLede")}</p>
           {oauth && turnstile ? (
             <form method="post" action="/auth/discord" className="signin">
-              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError(t.turnstileFailed)} />
+              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError(t("turnstileFailed"))} />
               <input type="hidden" name="cf-turnstile-response" value={human} />
               <button className="button pink" type="submit" disabled={!human}>
-                {t.signInDiscord}
+                {t("signInDiscord")}
               </button>
             </form>
           ) : oauth ? (
             <a className="button pink" href="/auth/discord">
-              {t.signInDiscord}
+              {t("signInDiscord")}
             </a>
           ) : (
-            <p className="hint">{t.notSetUp}</p>
+            <p className="hint">{t("notSetUp")}</p>
           )}
           {error && <p className="hint">{error}</p>}
-          <div className="aside">{t.gatePrivacy}</div>
+          <div className="aside">{t("gatePrivacy")}</div>
           <InstallHint />
         </div>
       </Frame>
@@ -242,7 +241,7 @@ export function Dash() {
   if (!me) {
     return (
       <Frame>
-        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t.loading}</p>}</div>
+        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t("loading")}</p>}</div>
       </Frame>
     );
   }
@@ -250,10 +249,10 @@ export function Dash() {
     return (
       <Frame user={me.user} onSignOut={signOut}>
         <div className="gate">
-          <h1>{t.notLinkedTitle}</h1>
-          <p className="lede">{t.notLinkedLede}</p>
+          <h1>{t.rich("notLinkedTitle", { em: (c) => <em>{c}</em> })}</h1>
+          <p className="lede">{t.rich("notLinkedLede", { code: (c) => <code>{c}</code> })}</p>
           <a className="button" href="/">
-            {t.howLinking}
+            {t("howLinking")}
           </a>
         </div>
       </Frame>
@@ -262,17 +261,18 @@ export function Dash() {
 
   const p = me.profile!;
   const s = me.snapshot!;
+  const band = ratingBand(p.rating).key;
   return (
     <Frame user={me.user} onSignOut={signOut}>
       {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} /> : null}
       <section className="ident">
         <div className="ident-who">
           <div className="label">
-            {me.region?.toUpperCase()} · <Ago iso={p.updatedAt} prefix={t.updated} />
+            {me.region?.toUpperCase()} · <Ago iso={p.updatedAt} prefix={t("updated")} />
           </div>
           <h1>{p.name || "—"}</h1>
           <div className="ident-sub mono">
-            {[...new Set([p.dan, p.title].filter(Boolean))].join(" · ") || t.noTitle} · {t.plays(num(p.totalPlayCount))}
+            {[...new Set([p.dan, p.title].filter(Boolean))].join(" · ") || t("noTitle")} · {t("plays", { n: num(p.totalPlayCount) })}
           </div>
           {p.nameplate ? (
             <img className="nameplate" src={p.nameplate} alt="" width={360} height={58}
@@ -280,18 +280,24 @@ export function Dash() {
           ) : null}
           {me.sinceLast && (me.sinceLast.plays > 0 || me.sinceLast.ratingDelta !== 0) && (
             <div className="since mono">
-              {t.since(day(me.sinceLast.since), me.sinceLast.ratingDelta, me.sinceLast.plays, me.sinceLast.newBests, num)}
+              {t("since", {
+                day: day(me.sinceLast.since),
+                moved: String(me.sinceLast.ratingDelta !== 0),
+                delta: `${me.sinceLast.ratingDelta > 0 ? "+" : ""}${me.sinceLast.ratingDelta}`,
+                plays: me.sinceLast.plays,
+                newBests: me.sinceLast.newBests,
+              })}
             </div>
           )}
         </div>
         <div className="readout big">
-          <span className="lbl">{t.rating} · {t.bands[ratingBand(p.rating).key] ?? ratingBand(p.rating).key}</span>
+          <span className="lbl">{t("rating")} · {t.has(`bands.${band}` as never) ? t(`bands.${band}` as never) : band}</span>
           <span className="val">
             <RatingPlate rating={p.rating} />
           </span>
-          <span className="lbl">{t.best50}</span>
+          <span className="lbl">{t("best50")}</span>
           <span className="val">{num(s.best50)}</span>
-          <span className="lbl">{t.newOld}</span>
+          <span className="lbl">{t("newOld")}</span>
           <span className="val pair">
             <span>{num(s.newTotal)}</span>
             <span className="sep">·</span>
@@ -333,12 +339,12 @@ export function Dash() {
         )}
         {visited.has("best50") && (
           <div hidden={tab !== "best50"}>
-            {chartsError ? <LoadError what={t.yourCharts} message={chartsError} onRetry={loadCharts} /> : <Best50 charts={charts} cutoffs={me.analysis?.best50} onOpen={openChart} />}
+            {chartsError ? <LoadError what={t("yourCharts")} message={chartsError} onRetry={loadCharts} /> : <Best50 charts={charts} cutoffs={me.analysis?.best50} onOpen={openChart} />}
           </div>
         )}
         {visited.has("charts") && (
           <div hidden={tab !== "charts"}>
-            {chartsError ? <LoadError what={t.yourCharts} message={chartsError} onRetry={loadCharts} /> : charts ? <Charts rows={charts} onOpen={openChart} /> : <Empty>{t.loadingCharts}</Empty>}
+            {chartsError ? <LoadError what={t("yourCharts")} message={chartsError} onRetry={loadCharts} /> : charts ? <Charts rows={charts} onOpen={openChart} /> : <Empty>{t("loadingCharts")}</Empty>}
           </div>
         )}
         {visited.has("chart") && (
@@ -348,7 +354,7 @@ export function Dash() {
         )}
         {visited.has("recent") && (
           <div hidden={tab !== "recent"}>
-            {recentError ? <LoadError what={t.yourHistory} message={recentError} onRetry={loadRecent} /> : <Recent plays={recent} total={me.playHistory ?? 0} onOpen={openChart} />}
+            {recentError ? <LoadError what={t("yourHistory")} message={recentError} onRetry={loadRecent} /> : <Recent plays={recent} total={me.playHistory ?? 0} onOpen={openChart} />}
           </div>
         )}
         {visited.has("traits") && (
@@ -386,7 +392,7 @@ export function Dash() {
 
 /** Shown above everything when maimai DX NET has refused the saved sign-in: reads stop until it is linked again. */
 function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: string }) {
-  const m = useM();
+  const t = useTranslations("dash");
   const when = new Date(since);
   const on = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
   const gone = deletesAt ? new Date(deletesAt) : null;
@@ -395,7 +401,7 @@ function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: strin
     : "";
   return (
     <aside className="expired" role="status">
-      {m.dash.expired(on, until)}
+      {t.rich("expired", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b>, code: (c) => <code>{c}</code> })}
     </aside>
   );
 }

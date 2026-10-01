@@ -1,4 +1,4 @@
-import { activeMessages } from "@/lib/i18n/active";
+import { activeT } from "@/lib/i18n/active";
 
 export type DiscordUser = { id: string; name: string; handle: string; avatar: string };
 
@@ -406,20 +406,19 @@ export type SongLookup = {
 
 /** The codes the site's API answers with, as sentences a person can act on, in the page's language. */
 export function describeError(status: number, body: Record<string, unknown>): string {
-  const t = activeMessages().dash.api;
-  const known: Record<string, string> = {
-    bot_unreachable: t.bot_unreachable, rate_limited: t.rate_limited, signed_out: t.signed_out, bad_response: t.bad_response, not_linked: t.not_linked,
-  };
+  const t = activeT("dash.api");
+  const known = ["bot_unreachable", "rate_limited", "signed_out", "bad_response", "not_linked"] as const;
   const code = String(body.error ?? "");
-  if (known[code]) return known[code];
+  const hit = known.find((k) => k === code);
+  if (hit) return t(hit);
   if (typeof body.message === "string" && body.message) return body.message;
-  if (status === 502 || status === 503 || status === 504) return t.bot_unreachable;
-  if (status === 429) return t.rate_limited;
-  if (status === 401) return t.signed_out;
-  if (status === 404) return t.notFound;
-  if (status >= 500) return t.server;
-  if (status === 0) return t.network;
-  return code ? code.replace(/_/g, " ") : t.generic(status);
+  if (status === 502 || status === 503 || status === 504) return t("bot_unreachable");
+  if (status === 429) return t("rate_limited");
+  if (status === 401) return t("signed_out");
+  if (status === 404) return t("notFound");
+  if (status >= 500) return t("server");
+  if (status === 0) return t("network");
+  return code ? code.replace(/_/g, " ") : t("generic", { status });
 }
 
 export class ApiError extends Error {

@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { Dash } from "@/components/dash/Dash";
-import { getI18n } from "@/lib/i18n/server";
+import { getTranslations } from "next-intl/server";
 import "./dashboard.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { m } = await getI18n();
+  const t = await getTranslations("dash");
   return {
     // somebody's own scores: never a search result
     robots: { index: false, follow: false },
-    title: m.dash.metaTitle,
-    description: m.dash.metaDescription,
+    title: t("metaTitle"),
+    description: t("metaDescription"),
   };
 }
 

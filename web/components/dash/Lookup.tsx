@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { ApiError, getJSON, type LookupTarget, type SearchHit, type SongLookup } from "./api";
 import { Chip, Empty, Jacket, pct } from "./bits";
 import { Detail } from "./Detail";
@@ -7,8 +7,8 @@ import { PatternBrowser } from "./PatternBrowser";
 
 /** The Look up tab: find any song, then one chart the way /chart shows it. */
 export function Lookup({ target }: { target: LookupTarget | null }) {
-  const m = useM();
-  const t = m.lookupTab;
+  const t = useTranslations("lookupTab");
+  const list = useTranslations("list");
   const [query, setQuery] = useState(target?.title ?? "");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [song, setSong] = useState<SongLookup | null>(null);
@@ -58,9 +58,9 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
         setHits(null);
         if (e.status === 404 && e.code === "unknown_song") {
           const rows = (e.body.charts as { level: string; difficulty: string; accuracy: number }[] | undefined) ?? [];
-          const yours = rows.map((c) => t.yourRow(c.difficulty, c.level, c.accuracy.toFixed(4))).join(m.list.sep);
-          setError(t.notInDb(String(e.body.title ?? title), yours, rows.length === 1));
-        } else setError(e.status === 404 ? t.noSong(title) : e.message);
+          const yours = rows.map((c) => t("yourRow", { difficulty: c.difficulty, level: c.level, accuracy: c.accuracy.toFixed(4) })).join(list("sep"));
+          setError(t("notInDb", { title: String(e.body.title ?? title), yours, one: String(rows.length === 1) }));
+        } else setError(e.status === 404 ? t("noSong", { title }) : e.message);
       })
       .finally(() => {
         if (mine === opening.current) setBusy(false);
@@ -111,7 +111,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           className="search"
           type="text"
           role="searchbox"
-          placeholder={t.placeholder}
+          placeholder={t("placeholder")}
           value={query}
           onChange={(e) => search(e.target.value)}
           onKeyDown={(e) => {
@@ -128,13 +128,13 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
             }
             open(hits?.[0]?.title ?? wanted);
           }}
-          aria-label={t.label}
+          aria-label={t("label")}
           autoComplete="off"
         />
       </div>
       {hits !== null && (
         <ul className="hits">
-          {hits.length === 0 && <li className="empty">{searchError ? t.searchFailed(searchError) : t.noMatches}</li>}
+          {hits.length === 0 && <li className="empty">{searchError ? t("searchFailed", { why: searchError }) : t("noMatches")}</li>}
           {hits.map((h) => (
             <li key={h.title} className="hit">
               <Jacket cover={h.cover} size={44} />
@@ -143,7 +143,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
                 {h.alias ? <span className="alias">{h.alias}</span> : null}
                 <small>
                   {h.artist}
-                  {h.charters?.length ? <span className="charter">{t.chartedBy(h.charters.join(m.list.sep))}</span> : null}
+                  {h.charters?.length ? <span className="charter">{t("chartedBy", { who: h.charters.join(list("sep")) })}</span> : null}
                 </small>
               </button>
               <div className="hit-charts">
@@ -152,7 +152,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
                     key={`${c.chart_type}|${c.difficulty}`}
                     type="button"
                     onClick={() => open(h.title, c.chart_type, c.difficulty)}
-                    title={c.played ? `${pct(c.accuracy)} ${c.rank}` : t.neverPlayed}
+                    title={c.played ? `${pct(c.accuracy)} ${c.rank}` : t("neverPlayed")}
                   >
                     <span className={c.played ? "" : "faded"} style={{ display: "contents" }}>
                       <Chip difficulty={c.difficulty} level={c.level} type={c.chart_type} />
@@ -164,10 +164,10 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           ))}
         </ul>
       )}
-      {busy && <Empty>{t.looking}</Empty>}
+      {busy && <Empty>{t("looking")}</Empty>}
       {error && <Empty>{error}</Empty>}
       {!busy && !song && hits === null && !error && (
-        <Empty>{t.intro}</Empty>
+        <Empty>{t("intro")}</Empty>
       )}
       {!song && hits === null && (
         <PatternBrowser

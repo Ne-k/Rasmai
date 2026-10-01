@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { type RefreshStatus } from "./api";
 
 export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
@@ -16,7 +16,7 @@ export function tabsFor(admin?: boolean): Tab[] {
 
 /** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
 export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean }) {
-  const m = useM();
+  const t = useTranslations("dash");
   const shown = tabsFor(admin);
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
@@ -38,10 +38,10 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
   }, [current]);
   return (
     <div className="tabs-wrap">
-      <nav className="tabs" aria-label={m.dash.sections} ref={strip} data-more={more} onScroll={measure}>
-        {shown.map((t) => (
-          <button key={t} type="button" className={t === current ? "on" : ""} aria-current={t === current ? "true" : undefined} onClick={() => onPick(t)}>
-            {m.dash.tabs[t]}
+      <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure}>
+        {shown.map((id) => (
+          <button key={id} type="button" className={id === current ? "on" : ""} aria-current={id === current ? "true" : undefined} onClick={() => onPick(id)}>
+            {t(`tabs.${id}`)}
           </button>
         ))}
       </nav>
@@ -50,15 +50,16 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
 }
 
 export function RefreshBar({ status }: { status: RefreshStatus }) {
-  const m = useM();
+  const t = useTranslations("dash");
   const total = status.total ?? 0;
   const done = status.done ?? 0;
-  const label = m.dash.stages[status.stage ?? ""] ?? status.stage ?? "";
+  const stage = status.stage ?? "";
+  const label = stage && t.has(`stages.${stage}` as never) ? t(`stages.${stage}` as never) : stage;
   return (
     <div className="refresh-bar" role="status">
       <span className="lamp wait" />
       <span>
-        {m.dash.readingScores(status.detail || label)}
+        {t("readingScores", { what: status.detail || label })}
         {total > 1 ? ` ${done}/${total}` : ""}
       </span>
     </div>

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 import { getJSON, type ChartRow } from "./api";
 import { Chip, Empty, Jacket, Label, Lamp, num, pct } from "./bits";
 import { TitleLink, type OpenChart } from "./bits";
@@ -21,9 +21,9 @@ const SORTS: { key: SortKey; desc: boolean }[] = [
 ];
 
 export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart }) {
-  const m = useM();
-  const t = m.chartsTab;
-  const c = m.cols;
+  const t = useTranslations("chartsTab");
+  const c = useTranslations("cols");
+  const n = useTranslations("newTab");
   const [query, setQuery] = useState("");
   const [diff, setDiff] = useState("all");
   const [type, setType] = useState("all");
@@ -133,7 +133,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
           className="search"
           type="text"
           role="searchbox"
-          placeholder={t.search}
+          placeholder={t("search")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -152,30 +152,30 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
             executeTitleSearch(wanted);
           }}
         />
-        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label={m.newTab.difficulty}>
+        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label={n("difficulty")}>
           {DIFFS.map((d) => (
             <option key={d} value={d}>
-              {d === "all" ? t.allDiffs : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
+              {d === "all" ? t("allDiffs") : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
             </option>
           ))}
         </select>
-        <select value={type} onChange={(e) => setType(e.target.value)} aria-label={t.type}>
-          <option value="all">{t.bothTypes}</option>
-          <option value="dx">{t.dxOnly}</option>
-          <option value="std">{t.stdOnly}</option>
+        <select value={type} onChange={(e) => setType(e.target.value)} aria-label={t("type")}>
+          <option value="all">{t("bothTypes")}</option>
+          <option value="dx">{t("dxOnly")}</option>
+          <option value="std">{t("stdOnly")}</option>
         </select>
-        <select value={rank} onChange={(e) => setRank(e.target.value)} aria-label={c.rank}>
+        <select value={rank} onChange={(e) => setRank(e.target.value)} aria-label={c("rank")}>
           {RANKS.map((r) => (
             <option key={r} value={r}>
-              {r === "all" ? t.anyRank : r === "below A" ? t.belowA : r}
+              {r === "all" ? t("anyRank") : r === "below A" ? t("belowA") : r}
             </option>
           ))}
         </select>
-        <select value={pool} onChange={(e) => setPool(e.target.value)} aria-label={t.pool}>
-          <option value="all">{t.allCharts}</option>
-          <option value="b50">{t.inBest50}</option>
-          <option value="new">{t.current}</option>
-          <option value="old">{t.older}</option>
+        <select value={pool} onChange={(e) => setPool(e.target.value)} aria-label={t("pool")}>
+          <option value="all">{t("allCharts")}</option>
+          <option value="b50">{t("inBest50")}</option>
+          <option value="new">{t("current")}</option>
+          <option value="old">{t("older")}</option>
         </select>
         <select
           value={`${sort}|${desc ? "d" : "a"}`}
@@ -184,36 +184,36 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
             setSort(key as SortKey);
             setDesc(dir === "d");
           }}
-          aria-label={t.sort}
+          aria-label={t("sort")}
         >
           {SORTS.map((s) => (
             <option key={`${s.key}|${s.desc ? "d" : "a"}`} value={`${s.key}|${s.desc ? "d" : "a"}`}>
-              {t.sorts[`${s.key}|${s.desc ? "d" : "a"}`]}
+              {t(`sorts.${s.key}|${s.desc ? "d" : "a"}` as never)}
             </option>
           ))}
         </select>
       </div>
       <div className="ledger-head">
-        <Label info={t.countInfo}>
-          {t.count(num(filtered.length), num(rows.length))}
+        <Label info={t("countInfo")}>
+          {t("count", { shown: num(filtered.length), all: num(rows.length) })}
         </Label>
-        <span className="mono hint">{t.totalRating(num(totalRating))}</span>
+        <span className="mono hint">{t("totalRating", { n: num(totalRating) })}</span>
       </div>
       {filtered.length === 0 ? (
-        <Empty>{t.noMatch}</Empty>
+        <Empty>{t("noMatch")}</Empty>
       ) : (
         <div className="scroll">
         <table className="tbl">
           <thead>
             <tr>
-              {header("title", c.chart, "c-title-h", 2)}
-              {header("constant", c.constant, "c-num")}
-              {header("accuracy", c.achievement, "c-num")}
-              <th>{c.rank}</th>
-              <th>{c.lamp}</th>
-              {header("dx", c.dx, "c-num")}
-              {header("plays", c.plays, "c-num")}
-              {header("rating", c.rating, "c-num")}
+              {header("title", c("chart"), "c-title-h", 2)}
+              {header("constant", c("constant"), "c-num")}
+              {header("accuracy", c("achievement"), "c-num")}
+              <th>{c("rank")}</th>
+              <th>{c("lamp")}</th>
+              {header("dx", c("dx"), "c-num")}
+              {header("plays", c("plays"), "c-num")}
+              {header("rating", c("rating"), "c-num")}
             </tr>
           </thead>
           <tbody>
@@ -225,25 +225,25 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
                 <td className="c-title">
                   <TitleLink title={r.title} type={r.type} difficulty={r.difficulty} onOpen={onOpen} />
                   <Chip difficulty={r.difficulty} level={r.level} constant={r.constant} type={r.type} />
-                  {r.inBest50 && <span className="tag-b50">{t.best50}</span>}
+                  {r.inBest50 && <span className="tag-b50">{t("best50")}</span>}
                   {r.estimated && (
-                    <span className="tag-est" title={t.estimatedTitle}>
-                      {t.estimated}
+                    <span className="tag-est" title={t("estimatedTitle")}>
+                      {t("estimated")}
                     </span>
                   )}
                 </td>
-                <td className="c-num mono" data-l={c.constant}>{r.constant.toFixed(1)}</td>
-                <td className="c-num mono strong" data-l={c.achievement}>{pct(r.accuracy, 4)}</td>
-                <td className="mono" data-l={c.rank}>{r.rank}</td>
-                <td data-l={c.lamp}>
+                <td className="c-num mono" data-l={c("constant")}>{r.constant.toFixed(1)}</td>
+                <td className="c-num mono strong" data-l={c("achievement")}>{pct(r.accuracy, 4)}</td>
+                <td className="mono" data-l={c("rank")}>{r.rank}</td>
+                <td data-l={c("lamp")}>
                   <Lamp fc={r.fc} fs={r.fs} />
                 </td>
-                <td className="c-num mono dim" data-l={c.dx}>
+                <td className="c-num mono dim" data-l={c("dx")}>
                   {r.dx > 0 ? num(r.dx) : "—"}
                   {r.maxDx > 0 && r.dx > 0 ? <small> / {num(r.maxDx)}</small> : null}
                 </td>
-                <td className="c-num mono dim" data-l={c.plays}>{r.plays > 0 ? r.plays : "—"}</td>
-                <td className="c-num mono strong" data-l={c.rating}>{r.rating}</td>
+                <td className="c-num mono dim" data-l={c("plays")}>{r.plays > 0 ? r.plays : "—"}</td>
+                <td className="c-num mono strong" data-l={c("rating")}>{r.rating}</td>
               </tr>
             ))}
           </tbody>
@@ -253,7 +253,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
       {filtered.length > shown && (
         <div className="more">
           <button type="button" className="button ghost" onClick={() => setShown(shown + 200)}>
-            {t.more(Math.min(200, filtered.length - shown))}
+            {t("more", { n: Math.min(200, filtered.length - shown) })}
           </button>
         </div>
       )}
