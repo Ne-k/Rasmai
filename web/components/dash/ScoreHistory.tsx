@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
+import { activeTag } from "@/lib/i18n/active";
 import { type ChartDetail } from "./api";
 import { Empty, pct } from "./bits";
 import { RANK_LINES } from "./Detail";
 
 export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
+  const t = useM().graphs;
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   useEffect(() => {
@@ -22,9 +25,9 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
       <div className="score-history" ref={box}>
         <Empty>
           {sorted.length === 1
-            ? `Only one score so far: ${pct(sorted[0].achievement, 4)} on ${new Date(sorted[0].when).toLocaleDateString()}.`
-            : "No saved scores for this chart yet."}{" "}
-          New plays show up here after each refresh.
+            ? t.onlyOne(pct(sorted[0].achievement, 4), new Date(sorted[0].when).toLocaleDateString(activeTag()))
+            : t.noScores}
+          {t.afterRefresh}
         </Empty>
       </div>
     );
@@ -74,10 +77,10 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
     return true;
   });
   const room = (at: number) => !drawn.some((other) => Math.abs(other - at) < 13);
-  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const day = (iso: string) => new Date(iso).toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
   return (
     <div className="score-history" ref={box}>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label="score history">
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={t.historyLabel}>
         {ranks.map(([name, v]) => (
           <g key={name}>
             <line className="rank-line" x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} />
@@ -97,7 +100,7 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
               cy={y(p.achievement)}
               r={isBest ? 4.5 : 3}
             >
-              <title>{`${pct(p.achievement, 4)} on ${new Date(p.when).toLocaleDateString()} · const ${p.constant.toFixed(1)} · rating ${p.rating}`}</title>
+              <title>{t.point(pct(p.achievement, 4), new Date(p.when).toLocaleDateString(activeTag()), p.constant.toFixed(1), p.rating)}</title>
             </circle>
           );
         })}

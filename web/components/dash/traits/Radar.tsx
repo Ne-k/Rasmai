@@ -1,3 +1,5 @@
+import { useLocale, useM } from "@/components/I18n";
+import { traitName } from "@/lib/i18n/traits";
 import type { Axis } from "./rules";
 import { BASELINE, isLean } from "./rules";
 
@@ -48,6 +50,8 @@ function wrapLabel(text: string, width = 14): string[] {
 
 /** The wheel itself. The middle ring is the player's own average; outward is stronger. A hollow point is a leaning trait. */
 export function Radar({ axes }: { axes: Axis[] }) {
+  const t = useM().traitsTab;
+  const locale = useLocale();
   const width = 520;
   const height = 420;
   const midX = width / 2;
@@ -62,7 +66,7 @@ export function Radar({ axes }: { axes: Axis[] }) {
   const shape = axes.map((a, i) => at(i, reachOf(a)).join(",")).join(" ");
   const labelReach = (radius + 18) / radius;
   return (
-    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="your traits vs your average">
+    <svg className="radar" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t.radarLabel}>
       {[0.25, 0.5, 0.75, 1].map((r) => (
         <polygon key={r} points={ring(r)} className={r === 0.5 ? "ring mid" : "ring"} />
       ))}
@@ -76,7 +80,7 @@ export function Radar({ axes }: { axes: Axis[] }) {
         const [lx, ly] = at(i, labelReach);
         const sin = Math.sin((2 * Math.PI * i) / axes.length);
         const anchor = Math.abs(sin) < 0.35 ? "middle" : sin > 0 ? "start" : "end";
-        const lines = wrapLabel(a.english ?? a.label);
+        const lines = wrapLabel(traitName(a.label, a.english, locale));
         // the name and its value stack away from the wheel: above it at the top, below it at the
         // bottom, centred at the sides, so a two-line name never runs into its own point
         const block = (lines.length - 1) * 13 + 14;

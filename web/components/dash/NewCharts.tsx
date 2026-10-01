@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocale, useM } from "@/components/I18n";
+import { traitName } from "@/lib/i18n/traits";
 import { getJSON, type NewPick } from "./api";
 import { Chip, Empty, Jacket, Label, LoadError, pct } from "./bits";
 import { TitleLink, type OpenChart } from "./bits";
@@ -16,14 +18,9 @@ type NewData = {
 
 const LEVELS = ["any", "15", "14+", "14", "13+", "13", "12+", "12", "11+", "11", "10+", "10", "9+", "9", "8+", "8", "7+"];
 
-const MODES = [
-  { key: "easy", label: "Easier", note: "charts you'll almost surely S" },
-  { key: "balanced", label: "Balanced", note: "best value right under your S limit" },
-  { key: "hard", label: "Challenging", note: "the hardest charts you can still S" },
-  { key: "extreme", label: "Long shots", note: "above your S limit, first try is a gamble" },
-];
+const MODES = ["easy", "balanced", "hard", "extreme"];
 const DIFFS = [
-  { key: "any", label: "Expert and up" },
+  { key: "any", label: "" },
   { key: "remaster", label: "Re:MASTER" },
   { key: "master", label: "MASTER" },
   { key: "expert", label: "EXPERT" },
@@ -32,7 +29,11 @@ const DIFFS = [
 ];
 
 export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { initialChallenge: string; initialDifficulty: string; onOpen?: OpenChart }) {
-  const [challenge, setChallenge] = useState(MODES.some((l) => l.key === initialChallenge) ? initialChallenge : "balanced");
+  const m = useM();
+  const t = m.newTab;
+  const c = m.cols;
+  const locale = useLocale();
+  const [challenge, setChallenge] = useState(MODES.includes(initialChallenge) ? initialChallenge : "balanced");
   const [difficulty, setDifficulty] = useState(DIFFS.some((d) => d.key === initialDifficulty) ? initialDifficulty : "any");
   const [level, setLevel] = useState("any");
   const [focus, setFocus] = useState("none");
@@ -49,74 +50,74 @@ export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { ini
       .catch((e: Error) => setError(e.message));
   }, [key, challenge, difficulty, level, focus, data]);
 
-  const mode = MODES.find((l) => l.key === challenge)!;
+  const mode = { label: m.challenge.label[challenge], note: m.challenge.newNote[challenge] };
   return (
     <>
       <div className="row-between">
-        <div className="seg" role="group" aria-label="How hard to look">
+        <div className="seg" role="group" aria-label={t.howHard}>
           {MODES.map((l) => (
-            <button key={l.key} type="button" className={l.key === challenge ? "on" : ""} aria-pressed={l.key === challenge} onClick={() => setChallenge(l.key)}>
-              {l.label}
+            <button key={l} type="button" className={l === challenge ? "on" : ""} aria-pressed={l === challenge} onClick={() => setChallenge(l)}>
+              {m.challenge.label[l]}
             </button>
           ))}
         </div>
         <div className="filters" style={{ margin: 0 }}>
-          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} aria-label="Difficulty">
+          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} aria-label={t.difficulty}>
             {DIFFS.map((d) => (
               <option key={d.key} value={d.key}>
-                {d.label}
+                {d.label || t.expertUp}
               </option>
             ))}
           </select>
-          <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Level">
+          <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label={t.level}>
             {LEVELS.map((lv) => (
               <option key={lv} value={lv}>
-                {lv === "any" ? "any level" : `level ${lv}`}
+                {lv === "any" ? m.picksTab.anyLevel : m.picksTab.level(lv)}
               </option>
             ))}
           </select>
-          <select value={focus} onChange={(e) => setFocus(e.target.value)} aria-label="Lean toward a trait">
-            <option value="none">any trait</option>
-            <option value="weak">your weak spots</option>
-            <option value="strong">your strengths</option>
+          <select value={focus} onChange={(e) => setFocus(e.target.value)} aria-label={t.lean}>
+            <option value="none">{t.anyTrait}</option>
+            <option value="weak">{t.weak}</option>
+            <option value="strong">{t.strong}</option>
           </select>
         </div>
       </div>
       {current && current.focus !== "none" && current.traits.length > 0 && (
         <p className="hint" style={{ marginTop: 10 }}>
-          Leaning toward {current.focus === "weak" ? "your weak spots" : "your strengths"}:{" "}
-          {current.traits.map((t) => `${t.label} (${t.offset > 0 ? "+" : ""}${t.offset.toFixed(2)})`).join(", ")}.
+          {t.leaning(current.focus === "weak")}
+          {current.traits.map((x) => `${traitName(x.label, undefined, locale)} (${x.offset > 0 ? "+" : ""}${x.offset.toFixed(2)})`).join(m.list.sep)}{m.common.period}
         </p>
       )}
       <p className="hint" style={{ marginTop: 10 }}>
         {level === "any"
-          ? `${mode.note}. Charts you haven't played on this account in this constant range. First pass is a bit under what you usually score at that constant.`
-          : `Every level ${level} chart you haven't played on this account, sorted for ${mode.label}. First pass is a bit under what you usually score at that constant.`}
+          ? t.anyNote(mode.note)
+          : t.levelNote(level, mode.label)}
       </p>
-      {error && <LoadError what="the new charts" message={error} onRetry={() => setError("")} />}
-      {!current && !error && <Empty>Looking for charts…</Empty>}
+      {error && <LoadError what={t.theNew} message={error} onRetry={() => setError("")} />}
+      {!current && !error && <Empty>{t.looking}</Empty>}
       {current && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="First pass is your expected score on a first try. Worth is the rating an S would add.">
-              {current.picks.length} charts · {current.level !== "any" ? `level ${current.level} · ` : ""}constants {current.window[0].toFixed(1)}–{current.window[1].toFixed(1)}
+            <Label info={t.headInfo}>
+              {t.head(current.picks.length, current.level, current.window[0].toFixed(1), current.window[1].toFixed(1))}
             </Label>
-            <span className="mono hint">sorted for {mode.label}</span>
+            <span className="mono hint">{t.sorted(mode.label)}</span>
           </div>
           {current.picks.length === 0 ? (
-            <Empty>{current.level !== "any" ? `You've played every level ${current.level} chart at this difficulty, or there aren't any.` : "No unplayed charts in this range."} Try another level or difficulty.</Empty>
+            <Empty>{current.level !== "any" ? t.allPlayed(current.level) : t.noneHere}{t.tryAnother}</Empty>
           ) : (
             <div className="scroll">
             <table className="tbl">
               <thead>
                 <tr>
                   <th className="c-n">#</th>
-                  <th colSpan={2}>Chart</th>
-                  <th>Genre</th>
-                  <th className="c-num">Const</th>
-                  <th className="c-num">First pass</th>
-                  <th className="c-num">Odds of S</th>
-                  <th className="c-num">Worth</th>
+                  <th colSpan={2}>{c.chart}</th>
+                  <th>{c.genre}</th>
+                  <th className="c-num">{c.constant}</th>
+                  <th className="c-num">{c.firstPass}</th>
+                  <th className="c-num">{c.oddsS}</th>
+                  <th className="c-num">{c.worth}</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,15 +130,15 @@ export function NewCharts({ initialChallenge, initialDifficulty, onOpen }: { ini
                     <td className="c-title">
                       <TitleLink title={n.title} type={n.chart_type} difficulty={n.difficulty} onOpen={onOpen} />
                       <Chip difficulty={n.difficulty} level={n.level} constant={n.constant} type={n.chart_type} />
-                      {n.is_new && <span className="tag-b50">this version</span>}
+                      {n.is_new && <span className="tag-b50">{t.thisVersion}</span>}
                     </td>
-                    <td className="dim" data-l="genre">{n.genre}</td>
-                    <td className="c-num mono" data-l="const">{n.constant.toFixed(1)}</td>
-                    <td className="c-num mono strong" data-l="first pass">
+                    <td className="dim" data-l={c.genre}>{n.genre}</td>
+                    <td className="c-num mono" data-l={c.constant}>{n.constant.toFixed(1)}</td>
+                    <td className="c-num mono strong" data-l={c.firstPass}>
                       ~{pct(n.expected_accuracy, 1)} {n.expected_rank}
                     </td>
-                    <td className="c-num mono" data-l="odds of S">{Math.round(n.odds_of_s * 100)}%</td>
-                    <td className="c-num mono gain" data-l="worth">{n.rating_gain > 0 ? `+${n.rating_gain}` : <span className="dim">banks {n.expected_rating}</span>}</td>
+                    <td className="c-num mono" data-l={c.oddsS}>{Math.round(n.odds_of_s * 100)}%</td>
+                    <td className="c-num mono gain" data-l={c.worth}>{n.rating_gain > 0 ? `+${n.rating_gain}` : <span className="dim">{t.banks(n.expected_rating)}</span>}</td>
                   </tr>
                 ))}
               </tbody>

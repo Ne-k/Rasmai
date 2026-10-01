@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "@/components/Term";
+import { useM } from "@/components/I18n";
+import { activeMessages, activeTag } from "@/lib/i18n/active";
 
 const TIER: Record<string, string> = {
   basic: "BASIC",
@@ -11,12 +13,13 @@ const TIER: Record<string, string> = {
 };
 
 export function Chip({ difficulty, level, constant, type }: { difficulty: string; level?: string; constant?: number; type?: string }) {
+  const m = useM();
   const key = (difficulty || "master").toLowerCase();
   return (
     <span className={`chip chip-${key}`}>
       {TIER[key] ?? key.toUpperCase()}
       {level ? <b>{level}</b> : null}
-      {constant ? <em title="chart constant">{constant.toFixed(1)}</em> : null}
+      {constant ? <em title={m.dash.chartConstant}>{constant.toFixed(1)}</em> : null}
       {type ? <i>{type.toUpperCase()}</i> : null}
     </span>
   );
@@ -35,33 +38,34 @@ export function pct(value: number | null | undefined, digits = 2): string {
 
 export function num(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  return value.toLocaleString("en-US");
+  return value.toLocaleString(activeTag());
 }
 
 export function when(iso: string | null | undefined): string {
-  if (!iso) return "never";
+  if (!iso) return activeMessages().dash.never;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString(activeTag(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export function day(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return date.toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
 }
 
 export function ago(iso: string | null | undefined): string {
-  if (!iso) return "never";
+  const t = activeMessages().dash;
+  if (!iso) return t.never;
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return iso;
   const minutes = Math.round((Date.now() - then) / 60000);
-  if (minutes < 2) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 2) return t.justNow;
+  if (minutes < 60) return t.minAgo(minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} days ago`;
+  if (hours < 48) return t.hAgo(hours);
+  return t.daysAgo(Math.round(hours / 24));
 }
 
 export function Lamp({ fc, fs }: { fc: string; fs: string }) {
@@ -78,14 +82,15 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 /** What a section shows when its data could not be fetched: the reason, and a way to try again. Never the empty-state copy. */
 export function LoadError({ what, message, onRetry }: { what: string; message: string; onRetry?: () => void }) {
+  const m = useM();
   return (
     <p className="empty error" role="alert">
-      Couldn&apos;t load {what}. {message}
+      {m.dash.couldntLoad(what, message)}
       {onRetry ? (
         <>
           {" "}
           <button type="button" className="linkish" onClick={onRetry}>
-            try again
+            {m.dash.tryAgain}
           </button>
         </>
       ) : null}
@@ -95,7 +100,8 @@ export function LoadError({ what, message, onRetry }: { what: string; message: s
 
 /** "3 days ago" that reveals the exact moment on hover and to assistive tech. */
 export function Ago({ iso, prefix = "" }: { iso: string | null | undefined; prefix?: string }) {
-  if (!iso) return <>{prefix}never</>;
+  const m = useM();
+  if (!iso) return <>{prefix}{m.dash.never}</>;
   return (
     <time dateTime={iso} title={when(iso)}>
       {prefix}
@@ -106,12 +112,13 @@ export function Ago({ iso, prefix = "" }: { iso: string | null | undefined; pref
 
 /** A small circled i that opens a short explanation of the section it sits beside. */
 export function Info({ text }: { text: string }) {
+  const m = useM();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
   useDismiss(open, box, setOpen);
   return (
     <span className={`info${open ? " open" : ""}`} ref={box}>
-      <button type="button" className="info-btn" aria-label="more info" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="info-btn" aria-label={m.dash.moreInfo} aria-expanded={open} onClick={() => setOpen(!open)}>
         i
       </button>
       {open && (
@@ -146,18 +153,10 @@ export function TitleLink({ title, type, difficulty, onOpen }: { title: string; 
 
 export type ImageKind = "analyze" | "profile" | "new" | "traits" | "progress" | "best50" | "recent";
 
-const IMAGE_LABEL: Record<ImageKind, string> = {
-  analyze: "what to play",
-  profile: "play profile",
-  new: "new charts",
-  traits: "traits",
-  progress: "rating over time",
-  best50: "best 50",
-  recent: "recent plays",
-};
-
 /** Saves the picture the matching Discord command draws. Rendering takes a moment, so it says so. */
 export function SaveImage({ kind }: { kind: ImageKind }) {
+  const m = useM();
+  const label = m.dash.images[kind];
   const [state, setState] = useState<"" | "busy" | "empty" | "failed">("");
 
   const save = async () => {
@@ -188,11 +187,11 @@ export function SaveImage({ kind }: { kind: ImageKind }) {
 
   return (
     <button type="button" className="save-image" onClick={save} disabled={state === "busy"}
-            title={`Save the ${IMAGE_LABEL[kind]} image the bot posts in Discord`}>
-      {state === "busy" ? "making image…"
-        : state === "empty" ? "no data for this yet"
-        : state === "failed" ? "couldn't make the image"
-        : `save ${IMAGE_LABEL[kind]}`}
+            title={m.dash.saveTitle(label)}>
+      {state === "busy" ? m.dash.makingImage
+        : state === "empty" ? m.dash.noImageData
+        : state === "failed" ? m.dash.imageFailed
+        : m.dash.saveImage(label)}
     </button>
   );
 }

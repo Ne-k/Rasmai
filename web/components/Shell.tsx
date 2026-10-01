@@ -1,32 +1,42 @@
+"use client";
+
 import { Ring } from "./Ring";
 import { ThemeToggle } from "./Theme";
 import { ServersNotice } from "./Servers";
+import { LangToggle, useM } from "./I18n";
 
-const STEPS = ["Get your link", "Sign in", "Connect"];
-
-const NAV: [string, string][] = [
+// the keys are what a page passes as `current`; the words come from the reader's language
+const NAV = [
   ["home", "/"],
   ["link", "/link/"],
   ["commands", "/commands/"],
   ["dashboard", "/me/"],
   ["invite", "/invite"],
-];
+] as const;
 
+export type NavKey = (typeof NAV)[number][0];
+
+// The language switch is a sibling of the nav, not one of its links: on a phone the nav takes a row
+// of its own, and the switch stays up in the top row beside the theme switch.
 export function MastheadNav({ current }: { current: string }) {
+  const m = useM();
   return (
-    <nav className="masthead-nav">
-      {NAV.map(([label, href]) =>
-        label === current ? (
-          <span key={label} className="tag">
-            {label}
-          </span>
-        ) : (
-          <a key={label} className="tag" href={href}>
-            {label}
-          </a>
-        ),
-      )}
-    </nav>
+    <>
+      <nav className="masthead-nav">
+        {NAV.map(([key, href]) =>
+          key === current ? (
+            <span key={key} className="tag">
+              {m.nav[key]}
+            </span>
+          ) : (
+            <a key={key} className="tag" href={href}>
+              {m.nav[key]}
+            </a>
+          ),
+        )}
+      </nav>
+      <LangToggle />
+    </>
   );
 }
 
@@ -40,6 +50,7 @@ type ShellProps = {
 };
 
 export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", children }: ShellProps) {
+  const m = useM();
   return (
     <div className="frame">
       <header className="masthead">
@@ -55,7 +66,7 @@ export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", c
         <aside className="rail">
           <Ring lit={lit} size={200} done={done} />
           <ol className="rail-steps">
-            {STEPS.map((label, i) => {
+            {m.shell.steps.map((label, i) => {
               const n = i + 1;
               const cls = done || n < lit ? "did" : n === lit ? "on" : "";
               return (
@@ -71,10 +82,10 @@ export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", c
       </div>
       <footer className="foot">
         <span>
-          Created by <b>nek_ng</b> ·{" "}
+          {m.footer.createdBy} ·{" "}
           {footLeft}
           {footLeft ? " · " : ""}
-          <a href="/privacy/">privacy</a> · <a href="/terms/">terms</a> · <a href="/invite">invite the bot</a>
+          <a href="/privacy/">{m.footer.privacy}</a> · <a href="/terms/">{m.footer.terms}</a> · <a href="/invite">{m.footer.invite}</a>
         </span>
         <span>{footRight}</span>
       </footer>

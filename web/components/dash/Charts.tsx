@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
 import { getJSON, type ChartRow } from "./api";
 import { Chip, Empty, Jacket, Label, Lamp, num, pct } from "./bits";
 import { TitleLink, type OpenChart } from "./bits";
@@ -6,19 +7,23 @@ import { TitleLink, type OpenChart } from "./bits";
 const DIFFS = ["all", "remaster", "master", "expert", "advanced", "basic"];
 const RANKS = ["all", "SSS+", "SSS", "SS+", "SS", "S+", "S", "AAA", "AA", "A", "below A"];
 type SortKey = "rating" | "constant" | "accuracy" | "title" | "plays" | "dx" | "bestMatch";
-const SORTS: { key: SortKey; desc: boolean; label: string }[] = [
-  { key: "rating", desc: true, label: "rating, high first" },
-  { key: "bestMatch", desc: true, label: "best search match"},
-  { key: "constant", desc: true, label: "constant, high first" },
-  { key: "constant", desc: false, label: "constant, low first" },
-  { key: "accuracy", desc: false, label: "weakest first" },
-  { key: "accuracy", desc: true, label: "strongest first" },
-  { key: "dx", desc: true, label: "DX score, high first" },
-  { key: "plays", desc: true, label: "most played" },
-  { key: "title", desc: false, label: "title, A to Z" },
+// the words for each are in the translation files, under the same key and direction
+const SORTS: { key: SortKey; desc: boolean }[] = [
+  { key: "rating", desc: true },
+  { key: "bestMatch", desc: true },
+  { key: "constant", desc: true },
+  { key: "constant", desc: false },
+  { key: "accuracy", desc: false },
+  { key: "accuracy", desc: true },
+  { key: "dx", desc: true },
+  { key: "plays", desc: true },
+  { key: "title", desc: false },
 ];
 
 export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart }) {
+  const m = useM();
+  const t = m.chartsTab;
+  const c = m.cols;
   const [query, setQuery] = useState("");
   const [diff, setDiff] = useState("all");
   const [type, setType] = useState("all");
@@ -148,7 +153,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
           className="search"
           type="text"
           role="searchbox"
-          placeholder="title, artist, level 13+ or constant 13.8"
+          placeholder={t.search}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -171,30 +176,30 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
             executeTitleSearch(wanted);
           }}
         />
-        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label="Difficulty">
+        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label={m.newTab.difficulty}>
           {DIFFS.map((d) => (
             <option key={d} value={d}>
-              {d === "all" ? "all difficulties" : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
+              {d === "all" ? t.allDiffs : d === "remaster" ? "Re:MASTER" : d.toUpperCase()}
             </option>
           ))}
         </select>
-        <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Chart type">
-          <option value="all">DX and standard</option>
-          <option value="dx">DX only</option>
-          <option value="std">standard only</option>
+        <select value={type} onChange={(e) => setType(e.target.value)} aria-label={t.type}>
+          <option value="all">{t.bothTypes}</option>
+          <option value="dx">{t.dxOnly}</option>
+          <option value="std">{t.stdOnly}</option>
         </select>
-        <select value={rank} onChange={(e) => setRank(e.target.value)} aria-label="Rank">
+        <select value={rank} onChange={(e) => setRank(e.target.value)} aria-label={c.rank}>
           {RANKS.map((r) => (
             <option key={r} value={r}>
-              {r === "all" ? "any rank" : r}
+              {r === "all" ? t.anyRank : r === "below A" ? t.belowA : r}
             </option>
           ))}
         </select>
-        <select value={pool} onChange={(e) => setPool(e.target.value)} aria-label="Pool">
-          <option value="all">all charts</option>
-          <option value="b50">in my best 50</option>
-          <option value="new">current version</option>
-          <option value="old">older versions</option>
+        <select value={pool} onChange={(e) => setPool(e.target.value)} aria-label={t.pool}>
+          <option value="all">{t.allCharts}</option>
+          <option value="b50">{t.inBest50}</option>
+          <option value="new">{t.current}</option>
+          <option value="old">{t.older}</option>
         </select>
         <select
           value={`${sort}|${desc ? "d" : "a"}`}
@@ -203,36 +208,36 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
             setSort(key as SortKey);
             setDesc(dir === "d");
           }}
-          aria-label="Sort"
+          aria-label={t.sort}
         >
           {SORTS.map((s) => (
             <option key={`${s.key}|${s.desc ? "d" : "a"}`} value={`${s.key}|${s.desc ? "d" : "a"}`}>
-              {s.label}
+              {t.sorts[`${s.key}|${s.desc ? "d" : "a"}`]}
             </option>
           ))}
         </select>
       </div>
       <div className="ledger-head">
-        <Label info="Every chart you have a score on. Lamp shows your FC and FS marks.">
-          {num(filtered.length)} of {num(rows.length)} charts
+        <Label info={t.countInfo}>
+          {t.count(num(filtered.length), num(rows.length))}
         </Label>
-        <span className="mono hint">{num(totalRating)} total rating</span>
+        <span className="mono hint">{t.totalRating(num(totalRating))}</span>
       </div>
       {filtered.length === 0 ? (
-        <Empty>Nothing matches those filters.</Empty>
+        <Empty>{t.noMatch}</Empty>
       ) : (
         <div className="scroll">
         <table className="tbl">
           <thead>
             <tr>
-              {header("title", "Chart", "c-title-h", 2)}
-              {header("constant", "Const", "c-num")}
-              {header("accuracy", "Achievement", "c-num")}
-              <th>Rank</th>
-              <th>Lamp</th>
-              {header("dx", "DX score", "c-num")}
-              {header("plays", "Plays", "c-num")}
-              {header("rating", "Rating", "c-num")}
+              {header("title", c.chart, "c-title-h", 2)}
+              {header("constant", c.constant, "c-num")}
+              {header("accuracy", c.achievement, "c-num")}
+              <th>{c.rank}</th>
+              <th>{c.lamp}</th>
+              {header("dx", c.dx, "c-num")}
+              {header("plays", c.plays, "c-num")}
+              {header("rating", c.rating, "c-num")}
             </tr>
           </thead>
           <tbody>
@@ -244,25 +249,25 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
                 <td className="c-title">
                   <TitleLink title={r.title} type={r.type} difficulty={r.difficulty} onOpen={onOpen} />
                   <Chip difficulty={r.difficulty} level={r.level} constant={r.constant} type={r.type} />
-                  {r.inBest50 && <span className="tag-b50">best 50</span>}
+                  {r.inBest50 && <span className="tag-b50">{t.best50}</span>}
                   {r.estimated && (
-                    <span className="tag-est" title="Not in the chart database yet, so the constant and rating are guesses based on its level. The database updates when a refresh finds a new song.">
-                      new song · constant estimated
+                    <span className="tag-est" title={t.estimatedTitle}>
+                      {t.estimated}
                     </span>
                   )}
                 </td>
-                <td className="c-num mono" data-l="const">{r.constant.toFixed(1)}</td>
-                <td className="c-num mono strong" data-l="achievement">{pct(r.accuracy, 4)}</td>
-                <td className="mono" data-l="rank">{r.rank}</td>
-                <td data-l="lamp">
+                <td className="c-num mono" data-l={c.constant}>{r.constant.toFixed(1)}</td>
+                <td className="c-num mono strong" data-l={c.achievement}>{pct(r.accuracy, 4)}</td>
+                <td className="mono" data-l={c.rank}>{r.rank}</td>
+                <td data-l={c.lamp}>
                   <Lamp fc={r.fc} fs={r.fs} />
                 </td>
-                <td className="c-num mono dim" data-l="dx score">
+                <td className="c-num mono dim" data-l={c.dx}>
                   {r.dx > 0 ? num(r.dx) : "—"}
                   {r.maxDx > 0 && r.dx > 0 ? <small> / {num(r.maxDx)}</small> : null}
                 </td>
-                <td className="c-num mono dim" data-l="plays">{r.plays > 0 ? r.plays : "—"}</td>
-                <td className="c-num mono strong" data-l="rating">{r.rating}</td>
+                <td className="c-num mono dim" data-l={c.plays}>{r.plays > 0 ? r.plays : "—"}</td>
+                <td className="c-num mono strong" data-l={c.rating}>{r.rating}</td>
               </tr>
             ))}
           </tbody>
@@ -273,7 +278,7 @@ export function Charts({ rows, onOpen }: { rows: ChartRow[]; onOpen?: OpenChart 
         <div className="more">
           <button type="button" className="button ghost" onClick={() => setShown(shown + 200)}>
             {/* TODO: I think I need to fix this to actually query the remaining titles from the backend when pressed, as of now I believe it won't show past 100 titles */}
-            show {Math.min(200, filtered.length - shown)} more
+            {t.more(Math.min(200, filtered.length - shown))}
           </button>
         </div>
       )}

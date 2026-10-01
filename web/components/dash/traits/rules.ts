@@ -1,3 +1,4 @@
+import { activeMessages } from "@/lib/i18n/active";
 import type { Trait } from "../api";
 
 export const NOT_A_SKILL = new Set(["type", "era", "genre", "designer"]);
@@ -82,5 +83,5 @@ export function odds(p?: number): number {
 
 export function chance(p?: number): string {
   const n = odds(p);
-  return n ? `1 in ${n} by chance` : "";
+  return n ? activeMessages().traitsTab.chance(n) : "";
 }

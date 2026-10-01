@@ -1,6 +1,9 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { useLocale, useM } from "@/components/I18n";
+import { activeTag } from "@/lib/i18n/active";
+import { noteKind } from "@/lib/i18n/traits";
 import { getJSON, type PlayDetail, type RecentPlay } from "./api";
 import { Chip, Empty, Jacket, Label, Lamp, TitleLink, num, pct, type OpenChart } from "./bits";
 
@@ -12,6 +15,8 @@ type Opened = PlayDetail | "loading" | { error: string };
 
 /** One play's judgement page, laid out like the site's other panels; the judgement columns wear the colours maimai gives them. */
 function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: number | null }) {
+  const t = useM().recentTab;
+  const locale = useLocale();
   const kinds = NOTE_ORDER.filter((k) => detail.notes[k]);
   const total = (j: (typeof JUDGES)[number]) => kinds.reduce((sum, k) => sum + detail.notes[k][j], 0);
   const lost = Object.entries(detail.lost)
@@ -27,30 +32,30 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
     <div className="judge-panel">
       <div className="judge-head">
         <span className="label">
-          <b>judgements</b>
+          <b>{t.judgements}</b>
         </span>
         <span className="mono hint">
-          {achievement !== null ? `${pct(achievement, 4)} · ` : ""}fast {detail.fast} · late {detail.late} · combo {num(detail.combo)} / {num(detail.max_combo)}
-          {detail.max_sync ? ` · sync ${num(detail.sync)} / ${num(detail.max_sync)}` : ""}
+          {achievement !== null ? `${pct(achievement, 4)} · ` : ""}{t.fastLate(detail.fast, detail.late, num(detail.combo), num(detail.max_combo))}
+          {detail.max_sync ? t.sync(num(detail.sync), num(detail.max_sync)) : ""}
         </span>
       </div>
       <div className="judge-scroll">
         <table className="tbl compact judge keep">
           <thead>
             <tr>
-              <th>notes</th>
+              <th>{t.notes}</th>
               {JUDGES.map((j) => (
                 <th key={j} className={`c-num j-${j}`}>
                   {j}
                 </th>
               ))}
-              <th className="c-num">lost</th>
+              <th className="c-num">{t.lost}</th>
             </tr>
           </thead>
           <tbody>
             {kinds.map((k) => (
               <tr key={k}>
-                <td className="mono kind">{k}</td>
+                <td className="mono kind">{noteKind(k, locale)}</td>
                 {JUDGES.map((j) => cell(detail.notes[k][j], j))}
                 <td className={`c-num mono${(detail.lost[k] ?? 0) >= 0.005 ? " lost" : " zero"}`}>
                   {(detail.lost[k] ?? 0) >= 0.005 ? `−${detail.lost[k].toFixed(2)}%` : "·"}
@@ -58,7 +63,7 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
               </tr>
             ))}
             <tr className="total">
-              <td className="mono kind">all</td>
+              <td className="mono kind">{t.all}</td>
               {JUDGES.map((j) => cell(total(j), j))}
               <td className={`c-num mono${lostAll >= 0.005 ? " lost" : " zero"}`}>{lostAll >= 0.005 ? `−${lostAll.toFixed(2)}%` : "·"}</td>
             </tr>
@@ -67,10 +72,10 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
       </div>
       {lost.length > 0 && (
         <div className="judge-lost">
-          <span className="label">points lost</span>
+          <span className="label">{t.pointsLost}</span>
           {lost.map(([k, v]) => (
             <span key={k} className="lost-tag">
-              {k} <b>−{v.toFixed(2)}%</b>
+              {noteKind(k, locale)} <b>−{v.toFixed(2)}%</b>
             </span>
           ))}
         </div>
@@ -80,6 +85,9 @@ function Judgements({ detail, achievement }: { detail: PlayDetail; achievement: 
 }
 
 export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; total: number; onOpen?: OpenChart }) {
+  const m = useM();
+  const t = m.recentTab;
+  const c = m.cols;
   const [shown, setShown] = useState(PAGE);
   const [open, setOpen] = useState<Record<string, Opened>>({});
   const toggle = (idx: string) => {
@@ -90,15 +98,12 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
     setOpen((o) => ({ ...o, [idx]: "loading" }));
     getJSON<PlayDetail>(`/api/me/play?idx=${encodeURIComponent(idx)}`)
       .then((d) => setOpen((o) => ({ ...o, [idx]: d })))
-      .catch((e: Error) => setOpen((o) => ({ ...o, [idx]: { error: e.message || "couldn't load this play" } })));
+      .catch((e: Error) => setOpen((o) => ({ ...o, [idx]: { error: e.message || t.couldntLoad } })));
   };
-  if (!plays) return <Empty>Loading…</Empty>;
+  if (!plays) return <Empty>{m.dash.loading}</Empty>;
   if (!plays.length)
     return (
-      <Empty>
-        No plays saved yet. Hit refresh on the Account tab or run any command in Discord. Turn on the daily refresh with{" "}
-        <code>/settings history</code> so plays don&apos;t fall off maimai&apos;s 50-play list between refreshes.
-      </Empty>
+      <Empty>{t.none}</Empty>
     );
   const visible = plays.slice(0, shown);
   const days: [string, RecentPlay[]][] = [];
@@ -110,62 +115,62 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
   return (
     <>
       <p className="hint">
-        {num(total)} plays saved since {oldest ? new Date(oldest.day).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "linking"}
-        {total > plays.length ? `, showing the latest ${num(plays.length)}` : ""}. Plays stay here as long as your account is linked.
+        {t.saved(num(total), oldest ? new Date(oldest.day).toLocaleDateString(activeTag(), { day: "numeric", month: "short", year: "numeric" }) : t.linking)}
+        {total > plays.length ? t.latest(num(plays.length)) : ""}{t.stay}
       </p>
       {days.map(([d, group]) => (
         <section className="ledger" key={d}>
           <div className="ledger-head">
-            <Label>{new Date(d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Label>
+            <Label>{new Date(d).toLocaleDateString(activeTag(), { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</Label>
             <span className="mono hint">
-              {group.length} plays · {group.filter((p) => p.pb).length} new bests
+              {t.day(group.length, group.filter((p) => p.pb).length)}
             </span>
           </div>
           <table className="tbl compact">
             <thead>
               <tr>
-                <th>time</th>
-                <th aria-label="jacket" />
-                <th>chart</th>
-                <th className="c-num">achievement</th>
-                <th>lamp</th>
-                <th className="c-num">dx score</th>
-                <th className="c-num">rating</th>
+                <th>{c.time}</th>
+                <th aria-label={c.jacket} />
+                <th>{c.chart}</th>
+                <th className="c-num">{c.achievement}</th>
+                <th>{c.lamp}</th>
+                <th className="c-num">{c.dx}</th>
+                <th className="c-num">{c.rating}</th>
               </tr>
             </thead>
             <tbody>
               {group.map((p) => (
                 <Fragment key={`${p.day}T${p.time}|${p.position}`}>
                 <tr className={p.pb ? "pb" : ""}>
-                  <td className="c-time" data-l="time">{p.time}</td>
+                  <td className="c-time" data-l={c.time}>{p.time}</td>
                   <td className="c-jacket">
                     <Jacket cover={p.cover} size={32} />
                   </td>
                   <td className="c-title">
                     <TitleLink title={p.title} type={p.chart_type} difficulty={p.difficulty} onOpen={onOpen} />
                     <Chip difficulty={p.difficulty} level={p.level} constant={p.constant} type={p.chart_type} />
-                    {p.pb && <span className="tag-b50">new best</span>}
+                    {p.pb && <span className="tag-b50">{t.newBest}</span>}
                     {p.idx && (
                       <button type="button" className="judge-tag" aria-expanded={Boolean(open[p.idx])} onClick={() => toggle(p.idx!)}>
-                        judgements
+                        {t.judgements}
                       </button>
                     )}
                   </td>
-                  <td className="c-num mono strong" data-l="achievement">
+                  <td className="c-num mono strong" data-l={c.achievement}>
                     {pct(p.achievement, 4)} <b>{p.rank}</b>
                   </td>
-                  <td data-l="lamp">
+                  <td data-l={c.lamp}>
                     <Lamp fc={p.fc} fs={p.fs} />
                   </td>
-                  <td className="c-num mono dim" data-l="dx score">{p.dx ? (p.max_dx ? `${num(p.dx)} / ${num(p.max_dx)}` : num(p.dx)) : "—"}</td>
-                  <td className="c-num mono" data-l="rating">{p.chart_rating || "—"}</td>
+                  <td className="c-num mono dim" data-l={c.dx}>{p.dx ? (p.max_dx ? `${num(p.dx)} / ${num(p.max_dx)}` : num(p.dx)) : "—"}</td>
+                  <td className="c-num mono" data-l={c.rating}>{p.chart_rating || "—"}</td>
                 </tr>
                 {p.idx && open[p.idx] && (
                   <tr className="judge-row">
                     <td colSpan={7}>
                       {open[p.idx] === "loading" ? (
                         <div className="judge-panel judge-wait">
-                          <span className="lamp" /> loading the play from maimai DX NET…
+                          <span className="lamp" /> {t.loadingPlay}
                         </div>
                       ) : "error" in (open[p.idx] as object) ? (
                         <div className="judge-panel judge-wait">{(open[p.idx] as { error: string }).error}</div>
@@ -184,7 +189,7 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
       {plays.length > shown && (
         <div className="more">
           <button type="button" className="button ghost" onClick={() => setShown(shown + PAGE)}>
-            show {Math.min(PAGE, plays.length - shown)} more
+            {t.more(Math.min(PAGE, plays.length - shown))}
           </button>
         </div>
       )}

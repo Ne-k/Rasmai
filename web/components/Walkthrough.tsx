@@ -1,27 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { useM } from "./I18n";
 
 type Platform = "desktop" | "ios";
 
 // bump when a recording is replaced: browsers hold on to a video far longer than a page
 const CUT = 2;
 
-const CLIPS: Record<Platform, { label: string; src: string; poster: string; note: string; chrome: string; w: number; h: number }> = {
+const CLIPS: Record<Platform, { label: "desktop" | "ios"; src: string; poster: string; note: "desktopNote" | "iosNote"; chrome: string; w: number; h: number }> = {
   desktop: {
-    label: "On a computer",
+    label: "desktop",
     src: "/walkthrough/desktop.mp4",
     poster: "/walkthrough/desktop.jpg",
-    note: "Works the same in Chrome, Edge and Firefox.",
+    note: "desktopNote",
     chrome: "maimaidx-eng.com",
     w: 1280,
     h: 720,
   },
   ios: {
-    label: "On iPhone",
+    label: "ios",
     src: "/walkthrough/ios-safari.mp4",
     poster: "/walkthrough/ios-safari.jpg",
-    note: "Safari on iOS. Android works the same way in Chrome.",
+    note: "iosNote",
     chrome: "maimaidx-eng.com",
     w: 560,
     h: 1214,
@@ -30,6 +31,7 @@ const CLIPS: Record<Platform, { label: string; src: string; poster: string; note
 
 /** The linking walkthrough as a screen recording, framed like the device it was taken on. */
 export function Walkthrough() {
+  const m = useM();
   const [platform, setPlatform] = useState<Platform>("desktop");
   const clip = CLIPS[platform];
   const video = (
@@ -44,12 +46,12 @@ export function Walkthrough() {
       muted
       loop
       preload="none"
-      aria-label={`${clip.label}: the full linking process`}
+      aria-label={m.walkthrough.videoLabel(m.walkthrough[clip.label])}
     />
   );
   return (
     <div className="walkthrough">
-      <div className="walk-tabs" role="tablist" aria-label="which device you are linking on">
+      <div className="walk-tabs" role="tablist" aria-label={m.walkthrough.tabs}>
         {(Object.keys(CLIPS) as Platform[]).map((key) => (
           <button
             key={key}
@@ -59,7 +61,7 @@ export function Walkthrough() {
             className={platform === key ? "on" : ""}
             onClick={() => setPlatform(key)}
           >
-            {CLIPS[key].label}
+            {m.walkthrough[CLIPS[key].label]}
           </button>
         ))}
       </div>
@@ -84,8 +86,8 @@ export function Walkthrough() {
           </div>
         )}
         <p className="walk-note">
-          <b>{clip.label}</b>
-          {clip.note}
+          <b>{m.walkthrough[clip.label]}</b>
+          {m.walkthrough[clip.note]}
         </p>
       </div>
     </div>

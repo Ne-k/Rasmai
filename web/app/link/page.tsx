@@ -1,31 +1,33 @@
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
 import { Walkthrough } from "@/components/Walkthrough";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Link your maimai account",
-  description: "How to link your maimai DX NET account to Rasmai on a computer or iPhone, with a video.",
-  alternates: { canonical: "/link/" },
-  openGraph: { title: "Link your maimai account · Rasmai", description: "How to link your maimai DX NET account to Rasmai on a computer or iPhone, with a video.", url: "/link/" , images: ["/opengraph-image"] },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { m } = await getI18n();
+  return {
+    title: m.link.metaTitle,
+    description: m.link.metaDescription,
+    alternates: { canonical: "/link/" },
+    openGraph: { title: `${m.link.metaTitle} · Rasmai`, description: m.link.metaDescription, url: "/link/", images: ["/opengraph-image"] },
+  };
+}
 
-export default function LinkPage() {
+export default async function LinkPage() {
+  const { m } = await getI18n();
+  const t = m.link;
   return (
-    <Shell tag="link" lit={1} footLeft="not affiliated with SEGA">
-      <h1>
-        Link your <em>maimai</em> account.
-      </h1>
-      <p className="lede">
-        Once you&apos;re linked, Rasmai checks your scores and tells you which charts to play to raise your rating.
-      </p>
+    <Shell tag="link" lit={1} footLeft={m.footer.notAffiliated}>
+      <h1>{t.title}</h1>
+      <p className="lede">{t.lede}</p>
 
       <section className="step walk-step">
         <div className="n" aria-hidden="true">
           ▶
         </div>
         <div>
-          <h2>Watch the video first</h2>
-          <p>Pick your device. It&apos;s about a minute long with no sound.</p>
+          <h2>{t.videoTitle}</h2>
+          <p>{t.videoBody}</p>
           <Walkthrough />
         </div>
       </section>
@@ -33,37 +35,27 @@ export default function LinkPage() {
       <section className="step">
         <div className="n">1</div>
         <div>
-          <h2>Get your link</h2>
-          <p>
-            Run <code>/login</code> in Discord. You&apos;ll get a private link to this site with your login code already
-            filled in.
-          </p>
+          <h2>{t.step1Title}</h2>
+          <p>{t.step1}</p>
         </div>
       </section>
       <section className="step">
         <div className="n">2</div>
         <div>
-          <h2>Sign in at my-aime, then authenticate</h2>
-          <p>
-            Sign in at <a href="https://my-aime.net/en/">my-aime.net</a> with the account you play on, then open the Aime authentication
-            from the setup page. That takes you to the gateway page.
-          </p>
+          <h2>{t.step2Title}</h2>
+          <p>{t.step2}</p>
         </div>
       </section>
       <section className="step">
         <div className="n">3</div>
         <div>
-          <h2>Start grinding</h2>
-          <p>
-            Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.
-          </p>
+          <h2>{t.step3Title}</h2>
+          <p>{t.step3}</p>
         </div>
       </section>
 
-      <div className="aside">
-        <b>Already linked?</b> Your scores are on the web too. <a href="/me/">Open your dashboard</a> and sign in with
-        Discord.
-      </div>
+      <div className="aside">{t.japan}</div>
+      <div className="aside">{t.already}</div>
     </Shell>
   );
 }

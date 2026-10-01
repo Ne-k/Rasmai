@@ -3,10 +3,12 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { useM } from "@/components/I18n";
 
 export default function ConnectedPage() {
+  const m = useM();
   return (
-    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>Loading…</p></div>}>
+    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{m.flow.loading}</p></div>}>
       <Connected />
     </Suspense>
   );
@@ -14,57 +16,39 @@ export default function ConnectedPage() {
 
 function Connected() {
   const params = useSearchParams();
+  const m = useM();
+  const t = m.flow;
   const player = params.get("player") ?? "";
   const region = (params.get("region") ?? "-").toUpperCase();
   const rating = params.get("rating") ?? "-";
 
   return (
-    <Shell tag="done" lit={3} done footLeft="not affiliated with SEGA">
-      <h1>
-        You&apos;re <em>linked</em>.
-      </h1>
-      <p className="lede">
-        {player ? (
-          <>
-            Signed in as <b>{player}</b>. Rasmai can check your scores now.
-          </>
-        ) : (
-          "Your maimai account is now linked to your Discord account."
-        )}
-      </p>
+    <Shell tag="done" lit={3} done footLeft={m.footer.notAffiliated}>
+      <h1>{t.linkedTitle}</h1>
+      <p className="lede">{player ? t.signedInAs(player) : t.linkedGeneric}</p>
 
       <div className="card-row">
         <div className="stat">
-          <div className="k">rating</div>
+          <div className="k">{t.rating}</div>
           <div className="v">{rating}</div>
         </div>
         <div className="stat">
-          <div className="k">region</div>
+          <div className="k">{t.labelRegion}</div>
           <div className="v">{region}</div>
         </div>
       </div>
 
-      <h2 className="subhead">Back in Discord</h2>
+      <h2 className="subhead">{t.backInDiscord}</h2>
       <ul className="cmds">
-        <li>
-          <code>/analyze</code>
-          <span>what to grind, biggest gains first</span>
-        </li>
-        <li>
-          <code>/plan</code>
-          <span>a plan for your next thousand</span>
-        </li>
-        <li>
-          <code>/new</code>
-          <span>charts you haven&apos;t played that fit your level</span>
-        </li>
-        <li>
-          <code>/profile</code>
-          <span>how you play and where you lose points</span>
-        </li>
+        {t.nextCommands.map(([cmd, what]) => (
+          <li key={cmd}>
+            <code>{cmd}</code>
+            <span>{what}</span>
+          </li>
+        ))}
       </ul>
       <p className="hint" style={{ marginTop: 18 }}>
-        You can close this tab.
+        {t.closeTab}
       </p>
     </Shell>
   );

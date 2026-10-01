@@ -716,6 +716,7 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 :root[data-theme="dark"] .curve-mark-label.reach { fill: var(--pink); }
 :root[data-theme="dark"] .curve-dot { opacity: 0.5; }
 :root[data-theme="dark"] .curve-dot.recent { opacity: 1; }
+.masthead .masthead-tag ~ .lang-toggle { margin-left: 0; }
 .masthead-tag { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30vw; }
 
 /* one control under the tabs: the picture the matching Discord command draws, saved as a file */

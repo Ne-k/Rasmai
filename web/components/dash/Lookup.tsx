@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
 import { ApiError, getJSON, type LookupTarget, type SearchHit, type SongLookup } from "./api";
 import { Chip, Empty, Jacket, pct } from "./bits";
 import { Detail } from "./Detail";
@@ -6,6 +7,8 @@ import { PatternBrowser } from "./PatternBrowser";
 
 /** The Look up tab: find any song, then one chart the way /chart shows it. */
 export function Lookup({ target }: { target: LookupTarget | null }) {
+  const m = useM();
+  const t = m.lookupTab;
   const [query, setQuery] = useState(target?.title ?? "");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [song, setSong] = useState<SongLookup | null>(null);
@@ -55,11 +58,9 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
         setHits(null);
         if (e.status === 404 && e.code === "unknown_song") {
           const rows = (e.body.charts as { level: string; difficulty: string; accuracy: number }[] | undefined) ?? [];
-          const yours = rows.map((c) => `${c.difficulty} ${c.level} at ${c.accuracy.toFixed(4)}%`).join(", ");
-          setError(
-            `"${String(e.body.title ?? title)}" isn't in the chart database yet. The song is newer than the database, so the jacket, constants and this page will show up once it's added. For now your score${rows.length === 1 ? "" : "s"} (${yours}) count${rows.length === 1 ? "s" : ""} with a constant guessed from the level.`,
-          );
-        } else setError(e.status === 404 ? `No song in the chart database matches "${title}".` : e.message);
+          const yours = rows.map((c) => t.yourRow(c.difficulty, c.level, c.accuracy.toFixed(4))).join(m.list.sep);
+          setError(t.notInDb(String(e.body.title ?? title), yours, rows.length === 1));
+        } else setError(e.status === 404 ? t.noSong(title) : e.message);
       })
       .finally(() => {
         if (mine === opening.current) setBusy(false);
@@ -110,7 +111,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           className="search"
           type="text"
           role="searchbox"
-          placeholder="title, artist or charter"
+          placeholder={t.placeholder}
           value={query}
           onChange={(e) => search(e.target.value)}
           onKeyDown={(e) => {
@@ -127,13 +128,13 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
             }
             open(hits?.[0]?.title ?? wanted);
           }}
-          aria-label="Search for a song"
+          aria-label={t.label}
           autoComplete="off"
         />
       </div>
       {hits !== null && (
         <ul className="hits">
-          {hits.length === 0 && <li className="empty">{searchError ? `Search failed. ${searchError}` : "No matches. Try part of the title, the romaji reading, or the artist or charter."}</li>}
+          {hits.length === 0 && <li className="empty">{searchError ? t.searchFailed(searchError) : t.noMatches}</li>}
           {hits.map((h) => (
             <li key={h.title} className="hit">
               <Jacket cover={h.cover} size={44} />
@@ -142,7 +143,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
                 {h.alias ? <span className="alias">{h.alias}</span> : null}
                 <small>
                   {h.artist}
-                  {h.charters?.length ? <span className="charter">charted by {h.charters.join(", ")}</span> : null}
+                  {h.charters?.length ? <span className="charter">{t.chartedBy(h.charters.join(m.list.sep))}</span> : null}
                 </small>
               </button>
               <div className="hit-charts">
@@ -151,7 +152,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
                     key={`${c.chart_type}|${c.difficulty}`}
                     type="button"
                     onClick={() => open(h.title, c.chart_type, c.difficulty)}
-                    title={c.played ? `${pct(c.accuracy)} ${c.rank}` : "never played"}
+                    title={c.played ? `${pct(c.accuracy)} ${c.rank}` : t.neverPlayed}
                   >
                     <span className={c.played ? "" : "faded"} style={{ display: "contents" }}>
                       <Chip difficulty={c.difficulty} level={c.level} type={c.chart_type} />
@@ -163,13 +164,10 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           ))}
         </ul>
       )}
-      {busy && <Empty>Looking it up…</Empty>}
+      {busy && <Empty>{t.looking}</Empty>}
       {error && <Empty>{error}</Empty>}
       {!busy && !song && hits === null && !error && (
-        <Empty>
-          Search for a song to see your scores, your odds for each rank, your score history and the chart video. Clicking a song title on
-          any other tab opens it here too.
-        </Empty>
+        <Empty>{t.intro}</Empty>
       )}
       {!song && hits === null && (
         <PatternBrowser

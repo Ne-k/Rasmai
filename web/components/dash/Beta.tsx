@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
+import { activeMessages, activeTag } from "@/lib/i18n/active";
 import { getJSON, postJSON, type Beta as BetaState, type BetaFeature, type BetaVerdict } from "./api";
 import { Label } from "./bits";
 
@@ -8,17 +10,19 @@ const POLL_MS = 4000;
 
 /** "about 12 minutes left", from seconds. */
 function left(seconds: number): string {
+  const t = activeMessages().beta;
   if (seconds <= 0) return "";
-  if (seconds < 60) return "less than a minute left";
+  if (seconds < 60) return t.lessThanMinute;
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `about ${minutes} minute${minutes === 1 ? "" : "s"} left`;
+  if (minutes < 60) return t.minutesLeft(minutes);
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return `about ${hours}h${rest ? ` ${rest}m` : ""} left`;
+  return t.hoursLeft(hours, rest);
 }
 
 /** How far a feature's groundwork has got, while it is still going. */
 function Progress({ feature }: { feature: BetaFeature }) {
+  const t = useM().beta;
   const total = feature.total ?? 0;
   const done = feature.done ?? 0;
   if (!total || !feature.waiting) return null;
@@ -32,25 +36,22 @@ function Progress({ feature }: { feature: BetaFeature }) {
         aria-valuenow={Math.round(percent)}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="charts read so far"
+        aria-label={t.readSoFar}
       >
         <span style={{ width: `${percent}%` }} />
       </span>
       <span className="crawl-said mono">
-        {done.toLocaleString()} / {total.toLocaleString()} charts · {percent.toFixed(1)}%{eta ? ` · ${eta}` : ""}
+        {t.charts(done.toLocaleString(activeTag()), total.toLocaleString(activeTag()), percent.toFixed(1))}{eta ? ` · ${eta}` : ""}
       </span>
     </span>
   );
 }
 
-const VERDICTS: { key: BetaVerdict; label: string }[] = [
-  { key: "better", label: "Better" },
-  { key: "same", label: "No difference" },
-  { key: "worse", label: "Worse" },
-];
+const VERDICTS: BetaVerdict[] = ["better", "same", "worse"];
 
 /** What one tester made of one feature: a verdict, and optionally why. Only shown once it is on. */
 function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: BetaState) => void }) {
+  const t = useM().beta;
   const said = feature.said ?? null;
   const [note, setNote] = useState(said?.said ?? "");
   const [open, setOpen] = useState(false);
@@ -65,28 +66,28 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
         onSaved(next);
         setOpen(false);
       })
-      .catch((e: Error) => setError(e.message || "couldn't send that"))
+      .catch((e: Error) => setError(e.message || t.couldntSend))
       .finally(() => setBusy(false));
   };
 
   return (
     <span className="beta-say">
       <span className="beta-say-row">
-        <span className="dim">Compared to having it off:</span>
+        <span className="dim">{t.compared}</span>
         {VERDICTS.map((v) => (
           <button
-            key={v.key}
+            key={v}
             type="button"
-            className={`beta-chip${said?.verdict === v.key ? " on" : ""}`}
+            className={`beta-chip${said?.verdict === v ? " on" : ""}`}
             disabled={busy}
-            aria-pressed={said?.verdict === v.key}
-            onClick={() => send(v.key, note)}
+            aria-pressed={said?.verdict === v}
+            onClick={() => send(v, note)}
           >
-            {v.label}
+            {t.verdicts[v]}
           </button>
         ))}
         <button type="button" className="beta-chip quiet" disabled={busy} onClick={() => setOpen((was) => !was)}>
-          {note ? "Edit note" : "Add a note"}
+          {note ? t.editNote : t.addNote}
         </button>
       </span>
       {open && (
@@ -95,7 +96,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
             type="text"
             className="beta-note"
             maxLength={500}
-            placeholder="What changed?"
+            placeholder={t.placeholder}
             value={note}
             disabled={busy}
             onChange={(e) => setNote(e.target.value)}
@@ -105,15 +106,15 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
           />
           {said?.verdict && (
             <button type="button" className="beta-chip" disabled={busy} onClick={() => send(said.verdict, note)}>
-              Save
+              {t.save}
             </button>
           )}
-          {!said?.verdict && <span className="mono hint">Pick an option first.</span>}
+          {!said?.verdict && <span className="mono hint">{t.pickFirst}</span>}
         </span>
       )}
       {said && !open && (
         <span className="mono hint ok">
-          You said {said.verdict}
+          {t.youSaid(t.verdicts[said.verdict] ?? said.verdict)}
           {said.said ? ` · ${said.said}` : ""}
         </span>
       )}
@@ -124,6 +125,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
 
 /** Features that work but are not finished. Each is off until its owner turns it on. */
 export function Beta({ state, onChange }: { state: BetaState; onChange: (next: BetaState) => void }) {
+  const t = useM().beta;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const latest = useRef(onChange);
@@ -156,13 +158,13 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
         const feature = next.features.find((f) => f.key === key);
         setNote(
           !on
-            ? "Turns off on your next refresh."
+            ? t.off
             : feature && feature.ready === false
-              ? "Turned on, but the bot can't run it yet, so nothing changes for now."
-              : "Turns on with your next refresh. Hit refresh above to see it now.",
+              ? t.notReady
+              : t.on,
         );
       })
-      .catch((e: Error) => setNote(e.message || "couldn't save that"))
+      .catch((e: Error) => setNote(e.message || t.couldntSave))
       .finally(() => setBusy(false));
   };
 
@@ -171,10 +173,8 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
   return (
     <section className="ledger">
       <div className="ledger-head">
-        <Label info="Features that work but aren't finished yet. Turning one off puts things back to normal.">
-          beta
-        </Label>
-        <span className={`mono hint${count ? " ok" : ""}`}>{count ? `${count} on` : "none on"}</span>
+        <Label info={t.info}>{t.title}</Label>
+        <span className={`mono hint${count ? " ok" : ""}`}>{count ? t.count(count) : t.none}</span>
       </div>
 
       <ul className="share-toggles">
@@ -202,7 +202,7 @@ export function Beta({ state, onChange }: { state: BetaState; onChange: (next: B
       </ul>
 
       {note && <p className="hint">{note}</p>}
-      <p className="hint">These can change your traits and picks. Tell us what you think so we know whether to keep them.</p>
+      <p className="hint">{t.hint}</p>
     </section>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useM } from "./I18n";
+
 export const THEME_KEY = "rasmai-theme";
 export const THEME_COLORS = { light: "#fbf6ec", dark: "#14121c" };
 
@@ -35,12 +37,13 @@ export function applyTheme(theme: "light" | "dark") {
 
 /** One button in the masthead: moon in the light theme, sun in the dark one. The stylesheet picks which glyph shows. */
 export function ThemeToggle() {
+  const m = useM();
   return (
     <button
       type="button"
       className="theme-toggle"
-      aria-label="Switch between light and dark"
-      title="Light / dark"
+      aria-label={m.common.themeToggle}
+      title={m.common.themeTitle}
       onClick={() => applyTheme(currentTheme() === "dark" ? "light" : "dark")}
     >
       <svg className="moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Turnstile } from "@/components/Turnstile";
 import { InstallHint } from "@/components/Pwa";
+import { useM } from "@/components/I18n";
+import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
 import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
@@ -19,7 +21,7 @@ import { RatingPlate } from "./RatingPlate";
 import { Frame } from "./Frame";
 import { OverviewTab } from "./OverviewTab";
 import { Recent } from "./Recent";
-import { type Tab, TABS, Tabs, RefreshBar, tabsFor } from "./Tabs";
+import { type Tab, Tabs, RefreshBar, tabsFor } from "./Tabs";
 import { SaveImage, type ImageKind } from "./bits";
 
 // the tabs the bot already draws a picture of, and which of its commands draws it
@@ -33,17 +35,20 @@ const IMAGE_FOR: Partial<Record<Tab, ImageKind[]>> = {
 };
 
 function QueueNote({ spot }: { spot: NonNullable<QueueSpot> }) {
-  const wait = spot.eta < 60 ? `${Math.max(1, spot.eta)}s` : `${Math.round(spot.eta / 60)} min`;
+  const m = useM();
+  const wait = spot.eta < 60 ? m.dash.seconds(Math.max(1, spot.eta)) : m.dash.minutes(Math.round(spot.eta / 60));
   return (
     <div className="notice" role="status" aria-live="polite">
       {spot.position <= 1
-        ? "Building your analysis now…"
-        : `It's busy right now. You're #${spot.position} in the queue, about ${wait} left. The page will update when it's done.`}
+        ? m.dash.queueNow
+        : m.dash.queueBusy(spot.position, wait)}
     </div>
   );
 }
 
 export function Dash() {
+  const m = useM();
+  const t = m.dash;
   const [me, setMe] = useState<Overview | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [oauth, setOauth] = useState(true);
@@ -117,7 +122,7 @@ export function Dash() {
       setVisited((v) => new Set(v).add("areas"));
       return;
     }
-    const next: Tab = tabsFor(true).some((t) => t.key === hash) ? hash : "overview";
+    const next: Tab = tabsFor(true).includes(hash) ? hash : "overview";
     setTab(next);
     setVisited((v) => new Set(v).add(next));
   }, []);
@@ -131,12 +136,9 @@ export function Dash() {
     load();
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("error");
-    if (kind === "discord") setError("Discord didn't confirm the sign-in. Try again.");
-    if (kind === "state") setError("That sign-in link expired. Try again.");
-    if (kind === "oauth_unconfigured") setError("Sign-in isn't set up on this server yet.");
-    if (kind === "verify") setError("The human check failed. Try again.");
+    if (kind && t.signInErrors[kind]) setError(t.signInErrors[kind]);
     applyLocation();
-  }, [load, applyLocation]);
+  }, [load, applyLocation, t]);
 
   const loadCharts = useCallback(() => {
     setChartsError("");
@@ -178,12 +180,12 @@ export function Dash() {
         .catch((e: ApiError) => {
           pollFailures.current += 1;
           if (pollFailures.current >= 5 || e.status === 401) {
-            setRefresh({ running: false, stage: "failed", error: "lost connection to the bot. Reload the page or try again in a minute." });
+            setRefresh({ running: false, stage: "failed", error: t.lostConnection });
           }
         });
     }, 1500);
     return () => clearInterval(timer);
-  }, [refresh, load]);
+  }, [refresh, load, t]);
 
   const show = (t: Tab) => {
     setTab(t);
@@ -213,30 +215,25 @@ export function Dash() {
     return (
       <Frame>
         <div className="gate">
-          <h1>
-            Your scores, <em>on the web</em>.
-          </h1>
-          <p className="lede">
-            See your best 50, all your charts, your rating history and what to play next.
-            Sign in with the Discord account you use the bot with.
-          </p>
+          <h1>{t.gateTitle}</h1>
+          <p className="lede">{t.gateLede}</p>
           {oauth && turnstile ? (
             <form method="post" action="/auth/discord" className="signin">
-              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError("The human check didn't load. Reload the page.")} />
+              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError(t.turnstileFailed)} />
               <input type="hidden" name="cf-turnstile-response" value={human} />
               <button className="button pink" type="submit" disabled={!human}>
-                sign in with Discord
+                {t.signInDiscord}
               </button>
             </form>
           ) : oauth ? (
             <a className="button pink" href="/auth/discord">
-              sign in with Discord
+              {t.signInDiscord}
             </a>
           ) : (
-            <p className="hint">Sign-in isn&apos;t set up on this server yet. The owner needs to add a Discord client ID and secret.</p>
+            <p className="hint">{t.notSetUp}</p>
           )}
           {error && <p className="hint">{error}</p>}
-          <div className="aside">We only read your Discord ID and name. We don&apos;t post anything or ask for your server list.</div>
+          <div className="aside">{t.gatePrivacy}</div>
           <InstallHint />
         </div>
       </Frame>
@@ -245,7 +242,7 @@ export function Dash() {
   if (!me) {
     return (
       <Frame>
-        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">Loading…</p>}</div>
+        <div className="gate">{error ? <p className="hint">{error}</p> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t.loading}</p>}</div>
       </Frame>
     );
   }
@@ -253,15 +250,10 @@ export function Dash() {
     return (
       <Frame user={me.user} onSignOut={signOut}>
         <div className="gate">
-          <h1>
-            No maimai account <em>linked yet</em>.
-          </h1>
-          <p className="lede">
-            You&apos;re signed in, but this Discord account has no maimai account linked. Run <code>/login</code> in Discord, follow the
-            link, then come back here.
-          </p>
+          <h1>{t.notLinkedTitle}</h1>
+          <p className="lede">{t.notLinkedLede}</p>
           <a className="button" href="/">
-            how linking works →
+            {t.howLinking}
           </a>
         </div>
       </Frame>
@@ -276,11 +268,11 @@ export function Dash() {
       <section className="ident">
         <div className="ident-who">
           <div className="label">
-            {me.region?.toUpperCase()} · <Ago iso={p.updatedAt} prefix="updated " />
+            {me.region?.toUpperCase()} · <Ago iso={p.updatedAt} prefix={t.updated} />
           </div>
           <h1>{p.name || "—"}</h1>
           <div className="ident-sub mono">
-            {[...new Set([p.dan, p.title].filter(Boolean))].join(" · ") || "no title read yet"} · {num(p.totalPlayCount)} plays
+            {[...new Set([p.dan, p.title].filter(Boolean))].join(" · ") || t.noTitle} · {t.plays(num(p.totalPlayCount))}
           </div>
           {p.nameplate ? (
             <img className="nameplate" src={p.nameplate} alt="" width={360} height={58}
@@ -288,20 +280,18 @@ export function Dash() {
           ) : null}
           {me.sinceLast && (me.sinceLast.plays > 0 || me.sinceLast.ratingDelta !== 0) && (
             <div className="since mono">
-              since {day(me.sinceLast.since)}: {me.sinceLast.ratingDelta ? `rating ${me.sinceLast.ratingDelta > 0 ? "+" : ""}${me.sinceLast.ratingDelta}` : "rating unchanged"}
-              {me.sinceLast.plays ? ` · ${num(me.sinceLast.plays)} play${me.sinceLast.plays === 1 ? "" : "s"}` : ""}
-              {me.sinceLast.newBests ? ` · ${me.sinceLast.newBests} new best${me.sinceLast.newBests === 1 ? "" : "s"}` : ""}
+              {t.since(day(me.sinceLast.since), me.sinceLast.ratingDelta, me.sinceLast.plays, me.sinceLast.newBests, num)}
             </div>
           )}
         </div>
         <div className="readout big">
-          <span className="lbl">rating · {ratingBand(p.rating).key}</span>
+          <span className="lbl">{t.rating} · {t.bands[ratingBand(p.rating).key] ?? ratingBand(p.rating).key}</span>
           <span className="val">
             <RatingPlate rating={p.rating} />
           </span>
-          <span className="lbl">best 50</span>
+          <span className="lbl">{t.best50}</span>
           <span className="val">{num(s.best50)}</span>
-          <span className="lbl">new · old</span>
+          <span className="lbl">{t.newOld}</span>
           <span className="val pair">
             <span>{num(s.newTotal)}</span>
             <span className="sep">·</span>
@@ -343,12 +333,12 @@ export function Dash() {
         )}
         {visited.has("best50") && (
           <div hidden={tab !== "best50"}>
-            {chartsError ? <LoadError what="your charts" message={chartsError} onRetry={loadCharts} /> : <Best50 charts={charts} cutoffs={me.analysis?.best50} onOpen={openChart} />}
+            {chartsError ? <LoadError what={t.yourCharts} message={chartsError} onRetry={loadCharts} /> : <Best50 charts={charts} cutoffs={me.analysis?.best50} onOpen={openChart} />}
           </div>
         )}
         {visited.has("charts") && (
           <div hidden={tab !== "charts"}>
-            {chartsError ? <LoadError what="your charts" message={chartsError} onRetry={loadCharts} /> : charts ? <Charts rows={charts} onOpen={openChart} /> : <Empty>Loading charts…</Empty>}
+            {chartsError ? <LoadError what={t.yourCharts} message={chartsError} onRetry={loadCharts} /> : charts ? <Charts rows={charts} onOpen={openChart} /> : <Empty>{t.loadingCharts}</Empty>}
           </div>
         )}
         {visited.has("chart") && (
@@ -358,7 +348,7 @@ export function Dash() {
         )}
         {visited.has("recent") && (
           <div hidden={tab !== "recent"}>
-            {recentError ? <LoadError what="your play history" message={recentError} onRetry={loadRecent} /> : <Recent plays={recent} total={me.playHistory ?? 0} onOpen={openChart} />}
+            {recentError ? <LoadError what={t.yourHistory} message={recentError} onRetry={loadRecent} /> : <Recent plays={recent} total={me.playHistory ?? 0} onOpen={openChart} />}
           </div>
         )}
         {visited.has("traits") && (
@@ -396,19 +386,16 @@ export function Dash() {
 
 /** Shown above everything when maimai DX NET has refused the saved sign-in: reads stop until it is linked again. */
 function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: string }) {
+  const m = useM();
   const when = new Date(since);
-  const on = Number.isNaN(when.getTime())
-    ? ""
-    : ` on ${when.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+  const on = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
   const gone = deletesAt ? new Date(deletesAt) : null;
   const until = gone && !Number.isNaN(gone.getTime())
-    ? gone.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+    ? gone.toLocaleDateString(activeTag(), { day: "numeric", month: "short", year: "numeric" })
     : "";
   return (
     <aside className="expired" role="status">
-      <b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on}, so your scores aren&apos;t updating.
-      Everything below is from your last refresh. Run <code>/login</code> in Discord to link again.
-      {until ? <> If it isn&apos;t linked again by <b>{until}</b>, everything stored for this account is deleted.</> : null}
+      {m.dash.expired(on, until)}
     </aside>
   );
 }

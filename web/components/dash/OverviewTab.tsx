@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useM } from "@/components/I18n";
 import { type ChartRow, type Overview } from "./api";
 import { Empty, Label, LoadError, num, pct } from "./bits";
 import { SkillCurve } from "./SkillCurve";
@@ -10,6 +11,8 @@ import { levelValue } from "./Best50";
 const RANK_ORDER = ["SSS+", "SSS", "SS+", "SS", "S+", "S", "AAA", "AA", "A", "BBB", "BB", "B", "C", "D"];
 
 export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview; charts: ChartRow[] | null; chartsError?: string; onRetry?: () => void }) {
+  const m = useM();
+  const t = m.overviewTab;
   const stats = useMemo(() => {
     if (!charts) return null;
     const upper = charts.filter((c) => ["expert", "master", "remaster"].includes(c.difficulty));
@@ -34,7 +37,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
   return (
     <>
       <Sparkline points={me.history ?? []} />
-      {chartsError ? <LoadError what="your charts" message={chartsError} onRetry={onRetry} /> : null}
+      {chartsError ? <LoadError what={m.dash.yourCharts} message={chartsError} onRetry={onRetry} /> : null}
       {prof?.curve && prof.curve.length > 1 && (
         <SkillCurve
           curve={prof.curve}
@@ -47,76 +50,75 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
       <div className="two-up">
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Comfortable up to is the highest constant you score well on every time. S expected up to is the highest constant you should S on your first try.">how you play</Label>
+            <Label info={t.howInfo}>{t.how}</Label>
           </div>
           <dl className="facts">
-            <dt>comfortable up to</dt>
+            <dt>{t.comfort}</dt>
             <dd className="mono">{prof ? prof.comfortConstant.toFixed(1) : "—"}</dd>
-            <dt>S expected up to</dt>
+            <dt>{t.reach}</dt>
             <dd className="mono">{prof ? prof.reachConstant.toFixed(1) : "—"}</dd>
-            <dt>hardest S</dt>
+            <dt>{t.hardestS}</dt>
             <dd className="mono">{prof ? prof.hardestS.toFixed(1) : "—"}</dd>
             {habits?.age ? (
               <>
-                <dt>charts you pick</dt>
+                <dt>{t.age}</dt>
                 <dd className="mono">
-                  {habits.age.medianYears.toFixed(1)} yr old · {Math.round(habits.age.freshShare * 100)}% under a year
+                  {t.ageValue(habits.age.medianYears.toFixed(1), Math.round(habits.age.freshShare * 100))}
                 </dd>
               </>
             ) : null}
             {habits?.rerates ? (
               <>
-                <dt>from re-rating</dt>
+                <dt>{t.rerates}</dt>
                 <dd className="mono">
-                  {habits.rerates.rating >= 0 ? "+" : ""}
-                  {habits.rerates.rating} over {habits.rerates.charts} charts
+                  {t.reratesValue(`${habits.rerates.rating >= 0 ? "+" : ""}${habits.rerates.rating}`, habits.rerates.charts)}
                 </dd>
               </>
             ) : null}
             {habits?.notes ? (
               <>
-                <dt>notes hit</dt>
+                <dt>{t.notes}</dt>
                 <dd className="mono">{num(habits.notes.notes)}</dd>
               </>
             ) : null}
             {habits?.warmUp ? (
               <>
-                <dt>first track of a credit</dt>
+                <dt>{t.warmUp}</dt>
                 <dd className="mono">
-                  {Math.abs(habits.warmUp.gap).toFixed(2)}% {habits.warmUp.colder ? "under" : "over"} the rest
+                  {t.warmUpValue(Math.abs(habits.warmUp.gap).toFixed(2), habits.warmUp.colder)}
                 </dd>
               </>
             ) : null}
-            <dt>charts scored</dt>
+            <dt>{t.scored}</dt>
             <dd className="mono">{num(me.snapshot?.charts)}</dd>
-            <dt>expert and up</dt>
+            <dt>{t.upper}</dt>
             <dd className="mono">{stats ? num(stats.upper) : "—"}</dd>
-            <dt>full combos</dt>
-            <dd className="mono">{stats ? `${num(stats.fc + stats.fcPlus)} (${num(stats.ap)} all perfect)` : "—"}</dd>
-            <dt>full sync+</dt>
+            <dt>{t.fullCombos}</dt>
+            <dd className="mono">{stats ? t.fullCombosValue(num(stats.fc + stats.fcPlus), num(stats.ap)) : "—"}</dd>
+            <dt>{t.fullSync}</dt>
             <dd className="mono">{stats ? num(stats.fsPlus) : "—"}</dd>
-            <dt>reachable from your picks</dt>
+            <dt>{t.reachable}</dt>
             <dd className="mono gain">{me.analysis?.reachableGain != null ? `+${me.analysis.reachableGain}` : "—"}</dd>
           </dl>
         </section>
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Your rating is your 15 best charts from the current version plus your 35 best from older ones. Enters at is the chart rating you need to get in.">best 50 cutoffs</Label>
+            <Label info={t.cutoffsInfo}>{t.cutoffs}</Label>
           </div>
           <dl className="facts">
-            <dt>new pool (15)</dt>
+            <dt>{t.newPool}</dt>
             <dd className="mono">
-              {b50 ? `${num(b50.newTotal)} · enters at ${b50.newCutoff}` : "—"}
-              {b50 && b50.newSlotsOpen > 0 ? ` · ${b50.newSlotsOpen} open` : ""}
+              {b50 ? t.entersAt(num(b50.newTotal), b50.newCutoff) : "—"}
+              {b50 && b50.newSlotsOpen > 0 ? t.open(b50.newSlotsOpen) : ""}
             </dd>
-            <dt>old pool (35)</dt>
+            <dt>{t.oldPool}</dt>
             <dd className="mono">
-              {b50 ? `${num(b50.oldTotal)} · enters at ${b50.oldCutoff}` : "—"}
-              {b50 && b50.oldSlotsOpen > 0 ? ` · ${b50.oldSlotsOpen} open` : ""}
+              {b50 ? t.entersAt(num(b50.oldTotal), b50.oldCutoff) : "—"}
+              {b50 && b50.oldSlotsOpen > 0 ? t.open(b50.oldSlotsOpen) : ""}
             </dd>
           </dl>
           <div className="ledger-head">
-            <Label info="How many of your Expert, Master and Re:Master scores are at each rank.">ranks · expert and up</Label>
+            <Label info={t.ranksInfo}>{t.ranks}</Label>
           </div>
           {stats ? (
             <ul className="bars">
@@ -131,14 +133,14 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
               ))}
             </ul>
           ) : (
-            <Empty>Loading…</Empty>
+            <Empty>{m.dash.loading}</Empty>
           )}
         </section>
       </div>
       {stats && stats.levels.size > 0 && (
         <section className="ledger">
           <div className="ledger-head">
-            <Label info="Your average achievement at each level, Expert and up. The bar goes from 80% to 100%.">average achievement by level · expert and up</Label>
+            <Label info={t.levelsInfo}>{t.levels}</Label>
           </div>
           <table className="tbl compact levels keep">
             <tbody>
@@ -147,7 +149,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
                 .map(([level, e]) => (
                   <tr key={level}>
                     <td className="mono strong">{level}</td>
-                    <td className="c-num mono dim">{e.n} charts</td>
+                    <td className="c-num mono dim">{t.charts(e.n)}</td>
                     <td className="c-bar">
                       <span className="bar">
                         <span style={{ width: `${Math.max(0, Math.min(100, (e.sum / e.n - 80) * 5))}%` }} />

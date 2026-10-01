@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocale, useM } from "@/components/I18n";
+import { traitName } from "@/lib/i18n/traits";
 import { ApiError, getJSON, type PatternBrowse } from "./api";
 import { Chip, Empty, Jacket, pct } from "./bits";
 
 const LEVELS = ["", "15", "14+", "14", "13+", "13", "12+", "12", "11+", "11", "10+", "10", "9+", "9", "8+", "8", "7+", "7"];
 
-const DIFFS: [string, string][] = [["", "any difficulty"], ["remaster", "Re:MASTER"], ["master", "MASTER"], ["expert", "EXPERT"], ["advanced", "ADVANCED"], ["basic", "BASIC"]];
+const DIFFS: [string, string][] = [["", ""], ["remaster", "Re:MASTER"], ["master", "MASTER"], ["expert", "EXPERT"], ["advanced", "ADVANCED"], ["basic", "BASIC"]];
 
 /** Browse charts by what they ask of you: a trait, narrowed by level or difficulty, with your own scores beside each. */
 export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
@@ -14,6 +16,9 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
   tag: string;
   setTag: (v: string) => void;
 }) {
+  const m = useM();
+  const t = m.patterns;
+  const locale = useLocale();
   const [find, setFind] = useState("");
   const [level, setLevel] = useState("");
   const [diff, setDiff] = useState("");
@@ -41,16 +46,16 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
   if (!open) {
     return (
       <button type="button" className="linkish browse-toggle" onClick={() => setOpen(true)}>
-        or browse charts by trait
+        {t.open}
       </button>
     );
   }
   const tags = data?.tags ?? [];
   const needle = find.trim().toLowerCase();
   const matches = needle
-    ? tags.filter((t) => t.tag.toLowerCase().includes(needle) || t.english.toLowerCase().includes(needle) || t.label.toLowerCase().includes(needle))
+    ? tags.filter((x) => x.tag.toLowerCase().includes(needle) || x.english.toLowerCase().includes(needle) || x.label.toLowerCase().includes(needle) || traitName(x.label, x.english, locale).toLowerCase().includes(needle))
     : tags;
-  const chosen = tags.find((t) => t.tag === data?.tag);     // the trait the list on show belongs to, not the one just clicked
+  const chosen = tags.find((x) => x.tag === data?.tag);     // the trait the list on show belongs to, not the one just clicked
   return (
     <section className="browse">
       <div className="filters">
@@ -59,66 +64,63 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
           type="text"
           role="searchbox"
           value={find}
-          placeholder="Search traits (streams, 乱打, slide-heavy…)"
-          aria-label="Search traits"
+          placeholder={t.placeholder}
+          aria-label={t.label}
           onChange={(e) => setFind(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && matches.length) setTag(matches[0].tag);
           }}
         />
-        <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Level">
+        <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label={m.newTab.level}>
           {LEVELS.map((l) => (
             <option key={l || "any"} value={l}>
-              {l ? `level ${l}` : "any level"}
+              {l ? m.picksTab.level(l) : m.picksTab.anyLevel}
             </option>
           ))}
         </select>
-        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label="Difficulty">
+        <select value={diff} onChange={(e) => setDiff(e.target.value)} aria-label={m.newTab.difficulty}>
           {DIFFS.map(([v, label]) => (
             <option key={v || "any"} value={v}>
-              {label}
+              {label || t.anyDifficulty}
             </option>
           ))}
         </select>
         <button type="button" className="linkish" onClick={() => setOpen(false)}>
-          close
+          {t.close}
         </button>
       </div>
       {error && <Empty>{error}</Empty>}
       {!error && (
         <ul className="tag-picker">
-          {matches.length === 0 && <li className="hint">No traits match “{find}”.</li>}
-          {matches.map((t) => (
-            <li key={t.tag}>
+          {matches.length === 0 && <li className="hint">{t.noMatch(find)}</li>}
+          {matches.map((x) => (
+            <li key={x.tag}>
               <button
                 type="button"
-                className={[t.tag === tag ? "on" : "", t.community ? "" : "measured"].filter(Boolean).join(" ")}
-                onClick={() => setTag(t.tag === tag ? "" : t.tag)}
-                title={t.community ? `tagged by maiノーツ · ${t.charts} charts` : `measured from each chart · ${t.charts} charts`}
+                className={[x.tag === tag ? "on" : "", x.community ? "" : "measured"].filter(Boolean).join(" ")}
+                onClick={() => setTag(x.tag === tag ? "" : x.tag)}
+                title={x.community ? t.taggedTitle(x.charts) : t.measuredTitle(x.charts)}
               >
-                {t.community ? `${t.english} · ${t.tag}` : t.label}
-                <span className="mono"> {t.charts}</span>
+                {x.community ? (locale === "ja" ? x.tag : `${x.english} · ${x.tag}`) : traitName(x.label, x.english, locale)}
+                <span className="mono"> {x.charts}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
       {!error && !tag && (
-        <p className="hint">
-          Solid traits are tagged by maiノーツ editors, who&apos;ve covered a third of Master charts. Dashed ones are measured from the chart.
-          Pick one to see every chart with it, hardest first.
-        </p>
+        <p className="hint">{t.intro}</p>
       )}
       {tag && data && data.tag && (
         <>
           <p className="hint">
-            <b>{chosen && !chosen.community ? chosen.label : data.english}</b>
-            {chosen && !chosen.community ? " · measured from each chart" : ` · ${data.tag}`} · {data.charts.length} charts
-            {data.charts.some((c) => c.played) ? `, ${data.charts.filter((c) => c.played).length} played` : ""}
-            {busy ? " · updating…" : ""}
+            <b>{chosen && !chosen.community ? traitName(chosen.label, chosen.english, locale) : locale === "ja" ? data.tag : data.english}</b>
+            {chosen && !chosen.community ? t.measured : locale === "ja" ? "" : ` · ${data.tag}`}{t.charts(data.charts.length)}
+            {data.charts.some((c) => c.played) ? t.played(data.charts.filter((c) => c.played).length) : ""}
+            {busy ? t.updating : ""}
           </p>
           {data.charts.length === 0 ? (
-            <Empty>No charts with this trait at that level or difficulty. Try a different filter.</Empty>
+            <Empty>{t.none}</Empty>
           ) : (
             <ul className="hits pattern-list">
               {data.charts.map((c) => (
@@ -127,8 +129,8 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
                   <button type="button" className="hit-title" onClick={() => onOpen(c.title, c.chart_type, c.difficulty)}>
                     {c.title}
                     <small>
-                      {c.played ? `${pct(c.accuracy)} ${c.rank} · ${c.rating}${c.note ? ` · ${c.note}` : ""}` : "never played"}
-                      {c.tags.length ? ` · also ${c.tags.join(", ")}` : ""}
+                      {c.played ? `${pct(c.accuracy)} ${c.rank} · ${c.rating}${c.note ? ` · ${c.note}` : ""}` : t.neverPlayed}
+                      {c.tags.length ? t.also(c.tags.map((x) => traitName(x, undefined, locale)).join(m.list.sep)) : ""}
                     </small>
                   </button>
                   <div className="hit-charts">

@@ -5,6 +5,8 @@ import "./globals.css";
 import { SiteNotice } from "@/components/SiteNotice";
 import { Pwa } from "@/components/Pwa";
 import { THEME_BOOT } from "@/components/Theme";
+import { LocaleProvider } from "@/components/I18n";
+import { getI18n } from "@/lib/i18n/server";
 
 const display = localFont({
   src: [
@@ -33,33 +35,40 @@ const mono = localFont({
 });
 
 const SITE = env.publicUrl();
-const TAGLINE =
-  "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating.";
 
-export const metadata: Metadata = {
-  // every page's canonical is resolved against this, so one address is the address
-  metadataBase: new URL(SITE),
-  title: { default: "Rasmai · maimai DX rating bot for Discord", template: "%s · Rasmai" },
-  description: TAGLINE,
-  alternates: { canonical: "/" },
-  keywords: ["maimai", "maimai DX", "rating", "best 50", "Discord bot", "chart constant", "rhythm game"],
-  openGraph: {
-    type: "website",
-    siteName: "Rasmai",
-    url: SITE,
-    title: "Rasmai · maimai DX rating bot for Discord",
+// The bundled fonts are Latin subsets, so Japanese text falls through to the system's own Japanese fonts:
+// rounded for headings where there is one, the usual gothic for text.
+const JA_DISPLAY = '"Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP"';
+const JA_BODY = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP"';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale, m } = await getI18n();
+  const TAGLINE = m.meta.tagline;
+  return {
+    // every page's canonical is resolved against this, so one address is the address
+    metadataBase: new URL(SITE),
+    title: { default: m.meta.title, template: "%s · Rasmai" },
     description: TAGLINE,
-    locale: "en",
-  },
-  twitter: { card: "summary_large_image", title: "Rasmai · maimai DX rating bot for Discord", description: TAGLINE },
-  applicationName: "Rasmai",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Rasmai", statusBarStyle: "default" },
-  icons: { icon: "/favicon.ico", apple: "/app/apple-touch-icon.png" },
-  formatDetection: { telephone: false },
-  // Next writes the standard mobile-web-app-capable tag; older iOS only reads Apple's own
-  other: { "apple-mobile-web-app-capable": "yes" },
-};
+    alternates: { canonical: "/" },
+    keywords: ["maimai", "maimai DX", "rating", "best 50", "Discord bot", "chart constant", "rhythm game"],
+    openGraph: {
+      type: "website",
+      siteName: "Rasmai",
+      url: SITE,
+      title: m.meta.title,
+      description: TAGLINE,
+      locale: locale === "ja" ? "ja_JP" : "en",
+    },
+    twitter: { card: "summary_large_image", title: m.meta.title, description: TAGLINE },
+    applicationName: "Rasmai",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, title: "Rasmai", statusBarStyle: "default" },
+    icons: { icon: "/favicon.ico", apple: "/app/apple-touch-icon.png" },
+    formatDetection: { telephone: false },
+    // Next writes the standard mobile-web-app-capable tag; older iOS only reads Apple's own
+    other: { "apple-mobile-web-app-capable": "yes" },
+  };
+}
 
 export const viewport: Viewport = {
   colorScheme: "light",
@@ -69,16 +78,23 @@ export const viewport: Viewport = {
   // the theme-color meta is written by the theme boot script, so it follows the reader's switch rather than the device
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { locale } = await getI18n();
+  const fonts =
+    locale === "ja"
+      ? ({ "--font-display": `${display.style.fontFamily}, ${JA_DISPLAY}`, "--font-body": `${body.style.fontFamily}, ${JA_BODY}` } as React.CSSProperties)
+      : undefined;
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable}`} style={fonts} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
       <body>
-        <SiteNotice />
-        {children}
-        <Pwa />
+        <LocaleProvider locale={locale}>
+          <SiteNotice />
+          {children}
+          <Pwa />
+        </LocaleProvider>
       </body>
     </html>
   );

@@ -99,6 +99,13 @@ button, input, select { font-family: inherit; }
 .masthead-nav a.tag:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 2px; }
 /* the light/dark switch: a round button after the nav, moon in the light theme and sun in the dark one */
 .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 2px solid var(--edge); border-radius: 999px; background: var(--paper-2); color: var(--ink); cursor: pointer; flex: 0 0 auto; transition: transform .18s cubic-bezier(.2, .8, .2, 1), background .18s; }
+/* the language switch: a pill beside the theme switch, naming the language it switches to */
+.lang-toggle { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 11px; border: 2px solid var(--edge); border-radius: 999px; background: var(--paper-2); color: var(--ink); cursor: pointer; flex: 0 0 auto; font-family: var(--font-mono), var(--font-body), monospace; font-size: 12px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; transition: background .18s; }
+.lang-toggle:lang(ja) { font-family: var(--font-body), sans-serif; letter-spacing: 0; }
+.lang-toggle:hover { background: var(--paper); }
+.lang-toggle:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+/* the small capitals labels are tracked wide for Latin letters; Japanese reads as gaps at that spacing */
+:lang(ja) :is(.label, .readout .lbl, .tbl th, .area-panel .lbl), :lang(ja) .tbl:not(.keep) td[data-l]::before { letter-spacing: .06em; }
 .theme-toggle:hover { transform: rotate(-15deg); background: var(--paper); }
 .theme-toggle:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 .theme-toggle svg { display: block; }
@@ -316,7 +323,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 @media (max-width: 560px) {
   .masthead { padding-bottom: 12px; gap: 10px 12px; }
   .masthead-nav { margin-left: 0; flex-basis: 100%; order: 10; justify-content: space-between; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
-  .masthead .theme-toggle { margin-left: auto; }
+  .masthead .lang-toggle { margin-left: auto; }
+  .masthead .theme-toggle { margin-left: 0; }
   .masthead-nav .tag { font-size: 11.5px; letter-spacing: .8px; padding: 6px 2px; }
   .masthead-nav span.tag { padding-bottom: 4px; }
   .foot { flex-direction: column; gap: 6px; margin-top: 36px; }

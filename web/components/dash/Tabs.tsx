@@ -1,45 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
 import { type RefreshStatus } from "./api";
 
 export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
 
-// what to play, then how you play, then your scores, then the reference tabs
-export const TABS: { key: Tab; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "picks", label: "What to play" },
-  { key: "new", label: "New charts" },
-  { key: "traits", label: "Traits" },
-  { key: "best50", label: "Best 50" },
-  { key: "charts", label: "All charts" },
-  { key: "recent", label: "Recent" },
-  { key: "chart", label: "Look up" },
-  { key: "areas", label: "Areas" },
-  { key: "account", label: "Account" },
-];
+// what to play, then how you play, then your scores, then the reference tabs; their names are in the translation files
+export const TABS: Tab[] = ["overview", "picks", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
 
-// only ever added for the one account the internal API answers the developer route for
-export const ADMIN_TAB: { key: Tab; label: string } = { key: "admin", label: "Developer" };
-
-export function tabsFor(admin?: boolean): { key: Tab; label: string }[] {
-  return admin ? [...TABS, ADMIN_TAB] : TABS;
+// the developer tab is only ever added for the one account the internal API answers the developer route for
+export function tabsFor(admin?: boolean): Tab[] {
+  return admin ? [...TABS, "admin"] : TABS;
 }
-
-const STAGE_LABEL: Record<string, string> = {
-  queued: "Waiting for a free slot",
-  login: "Signing in to maimai DX NET",
-  scores: "Reading score pages",
-  recent: "Recent plays",
-  extras: "Albums and events",
-  plays: "Play counts",
-  analysis: "Picking charts for you",
-  done: "Done",
-  failed: "Failed",
-};
 
 /** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
 export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean }) {
+  const m = useM();
   const shown = tabsFor(admin);
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
@@ -61,10 +38,10 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
   }, [current]);
   return (
     <div className="tabs-wrap">
-      <nav className="tabs" aria-label="Sections" ref={strip} data-more={more} onScroll={measure}>
+      <nav className="tabs" aria-label={m.dash.sections} ref={strip} data-more={more} onScroll={measure}>
         {shown.map((t) => (
-          <button key={t.key} type="button" className={t.key === current ? "on" : ""} aria-current={t.key === current ? "true" : undefined} onClick={() => onPick(t.key)}>
-            {t.label}
+          <button key={t} type="button" className={t === current ? "on" : ""} aria-current={t === current ? "true" : undefined} onClick={() => onPick(t)}>
+            {m.dash.tabs[t]}
           </button>
         ))}
       </nav>
@@ -73,14 +50,15 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
 }
 
 export function RefreshBar({ status }: { status: RefreshStatus }) {
+  const m = useM();
   const total = status.total ?? 0;
   const done = status.done ?? 0;
-  const label = STAGE_LABEL[status.stage ?? ""] ?? status.stage ?? "";
+  const label = m.dash.stages[status.stage ?? ""] ?? status.stage ?? "";
   return (
     <div className="refresh-bar" role="status">
       <span className="lamp wait" />
       <span>
-        Reading your scores from maimai · {status.detail || label}
+        {m.dash.readingScores(status.detail || label)}
         {total > 1 ? ` ${done}/${total}` : ""}
       </span>
     </div>

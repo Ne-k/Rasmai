@@ -1,3 +1,5 @@
+import { activeMessages } from "@/lib/i18n/active";
+
 export type DiscordUser = { id: string; name: string; handle: string; avatar: string };
 
 export type HistoryPoint = {
@@ -402,26 +404,22 @@ export type SongLookup = {
   charts: ChartDetail[];
 };
 
-/** The codes the site's API answers with, as sentences a person can act on. */
-const ERROR_TEXT: Record<string, string> = {
-  bot_unreachable: "Can't reach the bot right now. It might be restarting, so try again in a minute.",
-  rate_limited: "Too many requests. Wait a moment and try again.",
-  signed_out: "Your sign-in expired. Sign in again.",
-  bad_response: "Couldn't read the server's response.",
-  not_linked: "No maimai account is linked to this Discord account yet.",
-};
-
+/** The codes the site's API answers with, as sentences a person can act on, in the page's language. */
 export function describeError(status: number, body: Record<string, unknown>): string {
+  const t = activeMessages().dash.api;
+  const known: Record<string, string> = {
+    bot_unreachable: t.bot_unreachable, rate_limited: t.rate_limited, signed_out: t.signed_out, bad_response: t.bad_response, not_linked: t.not_linked,
+  };
   const code = String(body.error ?? "");
-  if (ERROR_TEXT[code]) return ERROR_TEXT[code];
+  if (known[code]) return known[code];
   if (typeof body.message === "string" && body.message) return body.message;
-  if (status === 502 || status === 503 || status === 504) return ERROR_TEXT.bot_unreachable;
-  if (status === 429) return ERROR_TEXT.rate_limited;
-  if (status === 401) return ERROR_TEXT.signed_out;
-  if (status === 404) return "Not found.";
-  if (status >= 500) return "Something went wrong on the server. Try again in a moment.";
-  if (status === 0) return "Couldn't connect. Check your internet and try again.";
-  return code ? code.replace(/_/g, " ") : `Something went wrong (${status}).`;
+  if (status === 502 || status === 503 || status === 504) return t.bot_unreachable;
+  if (status === 429) return t.rate_limited;
+  if (status === 401) return t.signed_out;
+  if (status === 404) return t.notFound;
+  if (status >= 500) return t.server;
+  if (status === 0) return t.network;
+  return code ? code.replace(/_/g, " ") : t.generic(status);
 }
 
 export class ApiError extends Error {

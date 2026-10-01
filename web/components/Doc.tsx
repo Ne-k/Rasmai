@@ -1,20 +1,22 @@
-import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { Children, Fragment, cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { Ring } from "./Ring";
 import { MastheadNav } from "./Shell";
 import { ThemeToggle } from "./Theme";
+import type { Locale } from "@/lib/i18n";
+import { getI18n } from "@/lib/i18n/server";
 
-export const SITE_URL = "https://rasmai.lol";
-export const CONTACT_EMAIL = "cardin@nguyen.ink";
-export const CONTACT_DISCORD = "nek_ng";
+export { CONTACT_DISCORD, CONTACT_EMAIL, SITE_URL } from "./Contact";
 
-export function Contact() {
-  return (
-    <>
-      <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, or <b>{CONTACT_DISCORD}</b> on Discord
-    </>
-  );
+// written once, shown the way each language writes a date
+export const EFFECTIVE_DATE = "2026-09-30";
+
+export function effectiveDate(locale: Locale): string {
+  const [year, month, day] = EFFECTIVE_DATE.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return locale === "ja"
+    ? `${year}年${month}月${day}日`
+    : date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
-export const EFFECTIVE_DATE = "30 September 2026";
 
 type DocProps = { tag: string; title: React.ReactNode; intro: string; dated?: boolean; children: React.ReactNode };
 
@@ -32,8 +34,9 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
-// past this many characters a paragraph across a whole row runs too long, so it is set in two columns
-const SPLIT_PARAGRAPH = 480;
+// past this many characters a paragraph across a whole row runs too long, so it is set in two columns.
+// Japanese carries about twice as much in a character, so its bar is half as many.
+const SPLIT_PARAGRAPH: Record<Locale, number> = { en: 480, ja: 240 };
 
 /**
  * The page's flat run of headings, paragraphs and lists, cut into one section per heading so the
@@ -41,9 +44,16 @@ const SPLIT_PARAGRAPH = 480;
  * section with a long list takes the full width and sets the list in two columns; two short sections
  * in a row share a row; a short section with no short neighbour takes the full width on its own.
  */
-function toSections(children: ReactNode): Section[] {
+/** The children with fragments opened up, so a page body written as one fragment per language still splits by heading. */
+function flat(children: ReactNode): ReactNode[] {
+  return Children.toArray(children).flatMap((child) =>
+    isValidElement<{ children?: ReactNode }>(child) && child.type === Fragment ? flat(child.props.children) : [child],
+  );
+}
+
+function toSections(children: ReactNode, locale: Locale): Section[] {
   const sections: Section[] = [];
-  for (const child of Children.toArray(children)) {
+  for (const child of flat(children)) {
     if (isTag(child, "h2")) sections.push({ heading: child, body: [], size: "half" });
     else {
       if (!sections.length) sections.push({ heading: null, body: [], size: "wide" });
@@ -68,7 +78,7 @@ function toSections(children: ReactNode): Section[] {
   for (const section of sections) {
     if (section.size === "half") continue;
     section.body = section.body.map((node) =>
-      isTag(node, "p") && textOf(node).length > SPLIT_PARAGRAPH
+      isTag(node, "p") && textOf(node).length > SPLIT_PARAGRAPH[locale]
         ? cloneElement(node, { className: [node.props.className, "doc-split"].filter(Boolean).join(" ") })
         : node,
     );
@@ -76,7 +86,8 @@ function toSections(children: ReactNode): Section[] {
   return sections;
 }
 
-export function Doc({ tag, title, intro, dated = true, children }: DocProps) {
+export async function Doc({ tag, title, intro, dated = true, children }: DocProps) {
+  const { locale, m } = await getI18n();
   return (
     <div className="frame">
       <header className="masthead">
@@ -92,9 +103,9 @@ export function Doc({ tag, title, intro, dated = true, children }: DocProps) {
       <main className="doc">
         <h1>{title}</h1>
         <p className="lede">{intro}</p>
-        {dated ? <p className="doc-date">Effective {EFFECTIVE_DATE}</p> : null}
+        {dated ? <p className="doc-date">{m.doc.effective(effectiveDate(locale))}</p> : null}
         <div className="doc-grid">
-          {toSections(children).map((section, i) => (
+          {toSections(children, locale).map((section, i) => (
             <section key={i} className={`doc-section ${section.size}`}>
               {section.heading}
               {section.body}
@@ -104,10 +115,10 @@ export function Doc({ tag, title, intro, dated = true, children }: DocProps) {
       </main>
       <footer className="foot">
         <span>
-          Created by <b>nek_ng</b> · not affiliated with SEGA
+          {m.footer.createdBy} · {m.footer.notAffiliated}
         </span>
         <span>
-          <a href="/privacy/">privacy</a> · <a href="/terms/">terms</a>
+          <a href="/privacy/">{m.footer.privacy}</a> · <a href="/terms/">{m.footer.terms}</a>
         </span>
       </footer>
     </div>

@@ -1,30 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useM } from "@/components/I18n";
 import type { Sharing as SharingState } from "./api";
 
-type Toggle<G extends "card" | "embed"> = { key: keyof SharingState[G]; label: string; note: string };
-
+// the words for each switch are in the translation files, under the same key
 // the name and the rating are the card, so they are not here. Everything else is the owner's.
-const PICTURE: Toggle<"card">[] = [
-  { key: "chart", label: "Rating over time", note: "the graph along the bottom" },
-  { key: "gain", label: "Rating gain", note: "how much your rating went up and since when" },
-  { key: "charts", label: "Charts scored", note: "how many charts you've scored" },
-  { key: "plays", label: "Play count", note: "how many credits you've played" },
-];
+const PICTURE: (keyof SharingState["card"])[] = ["chart", "gain", "charts", "plays"];
 
-// what the picture can be a picture of. Two of them need a section the profile may not be sharing.
-const VISUALS: Record<string, { label: string; note: string }> = {
-  curve: { label: "Rating over time", note: "your rating history" },
-  best50: { label: "Your best 50", note: "the 50 charts in your rating, highest first" },
-  traits: { label: "How you play", note: "your traits wheel" },
-  figures: { label: "Numbers only", note: "no graph, only your stats" },
-};
+// what the picture can be a picture of (embedCard.visuals). Two of them need a section the profile may not be sharing.
 
-const TEXT: Toggle<"embed">[] = [
-  { key: "region", label: "Region", note: "International or Japan, next to your rating" },
-  { key: "charts", label: "Charts scored", note: "the count, next to your rating" },
-];
+const TEXT: (keyof SharingState["embed"])[] = ["region", "charts"];
 
 /**
  * What a shared link turns into in Discord, and the switches for it, in a window of its own.
@@ -39,6 +25,8 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   busy: boolean;
   onClose: () => void;
 }) {
+  const m = useM();
+  const t = m.embedCard;
   const box = useRef<HTMLDialogElement>(null);
   const [drawn, setDrawn] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -79,9 +67,9 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   if (state.embed.region) bits.push("international");
   if (state.embed.charts) bits.push("551 charts scored");
 
-  const rows = <G extends "card" | "embed">(group: G, list: Toggle<G>[]) => (
+  const rows = <G extends "card" | "embed">(group: G, list: (keyof SharingState[G])[], words: Record<string, [string, string]>) => (
     <ul className="share-toggles">
-      {list.map((row) => (
+      {list.map((key) => ({ key, label: words[key as string][0], note: words[key as string][1] })).map((row) => (
         <li key={String(row.key)}>
           <label>
             <input
@@ -101,24 +89,21 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
   );
 
   return (
-    <dialog className="sheet" ref={box} aria-label="the card your link shows in Discord">
+    <dialog className="sheet" ref={box} aria-label={t.label}>
       <div className="sheet-head">
-        <b>Discord card</b>
-        <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label="close">
+        <b>{t.title}</b>
+        <button type="button" className="sheet-shut" onClick={() => box.current?.close()} aria-label={t.close}>
           ×
         </button>
       </div>
 
       <div className="sheet-body">
-        <p className="hint">
-          What Discord shows when someone posts your link. Your name and rating are always on it, and you can change
-          the rest.
-        </p>
+        <p className="hint">{t.intro}</p>
 
-        <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label="what the card looks like">
+        <div className="embed-preview" style={{ borderLeftColor: colour }} aria-label={t.looks}>
           {state.card.on && !failed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={picture} alt="your card image" onError={() => setFailed(true)} />
+            <img src={picture} alt={t.imageAlt} onError={() => setFailed(true)} />
           ) : null}
           <div className="embed-body">
             <b className="embed-title" style={{ color: colour }}>
@@ -128,13 +113,14 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             <span className="embed-btn">See the profile</span>
           </div>
         </div>
-        {failed && <p className="hint">The image isn&apos;t ready yet. It&apos;ll be there when Discord loads the card.</p>}
+        {failed && <p className="hint">{t.notReady}</p>}
 
-        <p className="embed-group">image</p>
+        <p className="embed-group">{t.image}</p>
         <ul className="visuals">
           {state.visuals.map((option) => {
-            const about = VISUALS[option.key];
-            if (!about) return null;
+            const words = t.visuals[option.key];
+            if (!words) return null;
+            const about = { label: words[0], note: words[1] };
             return (
               <li key={option.key}>
                 <label className={option.ready ? "" : "off"}>
@@ -148,7 +134,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
                   <span>
                     <b>{about.label}</b>
                     <span className="dim">
-                      {option.ready ? about.note : `turn ${option.needs === "best50" ? "Best 50" : "Traits"} on above first`}
+                      {option.ready ? about.note : t.needs(m.sharing.sections[option.needs === "best50" ? "best50" : "traits"][0])}
                     </span>
                   </span>
                 </label>
@@ -157,7 +143,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           })}
         </ul>
 
-        <p className="embed-group">colour</p>
+        <p className="embed-group">{t.colour}</p>
         <div className="swatches">
           {state.colours.map((option) => (
             <button
@@ -173,7 +159,7 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
           ))}
           <label className="swatch-own">
             <input type="color" value={colour} disabled={busy} onChange={(e) => pick(e.target.value)} />
-            <span>custom</span>
+            <span>{t.custom}</span>
           </label>
         </div>
 
@@ -185,25 +171,22 @@ export function EmbedCard({ state, onSave, busy, onClose }: {
             onChange={(e) => onSave({ card: { on: e.target.checked } })}
           />
           <span>
-            <b>Show an image</b>
-            <span className="dim">when off, only your name, rating and button show</span>
+            <b>{t.showImage}</b>
+            <span className="dim">{t.showImageNote}</span>
           </span>
         </label>
 
         {state.card.on && (
           <>
-            <p className="embed-group">on the image</p>
-            {rows("card", PICTURE)}
+            <p className="embed-group">{t.onImage}</p>
+            {rows("card", PICTURE, t.picture)}
           </>
         )}
 
-        <p className="embed-group">under your name</p>
-        {rows("embed", TEXT)}
+        <p className="embed-group">{t.underName}</p>
+        {rows("embed", TEXT, t.text)}
 
-        <p className="hint">
-          Discord caches cards for about half an hour. Changes show up the next time you post your link, and links
-          you already sent keep the old card.
-        </p>
+        <p className="hint">{t.cache}</p>
       </div>
     </dialog>
   );
