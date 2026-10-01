@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useM } from "./I18n";
+import { useTranslations } from "next-intl";
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
@@ -29,7 +29,8 @@ const BUILD = process.env.NEXT_PUBLIC_BUILD_ID ?? "dev";
 
 /** Registers the service worker, marks the document when the site runs as a home-screen app, and offers a reload when a newer build has taken over. */
 export function Pwa() {
-  const m = useM();
+  const t = useTranslations("pwa");
+  const common = useTranslations("common");
   const [updated, setUpdated] = useState(false);
   useEffect(() => {
     const mark = () => document.documentElement.toggleAttribute("data-standalone", isStandalone());
@@ -56,12 +57,12 @@ export function Pwa() {
   if (!updated) return null;
   return (
     <div className="toast" role="status">
-      <span>{m.pwa.updated}</span>
+      <span>{t("updated")}</span>
       <button type="button" className="button pink" onClick={() => window.location.reload()}>
-        {m.pwa.reload}
+        {t("reload")}
       </button>
-      <button type="button" className="linkish" onClick={() => setUpdated(false)} aria-label={m.common.dismiss}>
-        {m.pwa.later}
+      <button type="button" className="linkish" onClick={() => setUpdated(false)} aria-label={common("dismiss")}>
+        {t("later")}
       </button>
     </div>
   );
@@ -79,6 +80,8 @@ function hintDismissed(): boolean {
 
 type Platform = "ios" | "android" | "other";
 
+const tags = { b: (c: React.ReactNode) => <b>{c}</b>, glyph: (c: React.ReactNode) => <span className="glyph">{c}</span> };
+
 function platform(): Platform {
   const ua = navigator.userAgent;
   const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
@@ -89,7 +92,7 @@ function platform(): Platform {
 
 /** How to put Rasmai on the home screen, for the device at hand. Renders nothing once it is installed. */
 export function InstallHint() {
-  const m = useM();
+  const t = useTranslations("pwa");
   const [state, setState] = useState<{ standalone: boolean; platform: Platform; canPrompt: boolean; touch: boolean } | null>(null);
   const [dismissed, setDismissed] = useState(true); // assume dismissed until the browser says otherwise, so nothing flashes
   useEffect(() => {
@@ -124,29 +127,29 @@ export function InstallHint() {
   };
   return (
     <div className="install" role="note">
-      <button type="button" className="install-close" onClick={dismiss} aria-label={m.pwa.hide}>
+      <button type="button" className="install-close" onClick={dismiss} aria-label={t("hide")}>
         ×
       </button>
       <div className="install-icon" aria-hidden="true">
         <img src="/app/icon-192.png" alt="" width={44} height={44} />
       </div>
       <div className="install-body">
-        <b>{m.pwa.heading}</b>{" "}
+        <b>{t("heading")}</b>{" "}
         {state.canPrompt ? (
           <>
-            {m.pwa.prompt}
+            {t("prompt")}
             <div className="btn-row">
               <button type="button" className="button pink" onClick={install}>
-                {m.pwa.install}
+                {t("install")}
               </button>
             </div>
           </>
         ) : state.platform === "ios" ? (
-          m.pwa.ios
+          t.rich("ios", tags)
         ) : state.platform === "android" ? (
-          m.pwa.android
+          t.rich("android", tags)
         ) : (
-          <>{m.pwa.other}</>
+          <>{t("other")}</>
         )}
       </div>
     </div>

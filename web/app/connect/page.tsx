@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Turnstile } from "@/components/Turnstile";
 import { errorCopy } from "@/components/copy";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 
 type ConnectInfo = {
   method?: "bookmark" | "segaid";
@@ -19,6 +19,19 @@ type ConnectInfo = {
 
 type Platform = "desktop" | "ios" | "android";
 
+// the tags the flow messages use; the glyphs are the Share and Bookmarks icons in Safari
+const tags = {
+  b: (c: React.ReactNode) => <b>{c}</b>,
+  em: (c: React.ReactNode) => <em>{c}</em>,
+  code: (c: React.ReactNode) => <code>{c}</code>,
+  glyph: (c: React.ReactNode) => <span className="glyph">{c}</span>,
+  jp: (c: React.ReactNode) => (
+    <a href="https://maimaidx.jp/maimai-mobile/" target="_blank" rel="noopener noreferrer">
+      {c}
+    </a>
+  ),
+};
+
 function detectPlatform(): Platform {
   const ua = navigator.userAgent;
   const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
@@ -29,17 +42,17 @@ function detectPlatform(): Platform {
 }
 
 export default function ConnectPage() {
-  const m = useM();
+  const t = useTranslations("flow");
   return (
-    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{m.flow.loading}</p></div>}>
+    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{t("loading")}</p></div>}>
       <Connect />
     </Suspense>
   );
 }
 
 function Connect() {
-  const m = useM();
-  const t = m.flow;
+  const t = useTranslations("flow");
+  const e = useTranslations("errors");
   const params = useSearchParams();
   const code = params.get("code") ?? "";
   const user = params.get("user") ?? "";
@@ -130,13 +143,12 @@ function Connect() {
   }, [info, user, code]);
 
   if (errorKind) {
-    const copy = errorCopy(errorKind, m);
+    const copy = errorCopy(errorKind, e);
     return (
-      <Shell tag="error" lit={2} footLeft={t.nothingSaved}>
+      <Shell tag="error" lit={2} footLeft={t("nothingSaved")}>
         <h1>
-          {copy.headline[0]}
-          <em>{copy.headline[1]}</em>
-          {t.period}
+          {copy.headline}
+          {t("period")}
         </h1>
         <p className="lede">{copy.detail}</p>
         <div className="aside">{copy.hint}</div>
@@ -151,16 +163,16 @@ function Connect() {
       <Shell
         tag="step 2 of 3"
         lit={2}
-        footLeft={japan ? t.segaIdEncrypted : t.neverSeesPassword}
-        footRight={t.validUntil(info.expiresDisplay)}
+        footLeft={japan ? t("segaIdEncrypted") : t("neverSeesPassword")}
+        footRight={t("validUntil", { time: info.expiresDisplay })}
       >
-        <h1>{t.checkTitle}</h1>
-        <p className="lede">{japan ? t.checkLedeJapan : t.checkLede}</p>
+        <h1>{t.rich("checkTitle", tags)}</h1>
+        <p className="lede">{japan ? t("checkLedeJapan") : t("checkLede")}</p>
         <div className="check">
           <Turnstile siteKey={info.turnstile} action="connect" onToken={passCheck} onError={() => setCheckFailed("failed")} />
-          {checkFailed === "failed" && <p className="hint">{t.checkFailed}</p>}
+          {checkFailed === "failed" && <p className="hint">{t("checkFailed")}</p>}
         </div>
-        <div className="aside">{t.checkWhy(japan)}</div>
+        <div className="aside">{t.rich("checkWhy", { ...tags, japan: String(japan) })}</div>
       </Shell>
     );
   }
@@ -177,10 +189,10 @@ function Connect() {
   };
 
   const platformPicker = (
-    <div className="seg" role="group" aria-label={t.device}>
+    <div className="seg" role="group" aria-label={t("device")}>
       {(["desktop", "ios", "android"] as Platform[]).map((p) => (
         <button key={p} type="button" className={platform === p ? "on" : ""} onClick={() => setPlatform(p)}>
-          {t.devices[p]}
+          {t(`devices.${p}`)}
         </button>
       ))}
     </div>
@@ -191,11 +203,11 @@ function Connect() {
       tag="step 2 of 3"
       lit={done ? 3 : 2}
       done={done}
-      footLeft={t.neverSeesPassword}
-      footRight={info ? t.validUntil(info.expiresDisplay) : ""}
+      footLeft={t("neverSeesPassword")}
+      footRight={info ? t("validUntil", { time: info.expiresDisplay }) : ""}
     >
-      <h1>{mobile ? t.titleMobile : t.titleDesktop}</h1>
-      <p className="lede">{mobile ? t.ledeMobile : t.ledeDesktop}</p>
+      <h1>{t.rich(mobile ? "titleMobile" : "titleDesktop", tags)}</h1>
+      <p className="lede">{mobile ? t("ledeMobile") : t("ledeDesktop")}</p>
       {platformPicker}
 
       <section className="step">
@@ -203,8 +215,8 @@ function Connect() {
         <div>
           {platform === "desktop" && (
             <>
-              <h2>{t.dragTitle}</h2>
-              <p>{t.drag}</p>
+              <h2>{t("dragTitle")}</h2>
+              <p>{t.rich("drag", tags)}</p>
               <div className="btn-row">
                 <a
                   ref={bookmarkRef}
@@ -225,25 +237,25 @@ function Connect() {
                   ◯ maimai connect
                 </a>
                 <button className="button ghost" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {t.copyInstead}
+                  {t("copyInstead")}
                 </button>
               </div>
-              {copied && <p className="hint ok">{t.copiedHint}</p>}
+              {copied && <p className="hint ok">{t("copiedHint")}</p>}
             </>
           )}
 
           {platform === "ios" && (
             <>
-              <h2>{t.makeTitle}</h2>
-              <p>{t.makeBody}</p>
+              <h2>{t("makeTitle")}</h2>
+              <p>{t("makeBody")}</p>
               <div className="btn-row">
                 <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {copied ? t.copied : t.copyCode}
+                  {copied ? t("copied") : t("copyCode")}
                 </button>
               </div>
               <ol className="howto">
-                {t.ios.map((step, i) => (
-                  <li key={i}>{step}</li>
+                {(["step1", "step2", "step3"] as const).map((step) => (
+                  <li key={step}>{t.rich(`ios.${step}`, tags)}</li>
                 ))}
               </ol>
             </>
@@ -251,16 +263,16 @@ function Connect() {
 
           {platform === "android" && (
             <>
-              <h2>{t.makeTitle}</h2>
-              <p>{t.makeBody}</p>
+              <h2>{t("makeTitle")}</h2>
+              <p>{t("makeBody")}</p>
               <div className="btn-row">
                 <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {copied ? t.copied : t.copyCode}
+                  {copied ? t("copied") : t("copyCode")}
                 </button>
               </div>
               <ol className="howto">
-                {t.android.map((step, i) => (
-                  <li key={i}>{step}</li>
+                {(["step1", "step2", "step3"] as const).map((step) => (
+                  <li key={step}>{t.rich(`android.${step}`, tags)}</li>
                 ))}
               </ol>
             </>
@@ -271,26 +283,26 @@ function Connect() {
       <section className="step">
         <div className="n">2</div>
         <div>
-          <h2>{t.signInTitle}</h2>
-          <p>{t.signIn(mobile)}</p>
+          <h2>{t("signInTitle")}</h2>
+          <p>{t("signIn", { mobile: String(mobile) })}</p>
           <div className="btn-row">
             <a className="button ghost" href="https://my-aime.net/en/" target="_blank" rel="noopener noreferrer">
-              {t.signInButton}
+              {t("signInButton")}
             </a>
             {info?.loginLink ? (
               <a className="button" href={info.loginLink} target="_blank" rel="noopener noreferrer">
-                {t.authButton}
+                {t("authButton")}
               </a>
             ) : (
               <span className="button disabled" aria-disabled="true">
-                {t.authButton}
+                {t("authButton")}
               </span>
             )}
           </div>
           <div className="readout">
-            <span className="lbl">{t.labelValidUntil}</span>
+            <span className="lbl">{t("labelValidUntil")}</span>
             <span className="val">{info?.expiresDisplay ?? "…"}</span>
-            <span className="lbl">{t.labelRegion}</span>
+            <span className="lbl">{t("labelRegion")}</span>
             <span className="val">{info?.region.toUpperCase() ?? "…"}</span>
           </div>
         </div>
@@ -299,20 +311,20 @@ function Connect() {
       <section className="step">
         <div className="n">3</div>
         <div>
-          <h2>{t.runTitle}</h2>
-          {platform === "desktop" && <p>{t.runDesktop}</p>}
-          {platform === "ios" && <p>{t.runIos}</p>}
-          {platform === "android" && <p>{t.runAndroid}</p>}
+          <h2>{t("runTitle")}</h2>
+          {platform === "desktop" && <p>{t.rich("runDesktop", tags)}</p>}
+          {platform === "ios" && <p>{t.rich("runIos", tags)}</p>}
+          {platform === "android" && <p>{t.rich("runAndroid", tags)}</p>}
           <div className="status">
             <span className={`lamp ${done ? "done" : status === "waiting" ? "wait" : ""}`} />
             <span>
-              {done ? (player ? t.connectedAs(player) : t.connected) : status === "stopped" ? t.stopped : t.waiting}
+              {done ? (player ? t("connectedAs", { name: player }) : t("connected")) : status === "stopped" ? t("stopped") : t("waiting")}
             </span>
           </div>
         </div>
       </section>
 
-      <div className="aside">{t.stuck}</div>
+      <div className="aside">{t.rich("stuck", tags)}</div>
     </Shell>
   );
 }
@@ -355,8 +367,8 @@ function JapanConnect({
   user: string;
   onExpired: () => void;
 }) {
-  const m = useM();
-  const t = m.flow;
+  const t = useTranslations("flow");
+  const e = useTranslations("errors");
   const [segaId, setSegaId] = useState("");
   const [password, setPassword] = useState("");
   const [aime, setAime] = useState("1");
@@ -392,21 +404,21 @@ function JapanConnect({
         }
         if (data.kind === "credentials") {
           // the bot's own words say to run /login again, but on this page the link still works
-          const copy = errorCopy("credentials", m);
+          const copy = errorCopy("credentials", e);
           setProblem(`${copy.detail} ${copy.hint}`);
           return;
         }
         if (data.kind === "upstream") {
           // maimaidx.jp could not be reached or answered with something unexpected; the link is not spent
-          setProblem(t.unreachableJp);
+          setProblem(t("unreachableJp"));
           return;
         }
-        if (data.kind && data.kind in m.errors && data.kind !== "unknown") {
-          const copy = errorCopy(data.kind, m);
+        if (data.kind && e.has(`${data.kind}.headline` as never) && data.kind !== "unknown") {
+          const copy = errorCopy(data.kind, e);
           setProblem(`${copy.detail} ${copy.hint}`);
           return;
         }
-        setProblem(String(data.error ?? t.failed));
+        setProblem(String(data.error ?? t("failed")));
         return;
       }
       setPassword("");
@@ -418,7 +430,7 @@ function JapanConnect({
         window.location.href = `/connected/?${q.toString()}`;
       }, 900);
     } catch {
-      setProblem(t.offline);
+      setProblem(t("offline"));
     } finally {
       setBusy(false);
     }
@@ -430,20 +442,20 @@ function JapanConnect({
       tag="step 2 of 3"
       lit={done ? 3 : 2}
       done={done}
-      footLeft={t.segaIdEncrypted}
-      footRight={t.validUntil(info.expiresDisplay)}
+      footLeft={t("segaIdEncrypted")}
+      footRight={t("validUntil", { time: info.expiresDisplay })}
     >
-      <h1>{t.jpTitle}</h1>
-      <p className="lede">{t.jpLede}</p>
+      <h1>{t.rich("jpTitle", tags)}</h1>
+      <p className="lede">{t("jpLede")}</p>
 
       <section className="step">
         <div className="n">1</div>
         <div>
-          <h2>{t.jpStepTitle}</h2>
-          <p>{t.jpStep}</p>
+          <h2>{t("jpStepTitle")}</h2>
+          <p>{t.rich("jpStep", tags)}</p>
           <form className="signin" onSubmit={submit}>
             <label>
-              <span>{t.segaId}</span>
+              <span>{t("segaId")}</span>
               <input
                 type="text"
                 name="segaId"
@@ -458,7 +470,7 @@ function JapanConnect({
               />
             </label>
             <label>
-              <span>{t.password}</span>
+              <span>{t("password")}</span>
               <input
                 type="password"
                 name="password"
@@ -471,7 +483,7 @@ function JapanConnect({
               />
             </label>
             <label className="narrow">
-              <span>{t.aimeCard}</span>
+              <span>{t("aimeCard")}</span>
               <input
                 type="number"
                 name="aime"
@@ -484,7 +496,7 @@ function JapanConnect({
                 disabled={busy || done}
               />
             </label>
-            <p className="hint">{t.aimeHint}</p>
+            <p className="hint">{t("aimeHint")}</p>
             <label className="remember">
               <input
                 type="checkbox"
@@ -496,13 +508,13 @@ function JapanConnect({
                 disabled={busy || done}
               />
               <span>
-                {t.remember}
-                <small>{t.rememberHint}</small>
+                {t("remember")}
+                <small>{t("rememberHint")}</small>
               </span>
             </label>
             <div className="btn-row">
               <button className="button pink" type="submit" disabled={busy || done || !segaId || !password}>
-                {busy ? t.signingIn : t.signInAndLink}
+                {busy ? t("signingIn") : t("signInAndLink")}
               </button>
             </div>
             {problem && (
@@ -512,19 +524,19 @@ function JapanConnect({
             )}
           </form>
           <div className="readout">
-            <span className="lbl">{t.labelValidUntil}</span>
+            <span className="lbl">{t("labelValidUntil")}</span>
             <span className="val">{info.expiresDisplay}</span>
-            <span className="lbl">{t.labelRegion}</span>
+            <span className="lbl">{t("labelRegion")}</span>
             <span className="val">JP</span>
           </div>
           <div className="status">
             <span className={`lamp ${done ? "done" : "wait"}`} />
-            <span>{done ? (player ? t.connectedAs(player) : t.connected) : busy ? t.signingInJp : t.waiting}</span>
+            <span>{done ? (player ? t("connectedAs", { name: player }) : t("connected")) : busy ? t("signingInJp") : t("waiting")}</span>
           </div>
         </div>
       </section>
 
-      <div className="aside">{t.keeps}</div>
+      <div className="aside">{t.rich("keeps", tags)}</div>
     </Shell>
   );
 }

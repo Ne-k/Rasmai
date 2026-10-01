@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useM } from "./I18n";
+import { useTranslations } from "next-intl";
 
 type Notice = { text: string; tone: string; link: string; id: string; hideOnHost?: string };
 
@@ -27,7 +27,7 @@ function dismissed(id: string): boolean {
 
 /** Whatever the site has been told to say, across the top of every page. Set from Discord, dismissed per reader. */
 export function SiteNotice() {
-  const m = useM();
+  const t = useTranslations("common");
   // nothing until the browser has fetched one, so no band flashes on a page that should not carry it
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -69,12 +69,12 @@ export function SiteNotice() {
           <>
             {" "}
             <a href={link} rel="noopener noreferrer nofollow ugc">
-              {m.common.more}
+              {t("more")}
             </a>
           </>
         ) : null}
       </span>
-      <button type="button" className="movebar-close" onClick={dismiss} aria-label={m.common.dismiss}>
+      <button type="button" className="movebar-close" onClick={dismiss} aria-label={t("dismiss")}>
         ×
       </button>
     </div>

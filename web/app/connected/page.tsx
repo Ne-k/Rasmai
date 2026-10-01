@@ -3,12 +3,12 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 
 export default function ConnectedPage() {
-  const m = useM();
+  const t = useTranslations("flow");
   return (
-    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{m.flow.loading}</p></div>}>
+    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{t("loading")}</p></div>}>
       <Connected />
     </Suspense>
   );
@@ -16,39 +16,40 @@ export default function ConnectedPage() {
 
 function Connected() {
   const params = useSearchParams();
-  const m = useM();
-  const t = m.flow;
+  const t = useTranslations("flow");
+  const footer = useTranslations("footer");
+  const commandNames = { analyze: "/analyze", plan: "/plan", new: "/new", profile: "/profile" } as const;
   const player = params.get("player") ?? "";
   const region = (params.get("region") ?? "-").toUpperCase();
   const rating = params.get("rating") ?? "-";
 
   return (
-    <Shell tag="done" lit={3} done footLeft={m.footer.notAffiliated}>
-      <h1>{t.linkedTitle}</h1>
-      <p className="lede">{player ? t.signedInAs(player) : t.linkedGeneric}</p>
+    <Shell tag="done" lit={3} done footLeft={footer("notAffiliated")}>
+      <h1>{t.rich("linkedTitle", { em: (c) => <em>{c}</em> })}</h1>
+      <p className="lede">{player ? t.rich("signedInAs", { name: player, b: (c) => <b>{c}</b> }) : t("linkedGeneric")}</p>
 
       <div className="card-row">
         <div className="stat">
-          <div className="k">{t.rating}</div>
+          <div className="k">{t("rating")}</div>
           <div className="v">{rating}</div>
         </div>
         <div className="stat">
-          <div className="k">{t.labelRegion}</div>
+          <div className="k">{t("labelRegion")}</div>
           <div className="v">{region}</div>
         </div>
       </div>
 
-      <h2 className="subhead">{t.backInDiscord}</h2>
+      <h2 className="subhead">{t("backInDiscord")}</h2>
       <ul className="cmds">
-        {t.nextCommands.map(([cmd, what]) => (
+        {Object.entries(commandNames).map(([key, cmd]) => (
           <li key={cmd}>
             <code>{cmd}</code>
-            <span>{what}</span>
+            <span>{t(`nextCommands.${key as keyof typeof commandNames}`)}</span>
           </li>
         ))}
       </ul>
       <p className="hint" style={{ marginTop: 18 }}>
-        {t.closeTab}
+        {t("closeTab")}
       </p>
     </Shell>
   );

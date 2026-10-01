@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useM } from "./I18n";
+import { useTranslations } from "next-intl";
 
 type Platform = "desktop" | "ios";
 
@@ -31,7 +31,7 @@ const CLIPS: Record<Platform, { label: "desktop" | "ios"; src: string; poster: s
 
 /** The linking walkthrough as a screen recording, framed like the device it was taken on. */
 export function Walkthrough() {
-  const m = useM();
+  const t = useTranslations("walkthrough");
   const [platform, setPlatform] = useState<Platform>("desktop");
   const clip = CLIPS[platform];
   const video = (
@@ -46,12 +46,12 @@ export function Walkthrough() {
       muted
       loop
       preload="none"
-      aria-label={m.walkthrough.videoLabel(m.walkthrough[clip.label])}
+      aria-label={t("videoLabel", { device: t(clip.label) })}
     />
   );
   return (
     <div className="walkthrough">
-      <div className="walk-tabs" role="tablist" aria-label={m.walkthrough.tabs}>
+      <div className="walk-tabs" role="tablist" aria-label={t("tabs")}>
         {(Object.keys(CLIPS) as Platform[]).map((key) => (
           <button
             key={key}
@@ -61,7 +61,7 @@ export function Walkthrough() {
             className={platform === key ? "on" : ""}
             onClick={() => setPlatform(key)}
           >
-            {m.walkthrough[CLIPS[key].label]}
+            {t(CLIPS[key].label)}
           </button>
         ))}
       </div>
@@ -86,8 +86,8 @@ export function Walkthrough() {
           </div>
         )}
         <p className="walk-note">
-          <b>{m.walkthrough[clip.label]}</b>
-          {m.walkthrough[clip.note]}
+          <b>{t(clip.label)}</b>
+          {t(clip.note)}
         </p>
       </div>
     </div>

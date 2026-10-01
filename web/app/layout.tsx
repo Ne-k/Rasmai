@@ -6,7 +6,9 @@ import { SiteNotice } from "@/components/SiteNotice";
 import { Pwa } from "@/components/Pwa";
 import { THEME_BOOT } from "@/components/Theme";
 import { LocaleProvider } from "@/components/I18n";
-import { getI18n } from "@/lib/i18n/server";
+import { Intl } from "@/components/Intl";
+import { getTranslations } from "next-intl/server";
+import { getLocale } from "@/lib/i18n/server";
 
 const display = localFont({
   src: [
@@ -42,12 +44,13 @@ const JA_DISPLAY = '"Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI"
 const JA_BODY = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP"';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { locale, m } = await getI18n();
-  const TAGLINE = m.meta.tagline;
+  const locale = await getLocale();
+  const t = await getTranslations("meta");
+  const TAGLINE = t("tagline");
   return {
     // every page's canonical is resolved against this, so one address is the address
     metadataBase: new URL(SITE),
-    title: { default: m.meta.title, template: "%s · Rasmai" },
+    title: { default: t("title"), template: "%s · Rasmai" },
     description: TAGLINE,
     alternates: { canonical: "/" },
     keywords: ["maimai", "maimai DX", "rating", "best 50", "Discord bot", "chart constant", "rhythm game"],
@@ -55,11 +58,11 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       siteName: "Rasmai",
       url: SITE,
-      title: m.meta.title,
+      title: t("title"),
       description: TAGLINE,
       locale: locale === "ja" ? "ja_JP" : "en",
     },
-    twitter: { card: "summary_large_image", title: m.meta.title, description: TAGLINE },
+    twitter: { card: "summary_large_image", title: t("title"), description: TAGLINE },
     applicationName: "Rasmai",
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, title: "Rasmai", statusBarStyle: "default" },
@@ -79,7 +82,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { locale } = await getI18n();
+  const locale = await getLocale();
   const fonts =
     locale === "ja"
       ? ({ "--font-display": `${display.style.fontFamily}, ${JA_DISPLAY}`, "--font-body": `${body.style.fontFamily}, ${JA_BODY}` } as React.CSSProperties)
@@ -90,11 +93,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
       <body>
-        <LocaleProvider locale={locale}>
-          <SiteNotice />
-          {children}
-          <Pwa />
-        </LocaleProvider>
+        <Intl>
+          <LocaleProvider locale={locale}>
+            <SiteNotice />
+            {children}
+            <Pwa />
+          </LocaleProvider>
+        </Intl>
       </body>
     </html>
   );

@@ -6,7 +6,7 @@ import { ServersNotice } from "@/components/Servers";
 import { Ring } from "@/components/Ring";
 import { buttons, embed, headline, rule, say } from "@/lib/embed";
 import { env } from "@/lib/env";
-import { getI18n } from "@/lib/i18n/server";
+import { getTranslations } from "next-intl/server";
 import "./landing.css";
 
 const SAMPLE = [
@@ -17,14 +17,43 @@ const SAMPLE = [
 ];
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { m } = await getI18n();
+  const home = await getTranslations("home");
+  const tagline = (await getTranslations("meta"))("tagline");
   return {
-    title: m.home.metaTitle,
-    description: m.meta.tagline,
+    title: home("metaTitle"),
+    description: tagline,
     alternates: { canonical: "/" },
-    openGraph: { title: `${m.home.metaTitle} · Rasmai`, description: m.meta.tagline, url: "/", images: ["/opengraph-image"] },
+    openGraph: { title: `${home("metaTitle")} · Rasmai`, description: tagline, url: "/", images: ["/opengraph-image"] },
   };
 }
+
+// the marks and command names are not words; the titles and descriptions come from the translations by key
+const FEATURES = [
+  { key: "analyze", mark: "rank_sssp", command: "/analyze" },
+  { key: "difficulty", mark: "up", command: "/analyze challenge" },
+  { key: "plan", mark: "best50", command: "/plan" },
+  { key: "session", mark: "plays", command: "/session" },
+  { key: "new", mark: "new", command: "/new focus" },
+  { key: "profile", mark: "pb", command: "/profile" },
+  { key: "chart", mark: "diff_master", command: "/chart  /charts" },
+  { key: "progress", mark: "rasmai", command: "/progress" },
+  { key: "check", mark: "festival", command: "/charts  /recent play:1" },
+] as const;
+
+const COMMANDS = [
+  ["/login", "login"],
+  ["/analyze", "analyze"],
+  ["/plan", "plan"],
+  ["/session", "session"],
+  ["/new", "new"],
+  ["/chart  /charts", "chart"],
+  ["/b50  /dxscore", "b50"],
+  ["/recent", "recent"],
+  ["/progress", "progress"],
+  ["/compare  /leaderboard", "compare"],
+  ["/random  /profile  /export", "random"],
+  ["/settings  /invite", "settings"],
+] as const;
 
 // what the site is, in the shape search engines read. Only facts that are on the page anyway.
 const STRUCTURED = {
@@ -64,8 +93,9 @@ const UNFURL = embed("#ff3d8f", [
 ]);
 
 export default async function LandingPage() {
-  const { m } = await getI18n();
-  const t = m.home;
+  const t = await getTranslations("home");
+  const footer = await getTranslations("footer");
+  const tags = { b: (c: React.ReactNode) => <b>{c}</b>, em: (c: React.ReactNode) => <em>{c}</em>, code: (c: React.ReactNode) => <code>{c}</code> };
   return (
     <>
       <DiscordEmbed embed={UNFURL} />
@@ -83,15 +113,15 @@ export default async function LandingPage() {
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">{t.eyebrow}</p>
-          <h1>{t.title}</h1>
-          <p className="lede">{t.lede}</p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1>{t.rich("title", tags)}</h1>
+          <p className="lede">{t("lede")}</p>
           <div className="btn-row">
             <a className="button pink" href="/invite">
-              {t.addToDiscord}
+              {t("addToDiscord")}
             </a>
             <a className="button ghost" href="/me/">
-              {t.openDashboard}
+              {t("openDashboard")}
             </a>
           </div>
         </div>
@@ -100,25 +130,25 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <section className="image-demo" aria-label={t.demoLabel}>
+      <section className="image-demo" aria-label={t("demoLabel")}>
         <div className="image">
           <div className="image-head">
-            <span className="image-eyebrow">{t.demoEyebrow}</span>
-            <span className="image-name">{t.demoName}</span>
+            <span className="image-eyebrow">{t("demoEyebrow")}</span>
+            <span className="image-name">{t("demoName")}</span>
             <span className="image-figure">
               <span className="count" aria-label="+61" />
-              <small>{t.demoTotal}</small>
+              <small>{t("demoTotal")}</small>
             </span>
           </div>
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>{t.columns.chart}</th>
-                <th>{t.columns.achievement}</th>
-                <th>{t.columns.rank}</th>
-                <th>{t.columns.odds}</th>
-                <th>{t.columns.gain}</th>
+                <th>{t("columns.chart")}</th>
+                <th>{t("columns.achievement")}</th>
+                <th>{t("columns.rank")}</th>
+                <th>{t("columns.odds")}</th>
+                <th>{t("columns.gain")}</th>
               </tr>
             </thead>
             <tbody>
@@ -141,17 +171,17 @@ export default async function LandingPage() {
           </table>
           <div className="image-foot">
             <span>rasmai · maimai DX</span>
-            <span>{t.demoFoot}</span>
+            <span>{t("demoFoot")}</span>
           </div>
         </div>
       </section>
 
       <section className="features">
-        {t.features.map((f) => (
-          <article key={f.title} className="feature">
+        {FEATURES.map((f) => (
+          <article key={f.key} className="feature">
             <img src={`/marks/${f.mark}.svg`} alt="" width={44} height={44} />
-            <h2>{f.title}</h2>
-            <p>{f.body}</p>
+            <h2>{t(`features.${f.key}.title`)}</h2>
+            <p>{t(`features.${f.key}.body`)}</p>
             <code>{f.command}</code>
           </article>
         ))}
@@ -159,31 +189,31 @@ export default async function LandingPage() {
 
       <section className="split">
         <div>
-          <h2 className="section-title">{t.linkingTitle}</h2>
-          <p>{t.linking}</p>
+          <h2 className="section-title">{t("linkingTitle")}</h2>
+          <p>{t.rich("linking", tags)}</p>
           <a className="button" href="/link/">
-            {t.linkingButton}
+            {t("linkingButton")}
           </a>
         </div>
         <div>
-          <h2 className="section-title">{t.dashboardTitle}</h2>
-          <p>{t.dashboard}</p>
+          <h2 className="section-title">{t("dashboardTitle")}</h2>
+          <p>{t("dashboard")}</p>
           <a className="button ghost" href="/me/">
-            {t.dashboardButton}
+            {t("dashboardButton")}
           </a>
           <p className="hint" style={{ marginTop: 14 }}>
-            {t.phoneHint}
+            {t("phoneHint")}
           </p>
         </div>
       </section>
 
       <section className="commands">
-        <h2 className="section-title">{t.commandsTitle}</h2>
+        <h2 className="section-title">{t("commandsTitle")}</h2>
         <ul className="cmds">
-          {t.commands.map(([cmd, what]) => (
+          {COMMANDS.map(([cmd, key]) => (
             <li key={cmd}>
               <code>{cmd}</code>
-              <span>{what}</span>
+              <span>{t(`commands.${key}`)}</span>
             </li>
           ))}
         </ul>
@@ -191,8 +221,8 @@ export default async function LandingPage() {
 
       <footer className="foot">
         <span>
-          {m.footer.createdBy} · {m.footer.notAffiliated} · <a href="/privacy/">{m.footer.privacy}</a> ·{" "}
-          <a href="/terms/">{m.footer.terms}</a>
+          {footer.rich("createdBy", tags)} · {footer("notAffiliated")} · <a href="/privacy/">{footer("privacy")}</a> ·{" "}
+          <a href="/terms/">{footer("terms")}</a>
         </span>
         {/* <span>
           <a href="https://github.com/Ne-k/razmai">source on GitHub</a>

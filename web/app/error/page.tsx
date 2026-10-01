@@ -4,12 +4,12 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { errorCopy } from "@/components/copy";
-import { useM } from "@/components/I18n";
+import { useTranslations } from "next-intl";
 
 export default function ErrorPage() {
-  const m = useM();
+  const t = useTranslations("flow");
   return (
-    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{m.flow.loading}</p></div>}>
+    <Suspense fallback={<div className="frame"><p className="hint" style={{ padding: "60px 0" }}>{t("loading")}</p></div>}>
       <ErrorView />
     </Suspense>
   );
@@ -17,16 +17,16 @@ export default function ErrorPage() {
 
 function ErrorView() {
   const params = useSearchParams();
-  const m = useM();
-  const copy = errorCopy(params.get("kind"), m);
+  const t = useTranslations("flow");
+  const e = useTranslations("errors");
+  const copy = errorCopy(params.get("kind"), e);
   const detail = params.get("detail");
 
   return (
-    <Shell tag="error" lit={2} footLeft={m.flow.nothingSaved}>
+    <Shell tag="error" lit={2} footLeft={t("nothingSaved")}>
       <h1>
-        {copy.headline[0]}
-        <em>{copy.headline[1]}</em>
-        {m.flow.period}
+        {copy.headline}
+        {t("period")}
       </h1>
       <p className="lede">
         {copy.detail}
