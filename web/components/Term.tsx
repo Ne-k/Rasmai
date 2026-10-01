@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
  * the markup rather than fetched, because there are a dozen of these on the page and none of them
  * change.
  */
-export function Term({ word, means }: { word: string; means: string }) {
+export function Term({ word, means }: { word: React.ReactNode; means: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
   useDismiss(open, box, setOpen);

@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
 import { Doc } from "@/components/Doc";
-import { getI18n } from "@/lib/i18n/server";
+import { docBody } from "@/components/DocBody";
+import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { m } = await getI18n();
+  const t = await getTranslations("privacy");
   return {
-    title: m.privacy.metaTitle,
-    description: m.privacy.metaDescription,
+    title: t("metaTitle"),
+    description: t("metaDescription"),
     alternates: { canonical: "/privacy/" },
-    openGraph: { title: `${m.privacy.metaTitle} · Rasmai`, description: m.privacy.metaDescription, url: "/privacy/", images: ["/opengraph-image"] },
+    openGraph: { title: `${t("metaTitle")} · Rasmai`, description: t("metaDescription"), url: "/privacy/", images: ["/opengraph-image"] },
   };
 }
 
 export default async function PrivacyPage() {
-  const { m } = await getI18n();
+  const t = await getTranslations("privacy");
   return (
-    <Doc tag="privacy" title={m.privacy.title} intro={m.privacy.intro}>
-      {m.docs.privacy()}
+    <Doc tag="privacy" title={t.rich("title", { em: (c) => <em>{c}</em> })} intro={t("intro")}>
+      {await docBody("privacy")}
     </Doc>
   );
 }

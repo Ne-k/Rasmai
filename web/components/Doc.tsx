@@ -3,7 +3,8 @@ import { Ring } from "./Ring";
 import { MastheadNav } from "./Shell";
 import { ThemeToggle } from "./Theme";
 import type { Locale } from "@/lib/i18n";
-import { getI18n } from "@/lib/i18n/server";
+import { getLocale } from "@/lib/i18n/server";
+import { getTranslations } from "next-intl/server";
 
 export { CONTACT_DISCORD, CONTACT_EMAIL, SITE_URL } from "./Contact";
 
@@ -87,7 +88,9 @@ function toSections(children: ReactNode, locale: Locale): Section[] {
 }
 
 export async function Doc({ tag, title, intro, dated = true, children }: DocProps) {
-  const { locale, m } = await getI18n();
+  const locale = await getLocale();
+  const doc = await getTranslations("doc");
+  const footer = await getTranslations("footer");
   return (
     <div className="frame">
       <header className="masthead">
@@ -103,7 +106,7 @@ export async function Doc({ tag, title, intro, dated = true, children }: DocProp
       <main className="doc">
         <h1>{title}</h1>
         <p className="lede">{intro}</p>
-        {dated ? <p className="doc-date">{m.doc.effective(effectiveDate(locale))}</p> : null}
+        {dated ? <p className="doc-date">{doc("effective", { date: effectiveDate(locale) })}</p> : null}
         <div className="doc-grid">
           {toSections(children, locale).map((section, i) => (
             <section key={i} className={`doc-section ${section.size}`}>
@@ -115,10 +118,10 @@ export async function Doc({ tag, title, intro, dated = true, children }: DocProp
       </main>
       <footer className="foot">
         <span>
-          {m.footer.createdBy} · {m.footer.notAffiliated}
+          {footer.rich("createdBy", { b: (c) => <b>{c}</b> })} · {footer("notAffiliated")}
         </span>
         <span>
-          <a href="/privacy/">{m.footer.privacy}</a> · <a href="/terms/">{m.footer.terms}</a>
+          <a href="/privacy/">{footer("privacy")}</a> · <a href="/terms/">{footer("terms")}</a>
         </span>
       </footer>
     </div>

@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { Doc } from "@/components/Doc";
-import { getI18n } from "@/lib/i18n/server";
+import { docBody } from "@/components/DocBody";
+import { getTranslations } from "next-intl/server";
 import { buttons, embed, headline, rule, say } from "@/lib/embed";
 import { env } from "@/lib/env";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { m } = await getI18n();
+  const t = await getTranslations("commands");
   return {
-    title: m.commands.metaTitle,
-    description: m.commands.metaDescription,
+    title: t("metaTitle"),
+    description: t("metaDescription"),
     alternates: { canonical: "/commands/" },
-    openGraph: { title: `${m.commands.metaTitle} · Rasmai`, description: m.commands.metaDescription, url: "/commands/", images: ["/opengraph-image"] },
+    openGraph: { title: `${t("metaTitle")} · Rasmai`, description: t("metaDescription"), url: "/commands/", images: ["/opengraph-image"] },
   };
 }
 
@@ -38,17 +39,17 @@ const UNFURL = embed("#21c3e3", [
 ]);
 
 export default async function CommandsPage() {
-  const { m } = await getI18n();
+  const t = await getTranslations("commands");
   return (
     <>
       <DiscordEmbed embed={UNFURL} />
       <Doc
       tag="commands"
       dated={false}
-      title={m.commands.title}
-      intro={m.commands.intro}
+      title={t.rich("title", { em: (c) => <em>{c}</em> })}
+      intro={t("intro")}
     >
-      {m.docs.commands()}
+      {await docBody("commands")}
       </Doc>
     </>
   );
