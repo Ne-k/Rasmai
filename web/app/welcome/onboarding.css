@@ -1,0 +1,97 @@
+.ob-label, .ob-head, .ob-means dt, .ob-doc-date, .ob-chip-via, .ob-or, .ob-tag span {
+  font-family: var(--font-mono), monospace; text-transform: uppercase; letter-spacing: 1.8px;
+}
+:lang(ja) :is(.ob-label, .ob-head, .ob-means dt, .ob-doc-date, .ob-chip-via, .ob-or, .ob-tag span) {
+  font-family: var(--font-body), sans-serif; letter-spacing: .06em; text-transform: none;
+}
+.ob-label { font-size: 11.5px; color: var(--ink-2); }
+/* kana and kanji at the size of the Latin capitals are too small to read */
+:lang(ja) :is(.ob-label, .ob-head, .ob-means dt) { font-size: 13px; }
+.ob-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* who is signing in: the provider's mark and the name it gave, never the address */
+.ob-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: -12px 0 38px; }
+.ob-chip { display: inline-flex; align-items: center; gap: 9px; max-width: 100%; padding: 4px 14px 4px 4px; border: 2px solid var(--edge); border-radius: 999px; background: var(--paper-2); }
+.ob-chip b { font-weight: 700; overflow-wrap: anywhere; }
+.ob-chip-via { font-size: 11px; color: var(--ink-2); }
+/* the marks sit on their own brand grounds, which stay put in both themes: Google asks for its G on white */
+.ob-mark { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 1px solid var(--line); }
+.ob-mark.discord { background: #5865f2; color: #fff; border-color: #5865f2; }
+.ob-mark.big { width: 44px; height: 44px; }
+
+.ob-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 48px; align-items: start; max-width: 1180px; }
+.ob-head { margin: 0; padding-bottom: 8px; border-bottom: 2px solid var(--edge); font-size: 12px; font-weight: 700; color: var(--ink); }
+
+.ob-means { margin: 0; counter-reset: means; }
+.ob-means > div { display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); counter-increment: means; }
+.ob-means dt { padding-top: 3px; font-size: 11.5px; font-weight: 700; color: var(--ink); line-height: 1.4; }
+.ob-means dt::before { content: counter(means, decimal-leading-zero); display: block; margin-bottom: 2px; font-family: var(--font-mono), monospace; letter-spacing: 1px; color: var(--link); }
+.ob-means dd { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.6; }
+
+.ob-side { position: sticky; top: 28px; display: grid; gap: 12px; padding-top: 4px; }
+.ob-docs { display: grid; gap: 10px; }
+.ob-doc { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: baseline; padding: 13px 42px 13px 16px; border: 2px solid var(--edge); border-radius: 12px; background: var(--paper); color: var(--ink); text-decoration: none; transition: transform .12s ease, box-shadow .12s ease; }
+.ob-doc:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--pink); }
+.ob-doc:hover .ob-doc-name { color: var(--link); }
+.ob-doc:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+.ob-doc-name { font-family: var(--font-display), sans-serif; font-weight: 700; font-size: 16px; line-height: 1.25; }
+.ob-doc-date { font-size: 11px; color: var(--ink-2); }
+.ob-doc-out { position: absolute; top: 50%; right: 16px; margin-top: -7px; color: var(--ink-2); }
+
+.ob-form { display: grid; gap: 14px; justify-items: start; margin-top: 14px; }
+.ob-agree { display: flex; gap: 14px; align-items: flex-start; width: 100%; padding: 16px 18px; border: 2px solid var(--edge); border-radius: 14px; background: var(--paper-2); color: var(--ink); font-weight: 500; line-height: 1.45; cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+.ob-agree input { flex: 0 0 auto; width: 24px; height: 24px; margin: 0; accent-color: var(--pink); cursor: pointer; }
+.ob-agree:has(input:checked) { border-color: var(--pink-edge); background: color-mix(in srgb, var(--pink) 10%, var(--paper-2)); }
+/* the ring goes round the whole box, which is what reads as the control; without :has the box keeps the browser's own */
+@supports selector(:has(*)) {
+  .ob-agree:has(input:focus-visible) { outline: 3px solid var(--cyan); outline-offset: 3px; }
+  .ob-agree input:focus-visible { outline: none; }
+}
+.ob-go.button { padding: 14px 28px; font-size: 16px; }
+
+.ob-alt { display: flex; gap: 16px; align-items: flex-start; max-width: 760px; margin-top: 56px; padding: 18px 20px; border: 2px dashed var(--line); border-radius: 14px; color: var(--ink-2); font-size: 14.5px; }
+.ob-alt b { color: var(--ink); }
+.ob-alt p { margin: 4px 0 12px; }
+.ob-alt .button { padding: 9px 16px; font-size: 14px; }
+
+/* the merge choice: two cards, each with its own button, an "or" between */
+.ob-warn { position: relative; max-width: 760px; margin: 14px 0 22px; padding: 12px 16px 12px 38px; border: 2px solid var(--gold-edge); border-radius: 12px; background: color-mix(in srgb, var(--gold) 14%, transparent); color: var(--ink); font-size: 15px; line-height: 1.55; }
+.ob-warn::before { content: ""; position: absolute; left: 15px; top: 19px; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); border: 2px solid var(--gold-edge); }
+.ob-warn b { font-weight: 700; }
+
+.ob-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 18px; max-width: 980px; margin: 0; }
+.ob-or { align-self: center; display: grid; place-items: center; width: 42px; height: 42px; border: 2px solid var(--edge); border-radius: 50%; background: var(--paper); font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 1px; }
+.ob-acct { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px 20px 20px; border: 2px solid var(--edge); border-radius: 14px; background: var(--paper-2); transition: border-color .12s ease, box-shadow .12s ease, opacity .12s ease; }
+.ob-acct .ob-label { display: flex; align-items: center; gap: 7px; }
+.ob-player { font-family: var(--font-display), sans-serif; font-weight: 900; font-size: clamp(26px, 1.6vw + 16px, 34px); line-height: 1.1; color: var(--ink); overflow-wrap: anywhere; text-decoration-color: var(--pink); text-decoration-thickness: 3px; }
+.ob-acct-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ob-acct .readout { display: inline-grid; width: auto; margin: 3px; }
+.ob-acct .readout .val { font-size: 20px; }
+.ob-tag { display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 11px; border: 2px solid var(--edge); border-radius: 8px; font-family: var(--font-mono), monospace; font-size: 14px; font-weight: 700; }
+.ob-tag span { font-size: 10.5px; font-weight: 400; color: var(--ink-2); }
+.ob-acct .button { margin-top: auto; align-self: flex-start; }
+/* pointing at one card's button lifts it and fades the other, whose name is struck: that is the one that goes */
+.ob-acct:has(.button:hover), .ob-acct:has(.button:focus-visible) { border-color: var(--pink-edge); box-shadow: 4px 4px 0 var(--pink); }
+.ob-pick:has(.button:hover) .ob-acct:not(:has(.button:hover)),
+.ob-pick:has(.button:focus-visible) .ob-acct:not(:has(.button:focus-visible)) { opacity: .55; }
+.ob-pick:has(.button:hover) .ob-acct:not(:has(.button:hover)) .ob-player,
+.ob-pick:has(.button:focus-visible) .ob-acct:not(:has(.button:focus-visible)) .ob-player { text-decoration-line: line-through; }
+.ob-cancel { margin-top: 18px; }
+
+@media (max-width: 1100px) {
+  .ob-grid { grid-template-columns: minmax(0, 1fr); gap: 36px; max-width: 760px; }
+  .ob-side { position: static; }
+}
+@media (max-width: 760px) {
+  .ob-who { margin: -8px 0 30px; }
+  .ob-pick { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ob-or { justify-self: center; }
+  .ob-acct .button { align-self: stretch; }
+  .ob-alt { margin-top: 40px; padding: 16px; }
+  .ob-alt .button { width: 100%; }
+}
+@media (max-width: 560px) {
+  .ob-means > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ob-means dt::before { display: inline; margin: 0 10px 0 0; }
+  .ob-alt .ob-mark { display: none; }
+}

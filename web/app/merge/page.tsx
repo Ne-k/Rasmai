@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Shell } from "@/components/Shell";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { readPending, type Summary } from "@/lib/pending";
+import "../welcome/onboarding.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("merge");
@@ -16,13 +18,25 @@ export default async function MergePage() {
   const t = await getTranslations("merge");
   const footer = await getTranslations("footer");
 
-  const card = (label: string, s: Summary) => (
-    <div className="stat">
-      <div className="k">{label}</div>
-      <div className="v" style={{ fontSize: 22, overflowWrap: "anywhere" }}>{s.player}</div>
-      <p className="hint" style={{ marginTop: 6 }}>
-        {t("ratingLabel")} {s.rating ?? "-"} · {t("regionLabel")} {s.region ? s.region.toUpperCase() : "-"}
-      </p>
+  const card = (keep: "from" | "to", label: string, s: Summary) => (
+    <div className="ob-acct">
+      <div className="ob-label" id={`acct-${keep}`}>
+        {keep === "to" && <ProviderIcon provider="discord" size={14} />}
+        {label}
+      </div>
+      <div className="ob-player" id={`player-${keep}`}>{s.player}</div>
+      <div className="ob-acct-meta">
+        <div className="readout">
+          <span className="lbl">{t("ratingLabel")}</span>
+          <span className="val">{s.rating ?? "-"}</span>
+        </div>
+        <span className="ob-tag">
+          <span>{t("regionLabel")}</span> {s.region ? s.region.toUpperCase() : "-"}
+        </span>
+      </div>
+      <button className="button pink" type="submit" name="keep" value={keep} aria-describedby={`acct-${keep} player-${keep}`}>
+        {t("keepThis")}
+      </button>
     </div>
   );
 
@@ -31,21 +45,15 @@ export default async function MergePage() {
       <h1>{t.rich("title", { em: (c) => <em>{c}</em> })}</h1>
       <p className="lede">{t("lede")}</p>
 
-      <div className="card-row">
-        {card(t("fromLabel"), merge.fromSummary)}
-        {card(t("toLabel"), merge.toSummary)}
-      </div>
+      <h2 className="ob-head">{t("choiceTitle")}</h2>
+      <p className="ob-warn">{t.rich("explain", { b: (c) => <b>{c}</b> })}</p>
 
-      <h2 className="subhead">{t("choiceTitle")}</h2>
-      <p className="lede" style={{ marginTop: 8 }}>{t.rich("explain", { b: (c) => <b>{c}</b> })}</p>
-
-      <form method="post" action="/auth/merge">
-        <div className="btn-row">
-          <button className="button pink" type="submit" name="keep" value="from">{t("keepFrom")}</button>
-          <button className="button pink" type="submit" name="keep" value="to">{t("keepTo")}</button>
-        </div>
+      <form className="ob-pick" method="post" action="/auth/merge">
+        {card("from", t("fromLabel"), merge.fromSummary)}
+        <span className="ob-or" aria-hidden="true">{t("or")}</span>
+        {card("to", t("toLabel"), merge.toSummary)}
       </form>
-      <p className="hint" style={{ marginTop: 14 }}>
+      <p className="hint ob-cancel">
         <a href="/me/">{t("cancel")}</a> · {t("cancelNote")}
       </p>
     </Shell>

@@ -66,8 +66,8 @@
     "turnstileFailed": "The human check didn't load. Reload the page.",
     "lostConnection": "lost connection to the bot. Reload the page or try again in a minute.",
     "gateTitle": "Your scores, <em>on the web</em>.",
-    "gateLede": "See your best 50, all your charts, your rating history and what to play next. Already use the bot? Sign in with Discord. Otherwise either one works.",
-    "signInDiscord": "sign in with Discord",
+    "gateLede": "Your best 50, every chart, your rating over time and what to play next.",
+    "signInDiscord": "Continue with Discord",
     "notSetUp": "Sign-in isn't set up on this server yet. The owner needs to add a Discord or Google client ID and secret.",
     "gatePrivacy": "We only read your ID, name and email address, and keep the email only as a one-way hash to recognise you. We don't post anything or ask for your server list.",
     "loading": "Loading…",
@@ -108,7 +108,13 @@
       "server": "Something went wrong on the server. Try again in a moment.",
       "network": "Couldn't connect. Check your internet and try again.",
       "generic": "Something went wrong ({status})."
-    }
+    },
+    "gateEyebrow": "Sign in · sign up",
+    "gateNew": "New here? Either one creates your account.",
+    "gateBot": "Already use the bot? Choose Discord to open the account you have.",
+    "gatePrivacyLabel": "What we read",
+    "gatePreview": "Your dashboard · sample",
+    "gatePreviewNext": "play next"
   },
   "overviewTab": {
     "howInfo": "Comfortable up to is the highest constant you score well on every time. S expected up to is the highest constant you should S on your first try.",
@@ -1478,8 +1484,6 @@
     "metaDescription": "Create your Rasmai account.",
     "title": "Welcome to <em>Rasmai</em>.",
     "lede": "This is the first time this sign-in has been used here, so there is no Rasmai account for it yet. Creating one takes a minute.",
-    "signingIn": "Signing in with {provider} as <b>{name}</b>.",
-    "signingInNoName": "Signing in with {provider}.",
     "providers": {
       "discord": "Discord",
       "google": "Google"
@@ -1493,14 +1497,29 @@
       "i05": "You can have your account deleted at any time. The privacy policy says how.",
       "i06": "Agreeing records the date and version of the documents you agreed to."
     },
-    "readDocs": "Please read the <privacy>privacy policy</privacy> and the <terms>terms</terms> first. They open in a new tab.",
     "agree": "I have read the privacy policy and terms and agree to them",
     "create": "Create my account",
     "expires": "This page is good for 10 minutes. If it runs out, sign in again.",
     "alreadyTitle": "Already use Rasmai from Discord?",
     "alreadyBody": "Sign in with Discord first and this sign-in is added to your existing account instead of making a new one.",
     "already": "I already use Rasmai from Discord",
-    "nothingCreated": "nothing is created until you agree"
+    "nothingCreated": "nothing is created until you agree",
+    "who": "Signing in",
+    "meansTerms": {
+      "i01": "your account",
+      "i02": "email",
+      "i03": "two sign-ins",
+      "i04": "maimai",
+      "i05": "deleting",
+      "i06": "agreeing"
+    },
+    "readFirst": "Read these first. Both open in a new tab.",
+    "docs": {
+      "privacy": "Privacy policy",
+      "terms": "Terms",
+      "updated": "Updated {date}",
+      "newTab": "(opens in a new tab)"
+    }
   },
   "merge": {
     "metaTitle": "Join your accounts",
@@ -1512,11 +1531,11 @@
     "regionLabel": "region",
     "choiceTitle": "Choose which one to keep",
     "explain": "The maimai link and scores of the account you keep stay as they are. The other account's maimai link and scores are deleted. <b>This cannot be undone.</b> Either way, both sign-ins end up on one account.",
-    "keepFrom": "Keep the account I'm signed in with",
-    "keepTo": "Keep the Discord account",
     "cancel": "Cancel and go back to the dashboard",
     "cancelNote": "Cancelling changes nothing.",
-    "nothingChanges": "nothing changes until you choose"
+    "nothingChanges": "nothing changes until you choose",
+    "keepThis": "Keep this one",
+    "or": "or"
   },
   "privacy": {
     "metaTitle": "Privacy",
@@ -1555,7 +1574,7 @@
     "stuck": "Still stuck? <link>Ask in the support server</link>."
   },
   "auth": {
-    "signInGoogle": "sign in with Google",
+    "signInGoogle": "Continue with Google",
     "errors": {
       "signin": "The sign-in didn't finish. Try again.",
       "google": "Google didn't confirm the sign-in. Try again.",
@@ -1590,6 +1609,9 @@
     "setupTitle": "One more <em>step</em>.",
     "setupLede": "Your account is ready. Choose your region to link your maimai account. It takes about a minute.",
     "guidedLede": "Choose your region to link your maimai account. It takes about a minute.",
-    "regionNote": "International: you sign in at my-aime.net and press a bookmark. Japan: you type your SEGA ID once, and it's kept encrypted."
+    "regionIntlHow": "Sign in at my-aime.net and press a bookmark. About a minute.",
+    "regionJpHow": "Enter your SEGA ID once. It's stored encrypted.",
+    "linkShort": "Link",
+    "setupStep": "Step 2 of 2"
   }
 }
