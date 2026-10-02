@@ -269,3 +269,27 @@ def _untitled_song():
     if index.get(("", "dx", "expert")) is not None:
         problems.append("an empty title matched a difficulty the untitled song does not have")
     return problems
+
+
+@check("a chart database file left with merge-conflict markers is read keeping the first side, not thrown away")
+def _conflicted_database():
+    import json
+    import tempfile
+    from pathlib import Path
+    from rasmai.scraping.otoge.loader import read_json
+
+    body = ('[\n  {\n    "title": "A",\n<<<<<<< Updated upstream\n<<<<<<< Updated upstream\n    "lev": "3.0",\n=======\n'
+            '    "lev": "",\n>>>>>>> Stashed changes\n=======\n    "lev": "",\n>>>>>>> Stashed changes\n    "x": "1"\n  }\n]\n')
+    problems = []
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "music-ex.json"
+        path.write_text(body, encoding="utf-8")
+        if read_json(path) != [{"title": "A", "lev": "3.0", "x": "1"}]:
+            problems.append(f"the first side of each conflict should be kept: {read_json(path)}")
+        path.write_text("[1, 2", encoding="utf-8")
+        try:
+            read_json(path)
+            problems.append("a file that is broken in another way should still fail")
+        except ValueError:
+            pass
+    return problems
