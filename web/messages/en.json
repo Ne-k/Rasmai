@@ -1114,7 +1114,7 @@
       },
       "changes": {
         "title": "Changes and contact",
-        "p01": "If this policy changes, the effective date above changes with it. When you create an account, the date of the version you agree to is recorded. Questions and deletion requests go to {contact}. This policy applies to the bot and to <code>{site}</code>."
+        "p01": "If this policy changes, the updated date above changes with it. When you create an account, the date of the version you agree to is recorded. Questions and deletion requests go to {contact}. This policy applies to the bot and to <code>{site}</code>."
       }
     },
     "terms": {
@@ -1128,7 +1128,7 @@
         "u01": {
           "i01": "You may only link a maimai account that is yours. Attempting to link, access or interfere with anyone else's account is prohibited.",
           "i02": "By linking, you authorise Rasmai to read maimai DX NET using your session, or for a Japan account to sign in to maimaidx.jp with the SEGA ID you give it, in the same way you would in a browser. You are responsible for deciding whether that is acceptable to you under SEGA's own terms for maimai DX NET.",
-          "i03": "Keep your login link to yourself. Anyone who has it before it expires can link their maimai account to your Discord account.",
+          "i03": "Keep your login link to yourself. Anyone who has it before it expires can link their maimai account to your account.",
           "i04": "You can delete your account at any time with <code>/delete-account</code> in Discord or <b>delete my account</b> on the dashboard, which removes what the bot holds about you. See the <privacy>privacy page</privacy> for exactly what that is.",
           "i05": "You can sign in with Discord or Google. Signing in with both joins them into one account with one set of data. A person keeps one linked maimai account: if both accounts being joined have one, you choose which to keep and the other's maimai link and scores are deleted.",
           "i06": "Creating an account means confirming that you have read the <privacy>privacy policy</privacy> and these terms and agree to them. Rasmai records the date and version of what you agreed to. If you don't agree, don't create an account. Nothing is saved until you do."
@@ -1163,7 +1163,7 @@
       },
       "changes": {
         "title": "Changes and contact",
-        "p01": "These terms may be updated. The effective date above marks the current version, and the version you agreed to when you created your account is recorded. Continued use after a change means you accept it. Questions go to {contact}."
+        "p01": "These terms may be updated. The updated date above marks the current version, and the version you agreed to when you created your account is recorded. Continued use after a change means you accept it. Questions go to {contact}."
       }
     }
   },
@@ -1258,7 +1258,7 @@
     "translate": "improve the translation"
   },
   "doc": {
-    "effective": "Effective {date}"
+    "effective": "Updated {date}"
   },
   "servers": {
     "anyMinute": "any minute now",
