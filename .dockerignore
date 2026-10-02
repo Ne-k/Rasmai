@@ -5,8 +5,6 @@ __pycache__/
 *.pyc
 .env
 data/
-.env.beta
-beta/
 debug/
 otoge_cache/
 simai_cache/

@@ -1,8 +1,6 @@
 # secrets and per-user data
 .env
 data/
-.env.beta
-beta/
 brand/
 
 # analysis exports (may contain score data)
