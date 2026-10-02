@@ -1,20 +1,21 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/I18n";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { getJSON, postJSON, type Overview } from "./api";
 import { Label } from "./bits";
+import "./identity.css";
 
 /** An account made on the site without Discord. The bot's slash commands can't reach it until Discord is linked. */
 export const isWebId = (id: string) => /^w[0-9a-f]{20}$/.test(id);
 
 /** Asks the bot for the link that connects a maimai account, from the site rather than from a Discord command.
- * `guided` swaps the dropdown for two large region buttons that start linking at once. */
+ * Each region is a button that starts linking at once; `guided` adds a line under each on how that region links. */
 export function LinkMaimai({ guided = false }: { guided?: boolean }) {
   const t = useTranslations("account");
   const locale = useLocale();
-  const [region, setRegion] = useState("intl");
   // the region being opened, so only that button says so
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
@@ -31,32 +32,23 @@ export function LinkMaimai({ guided = false }: { guided?: boolean }) {
         setBusy("");
       });
   };
-  if (guided) {
-    return (
-      <div className="link-maimai">
-        <div className="regions">
-          {(["intl", "jp"] as const).map((r) => (
-            // Japanese readers most likely play on the Japan version, so it is the highlighted one; nothing starts until they press it
-            <button key={r} type="button" className={r === "jp" && locale === "ja" ? "button pink" : "button"} onClick={() => go(r)} disabled={Boolean(busy)}>
-              {busy === r ? t("linkOpening") : r === "intl" ? t("regionIntl") : t("regionJp")}
-            </button>
-          ))}
-        </div>
-        <p className="hint">{t("regionNote")}</p>
-        {note && <p className="hint bad">{note}</p>}
-      </div>
-    );
-  }
   return (
     <div className="link-maimai">
-      <div className="btn-row">
-        <select value={region} onChange={(e) => setRegion(e.target.value)} aria-label={t("region")} disabled={Boolean(busy)}>
-          <option value="intl">{t("regionIntl")}</option>
-          <option value="jp">{t("regionJp")}</option>
-        </select>
-        <button type="button" className="button pink" onClick={() => go(region)} disabled={Boolean(busy)}>
-          {busy ? t("linkOpening") : t("linkMaimai")}
-        </button>
+      <div className={guided ? "region-pick" : "region-pick compact"} role="group" aria-label={guided ? t("region") : t("linkMaimai")}>
+        {(["intl", "jp"] as const).map((r) => (
+          // Japanese readers most likely play on the Japan version, so it is the highlighted one; nothing starts until they press it
+          <button
+            key={r}
+            type="button"
+            className={`region${r === "jp" && locale === "ja" ? " lit" : ""}${busy === r ? " busy" : ""}`}
+            onClick={() => go(r)}
+            disabled={Boolean(busy)}
+          >
+            <span className="region-dot" aria-hidden="true" />
+            <span className="region-name">{!guided && busy === r ? t("linkOpening") : r === "intl" ? t("regionIntl") : t("regionJp")}</span>
+            {guided && <span className="region-how">{busy === r ? t("linkOpening") : r === "intl" ? t("regionIntlHow") : t("regionJpHow")}</span>}
+          </button>
+        ))}
       </div>
       {note && <p className="hint bad">{note}</p>}
     </div>
@@ -87,28 +79,28 @@ export function SignIns({ me }: { me: Overview }) {
         <p className="hint">{t("signInsFailed")}</p>
       ) : found ? (
         <>
-          <dl className="facts">
+          <ul className="signin-rows">
             {(["discord", "google"] as const).map((provider) => (
-              <Fragment key={provider}>
-                <dt>{names[provider]}</dt>
-                <dd>{has(provider) ? t("linked") : t("notLinked")}</dd>
-              </Fragment>
-            ))}
-          </dl>
-          <div className="btn-row">
-            {(["discord", "google"] as const).map(
-              (provider) =>
-                !has(provider) &&
-                ready[provider] && (
-                  <form key={provider} method="post" action={`/auth/${provider}?link=1`}>
-                    <button type="submit" className="button ghost">
-                      {provider === "discord" ? t("linkDiscord") : t("linkGoogle")}
+              <li key={provider} className="signin-row">
+                <span className={`signin-mark ${provider}`}>
+                  <ProviderIcon provider={provider} size={provider === "google" ? 16 : 17} />
+                </span>
+                <span className="signin-name">{names[provider]}</span>
+                {has(provider) ? (
+                  <span className="ok-badge">{t("linked")}</span>
+                ) : ready[provider] ? (
+                  <form method="post" action={`/auth/${provider}?link=1`}>
+                    <button type="submit" className="button ghost" aria-label={provider === "discord" ? t("linkDiscord") : t("linkGoogle")}>
+                      {t("linkShort")}
                     </button>
                   </form>
-                ),
-            )}
-          </div>
-          {found.webOnly && <p className="hint">{t("webOnlyHint")}</p>}
+                ) : (
+                  <span className="signin-off">{t("notLinked")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {found.webOnly && <p className="signin-note">{t("webOnlyHint")}</p>}
         </>
       ) : (
         <p className="hint">{t("loading")}</p>
@@ -129,22 +121,21 @@ export function DeleteAccount() {
       .finally(() => window.location.assign("/"));
   };
   return (
-    <section className="ledger">
-      <div className="ledger-head">
-        <Label>{t("deleteTitle")}</Label>
-      </div>
-      <p className="hint">{t("deleteHint")}</p>
+    <section className="acct-delete" aria-label={t("deleteTitle")}>
       {confirm ? (
-        <div className="btn-row">
-          <button type="button" className="button pink" onClick={remove} disabled={busy}>
-            {t("deleteYes")}
-          </button>
-          <button type="button" className="button ghost" onClick={() => setConfirm(false)}>
-            {t("keepIt")}
-          </button>
+        <div className="delete-confirm">
+          <p className="hint">{t("deleteHint")}</p>
+          <div className="btn-row">
+            <button type="button" className="button danger" onClick={remove} disabled={busy}>
+              {t("deleteYes")}
+            </button>
+            <button type="button" className="linkish" onClick={() => setConfirm(false)}>
+              {t("keepIt")}
+            </button>
+          </div>
         </div>
       ) : (
-        <button type="button" className="button ghost" onClick={() => setConfirm(true)}>
+        <button type="button" className="linkish" onClick={() => setConfirm(true)}>
           {t("deleteAsk")}
         </button>
       )}

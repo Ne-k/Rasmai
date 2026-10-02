@@ -1,0 +1,49 @@
+.gate.signin-gate { max-width: 1080px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 72px; align-items: center; }
+.sg-main { min-width: 0; max-width: 560px; }
+.sg-eyebrow { margin: 0 0 10px; font-family: var(--font-mono), monospace; font-size: 12px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
+.signin-gate .lede { margin-bottom: 14px; }
+.sg-new { margin: 0 0 22px; max-width: 460px; font-size: 14.5px; color: var(--ink-2); }
+.sg-new b { color: var(--ink); font-weight: 700; }
+
+.sg-way { display: grid; gap: 12px; max-width: 380px; margin: 0; }
+.signin-gate .sg-way .turnstile { margin: 0 0 4px; max-width: none; }
+/* the mark sits at the left edge and the words in the middle, so the two buttons line up whatever their labels */
+.signin-gate .provider { display: grid; grid-template-columns: 20px 1fr 20px; gap: 10px; width: 100%; margin: 0; padding: 13px 18px; font-size: 16px; box-shadow: 3px 3px 0 var(--edge); }
+.signin-gate .provider:hover { box-shadow: 4px 4px 0 var(--edge); }
+.signin-gate .provider:active { box-shadow: 0 0 0 var(--edge); }
+.signin-gate .provider:disabled { box-shadow: 3px 3px 0 var(--edge); }
+/* brand colours, fixed in both themes: Discord's blurple with white, and Google's light button so its G stays on white */
+.signin-gate .provider.discord { background: #5865f2; color: #fff; }
+.signin-gate .provider.google { background: #fff; color: #1d1a2f; }
+.sg-error { max-width: 380px; }
+
+.sg-privacy { margin: 32px 0 0; padding-top: 12px; max-width: 460px; border-top: 1px solid var(--line); font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+.sg-privacy-label { display: block; margin-bottom: 4px; font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+
+/* the sample readout: the dashboard's dark panel with the landing card's pink offset, and the ring set on its corner */
+.sg-preview { position: relative; padding-top: 44px; }
+.sg-preview .ring { position: absolute; top: 0; right: -28px; z-index: 1; }
+.sg-panel { padding: 16px 22px 6px; border-radius: 14px; background: var(--readout-bg); color: var(--cyan); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums;
+            box-shadow: inset 0 0 0 3px var(--readout-inset), 0 0 0 3px var(--readout-bg), 9px 9px 0 var(--pink); }
+.sg-panel-head { padding: 0 72px 12px 0; border-bottom: 1px solid var(--readout-inset); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--readout-label); }
+.sg-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; border-bottom: 1px solid var(--readout-inset); }
+.sg-row:last-child { border-bottom: 0; }
+.sg-row .lbl { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--readout-label); }
+.sg-row .val { font-size: 18px; font-weight: 700; white-space: nowrap; }
+.sg-row .val b { color: var(--gold); }
+.sg-panel .rplate { font-size: 22px; margin: 0; }
+
+:lang(ja) :is(.sg-eyebrow, .sg-privacy-label, .sg-panel-head, .sg-row .lbl) { font-family: var(--font-body), sans-serif; letter-spacing: .06em; }
+/* Japanese has no spaces, so without this a line can break in the middle of a word */
+:lang(ja) .signin-gate :is(.lede, .sg-new, .sg-privacy) { word-break: auto-phrase; }
+
+@media (max-width: 980px) {
+  .gate.signin-gate { grid-template-columns: minmax(0, 1fr); }
+  .sg-preview { display: none; }
+}
+@media (max-width: 760px) {
+  .gate.signin-gate { margin-top: 32px; }
+}
+@media (max-width: 560px) {
+  .sg-way, .sg-error { max-width: none; }
+}

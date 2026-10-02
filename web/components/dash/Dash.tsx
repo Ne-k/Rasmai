@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Turnstile } from "@/components/Turnstile";
-import { InstallHint } from "@/components/Pwa";
 import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
 import { activeTag } from "@/lib/i18n/active";
@@ -15,7 +13,9 @@ import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
 import { Account } from "./Account";
-import { DeleteAccount, LinkMaimai, SignIns, isWebId } from "./Identity";
+import { LinkMaimai, isWebId } from "./Identity";
+import { LinkGate } from "./LinkGate";
+import { SignInGate } from "./SignInGate";
 import { AdminPanel } from "./admin/Panel";
 import { Best50 } from "./Best50";
 import { ratingBand } from "./band";
@@ -59,7 +59,6 @@ export function Dash() {
   const [oauth, setOauth] = useState(true);
   const [google, setGoogle] = useState(false);
   const [turnstile, setTurnstile] = useState("");
-  const [human, setHuman] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [charts, setCharts] = useState<ChartRow[] | null>(null);
@@ -224,51 +223,7 @@ export function Dash() {
   if (signedOut) {
     return (
       <Frame>
-        <div className="gate">
-          <h1>{t.rich("gateTitle", { em: (c) => <em>{c}</em> })}</h1>
-          <p className="lede">{t("gateLede")}</p>
-          {(oauth || google) && turnstile ? (
-            <form method="post" action={oauth ? "/auth/discord" : "/auth/google"} className="signin">
-              <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError(t("turnstileFailed"))} />
-              <input type="hidden" name="cf-turnstile-response" value={human} />
-              <div className="btn-row">
-                {oauth && (
-                  <button className="button pink" type="submit" formAction="/auth/discord" disabled={!human}>
-                    {t("signInDiscord")}
-                  </button>
-                )}
-                {google && (
-                  <button className="button" type="submit" formAction="/auth/google" disabled={!human}>
-                    {auth("signInGoogle")}
-                  </button>
-                )}
-              </div>
-            </form>
-          ) : oauth || google ? (
-            <div className="btn-row">
-              {oauth && (
-                <a className="button pink" href="/auth/discord">
-                  {t("signInDiscord")}
-                </a>
-              )}
-              {google && (
-                <a className="button" href="/auth/google">
-                  {auth("signInGoogle")}
-                </a>
-              )}
-            </div>
-          ) : (
-            <p className="hint">{t("notSetUp")}</p>
-          )}
-          {error && (
-            <>
-              <p className="hint">{error}</p>
-              <Support />
-            </>
-          )}
-          <div className="aside">{t("gatePrivacy")}</div>
-          <InstallHint />
-        </div>
+        <SignInGate oauth={oauth} google={google} turnstile={turnstile} error={error} onError={setError} />
       </Frame>
     );
   }
@@ -288,21 +243,7 @@ export function Dash() {
   if (!me.linked) {
     return (
       <Frame user={me.user} onSignOut={signOut}>
-        <div className="gate">
-          <h1>{setup ? acct.rich("setupTitle", { em: (c) => <em>{c}</em> }) : t.rich("notLinkedTitle", { em: (c) => <em>{c}</em> })}</h1>
-          {banner}
-          <p className="lede">{acct(setup ? "setupLede" : "guidedLede")}</p>
-          <LinkMaimai guided />
-          {!web && (
-            <a className="button ghost" href="/">
-              {t("howLinking")}
-            </a>
-          )}
-          <div className="gate-more">
-            <SignIns me={me} />
-            <DeleteAccount />
-          </div>
-        </div>
+        <LinkGate me={me} setup={setup} banner={banner} />
       </Frame>
     );
   }
