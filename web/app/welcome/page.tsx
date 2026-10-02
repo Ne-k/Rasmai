@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Shell } from "@/components/Shell";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import { readPending } from "@/lib/pending";
+import { PENDING_COOKIE, readPending } from "@/lib/pending";
 import { POLICY_VERSION } from "@/lib/policy";
 import "./onboarding.css";
 
@@ -20,7 +20,7 @@ const DOCS = [
 ] as const;
 
 export default async function WelcomePage() {
-  const pending = readPending(await cookies());
+  const pending = readPending((await cookies()).get(PENDING_COOKIE)?.value);
   if (!pending) redirect("/me/");
   if (pending.merge) redirect("/merge/");
   const t = await getTranslations("welcome");

@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { turnstileReady } from "./env";
 import { clientKey, parseBody, redirect, sameOrigin } from "./http";
+import { isUserId, isWebId } from "./ids";
 import { internal } from "./internal";
 import { clearPendingCookie, pendingCookie, pendingOf, type Pending, type PendingIdentity, type Summary } from "./pending";
 import { SESSION_COOKIE, SESSION_TTL, STATE_COOKIE, STATE_TTL, cookieHeader, currentUser, readCookies, sign, verify, type DiscordUser } from "./session";
@@ -10,10 +11,7 @@ import { verifyTurnstile } from "./turnstile";
 export type Provider = "discord" | "google";
 
 /** What a sign-in in flight remembers, in the signed state cookie. `link` is the signed-in account it attaches to. */
-export type Flow = { provider: Provider; state: string; verifier: string; nonce: string; link: string; keep: boolean; retried: boolean };
-
-const WEB_ID = /^w[0-9a-f]{20}$/;
-const ANY_ID = /^(\d{5,25}|w[0-9a-f]{20})$/;
+type Flow = { provider: Provider; state: string; verifier: string; nonce: string; link: string; keep: boolean; retried: boolean };
 
 export function same(a: string, b: string): boolean {
   const left = Buffer.from(a);
@@ -107,8 +105,8 @@ async function resolve(identity: PendingIdentity, sessionUserId: string, client:
   if (!upstream.ok) return { status: "failed" };
   const answer = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
   if (answer.status === "needs_terms") return { status: "needs_terms" };
-  if (answer.status === "signed_in" && ANY_ID.test(String(answer.userId))) return { status: "signed_in", userId: String(answer.userId) };
-  if (answer.status === "needs_choice" && WEB_ID.test(String(answer.from)) && /^\d{5,25}$/.test(String(answer.to))) {
+  if (answer.status === "signed_in" && isUserId(String(answer.userId))) return { status: "signed_in", userId: String(answer.userId) };
+  if (answer.status === "needs_choice" && isWebId(String(answer.from)) && /^\d{5,25}$/.test(String(answer.to))) {
     return { status: "needs_choice", from: String(answer.from), to: String(answer.to), fromSummary: summary(answer.fromSummary), toSummary: summary(answer.toSummary) };
   }
   return { status: "failed" };

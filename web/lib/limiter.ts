@@ -1,7 +1,7 @@
 const MAX_KEYS = 20000;
 
 /** Sliding window per key: at most `limit` events in `windowSeconds`. In-process; the site runs as one server. */
-export class RateLimiter {
+class RateLimiter {
   private events = new Map<string, number[]>();
 
   constructor(

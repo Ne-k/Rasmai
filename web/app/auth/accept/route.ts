@@ -1,4 +1,5 @@
 import { clientKey, parseBody, redirect, sameOrigin } from "@/lib/http";
+import { isUserId } from "@/lib/ids";
 import { internal } from "@/lib/internal";
 import { oauthLimiter } from "@/lib/limiter";
 import { clearPendingCookie, pendingOf } from "@/lib/pending";
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   }
   const answer = upstream.ok ? ((await upstream.json().catch(() => ({}))) as { userId?: string }) : {};
   const userId = String(answer.userId ?? "");
-  if (!/^(\d{5,25}|w[0-9a-f]{20})$/.test(userId)) return redirect(upstream.status === 409 ? "/me/?error=identity_taken" : "/me/?error=signin");
+  if (!isUserId(userId)) return redirect(upstream.status === 409 ? "/me/?error=identity_taken" : "/me/?error=signin");
 
   // a new account has no maimai linked yet, so the dashboard opens on that step
   const response = redirect("/me/?setup=1");

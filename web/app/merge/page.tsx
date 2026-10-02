@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Shell } from "@/components/Shell";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import { readPending, type Summary } from "@/lib/pending";
+import { PENDING_COOKIE, readPending, type Summary } from "@/lib/pending";
 import "../welcome/onboarding.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function MergePage() {
-  const merge = readPending(await cookies())?.merge;
+  const merge = readPending((await cookies()).get(PENDING_COOKIE)?.value)?.merge;
   if (!merge) redirect("/me/");
   const t = await getTranslations("merge");
   const footer = await getTranslations("footer");

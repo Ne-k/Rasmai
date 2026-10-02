@@ -4,7 +4,7 @@ import { env, turnstileReady } from "./env";
 // into a verdict. Tokens live five minutes and verify once.
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-export type Verdict = { ok: boolean; codes: string[] };
+type Verdict = { ok: boolean; codes: string[] };
 
 let warnedOff = false;
 

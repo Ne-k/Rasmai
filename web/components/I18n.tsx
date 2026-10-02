@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { LANG_COOKIE, type Locale } from "@/lib/i18n";
 
 const LocaleContext = createContext<Locale>("en");
+const SignedInContext = createContext(false);
 
 /** Hands the reader's language, decided on the server, to every client component under it. */
 export function LocaleProvider({ locale, children }: { locale: Locale; children: React.ReactNode }) {
@@ -13,6 +14,15 @@ export function LocaleProvider({ locale, children }: { locale: Locale; children:
 
 export function useLocale(): Locale {
   return useContext(LocaleContext);
+}
+
+/** Hands the server's reading of the session cookie to the top bar, so it is right on the first paint. */
+export function SignedInProvider({ signedIn, children }: { signedIn: boolean; children: React.ReactNode }) {
+  return <SignedInContext.Provider value={signedIn}>{children}</SignedInContext.Provider>;
+}
+
+export function useSignedIn(): boolean {
+  return useContext(SignedInContext);
 }
 
 /** The language switch in the top bar: it names the other language, saves the choice for a year and reloads. */

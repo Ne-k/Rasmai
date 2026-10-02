@@ -15,7 +15,7 @@ const LINK = 5;
 const LIMIT = 3000;
 const PIECES = 40;
 
-export type Media = { url: string; description?: string };
+type Media = { url: string; description?: string };
 
 type Text = { type: 10; content: string };
 type Thumbnail = { type: 11; media: { url: string } };
@@ -27,7 +27,7 @@ type Row = { type: 1; components: Button[] };
 type Section = { type: 9; components: Text[]; accessory: Thumbnail | Button };
 type Gallery = { type: 12; items: { media: { url: string }; description?: string }[] };
 type Rule = { type: 14; spacing?: 1 | 2 };
-export type Piece = Text | Section | Gallery | Rule | Row;
+type Piece = Text | Section | Gallery | Rule | Row;
 export type Embed = { type: 17; accent_color?: number; components: Piece[] };
 
 /** Text as itself, not as markup: a title with a `*` or a `#` in it is a title, not a heading. */

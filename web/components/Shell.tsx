@@ -4,8 +4,7 @@ import { Ring } from "./Ring";
 import { ThemeToggle } from "./Theme";
 import { ServersNotice } from "./Servers";
 import { useTranslations } from "next-intl";
-import { LangToggle } from "./I18n";
-import { useSignedIn } from "./SignedIn";
+import { LangToggle, useSignedIn } from "./I18n";
 import { TRANSLATE_URL } from "./Contact";
 
 // the keys are what a page passes as `current`; the words come from the reader's language

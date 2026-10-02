@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { env } from "./env";
+import { oauthJson, revoke } from "./oauth";
 import type { PendingIdentity } from "./pending";
 
 const redirectUri = () => `${env.publicUrl()}/auth/google/callback/`;
@@ -21,6 +22,7 @@ export function authorizeUrl({ state, verifier, nonce }: Secrets): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
+// ponytail: the ID token is read without its signature, since it came straight from the token endpoint; verify against Google's published keys if a token ever arrives by another route
 /** What the ID token says without checking its signature: it came straight from Google's token endpoint over TLS,
  * which is the case the OpenID spec allows that for. It is only used to tie the answer to this sign-in. */
 function claims(idToken: string): Record<string, unknown> {
@@ -33,22 +35,16 @@ function claims(idToken: string): Record<string, unknown> {
 
 /** Trade the authorization code for who signed in: Google's stable id, name and email. No avatar is read or kept. */
 export async function exchangeCode(code: string, { verifier, nonce }: Secrets): Promise<PendingIdentity> {
-  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
+  const tokens = await oauthJson<{ access_token?: string; id_token?: string }>("https://oauth2.googleapis.com/token", "token exchange", {
+    form: {
       client_id: env.googleClientId(),
       client_secret: env.googleClientSecret(),
       grant_type: "authorization_code",
       code,
       code_verifier: verifier,
       redirect_uri: redirectUri(),
-    }),
-    signal: AbortSignal.timeout(15000),
-    cache: "no-store",
+    },
   });
-  if (!tokenResponse.ok) throw new Error(`token exchange failed: ${tokenResponse.status}`);
-  const tokens = (await tokenResponse.json()) as { access_token?: string; id_token?: string };
   const accessToken = String(tokens.access_token ?? "");
   if (!accessToken) throw new Error("token exchange returned no access token");
 
@@ -58,21 +54,12 @@ export async function exchangeCode(code: string, { verifier, nonce }: Secrets): 
   if (token.aud !== env.googleClientId()) throw new Error("id token is for another client");
   if (token.nonce !== nonce) throw new Error("id token nonce does not match");
 
-  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(15000),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`identity read failed: ${response.status}`);
-  const info = (await response.json()) as { sub?: string; email?: string; email_verified?: boolean | string; name?: string; given_name?: string };
-
-  // the token has done its job; revoking it keeps nothing dangling on Google's side
-  fetch("https://oauth2.googleapis.com/revoke", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ token: accessToken }),
-    signal: AbortSignal.timeout(10000),
-  }).catch(() => undefined);
+  const info = await oauthJson<{ sub?: string; email?: string; email_verified?: boolean | string; name?: string; given_name?: string }>(
+    "https://openidconnect.googleapis.com/v1/userinfo",
+    "identity read",
+    { bearer: accessToken },
+  );
+  revoke("https://oauth2.googleapis.com/revoke", { token: accessToken });
 
   const subject = String(info.sub ?? "");
   if (!subject || subject !== token.sub) throw new Error("userinfo does not match the id token");
