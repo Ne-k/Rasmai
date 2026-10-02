@@ -8,7 +8,7 @@ import discord
 from rasmai.bot.ui.formatting import build_login_done_embed, build_login_walkthrough_embed
 from rasmai.bot.ui.views import LoginView
 from rasmai.security import LOGIN_CODE_TTL
-from rasmai.storage.db import get_connected_account
+from rasmai.storage.db import get_connected_account, is_discord_id
 from rasmai.web.links import build_login_session_payload
 
 logger = logging.getLogger(__name__)
@@ -105,6 +105,8 @@ async def dm_login_card(bot: discord.Client, user_id: str, region: str, intro: s
     :returns: Whether the message could be delivered.
     :rtype: bool
     """
+    if not is_discord_id(user_id):
+        return False          # an account made on the site has no Discord user to message
     try:
         user = bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
         login_info = build_login_session_payload(user_id, region)

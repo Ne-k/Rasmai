@@ -266,6 +266,30 @@ def get_database_connection() -> sqlite3.Connection:
                     )
                     """
                 )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS people (   -- an account made on the site: who accepted which terms, and when
+                        user_id           TEXT PRIMARY KEY,
+                        created_at        TEXT NOT NULL,
+                        terms_version     TEXT NOT NULL,
+                        terms_accepted_at TEXT NOT NULL
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS identities (   -- the sign-ins (Discord, Google) that open one account
+                        provider   TEXT NOT NULL,
+                        subject    TEXT NOT NULL,
+                        user_id    TEXT NOT NULL,
+                        email_hash TEXT NOT NULL DEFAULT '',   -- keyed hash of a verified email, never the email itself
+                        created_at TEXT NOT NULL,
+                        PRIMARY KEY (provider, subject)
+                    )
+                    """
+                )
+                setup.execute("CREATE INDEX IF NOT EXISTS identities_email ON identities(email_hash)")
+                setup.execute("CREATE INDEX IF NOT EXISTS identities_user ON identities(user_id)")
                 _upgrade_stored_tokens(setup)
             _database_ready = True
 

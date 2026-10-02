@@ -16,7 +16,7 @@ from rasmai.bot.state.snapshots import compact_snapshot, snapshot_charts
 from rasmai.bot.core import try_render
 from rasmai.images.cards import compare_image_html, leaderboard_image_html
 from rasmai.images.render import cover_html_factory
-from rasmai.storage.db import accounts_with_setting, get_connected_account, load_play_history, load_rating_history, quiet_read_status
+from rasmai.storage.db import accounts_with_setting, get_connected_account, is_discord_id, load_play_history, load_rating_history, quiet_read_status
 from rasmai.bot.tasks.history_watch import describe_quiet_read
 from rasmai.util import _json_safe
 
@@ -154,7 +154,7 @@ async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None
         embed.description = "Nobody has opted in yet. `/settings leaderboard:True` puts you on the board."
         return embed, [], None
     by_id = {acc["userId"]: acc for acc in accounts}
-    ids = list(by_id)
+    ids = [i for i in by_id if is_discord_id(i)]       # an account made on the site is not a server member
     members: List[discord.Member] = []
     for start in range(0, len(ids), 100):
         chunk = [int(i) for i in ids[start:start + 100]]

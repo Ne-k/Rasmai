@@ -6,13 +6,14 @@ import re
 
 from rasmai.bot.builders.charts.index import search_titles
 from rasmai.security import import_limiter, public_reason, refresh_limiter
-from rasmai.storage.db import delete_connected_account, get_connected_account
+from rasmai.storage.db import delete_connected_account, get_connected_account, is_discord_id, is_web_id
 from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.bot.state.forget import forget_user
 from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_payload, guilds_payload,
                                         is_admin, start_update)
 from rasmai.web.dashboard.analysis import analysis_for_user
 from rasmai.web.dashboard.areas import areas_payload
+from rasmai.web.dashboard.auth import identities_payload, start_link
 from rasmai.web.dashboard.lookup import chart_payload, patterns_payload, search_payload, video_payload
 from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
@@ -50,6 +51,10 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     :type user: Dict[str, Any]
     :rtype: bool
     """
+    if path == "/internal/me/identities":
+        # which sign-ins open the account, for the account section of any signed-in person, linked to maimai or not
+        identities_payload(handler, user)
+        return True
     # Whether the analysis is ready is settled before the account is read: while a crowd queues,
     # most asks are answered "come back", and reading and unpacking the account first was a
     # millisecond and a half of the interpreter per ask, which starved the thread taking connections.
@@ -78,7 +83,7 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
             return True
         who = (query.get("user") or [""])[0].strip()
         if who:
-            if not re.fullmatch(r"\d{5,25}", who):
+            if not (is_discord_id(who) or is_web_id(who)):
                 handler._send_json(400, {"ok": False, "error": "bad_user"})
                 return True
             detail = account_detail(who)
@@ -196,6 +201,10 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
     :type user: Dict[str, Any]
     :rtype: bool
     """
+    if path == "/internal/me/link-start":
+        # for any signed-in account, a site-only one that has no maimai account yet included, so it is answered before the linked-account check
+        start_link(handler, user, payload or {})
+        return True
     if path not in WRITES:
         return False
     if path == "/internal/me/admin/update":
@@ -207,6 +216,12 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
             return True
         started = start_update(str((payload or {}).get("source") or ""))
         handler._send_json(202 if started.get("ok") else 409, started)
+        return True
+    if path == "/internal/me/unlink":
+        # also for an account with no maimai linked: that is how a site-only person deletes their sign-ins and record of agreement
+        delete_connected_account(user["id"])
+        forget_user(user["id"])
+        handler._send_json(200, {"ok": True})
         return True
     account = get_connected_account(user["id"])
     if account is None:
@@ -262,10 +277,5 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
             return True
         forget_analysis(user["id"])       # the recorded plays feed the model; the next look rebuilds with them
         handler._send_json(200, {"ok": True, **result})
-        return True
-    if path == "/internal/me/unlink":
-        delete_connected_account(user["id"])
-        forget_user(user["id"])
-        handler._send_json(200, {"ok": True})
         return True
     return False

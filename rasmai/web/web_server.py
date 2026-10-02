@@ -24,6 +24,8 @@ from rasmai.storage.db import (
     consume_login_code,
     get_database_connection,
     get_connected_account,
+    is_discord_id,
+    is_web_id,
     login_code_expiry,
     login_code_issued_at,
     login_code_verified,
@@ -136,7 +138,7 @@ class InternalApiServer:
                                            INTERNAL_API_SECRET.encode("utf-8"))
 
             def _user(self) -> Optional[Dict[str, Any]]:
-                """The signed-in Discord user, as the web server authenticated them.
+                """The signed-in person, as the web server authenticated them: a Discord id, or the id of an account made on the site.
 
                 :rtype: Optional[Dict[str, Any]]
                 """
@@ -147,7 +149,7 @@ class InternalApiServer:
                     user = json.loads(raw)
                 except json.JSONDecodeError:
                     return None
-                if not isinstance(user, dict) or not re.fullmatch(r"\d{5,25}", str(user.get("id", ""))):
+                if not isinstance(user, dict) or not (is_discord_id(user.get("id")) or is_web_id(user.get("id"))):
                     return None
                 return {"id": str(user["id"]), "name": str(user.get("name", "")), "handle": str(user.get("handle", "")),
                         "avatar": str(user.get("avatar", ""))}
@@ -342,6 +344,10 @@ class InternalApiServer:
                     self._send_json(400, {"ok": False, "error": f"invalid_request: {error}"})
                     return
                 try:
+                    if path.startswith("/internal/auth/"):
+                        if not dashboard.handle_auth(self, path, payload):
+                            self._send_json(404, {"ok": False, "error": "not_found"})
+                        return
                     if path.startswith("/internal/me"):
                         user = self._user()
                         if user is None:

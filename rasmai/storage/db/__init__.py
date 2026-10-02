@@ -25,4 +25,7 @@ from rasmai.storage.db.sources import (chart_videos_get, chart_videos_set, site_
                                        source_state_get, source_state_set)
 from rasmai.storage.db.sheets import (sheet_put, sheets_all, sheets_held,  # noqa: F401
                                       squash_sheets)
+from rasmai.storage.db.identities import (account_exists, clean_identity, create_person,  # noqa: F401
+                                          email_hash, identity_state, is_discord_id, is_web_id, merge_accounts,
+                                          resolve_identity, summaries)
 from rasmai.storage.db.judgements import save_judgement, load_judgements, judged_ids, judgement_for, judged_marks

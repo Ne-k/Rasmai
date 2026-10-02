@@ -15,7 +15,7 @@ from rasmai.config import MAIMAI_BASE_URLS, PRESENCE_REGION
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
-    best_recorded_scores, get_connected_account, mark_session_expired, session_deletes_at, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
+    best_recorded_scores, get_connected_account, is_discord_id, mark_session_expired, session_deletes_at, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
     record_chart_scores, set_notified_rating,
 )
 
@@ -62,8 +62,8 @@ class HistoryWatch:
 
     async def _note(self, user_id: str, found: Dict[str, Any]) -> None:
         """DM what the read found, for people who asked; nothing when nothing moved."""
-        if not get_prefs(user_id).get("notify"):
-            return
+        if not is_discord_id(user_id) or not get_prefs(user_id).get("notify"):
+            return          # an account made on the site has no Discord user to message
         last_rating = notified_rating(user_id)
         rating = int(found.get("rating") or 0)
         bests = found.get("bests") or []

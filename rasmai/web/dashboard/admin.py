@@ -10,6 +10,7 @@ from rasmai.config import ADMIN_USER_ID, DATABASE_PATH, MAX_CONCURRENT_RENDERS, 
 from rasmai.storage.db.accounts import expired_accounts_due, session_deletes_at
 from rasmai.storage.db.connection import get_database_connection
 from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally
+from rasmai.storage.db.identities import is_discord_id
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,8 @@ def people(ids: List[str]) -> Dict[str, Dict[str, str]]:
     :rtype: Dict[str, Dict[str, str]]
     """
     import asyncio
-    wanted = [str(i) for i in dict.fromkeys(ids) if str(i) not in _PEOPLE]
+    # an account made on the site has no Discord user to name
+    wanted = [str(i) for i in dict.fromkeys(ids) if str(i) not in _PEOPLE and is_discord_id(i)]
     if wanted:
         try:
             from rasmai.bot.core import bot
@@ -92,7 +94,7 @@ def is_admin(user_id: str) -> bool:
     :type user_id: str
     :rtype: bool
     """
-    return bool(ADMIN_USER_ID) and str(user_id) == ADMIN_USER_ID
+    return bool(ADMIN_USER_ID) and is_discord_id(user_id) and str(user_id) == ADMIN_USER_ID
 
 
 def _rows(connection: sqlite3.Connection, sql: str, *args) -> List[sqlite3.Row]:
