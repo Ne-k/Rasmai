@@ -16,7 +16,7 @@ const CSP = [
   "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'none'",
-  "form-action 'self' https://discord.com",
+  "form-action 'self' https://discord.com https://accounts.google.com",
   // a year of HSTS means the browser refuses http for this site outright. Anything still written
   // as http is fetched over https instead of failing, so one stale link cannot break a page.
   "upgrade-insecure-requests",

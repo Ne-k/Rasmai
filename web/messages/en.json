@@ -66,10 +66,10 @@
     "turnstileFailed": "The human check didn't load. Reload the page.",
     "lostConnection": "lost connection to the bot. Reload the page or try again in a minute.",
     "gateTitle": "Your scores, <em>on the web</em>.",
-    "gateLede": "See your best 50, all your charts, your rating history and what to play next. Sign in with the Discord account you use the bot with.",
+    "gateLede": "See your best 50, all your charts, your rating history and what to play next. Already use the bot? Sign in with Discord. Otherwise either one works.",
     "signInDiscord": "sign in with Discord",
-    "notSetUp": "Sign-in isn't set up on this server yet. The owner needs to add a Discord client ID and secret.",
-    "gatePrivacy": "We only read your Discord ID and name. We don't post anything or ask for your server list.",
+    "notSetUp": "Sign-in isn't set up on this server yet. The owner needs to add a Discord or Google client ID and secret.",
+    "gatePrivacy": "We only read your ID, name and email address, and keep the email only as a one-way hash to recognise you. We don't post anything or ask for your server list.",
     "loading": "Loading…",
     "loadingCharts": "Loading charts…",
     "notLinkedTitle": "No maimai account <em>linked yet</em>.",
@@ -159,7 +159,7 @@
     "older": "older versions"
   },
   "accountTab": {
-    "accountInfo": "The maimai DX NET account linked to your Discord. History points are the saved ratings behind the graph on Overview.",
+    "accountInfo": "The maimai DX NET account linked to your Rasmai account. History points are the saved ratings behind the graph on Overview.",
     "account": "maimai account",
     "player": "player",
     "region": "region",
@@ -202,7 +202,7 @@
     "off": "off",
     "change": "Change these with <code>/settings</code> in Discord.",
     "unlink": "unlink",
-    "unlinkHint": "Deletes your maimai session, scores, history and play counts. You stay signed in with Discord here.",
+    "unlinkHint": "Deletes your maimai session, scores, history and play counts. You stay signed in here.",
     "unlinkYes": "yes, unlink and delete",
     "keep": "keep it",
     "unlinkAsk": "unlink maimai account…"
@@ -1028,9 +1028,11 @@
     "privacy": {
       "stored": {
         "title": "What is stored",
-        "p01": "When you link an account with <code>/login</code>, Rasmai keeps the following in one database file on the server it runs on:",
+        "p01": "Rasmai keeps the following in one database file on the server it runs on. The first three items exist as soon as you create an account. Everything from your maimai region onward is stored only once you link a maimai account, with <code>/login</code> or from the dashboard:",
         "u01": {
-          "i01": "<b>Your Discord user ID</b>, so Rasmai knows which maimai account is yours when you run a command.",
+          "i01": "<b>Your account ID</b>, so Rasmai knows which maimai account is yours when you run a command. For an account that uses Discord this is your Discord user ID. For an account made only with Google it is a random ID Rasmai makes up.",
+          "i01b": "<b>Your sign-ins.</b> For each way you sign in (Discord or Google): the provider, the stable ID that provider gives you, and a one-way hash of your verified email address, made with a secret that lives only on the server. The hash lets Rasmai recognise you if you later sign in the other way, so one person ends up with one account, and signing in with both Discord and Google joins them into one account. The email address itself is never stored, and an address the provider has not verified is not used at all.",
+          "i01c": "<b>When you agreed.</b> When you create an account you agree to this policy and the terms. Rasmai records the date and the version (a date) of the documents you agreed to.",
           "i02": "<b>Your maimai region</b> (international, Japan or China).",
           "i03": "<b>International accounts: a maimai DX NET session key.</b> This is the <code>clal</code> cookie the official site issues after you sign in on SEGA's page. It is <b>not your password</b>, and for an International account Rasmai never sees your SEGA ID or password. The key is encrypted with AES-256-GCM before it is written to disk.",
           "i04": "<b>Japan accounts: your SEGA ID, password and Aime card number.</b> Japan's maimai DX NET has no session key Rasmai can borrow, so you enter these on Rasmai's connect page and Rasmai signs in to maimaidx.jp with them each time it reads your scores. They are encrypted with AES-256-GCM before they are written to disk, are only ever sent to maimaidx.jp, and are never shown, logged or included in an export.",
@@ -1053,7 +1055,9 @@
       "website": {
         "title": "The website",
         "u01": {
-          "i01": "<b>Dashboard sign-in.</b> Signing in with Discord sets one cookie holding a signed copy of your Discord ID, name and avatar address, valid for 30 days, plus a short-lived cookie during the sign-in handshake. Only your Discord ID and name are requested. Rasmai doesn't ask for your server list and doesn't post anything. Signing out clears the cookie.",
+          "i01": "<b>Dashboard sign-in.</b> Signing in sets one cookie holding a signed copy of your account ID, name and avatar address (a Google sign-in has no avatar), valid for 30 days, plus a short-lived cookie during the sign-in handshake. Discord is asked for your Discord ID, name and email address. The email address is asked for only so the same person can be recognised, as described under what is stored. Rasmai doesn't ask for your server list and doesn't post anything. Signing out clears the cookie.",
+          "i01b": "<b>Signing in with Google.</b> Your browser goes to Google's sign-in page, and then Rasmai's server asks Google once for your name, your email address and the stable ID Google gives you. It does not ask for your avatar, contacts or anything else, uses no Google service after you are signed in, and keeps no Google token. Google learns that you signed in to Rasmai and is covered by <google>Google's privacy policy</google>.",
+          "i01c": "<b>While you create an account.</b> If you are new, the sign-in details the provider sent (including your email address) wait in a short-lived cookie in your browser for up to 10 minutes while you read the welcome page. It is deleted when you agree or after 10 minutes, and nothing is saved on the server until you agree.",
           "i02": "<b>Human check.</b> The sign-in and account-connect pages show a Cloudflare Turnstile check, which loads a script from Cloudflare. Cloudflare also fronts this site, so it handles requests to it the way any content network does. Both are covered by <cloudflare>Cloudflare's privacy policy</cloudflare>.",
           "i03": "<b>Saved login (Japan accounts, optional).</b> If you tick <b>Save my login for next time</b> on the SEGA ID sign-in, your browser keeps your SEGA ID and Aime card number in its local storage so the form is filled in next time. It stays on your device and is never sent anywhere until you sign in. Your password is never saved there. Unticking the box removes it.",
           "i04": "<b>Home-screen app.</b> The site can be installed on a phone. Its service worker caches only the site's own static files (scripts, styles, fonts and icons) so the site opens offline. Scores, sign-in and API responses are never cached on the device.",
@@ -1068,7 +1072,9 @@
           "i01": "Payment details. For an International account, also your SEGA ID, password and Aime card number: sign-in happens on SEGA's own site.",
           "i02": "Your IP address. Sign-in attempts and reads are rate-limited with a short-lived in-memory counter that is never written to disk.",
           "i03": "Messages you send in Discord. Rasmai only responds to its own slash commands and doesn't read chat.",
-          "i04": "Anything about people who have not linked an account."
+          "i04": "Anything about people who have not created an account or linked one.",
+          "i05": "Your email address. Only a one-way hash of it is kept, and it cannot be turned back into the address.",
+          "i06": "Anything from your Google account beyond your name, email address and ID at the moment you sign in: no avatar, contacts, calendar or files, and nothing read afterwards."
         }
       },
       "whoElse": {
@@ -1076,6 +1082,7 @@
         "u01": {
           "i01": "<b>SEGA (maimai DX NET).</b> Rasmai uses your session key, or for a Japan account your SEGA ID, to load your score pages from the official site, the same pages you see when you sign in yourself.",
           "i02": "<b>Discord.</b> Rasmai's replies, including the images it makes from your scores, are posted to Discord in the channel where you ran the command, and are subject to <discord>Discord's privacy policy</discord>. Use commands in a private channel if you would rather other members did not see your results.",
+          "i02b": "<b>Google</b>, if you sign in with it. Google sees that you signed in to Rasmai, under <google>Google's privacy policy</google>. Rasmai sends it nothing else about you.",
           "i03": "<b>Cloudflare</b>, as the network in front of the website and the provider of the human check, as described above.",
           "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry.",
           "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you."
@@ -1083,11 +1090,11 @@
       },
       "kept": {
         "title": "How long it is kept, and how to delete it",
-        "p01": "Your linked account, its scores and its play history stay until you remove them, with one exception: if maimai DX NET stops accepting your session key (for a Japan account, your SEGA ID and password) and you don't link again with <code>/login</code> within 30 days, everything listed under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired, and two days before it Rasmai sends you a Discord message saying so, with a button to link again, if Discord lets it message you. Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires it, and the caches listed above.",
+        "p01": "Your account, its linked maimai account, scores and play history stay until you remove them, with one exception: if maimai DX NET stops accepting your session key (for a Japan account, your SEGA ID and password) and you don't link again within 30 days, everything listed under <b>Yourself, at once</b> below is deleted automatically. The dashboard shows the date while your session is expired, and two days before it Rasmai sends you a Discord message saying so, with a button to link again, if Discord lets it message you. Apart from that, nothing expires on its own except the session key, which stops working when SEGA expires it, and the caches listed above.",
         "u01": {
-          "i01": "<b>Yourself, at once.</b> Run <code>/delete-account</code> in Discord, or press <b>unlink</b> on the dashboard's Account tab. Either deletes your session key or SEGA ID sign-in, profile, profile link, stored scores, play history, judgement details, area progress, rating readings, settings, beta feedback, play-count cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds your Discord ID and name.",
-          "i02": "<b>How it is deleted.</b> The same way however it happens: by you, by the operator, or automatically after 30 days. Every row stored under your Discord account is removed and its space in the database file is overwritten, so it can't be read back out of the file, and the database's change log is written back and emptied straight after. Any copy the bot is holding in memory is dropped at the same moment, and so is your data in the one backup copy the server keeps from a past database upgrade, and in any debugging copies the operator has switched on. Once it is gone it can't be restored.",
-          "i03": "<b>By contact.</b> If you cannot use either, for example because you no longer have access to the Discord account, or you want everything about you removed including any record that you were ever linked, write to {contact}. Say which Discord account or maimai player name the data belongs to. It's deleted by hand, normally within a few days, and you get a reply when it is done. The same address handles a request for a copy of what is stored, though <code>/export</code> and the dashboard's <b>download JSON</b> button give you that at any time."
+          "i01": "<b>Yourself, at once.</b> Run <code>/delete-account</code> in Discord, or press <b>unlink</b> on the dashboard's Account tab (or <b>delete my account</b> there if you haven't linked maimai). Any of them deletes your session key or SEGA ID sign-in, profile, profile link, stored scores, play history, judgement details, area progress, rating readings, settings, beta feedback, play-count cache, any login codes, and your sign-in records and record of agreement. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds your account ID and name.",
+          "i02": "<b>How it is deleted.</b> The same way however it happens: by you, by the operator, or automatically after 30 days. Every row stored under your account (your Discord ID, or the random ID of a website account) is removed and its space in the database file is overwritten, so it can't be read back out of the file, and the database's change log is written back and emptied straight after. Any copy the bot is holding in memory is dropped at the same moment, and so is your data in the one backup copy the server keeps from a past database upgrade, and in any debugging copies the operator has switched on. Once it is gone it can't be restored.",
+          "i03": "<b>By contact.</b> If you cannot use either, for example because you no longer have access to the Discord account, your account was made on the website with Google, or you want everything about you removed including any record that you were ever linked, write to {contact}. Say which Discord account, Google sign-in or maimai player name the data belongs to. It's deleted by hand, normally within a few days, and you get a reply when it is done. The same address handles a request for a copy of what is stored, though <code>/export</code> and the dashboard's <b>download JSON</b> button give you that at any time."
         },
         "p02": "Replies Rasmai posted in Discord stay in Discord. Delete them there if you want them gone."
       },
@@ -1104,11 +1111,11 @@
       },
       "age": {
         "title": "Age",
-        "p01": "Rasmai is used through Discord, so Discord's minimum age applies. It is not directed at children."
+        "p01": "Rasmai is used through Discord and this website, and signing in needs a Discord or Google account, so those services' minimum age applies. It is not directed at children."
       },
       "changes": {
         "title": "Changes and contact",
-        "p01": "If this policy changes, the effective date above changes with it. Questions and deletion requests go to {contact}. This policy applies to the bot and to <code>{site}</code>."
+        "p01": "If this policy changes, the effective date above changes with it. When you create an account, the date of the version you agree to is recorded. Questions and deletion requests go to {contact}. This policy applies to the bot and to <code>{site}</code>."
       }
     },
     "terms": {
@@ -1123,7 +1130,9 @@
           "i01": "You may only link a maimai account that is yours. Attempting to link, access or interfere with anyone else's account is prohibited.",
           "i02": "By linking, you authorise Rasmai to read maimai DX NET using your session, or for a Japan account to sign in to maimaidx.jp with the SEGA ID you give it, in the same way you would in a browser. You are responsible for deciding whether that is acceptable to you under SEGA's own terms for maimai DX NET.",
           "i03": "Keep your login link to yourself. Anyone who has it before it expires can link their maimai account to your Discord account.",
-          "i04": "You can delete your account at any time with <code>/delete-account</code>, which removes what the bot holds about you. See the <privacy>privacy page</privacy> for exactly what that is."
+          "i04": "You can delete your account at any time with <code>/delete-account</code> in Discord or <b>delete my account</b> on the dashboard, which removes what the bot holds about you. See the <privacy>privacy page</privacy> for exactly what that is.",
+          "i05": "You can sign in with Discord or Google. Signing in with both joins them into one account with one set of data. A person keeps one linked maimai account: if both accounts being joined have one, you choose which to keep and the other's maimai link and scores are deleted.",
+          "i06": "Creating an account means confirming that you have read the <privacy>privacy policy</privacy> and these terms and agree to them. Rasmai records the date and version of what you agreed to. If you don't agree, don't create an account. Nothing is saved until you do."
         }
       },
       "share": {
@@ -1155,7 +1164,7 @@
       },
       "changes": {
         "title": "Changes and contact",
-        "p01": "These terms may be updated. The effective date above marks the current version. Continued use after a change means you accept it. Questions go to {contact}."
+        "p01": "These terms may be updated. The effective date above marks the current version, and the version you agreed to when you created your account is recorded. Continued use after a change means you accept it. Questions go to {contact}."
       }
     }
   },
@@ -1163,12 +1172,12 @@
     "expired": {
       "headline": "That link has <em>expired</em>",
       "detail": "Login links work once and last about ten minutes.",
-      "hint": "Run /login in Discord again for a fresh link."
+      "hint": "Run /login in Discord again for a fresh link, or press “Link your maimai account” on the dashboard."
     },
     "invalid_user": {
       "headline": "This link isn't <em>valid</em>",
       "detail": "It's missing your Discord account info, or it was changed.",
-      "hint": "Run /login in Discord and use the link it gives you as-is."
+      "hint": "Start again with /login in Discord, or from “Link your maimai account” on the dashboard, and use the link as it is."
     },
     "maintenance": {
       "headline": "maimai DX NET is <em>down</em>",
@@ -1178,12 +1187,12 @@
     "no_login": {
       "headline": "Couldn't read your <em>session</em>",
       "detail": "You may not be signed in to the SEGA gateway yet, or the sign-in didn't stick.",
-      "hint": "Sign out of the gateway, sign back in, then press the bookmark again. A Japan account links with its SEGA ID instead: run /login region:Japan in Discord."
+      "hint": "Sign out of the gateway, sign back in, then press the bookmark again. A Japan account links with its SEGA ID instead: run /login region:Japan in Discord, or choose Japan under “Link your maimai account” on the dashboard."
     },
     "region": {
       "headline": "China accounts can't be linked <em>yet</em>",
       "detail": "China's maimai DX NET only opens inside WeChat, and Rasmai has no way to sign in there yet, so this login can't finish however many times you try.",
-      "hint": "International and Japan accounts can be linked. If you also play on one of those, run /login in Discord and pick its region."
+      "hint": "International and Japan accounts can be linked. If you also play on one of those, run /login in Discord and pick its region, or choose it under “Link your maimai account” on the dashboard."
     },
     "credentials": {
       "headline": "maimaidx.jp said <em>no</em>",
@@ -1193,7 +1202,7 @@
     "rate_limited": {
       "headline": "Too many <em>attempts</em>",
       "detail": "Sign-in attempts from your connection are paused for a few minutes.",
-      "hint": "Wait ten minutes, then run /login in Discord for a fresh link."
+      "hint": "Wait ten minutes, then run /login in Discord, or press “Link your maimai account” on the dashboard, for a fresh link."
     },
     "upstream": {
       "headline": "maimai said <em>no</em>",
@@ -1208,7 +1217,7 @@
     "unknown": {
       "headline": "Something went <em>wrong</em>",
       "detail": "The connection couldn't be completed.",
-      "hint": "Run /login in Discord to start over."
+      "hint": "Start over with /login in Discord, or press “Link your maimai account” on the dashboard."
     }
   },
   "meta": {
@@ -1429,7 +1438,7 @@
     "runDesktop": "When you're on the gateway page, click the <b>maimai connect</b> bookmark. This page updates once it's done.",
     "runIos": "When you're on the gateway page, open <b>Bookmarks</b> <glyph>📖</glyph> and tap <b>maimai connect</b>. Then come back to this tab.",
     "runAndroid": "When you're on the gateway page, tap the <b>address bar</b>, type <b>maimai connect</b> and pick the bookmark from the suggestions. Pasting the code into the address bar won't work in Chrome. Then come back to this tab.",
-    "stuck": "<b>Stuck?</b> If the bookmark says it can't read your login, sign out of the gateway, sign in again, then run it again. If the link expired, run <code>/login</code> in Discord for a new one. This bookmark is for International accounts. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet.",
+    "stuck": "<b>Stuck?</b> If the bookmark says it can't read your login, sign out of the gateway, sign in again, then run it again. If the link expired, run <code>/login</code> in Discord, or press “Link your maimai account” on the dashboard, for a new one. This bookmark is for International accounts. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>, or choose Japan on the dashboard. Accounts from the Chinese version can't be linked yet.",
     "jpTitle": "Sign in with your <em>SEGA ID</em>.",
     "jpLede": "maimaidx.jp has no sign-in Rasmai can borrow the way the international site does, so Rasmai signs in there with your SEGA ID whenever it reads your scores.",
     "jpStepTitle": "Your maimaidx.jp sign-in",
@@ -1460,6 +1469,51 @@
     },
     "closeTab": "You can close this tab."
   },
+  "welcome": {
+    "metaTitle": "Welcome",
+    "metaDescription": "Create your Rasmai account.",
+    "title": "Welcome to <em>Rasmai</em>.",
+    "lede": "This is the first time this sign-in has been used here, so there is no Rasmai account for it yet. Creating one takes a minute.",
+    "signingIn": "Signing in with {provider} as <b>{name}</b>.",
+    "signingInNoName": "Signing in with {provider}.",
+    "providers": {
+      "discord": "Discord",
+      "google": "Google"
+    },
+    "meansTitle": "What creating an account means",
+    "means": {
+      "i01": "Rasmai makes an account for you and ties this sign-in to it. From the sign-in it keeps which service it was and the stable ID that service gives you.",
+      "i02": "If the sign-in gives a verified email address, Rasmai keeps only a one-way hash of it, to recognise you if you sign in another way later. The address itself is not stored.",
+      "i03": "Signing in with both Discord and Google joins them into one account, so you never end up with two.",
+      "i04": "Nothing from maimai is read until you link your maimai account yourself.",
+      "i05": "You can have your account deleted at any time. The privacy policy says how.",
+      "i06": "Agreeing records the date and version of the documents you agreed to."
+    },
+    "readDocs": "Please read the <privacy>privacy policy</privacy> and the <terms>terms</terms> first. They open in a new tab.",
+    "agree": "I have read the privacy policy and terms and agree to them",
+    "create": "Create my account",
+    "expires": "This page is good for 10 minutes. If it runs out, sign in again.",
+    "alreadyTitle": "Already use Rasmai from Discord?",
+    "alreadyBody": "Sign in with Discord first and this sign-in is added to your existing account instead of making a new one.",
+    "already": "I already use Rasmai from Discord",
+    "nothingCreated": "nothing is created until you agree"
+  },
+  "merge": {
+    "metaTitle": "Join your accounts",
+    "title": "Join your <em>accounts</em>.",
+    "lede": "The account you are signed in with and the Discord account you just signed in with each have a maimai account linked. One person can keep only one maimai link and set of scores.",
+    "fromLabel": "the account you are signed in with",
+    "toLabel": "the Discord account",
+    "ratingLabel": "rating",
+    "regionLabel": "region",
+    "choiceTitle": "Choose which one to keep",
+    "explain": "The maimai link and scores of the account you keep stay as they are. The other account's maimai link and scores are deleted. <b>This cannot be undone.</b> Either way, both sign-ins end up on one account.",
+    "keepFrom": "Keep the account I'm signed in with",
+    "keepTo": "Keep the Discord account",
+    "cancel": "Cancel and go back to the dashboard",
+    "cancelNote": "Cancelling changes nothing.",
+    "nothingChanges": "nothing changes until you choose"
+  },
   "privacy": {
     "metaTitle": "Privacy",
     "metaDescription": "What Rasmai stores about you and how to delete it.",
@@ -1470,7 +1524,7 @@
     "metaTitle": "Terms",
     "metaDescription": "What you agree to when you use Rasmai.",
     "title": "Terms of <em>use</em>.",
-    "intro": "Rasmai is a free, fan-made tool. By using the bot or this site you agree to the terms below."
+    "intro": "Rasmai is a free, fan-made tool. By using the bot or this site you agree to the terms below. Creating an account on the site asks for that agreement in so many words."
   },
   "notFound": {
     "metaTitle": "not found",
@@ -1480,7 +1534,7 @@
     "lede": "This page doesn't exist or it moved. Here are some pages that do.",
     "whereTitle": "Where to go",
     "home": "<home>Home</home> to see what Rasmai does and how to add it.",
-    "link": "<link>Link your account</link> if you came here from <code>/login</code>. If your link expired, run the command again in Discord for a new one.",
+    "link": "<link>Link your account</link> if you came here from <code>/login</code>. If your link expired, run the command again in Discord, or press “Link your maimai account” on the dashboard, for a new one.",
     "dashboard": "<dash>Your dashboard</dash>, after signing in with Discord.",
     "bookmark": "<b>Came from the bookmark?</b> Connect links work once and last about ten minutes. Run the bookmark on the SEGA gateway page, not on this site."
   },
@@ -1495,5 +1549,40 @@
   },
   "support": {
     "stuck": "Still stuck? <link>Ask in the support server</link>."
+  },
+  "auth": {
+    "signInGoogle": "sign in with Google",
+    "errors": {
+      "signin": "The sign-in didn't finish. Try again.",
+      "google": "Google didn't confirm the sign-in. Try again.",
+      "identity_taken": "That Discord or Google sign-in already belongs to a different account, so it can't be linked here.",
+      "rate_limited": "Too many sign-in attempts. Wait a few minutes and try again."
+    }
+  },
+  "account": {
+    "linkMaimai": "Link your maimai account",
+    "linkOpening": "Opening…",
+    "linkFailed": "Couldn't start linking. Try again.",
+    "region": "region",
+    "regionIntl": "International",
+    "regionJp": "Japan",
+    "notLinkedLedeWeb": "You're signed in, but no maimai account is linked yet. Pick your region and link it here. It takes about a minute.",
+    "expiredWeb": "<b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on, select, none {} other { on {on}}}, so your scores aren't updating. Everything below is from your last refresh. Link your maimai account again here.{until, select, none {} other { If it isn't linked again by <b>{until}</b>, everything stored for this account is deleted.}}",
+    "signIns": "sign-ins",
+    "signInsInfo": "The ways you can sign in to Rasmai. Link both and either one opens this same account.",
+    "signInsFailed": "Couldn't load your sign-ins.",
+    "loading": "Loading…",
+    "providerDiscord": "Discord",
+    "providerGoogle": "Google",
+    "linked": "linked",
+    "notLinked": "not linked",
+    "linkDiscord": "Link Discord",
+    "linkGoogle": "Link Google",
+    "webOnlyHint": "You signed in without Discord. Link Discord to use the bot's commands with this account.",
+    "deleteTitle": "delete account",
+    "deleteHint": "Deletes your sign-ins, your record of agreeing to the terms and anything stored from maimai. You can start again whenever you like.",
+    "deleteAsk": "delete my account…",
+    "deleteYes": "yes, delete everything",
+    "keepIt": "keep it"
   }
 }
