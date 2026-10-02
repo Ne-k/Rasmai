@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ChartRow } from "./api";
 import { Label } from "./bits";
 
-export type CurvePoint = { c: number; e: number; s: number };
+type CurvePoint = { c: number; e: number; s: number };
 
 type Props = {
   curve: CurvePoint[];

@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import { InstallHint } from "@/components/Pwa";
 import { Support } from "@/components/Support";
+import { isWebId } from "@/lib/ids";
 import { useTranslations } from "next-intl";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
 import { Beta } from "./Beta";
-import { SignIns, isWebId } from "./Identity";
+import { SignIns } from "./Identity";
 import { Sharing } from "./Sharing";
 
 export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void }) {

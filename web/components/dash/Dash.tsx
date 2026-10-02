@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
+import { isWebId } from "@/lib/ids";
 import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
@@ -13,7 +14,7 @@ import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
 import { Account } from "./Account";
-import { LinkMaimai, isWebId } from "./Identity";
+import { LinkMaimai } from "./Identity";
 import { LinkGate } from "./LinkGate";
 import { SignInGate } from "./SignInGate";
 import { AdminPanel } from "./admin/Panel";

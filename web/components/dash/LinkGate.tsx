@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import type { Overview } from "./api";
-import { DeleteAccount, LinkMaimai, SignIns, isWebId } from "./Identity";
+import { isWebId } from "@/lib/ids";
+import { DeleteAccount, LinkMaimai, SignIns } from "./Identity";
 
 /** A signed-in account with no maimai linked yet: the guided step that links one, by region. */
 export function LinkGate({ me, setup, banner }: { me: Overview; setup: boolean; banner: React.ReactNode }) {

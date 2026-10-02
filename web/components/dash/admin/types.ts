@@ -22,7 +22,7 @@ export type AdminData = {
   guilds_list?: Guild[];
 };
 
-export type Guild = {
+type Guild = {
   id: string; name: string; icon: string; members: number;
   ownerId: string; owner: string; joinedAt: string; shard: number; configured: boolean;
 };

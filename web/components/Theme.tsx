@@ -2,14 +2,14 @@
 
 import { useTranslations } from "next-intl";
 
-export const THEME_KEY = "rasmai-theme";
-export const THEME_COLORS = { light: "#fbf6ec", dark: "#14121c" };
+const THEME_KEY = "rasmai-theme";
+const THEME_COLORS = { light: "#fbf6ec", dark: "#14121c" };
 
 /** Runs before paint: applies the saved theme so the page never flashes the other one, and writes the browser-chrome
  *  colour to match. Light unless the reader chose dark; the device setting is not consulted. */
 export const THEME_BOOT = `(function(){var d=false;try{d=localStorage.getItem(${JSON.stringify(THEME_KEY)})==="dark";}catch(e){}if(d)document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);}m.setAttribute("content",d?${JSON.stringify(THEME_COLORS.dark)}:${JSON.stringify(THEME_COLORS.light)});})();`;
 
-export function currentTheme(): "light" | "dark" {
+function currentTheme(): "light" | "dark" {
   return typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
 }
 
@@ -23,7 +23,7 @@ function paintChrome(theme: "light" | "dark") {
   meta.setAttribute("content", THEME_COLORS[theme]);
 }
 
-export function applyTheme(theme: "light" | "dark") {
+function applyTheme(theme: "light" | "dark") {
   const root = document.documentElement;
   if (theme === "dark") root.setAttribute("data-theme", "dark");
   else root.removeAttribute("data-theme");

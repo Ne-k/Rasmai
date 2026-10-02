@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { num } from "../bits";
 import type { AdminData, Person, Table } from "./types";
 
-export const SLICES = ["#ff3d8f", "#5cd3e8", "#f0c04a", "#8f7dff", "#4fd18b", "#ff9f5c", "#9aa0b5"];
+const SLICES = ["#ff3d8f", "#5cd3e8", "#f0c04a", "#8f7dff", "#4fd18b", "#ff9f5c", "#9aa0b5"];
 
 export function size(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return "—";

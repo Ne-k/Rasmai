@@ -49,7 +49,7 @@ export type TraitFamily = {
 
 export type BetaVerdict = "better" | "same" | "worse";
 
-export type BetaSaid = { verdict: BetaVerdict; said: string; saidAt: string };
+type BetaSaid = { verdict: BetaVerdict; said: string; saidAt: string };
 
 export type BetaFeature = {
   key: string;
@@ -71,6 +71,7 @@ export type Beta = { on: Record<string, boolean>; features: BetaFeature[] };
 export type Overview = {
   user: DiscordUser;
   linked: boolean;
+  providers: string[];
   oauth: boolean;
   google?: boolean;
   region?: string;
@@ -157,7 +158,7 @@ export type ChartRow = {
   recent?: boolean;
 };
 
-export type Recommendation = {
+type Recommendation = {
   song: string;
   difficulty: number;
   current_accuracy: number;
@@ -182,7 +183,7 @@ export type Recommendation = {
   required_accuracy: number;
 };
 
-export type PlanStep = {
+type PlanStep = {
   option: {
     title: string;
     chart_type: string;
@@ -318,8 +319,8 @@ export type AreaSummary = {
 
 export type LookupTarget = { title: string; cover?: string; type?: string; difficulty?: string };
 
-export type PatternTag = { tag: string; label: string; english: string; charts: number; community: boolean; dimension: string };
-export type PatternChart = {
+type PatternTag = { tag: string; label: string; english: string; charts: number; community: boolean; dimension: string };
+type PatternChart = {
   title: string;
   chart_type: string;
   difficulty: string;
@@ -347,7 +348,7 @@ export type SearchHit = {
   charts: { chart_type: string; difficulty: string; level: string; constant: number; played: boolean; accuracy: number | null; rank: string }[];
 };
 
-export type LadderStep = { rank: string; need: number; rating: number; gain: number; odds: number };
+type LadderStep = { rank: string; need: number; rating: number; gain: number; odds: number };
 
 export type ChartDetail = {
   title: string;
@@ -384,10 +385,10 @@ export type ChartDetail = {
   patterns: ChartPattern[];
 };
 
-export type ChartPattern = { key: string; label: string; dimension: string; community: boolean; offset: number | null };
+type ChartPattern = { key: string; label: string; dimension: string; community: boolean; offset: number | null };
 
 export type Trait = { dimension: string; label: string; english?: string; offset: number; count: number; plays?: number; verified?: boolean; leaning?: boolean; p?: number; read?: boolean };
-export type PracticeChart = { title: string; chart_type: string; difficulty: string; level: string;
+type PracticeChart = { title: string; chart_type: string; difficulty: string; level: string;
                               constant: number; cover: string; accuracy: number | null;
                               stale?: boolean };   // the score is old, not what they do now
 export type TraitPractice = { label: string; english: string; tag: string; verified: boolean; offset: number; count: number; charts: PracticeChart[] };
@@ -406,7 +407,7 @@ export type SongLookup = {
 };
 
 /** The codes the site's API answers with, as sentences a person can act on, in the page's language. */
-export function describeError(status: number, body: Record<string, unknown>): string {
+function describeError(status: number, body: Record<string, unknown>): string {
   const t = activeT("dash.api");
   const known = ["bot_unreachable", "rate_limited", "signed_out", "bad_response", "not_linked"] as const;
   const code = String(body.error ?? "");

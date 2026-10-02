@@ -8,7 +8,7 @@ export const CONFIRM_CHARTS = 12;
 export const TIER = { basic: "BAS", advanced: "ADV", expert: "EXP", master: "MAS", remaster: "Re:M" } as Record<string, string>;
 
 export const RADAR_MIN = 3;
-export const RADAR_FILL = 6;
+const RADAR_FILL = 6;
 
 export type Axis = Trait & { filler?: boolean };
 export const isLean = (a: Trait) => Boolean(a.leaning) && !a.verified && a.count >= CONFIRM_CHARTS;
@@ -18,7 +18,7 @@ export const isEven = (a: Trait) => !a.verified && !a.leaning && a.count >= CONF
 // leaning, and outside the band "level with the rest" covers.
 export const isWatch = (a: Trait) => !a.verified && !isLean(a) && a.count >= CONFIRM_CHARTS && Math.abs(a.offset) >= LEAN;
 // how many to show a side, so the tab answers "what should I work on" with something either way
-export const BASELINE = 3;
+const BASELINE = 3;
 
 /**
  * The two lists the traits tab shows, as the dashboard and a shared profile both show them.

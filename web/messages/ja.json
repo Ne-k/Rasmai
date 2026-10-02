@@ -1600,8 +1600,6 @@
     "expiredWeb": "<b>maimai のセッションが期限切れです。</b> maimaiでらっくすNET が{on, select, none {} other {{on}に}}ログインを受け付けなくなったため、スコアが更新されていません。以下は最後に更新した時点のものです。ここから maimai アカウントを再連携してください。{until, select, none {} other {<b>{until}</b>までに再連携しないと、このアカウントについて保存されているものはすべて削除されます。}}",
     "signIns": "ログイン方法",
     "signInsInfo": "Rasmai にログインできる方法です。両方を連携すれば、どちらからでも同じアカウントを開けます。",
-    "signInsFailed": "ログイン方法を読み込めませんでした。",
-    "loading": "読み込み中…",
     "providerDiscord": "Discord",
     "providerGoogle": "Google",
     "linked": "連携済み",

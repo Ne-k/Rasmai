@@ -2,7 +2,7 @@
 // steps inside gold, platinum, rainbow and kiwami are frame variants of one colour, so the table keeps the
 // colours and ratingStep the steps. Same table as RATING_BANDS in rasmai/engine/analysis/rating.py; tools/checks/rating.py
 // holds the two together. The fills follow the game's frames; ink type reads on every one.
-export const RATING_BANDS = [
+const RATING_BANDS = [
   { min: 16000, key: "kiwami", fill: "linear-gradient(120deg, #c070f4, #ff6cc8 18%, #ffd23a 36%, #62e070 54%, #3cc8f5 72%, #9a7cff)" },
   { min: 15000, key: "rainbow", fill: "linear-gradient(120deg, #ffa0d2, #ffe07a 20%, #c6f27c 38%, #8ee6f2 58%, #aab8ff 78%, #f0a8f0)" },
   { min: 14500, key: "platinum", fill: "linear-gradient(120deg, #f4de78, #fffbe2 16%, #f9e99a 32%, #fff5c6 60%, #eed266)" },
@@ -17,7 +17,7 @@ export const RATING_BANDS = [
   { min: 0, key: "white", fill: "linear-gradient(90deg, #a9dcf8, #f4fbff 20%, #ffffff 50%, #f4fbff 80%, #a9dcf8)" },
 ] as const;
 
-export type RatingBand = (typeof RATING_BANDS)[number];
+type RatingBand = (typeof RATING_BANDS)[number];
 
 export function ratingBand(rating: number): RatingBand {
   return RATING_BANDS.find((b) => rating >= b.min) ?? RATING_BANDS[RATING_BANDS.length - 1];

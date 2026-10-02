@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/I18n";
 import { ProviderIcon } from "@/components/ProviderIcon";
-import { getJSON, postJSON, type Overview } from "./api";
+import { isWebId } from "@/lib/ids";
+import { postJSON, type Overview } from "./api";
 import { Label } from "./bits";
 import "./identity.css";
-
-/** An account made on the site without Discord. The bot's slash commands can't reach it until Discord is linked. */
-export const isWebId = (id: string) => /^w[0-9a-f]{20}$/.test(id);
 
 /** Asks the bot for the link that connects a maimai account, from the site rather than from a Discord command.
  * Each region is a button that starts linking at once; `guided` adds a line under each on how that region links. */
@@ -55,56 +53,39 @@ export function LinkMaimai({ guided = false }: { guided?: boolean }) {
   );
 }
 
-type Identities = { providers: string[]; linked: boolean; webOnly: boolean };
-
 /** Which sign-ins reach this account, with a button to add the other. Linking goes through the same sign-in as the gate. */
 export function SignIns({ me }: { me: Overview }) {
   const t = useTranslations("account");
-  const [found, setFound] = useState<Identities | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    getJSON<Identities>("/api/me/identities")
-      .then(setFound)
-      .catch(() => setFailed(true));
-  }, []);
   const ready = { discord: me.oauth, google: Boolean(me.google) };
-  const has = (provider: "discord" | "google") => Boolean(found?.providers.includes(provider));
+  const has = (provider: "discord" | "google") => me.providers.includes(provider);
   const names = { discord: t("providerDiscord"), google: t("providerGoogle") };
   return (
     <section className="ledger">
       <div className="ledger-head">
         <Label info={t("signInsInfo")}>{t("signIns")}</Label>
       </div>
-      {failed ? (
-        <p className="hint">{t("signInsFailed")}</p>
-      ) : found ? (
-        <>
-          <ul className="signin-rows">
-            {(["discord", "google"] as const).map((provider) => (
-              <li key={provider} className="signin-row">
-                <span className={`signin-mark ${provider}`}>
-                  <ProviderIcon provider={provider} size={provider === "google" ? 16 : 17} />
-                </span>
-                <span className="signin-name">{names[provider]}</span>
-                {has(provider) ? (
-                  <span className="ok-badge">{t("linked")}</span>
-                ) : ready[provider] ? (
-                  <form method="post" action={`/auth/${provider}?link=1`}>
-                    <button type="submit" className="button ghost" aria-label={provider === "discord" ? t("linkDiscord") : t("linkGoogle")}>
-                      {t("linkShort")}
-                    </button>
-                  </form>
-                ) : (
-                  <span className="signin-off">{t("notLinked")}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {found.webOnly && <p className="signin-note">{t("webOnlyHint")}</p>}
-        </>
-      ) : (
-        <p className="hint">{t("loading")}</p>
-      )}
+      <ul className="signin-rows">
+        {(["discord", "google"] as const).map((provider) => (
+          <li key={provider} className="signin-row">
+            <span className={`signin-mark ${provider}`}>
+              <ProviderIcon provider={provider} size={provider === "google" ? 16 : 17} />
+            </span>
+            <span className="signin-name">{names[provider]}</span>
+            {has(provider) ? (
+              <span className="ok-badge">{t("linked")}</span>
+            ) : ready[provider] ? (
+              <form method="post" action={`/auth/${provider}?link=1`}>
+                <button type="submit" className="button ghost" aria-label={provider === "discord" ? t("linkDiscord") : t("linkGoogle")}>
+                  {t("linkShort")}
+                </button>
+              </form>
+            ) : (
+              <span className="signin-off">{t("notLinked")}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {isWebId(me.user.id) && <p className="signin-note">{t("webOnlyHint")}</p>}
     </section>
   );
 }

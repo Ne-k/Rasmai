@@ -7,7 +7,7 @@ import { type RefreshStatus } from "./api";
 export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
 
 // what to play, then how you play, then your scores, then the reference tabs; their names are in the translation files
-export const TABS: Tab[] = ["overview", "picks", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
+const TABS: Tab[] = ["overview", "picks", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
 
 // the developer tab is only ever added for the one account the internal API answers the developer route for
 export function tabsFor(admin?: boolean): Tab[] {

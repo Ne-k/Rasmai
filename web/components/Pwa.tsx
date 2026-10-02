@@ -20,7 +20,7 @@ if (typeof window !== "undefined") {
   });
 }
 
-export function isStandalone(): boolean {
+function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as { standalone?: boolean }).standalone);
 }

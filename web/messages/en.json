@@ -1592,8 +1592,6 @@
     "expiredWeb": "<b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on, select, none {} other { on {on}}}, so your scores aren't updating. Everything below is from your last refresh. Link your maimai account again here.{until, select, none {} other { If it isn't linked again by <b>{until}</b>, everything stored for this account is deleted.}}",
     "signIns": "sign-ins",
     "signInsInfo": "The ways you can sign in to Rasmai. Link both and either one opens this same account.",
-    "signInsFailed": "Couldn't load your sign-ins.",
-    "loading": "Loading…",
     "providerDiscord": "Discord",
     "providerGoogle": "Google",
     "linked": "linked",
