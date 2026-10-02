@@ -15,7 +15,7 @@ from rasmai.bot.tasks.history_watch import HistoryWatch
 from rasmai.bot.tasks.presence import ServerWatch
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
-    CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
+    CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_LIMIT, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
     support_line,
 )
 from rasmai.images.render import render_html_to_image
@@ -98,8 +98,21 @@ def private_only(interaction: discord.Interaction) -> bool:
 
 
 async def fetch_snapshot_limited(analyzer: "MaimaiRatingAnalyzer", token: str, region: str, on_progress=None) -> Dict[str, Any]:
+    reached = ["before signing in"]
+
+    def tell(key, *args, **kwargs):
+        reached[0] = key
+        if on_progress:
+            on_progress(key, *args, **kwargs)
+
     async with SCRAPE_SEMAPHORE:
-        return await asyncio.to_thread(analyzer.fetch_official_maimai_snapshot, token, region, on_progress)
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(analyzer.fetch_official_maimai_snapshot, token, region, tell), SCRAPE_LIMIT)
+        except asyncio.TimeoutError:
+            # the thread cannot be stopped and ends when its own request times out; what matters is that the slot
+            # and the person's command are freed, and that the log says where the read was
+            logger.warning("a %s score read ran over %ss and was given up on; it had got as far as the %r stage", region, SCRAPE_LIMIT, reached[0])
+            raise
 
 
 async def render_limited(html: str) -> bytes:

@@ -21,6 +21,7 @@ STEPS: List[Tuple[str, str, float]] = [
 ]
 PER_PLAY_COUNT = 1.0      # seconds per chart detail page, measured
 EXPECTED_PLAY_COUNTS = 60  # assumed until the real number is known, so the estimate does not jump
+EDIT_TIMEOUT = 20         # an edit that has not answered by now is dropped, or a stuck one would stop every later update
 EDIT_EVERY = 1.1          # Discord tolerates about five edits per five seconds on one message
 BAR_WIDTH = 16
 
@@ -172,9 +173,10 @@ class Progress:
         self._dirty = False
         self._last_edit = time.monotonic()
         try:
-            await self.interaction.edit_original_response(content=self.render(), embed=None, attachments=[], view=None)
-        except discord.HTTPException as error:
-            logger.debug(f"progress edit skipped: {error}")
+            await asyncio.wait_for(
+                self.interaction.edit_original_response(content=self.render(), embed=None, attachments=[], view=None), EDIT_TIMEOUT)
+        except (discord.HTTPException, asyncio.TimeoutError) as error:
+            logger.warning("progress edit skipped: %s", type(error).__name__ if isinstance(error, asyncio.TimeoutError) else error)
 
     def close(self) -> None:
         """Stop editing: the real reply is about to replace this text."""

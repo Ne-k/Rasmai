@@ -155,6 +155,7 @@ def public_url_is_shareable() -> bool:
 MAX_CONCURRENT_SCRAPES = int(os.getenv("MAIMAI_MAX_CONCURRENT", "24"))     # full score reads running at once
 MAX_CONCURRENT_RENDERS = int(os.getenv("MAIMAI_MAX_RENDERS", "4"))          # Chromium pages open at once
 SCRAPE_WORKERS = MAX_CONCURRENT_SCRAPES + 16     # thread pool behind every blocking call
+SCRAPE_LIMIT = float(os.getenv("MAIMAI_READ_LIMIT", "300"))                 # seconds one score read may take before it is given up on
 REQUESTS_PER_SECOND = float(os.getenv("MAIMAI_REQUESTS_PER_SECOND", "25"))  # to maimai DX NET from this process, all users together
 PROGRESS_EDITS_PER_SECOND = float(os.getenv("MAIMAI_PROGRESS_EDITS_PER_SECOND", "8"))   # loading-bar edits, all users together
 ANALYSIS_CACHE_MAX = int(os.getenv("MAIMAI_ANALYSIS_CACHE_MAX", "500"))     # finished analyses kept in memory
