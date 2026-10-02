@@ -59,6 +59,12 @@ export function readCookies(request: Request): Record<string, string> {
   return jar;
 }
 
+/** Whether a cookie jar holds a session that verifies and has not expired; a forged or stale one counts as signed out. */
+export function hasSession(jar: { get(name: string): { value: string } | undefined }): boolean {
+  const token = jar.get(SESSION_COOKIE)?.value;
+  return typeof (token ? verify(token) : null)?.id === "string";
+}
+
 /** The signed-in Discord user, or null. */
 export function currentUser(request: Request): DiscordUser | null {
   const token = readCookies(request)[SESSION_COOKIE];

@@ -5,6 +5,7 @@ import { ThemeToggle } from "./Theme";
 import { ServersNotice } from "./Servers";
 import { useTranslations } from "next-intl";
 import { LangToggle } from "./I18n";
+import { useSignedIn } from "./SignedIn";
 import { TRANSLATE_URL } from "./Contact";
 
 // the keys are what a page passes as `current`; the words come from the reader's language
@@ -20,14 +21,26 @@ const NAV = [
 // these leave for another site, so they open in a tab of their own
 const EXTERNAL = new Set(["support"]);
 
+/** The way in for someone who is not signed in: the dashboard page offers Discord and Google, and a first sign-in there makes the account. */
+function SignInButton() {
+  const t = useTranslations("nav");
+  if (useSignedIn()) return null;
+  return (
+    <a className="signin-pill" href="/me/" title={t("signInTitle")}>
+      {t("signIn")}
+    </a>
+  );
+}
+
 // The language switch is a sibling of the nav, not one of its links: on a phone the nav takes a row
 // of its own, and the switch stays up in the top row beside the theme switch.
 export function MastheadNav({ current }: { current: string }) {
   const t = useTranslations("nav");
+  const signedIn = useSignedIn();
   return (
     <>
       <nav className="masthead-nav">
-        {NAV.map(([key, href]) =>
+        {NAV.filter(([key]) => signedIn || key !== "dashboard").map(([key, href]) =>
           key === current ? (
             <span key={key} className="tag">
               {t(key)}
@@ -39,6 +52,7 @@ export function MastheadNav({ current }: { current: string }) {
           ),
         )}
       </nav>
+      <SignInButton />
       <LangToggle />
     </>
   );

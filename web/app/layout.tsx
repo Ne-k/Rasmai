@@ -7,6 +7,9 @@ import { Pwa } from "@/components/Pwa";
 import { THEME_BOOT } from "@/components/Theme";
 import { LocaleProvider } from "@/components/I18n";
 import { Intl } from "@/components/Intl";
+import { SignedInProvider } from "@/components/SignedIn";
+import { hasSession } from "@/lib/session";
+import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -83,6 +86,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  const signedIn = hasSession(await cookies());
   const fonts =
     locale === "ja"
       ? ({ "--font-display": `${display.style.fontFamily}, ${JA_DISPLAY}`, "--font-body": `${body.style.fontFamily}, ${JA_BODY}` } as React.CSSProperties)
@@ -92,12 +96,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Intl>
           <LocaleProvider locale={locale}>
-            <SiteNotice />
-            {children}
-            <Pwa />
+            <SignedInProvider signedIn={signedIn}>
+              <SiteNotice />
+              {children}
+              <Pwa />
+            </SignedInProvider>
           </LocaleProvider>
         </Intl>
       </body>
