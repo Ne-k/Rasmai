@@ -15,6 +15,37 @@ _FIELDS = (
 )
 
 
+def read_json(path: Any) -> Any:
+    """Read a JSON file, settling merge-conflict markers left in it by keeping the first side of each.
+
+    otoge-db has shipped ``music-ex.json`` with unresolved stash conflicts in it, and a file that does not
+    parse used to cost every song only that file held until the maintainer fixed it. The first side is the
+    one already in the repository; the second is the stash laid over it.
+
+    :param path: The file to read.
+    :type path: Path
+    """
+    text = path.read_text(encoding='utf-8')
+    try:
+        return json.loads(text)
+    except ValueError:
+        if '<<<<<<< ' not in text:
+            raise
+    kept, dropping = [], False
+    for line in text.splitlines():
+        if line.startswith('<<<<<<<'):
+            continue
+        if line.startswith('======='):
+            dropping = True
+        elif line.startswith('>>>>>>>'):
+            dropping = False
+        elif not dropping:
+            kept.append(line)
+    data = json.loads("\n".join(kept))
+    logger.warning("%s held merge-conflict markers; read it keeping the first side of each", path.name)
+    return data
+
+
 def load_songs_from_repo(db: Any) -> bool:
     """Read the songs out of the checkout into ``songs_data``.
 
@@ -39,8 +70,7 @@ def load_songs_from_repo(db: Any) -> bool:
             if music_json_path.exists():
                 logger.debug(f"Loading {music_file}...")
                 try:
-                    with open(music_json_path, 'r', encoding='utf-8') as f:
-                        music_data = json.load(f)
+                    music_data = read_json(music_json_path)
 
                     count = 0
                     if isinstance(music_data, list):
