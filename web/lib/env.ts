@@ -8,6 +8,8 @@ export const env = {
   statuspageToken: () => (process.env.STATUSPAGE_TOKEN ?? "").trim(),
   discordClientId: () => (process.env.DISCORD_CLIENT_ID ?? "").trim(),
   discordClientSecret: () => (process.env.DISCORD_CLIENT_SECRET ?? "").trim(),
+  googleClientId: () => (process.env.GOOGLE_CLIENT_ID ?? "").trim(),
+  googleClientSecret: () => (process.env.GOOGLE_CLIENT_SECRET ?? "").trim(),
   botInvite: () => (process.env.DISCORD_BOT_INVITE ?? "").trim(),
   supportInvite: () => (process.env.DISCORD_SUPPORT_INVITE ?? "").trim() || "https://discord.gg/EhfdWeK8Aq",
   turnstileSiteKey: () => (process.env.CF_KEY ?? "").trim(),
@@ -16,5 +18,6 @@ export const env = {
 };
 
 export const oauthReady = () => Boolean(env.discordClientId() && env.discordClientSecret());
+export const googleReady = () => Boolean(env.googleClientId() && env.googleClientSecret());
 export const turnstileReady = () => Boolean(env.turnstileSiteKey() && env.turnstileSecret());
 export const isSecure = () => env.publicUrl().startsWith("https://");

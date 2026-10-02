@@ -8,6 +8,10 @@
 
 .gate { max-width: 620px; margin-top: 56px; }
 .gate .button { margin-top: 6px; }
+.link-maimai select { padding: 10px 12px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; }
+.link-maimai select:focus-visible { outline: 3px solid var(--cyan); outline-offset: 1px; }
+.expired .link-maimai { margin-top: 10px; }
+.gate .ledger { margin-top: 28px; }
 
 .ident { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-top: 34px; }
 .ident-who { min-width: 0; }

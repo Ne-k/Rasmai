@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
 import { Beta } from "./Beta";
+import { SignIns, isWebId } from "./Identity";
 import { Sharing } from "./Sharing";
 
 export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void }) {
@@ -102,28 +103,32 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         <p className="hint">{t("importHint")}</p>
         <InstallHint />
       </section>
-      <section className="ledger">
-        <div className="ledger-head">
-          <Label info={t("settingsInfo")}>{t("settings")}</Label>
-        </div>
-        <dl className="facts">
-          <dt>{t("layout")}</dt>
-          <dd>{label(s.layout, "layouts")}</dd>
-          <dt>{t("targets")}</dt>
-          <dd>{label(s.challenge, "challenges")}</dd>
-          <dt>{t("newDifficulty")}</dt>
-          <dd>{label(s.new_difficulty, "any")}</dd>
-          <dt>{t("compare")}</dt>
-          <dd>{s.compare ? t("on") : t("off")}</dd>
-          <dt>{t("leaderboard")}</dt>
-          <dd>{s.leaderboard ? t("on") : t("off")}</dd>
-          <dt>{t("history")}</dt>
-          <dd>{s.history ? t("on") : t("off")}</dd>
-          <dt>{t("notify")}</dt>
-          <dd>{s.notify ? t("on") : t("off")}</dd>
-        </dl>
-        <p className="hint">{t.rich("change", { code: (c) => <code>{c}</code> })}</p>
-      </section>
+      {!isWebId(me.user.id) && (
+        <section className="ledger">
+          <div className="ledger-head">
+            <Label info={t("settingsInfo")}>{t("settings")}</Label>
+          </div>
+          <dl className="facts">
+            <dt>{t("layout")}</dt>
+            <dd>{label(s.layout, "layouts")}</dd>
+            <dt>{t("targets")}</dt>
+            <dd>{label(s.challenge, "challenges")}</dd>
+            <dt>{t("newDifficulty")}</dt>
+            <dd>{label(s.new_difficulty, "any")}</dd>
+            <dt>{t("compare")}</dt>
+            <dd>{s.compare ? t("on") : t("off")}</dd>
+            <dt>{t("leaderboard")}</dt>
+            <dd>{s.leaderboard ? t("on") : t("off")}</dd>
+            <dt>{t("history")}</dt>
+            <dd>{s.history ? t("on") : t("off")}</dd>
+            <dt>{t("notify")}</dt>
+            <dd>{s.notify ? t("on") : t("off")}</dd>
+          </dl>
+          <p className="hint">{t.rich("change", { code: (c) => <code>{c}</code> })}</p>
+        </section>
+      )}
+
+      <SignIns me={me} />
 
       {me.sharing && <Sharing state={sharing} onChange={setSharing} />}
 

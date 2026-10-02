@@ -15,6 +15,7 @@ import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
 import { Picks } from "./Picks";
 import { Account } from "./Account";
+import { DeleteAccount, LinkMaimai, SignIns, isWebId } from "./Identity";
 import { AdminPanel } from "./admin/Panel";
 import { Best50 } from "./Best50";
 import { ratingBand } from "./band";
@@ -49,9 +50,12 @@ function QueueNote({ spot }: { spot: NonNullable<QueueSpot> }) {
 
 export function Dash() {
   const t = useTranslations("dash");
+  const auth = useTranslations("auth");
+  const acct = useTranslations("account");
   const [me, setMe] = useState<Overview | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [oauth, setOauth] = useState(true);
+  const [google, setGoogle] = useState(false);
   const [turnstile, setTurnstile] = useState("");
   const [human, setHuman] = useState("");
   const [error, setError] = useState("");
@@ -78,6 +82,7 @@ export function Dash() {
         if (e.status === 401) {
           setSignedOut(true);
           setOauth(Boolean(e.body?.oauth));
+          setGoogle(Boolean(e.body?.google));
           setTurnstile(String(e.body?.turnstile ?? ""));
         } else setError(e.message);
       });
@@ -97,6 +102,7 @@ export function Dash() {
       const body = ((event as CustomEvent).detail ?? {}) as Record<string, unknown>;
       setSignedOut(true);
       if ("oauth" in body) setOauth(Boolean(body.oauth));
+      if ("google" in body) setGoogle(Boolean(body.google));
       if ("turnstile" in body) setTurnstile(String(body.turnstile ?? ""));
     };
     window.addEventListener(SIGNED_OUT_EVENT, onSignedOut);
@@ -137,8 +143,9 @@ export function Dash() {
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("error");
     if (kind && t.has(`signInErrors.${kind}` as never)) setError(t(`signInErrors.${kind}` as never));
+    else if (kind && auth.has(`errors.${kind}` as never)) setError(auth(`errors.${kind}` as never));
     applyLocation();
-  }, [load, applyLocation, t]);
+  }, [load, applyLocation, t, auth]);
 
   const loadCharts = useCallback(() => {
     setChartsError("");
@@ -217,18 +224,36 @@ export function Dash() {
         <div className="gate">
           <h1>{t.rich("gateTitle", { em: (c) => <em>{c}</em> })}</h1>
           <p className="lede">{t("gateLede")}</p>
-          {oauth && turnstile ? (
-            <form method="post" action="/auth/discord" className="signin">
+          {(oauth || google) && turnstile ? (
+            <form method="post" action={oauth ? "/auth/discord" : "/auth/google"} className="signin">
               <Turnstile siteKey={turnstile} action="dashboard" onToken={setHuman} onError={() => setError(t("turnstileFailed"))} />
               <input type="hidden" name="cf-turnstile-response" value={human} />
-              <button className="button pink" type="submit" disabled={!human}>
-                {t("signInDiscord")}
-              </button>
+              <div className="btn-row">
+                {oauth && (
+                  <button className="button pink" type="submit" formAction="/auth/discord" disabled={!human}>
+                    {t("signInDiscord")}
+                  </button>
+                )}
+                {google && (
+                  <button className="button" type="submit" formAction="/auth/google" disabled={!human}>
+                    {auth("signInGoogle")}
+                  </button>
+                )}
+              </div>
             </form>
-          ) : oauth ? (
-            <a className="button pink" href="/auth/discord">
-              {t("signInDiscord")}
-            </a>
+          ) : oauth || google ? (
+            <div className="btn-row">
+              {oauth && (
+                <a className="button pink" href="/auth/discord">
+                  {t("signInDiscord")}
+                </a>
+              )}
+              {google && (
+                <a className="button" href="/auth/google">
+                  {auth("signInGoogle")}
+                </a>
+              )}
+            </div>
           ) : (
             <p className="hint">{t("notSetUp")}</p>
           )}
@@ -251,15 +276,27 @@ export function Dash() {
       </Frame>
     );
   }
+  const web = isWebId(me.user.id);
+  const banner = error ? (
+    <div className="notice" role="alert">
+      {error}
+    </div>
+  ) : null;
   if (!me.linked) {
     return (
       <Frame user={me.user} onSignOut={signOut}>
         <div className="gate">
           <h1>{t.rich("notLinkedTitle", { em: (c) => <em>{c}</em> })}</h1>
-          <p className="lede">{t.rich("notLinkedLede", { code: (c) => <code>{c}</code> })}</p>
-          <a className="button" href="/">
-            {t("howLinking")}
-          </a>
+          {banner}
+          <p className="lede">{web ? acct("notLinkedLedeWeb") : t.rich("notLinkedLede", { code: (c) => <code>{c}</code> })}</p>
+          <LinkMaimai />
+          {!web && (
+            <a className="button ghost" href="/">
+              {t("howLinking")}
+            </a>
+          )}
+          <SignIns me={me} />
+          <DeleteAccount />
         </div>
       </Frame>
     );
@@ -270,7 +307,8 @@ export function Dash() {
   const band = ratingBand(p.rating).key;
   return (
     <Frame user={me.user} onSignOut={signOut}>
-      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} /> : null}
+      {banner}
+      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} web={web} /> : null}
       <section className="ident">
         <div className="ident-who">
           <div className="label">
@@ -397,8 +435,9 @@ export function Dash() {
 }
 
 /** Shown above everything when maimai DX NET has refused the saved sign-in: reads stop until it is linked again. */
-function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: string }) {
+function SessionExpired({ since, deletesAt, web }: { since: string; deletesAt?: string; web: boolean }) {
   const t = useTranslations("dash");
+  const acct = useTranslations("account");
   const when = new Date(since);
   const on = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
   const gone = deletesAt ? new Date(deletesAt) : null;
@@ -407,7 +446,14 @@ function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: strin
     : "";
   return (
     <aside className="expired" role="status">
-      {t.rich("expired", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b>, code: (c) => <code>{c}</code> })}
+      {web ? (
+        <>
+          {acct.rich("expiredWeb", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b> })}
+          <LinkMaimai />
+        </>
+      ) : (
+        t.rich("expired", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b>, code: (c) => <code>{c}</code> })
+      )}
     </aside>
   );
 }
