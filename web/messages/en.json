@@ -1342,7 +1342,7 @@
     "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at my-aime.net, open the Aime authentication, then press a bookmark once, and Rasmai only gets the session it needs and never sees your password. A Japan account links with its SEGA ID and password on the next page instead, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
     "linkingButton": "how linking works →",
     "dashboardTitle": "The dashboard",
-    "dashboard": "Sign in with Discord to see your rating over time, how you play, your best 50, all your scores with filters, the same picks as the bot, and 40 unplayed charts to try.",
+    "dashboard": "Sign in with Discord or Google to see your rating over time, how you play, your best 50, all your scores with filters, the same picks as the bot, and 40 unplayed charts to try.",
     "dashboardButton": "open the dashboard →",
     "phoneHint": "On a phone, add the dashboard to your home screen and it opens like an app.",
     "commandsTitle": "Commands",
@@ -1359,7 +1359,9 @@
       "compare": "you vs a friend, or a server leaderboard (opt-in)",
       "random": "a random chart, how you play, a copy of your data",
       "settings": "your defaults and daily score check, and the invite link"
-    }
+    },
+    "signInButton": "sign in or sign up",
+    "signInMore": "sign in or sign up →"
   },
   "link": {
     "metaTitle": "Link your maimai account",

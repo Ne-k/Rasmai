@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
@@ -6,6 +7,7 @@ import { ServersNotice } from "@/components/Servers";
 import { Ring } from "@/components/Ring";
 import { buttons, embed, headline, rule, say } from "@/lib/embed";
 import { env } from "@/lib/env";
+import { hasSession } from "@/lib/session";
 import { getTranslations } from "next-intl/server";
 import "./landing.css";
 
@@ -95,6 +97,8 @@ const UNFURL = embed("#ff3d8f", [
 export default async function LandingPage() {
   const t = await getTranslations("home");
   const footer = await getTranslations("footer");
+  // the dashboard is for people who are signed in; everyone else is offered the way in instead
+  const signedIn = hasSession(await cookies());
   const tags = { b: (c: React.ReactNode) => <b>{c}</b>, em: (c: React.ReactNode) => <em>{c}</em>, code: (c: React.ReactNode) => <code>{c}</code> };
   return (
     <>
@@ -121,7 +125,7 @@ export default async function LandingPage() {
               {t("addToDiscord")}
             </a>
             <a className="button ghost" href="/me/">
-              {t("openDashboard")}
+              {signedIn ? t("openDashboard") : t("signInButton")}
             </a>
           </div>
         </div>
@@ -199,7 +203,7 @@ export default async function LandingPage() {
           <h2 className="section-title">{t("dashboardTitle")}</h2>
           <p>{t("dashboard")}</p>
           <a className="button ghost" href="/me/">
-            {t("dashboardButton")}
+            {signedIn ? t("dashboardButton") : t("signInMore")}
           </a>
           <p className="hint" style={{ marginTop: 14 }}>
             {t("phoneHint")}
