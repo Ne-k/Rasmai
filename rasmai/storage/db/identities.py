@@ -118,20 +118,19 @@ def summaries(*user_ids: str) -> Dict[str, Optional[Dict[str, Any]]]:
         connection.close()
 
 
-def identity_state(user_id: str) -> Dict[str, Any]:
-    """Which sign-ins open this account, whether a maimai account is linked, and whether the account lives only on the site.
+def sign_in_providers(user_id: str) -> List[str]:
+    """Which sign-ins open this account, in the order the site lists them.
 
-    :rtype: Dict[str, Any]
+    :rtype: List[str]
     """
     connection = get_database_connection()
     try:
         providers = {row[0] for row in connection.execute("SELECT provider FROM identities WHERE user_id = ?", (user_id,))}
-        linked = connection.execute("SELECT 1 FROM connected_accounts WHERE user_id = ?", (user_id,)).fetchone() is not None
     finally:
         connection.close()
     if is_discord_id(user_id):
         providers.add("discord")        # an account from before sign-ins were recorded is still reached by its Discord id
-    return {"providers": [name for name in PROVIDERS if name in providers], "linked": linked, "webOnly": is_web_id(user_id)}
+    return [name for name in PROVIDERS if name in providers]
 
 
 def _signed_in(user_id: str, merged: Optional[str] = None) -> Dict[str, Any]:
@@ -274,6 +273,8 @@ def create_person(identities: List[Dict[str, Any]], terms_version: str) -> Dict[
         for one in cleaned:
             found = _resolve(connection, one["provider"], one["subject"], one["email"], one["emailVerified"], None, may_merge=False)
             if found["status"] == "signed_in":
+                # ponytail: every pending sign-in joins whichever account the first one opens, without a merge; route a Discord id
+                # that lands on a site account through _merge if the sign-ins in one pending set can ever disagree
                 for other in cleaned:
                     _attach(connection, other["provider"], other["subject"], found["userId"],
                             email_hash(other["email"]) if other["emailVerified"] else "")

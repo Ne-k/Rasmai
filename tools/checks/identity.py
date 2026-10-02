@@ -199,7 +199,7 @@ def _delete_takes_identities():
 
 @check("Google first: sign in, accept, link maimai, then Discord joins it under the Discord id")
 def _google_first():
-    from rasmai.storage.db import create_person, get_connected_account, identity_state, resolve_identity
+    from rasmai.storage.db import create_person, get_connected_account, resolve_identity, sign_in_providers
 
     problems = []
     with _scratch() as store:
@@ -213,12 +213,9 @@ def _google_first():
         again = _resolve(google)
         if again != {"status": "signed_in", "userId": web}:
             problems.append(f"signing in again did not return the same account: {again}")
-        state = identity_state(web)
-        if state != {"providers": ["google"], "linked": False, "webOnly": True}:
-            problems.append(f"the account section would show {state}")
+        if sign_in_providers(web) != ["google"]:
+            problems.append(f"the account section would show {sign_in_providers(web)}")
         _link_maimai(web, "walk player", "e" * 64)
-        if identity_state(web)["linked"] is not True:
-            problems.append("a linked maimai account was not reported")
         # Discord arrives while the Google session is open: link=1 in the site
         joined = resolve_identity("discord", DISCORD, "walk@example.test", True, web)
         if joined.get("status") != "signed_in" or joined.get("userId") != DISCORD:
@@ -233,9 +230,8 @@ def _google_first():
             if _resolve(one) != {"status": "signed_in", "userId": DISCORD}:
                 problems.append(f"{one['provider']} no longer opens the merged account")
         # a Discord sign-in alone, after Google had been used, also finds it
-        state = identity_state(DISCORD)
-        if state["providers"] != ["discord", "google"] or state["webOnly"]:
-            problems.append(f"the merged account reports {state}")
+        if sign_in_providers(DISCORD) != ["discord", "google"]:
+            problems.append(f"the merged account reports {sign_in_providers(DISCORD)}")
     return problems
 
 
@@ -347,9 +343,9 @@ def _identity_routes():
                 problems.append("a Discord account joining another Discord account was not answered identity_taken")
             # a site-only id signs the dashboard routes in
             fresh = call("/internal/auth/create", {"identities": [{**g, "subject": "g-route-2", "email": ""}], "termsVersion": "2026-10-02"})[1]["userId"]
-            status, me = call("/internal/me/identities", user=fresh)
-            if (status, me) != (200, {"ok": True, "providers": ["google"], "linked": False, "webOnly": True}):
-                problems.append(f"identities answered {status} {me}")
+            status, me = call("/internal/me", user=fresh)
+            if status != 200 or me.get("providers") != ["google"] or me.get("linked") is not False:
+                problems.append(f"the overview of a site-only account answered {status} {me}")
             status, link = call("/internal/me/link-start", {"region": "intl"}, user=fresh)
             url = link.get("connectUrl", "")
             if status != 200 or set(link) != {"ok", "connectUrl"} or "/connect/?code=" not in url \
@@ -359,10 +355,8 @@ def _identity_routes():
                 problems.append("link-start accepted a region that is not intl or jp")
             if call("/internal/me/link-start", {"region": "intl"})[0] != 401:
                 problems.append("link-start answered with nobody signed in")
-            if call("/internal/me/identities", user="w" + "G" * 20)[0] != 401:
+            if call("/internal/me", user="w" + "G" * 20)[0] != 401:
                 problems.append("a malformed site id was accepted as a signed-in user")
-            if call("/internal/me", user=fresh)[0] != 200:
-                problems.append("the dashboard overview refused a site-only account")
             if call("/internal/me/admin", user=fresh)[0] != 404:
                 problems.append("a site-only account was shown the developer page")
             # one visitor's attempts are limited, and refused with 429 rather than failing

@@ -3,7 +3,7 @@ from typing import Dict, Optional, Any
 
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.engine.insights import rating_forecast
-from rasmai.storage.db import count_play_history, load_rating_history, session_deletes_at, since_last_look
+from rasmai.storage.db import count_play_history, load_rating_history, session_deletes_at, sign_in_providers, since_last_look
 from rasmai.util import _json_safe
 from rasmai.web.dashboard.analysis import analysis_for_user
 from rasmai.web.dashboard.picks import _englished, trait_practice
@@ -84,7 +84,9 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
     from rasmai.web.dashboard.public_profile import nameplate_src, sharing_payload
     if account is not None:
         touch_account(user["id"])
-    payload: Dict[str, Any] = {"user": user, "linked": account is not None, "admin": is_admin(user["id"])}
+    # the sign-ins are for the account section, which any signed-in person sees, linked to maimai or not
+    payload: Dict[str, Any] = {"user": user, "linked": account is not None, "admin": is_admin(user["id"]),
+                               "providers": sign_in_providers(user["id"])}
     if account is None:
         return payload
     history = load_rating_history(user["id"])

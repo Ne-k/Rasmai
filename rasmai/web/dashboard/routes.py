@@ -13,7 +13,7 @@ from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_
                                         is_admin, start_update)
 from rasmai.web.dashboard.analysis import analysis_for_user
 from rasmai.web.dashboard.areas import areas_payload
-from rasmai.web.dashboard.auth import identities_payload, start_link
+from rasmai.web.dashboard.auth import start_link
 from rasmai.web.dashboard.lookup import chart_payload, patterns_payload, search_payload, video_payload
 from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
@@ -51,10 +51,6 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     :type user: Dict[str, Any]
     :rtype: bool
     """
-    if path == "/internal/me/identities":
-        # which sign-ins open the account, for the account section of any signed-in person, linked to maimai or not
-        identities_payload(handler, user)
-        return True
     # Whether the analysis is ready is settled before the account is read: while a crowd queues,
     # most asks are answered "come back", and reading and unpacking the account first was a
     # millisecond and a half of the interpreter per ask, which starved the thread taking connections.

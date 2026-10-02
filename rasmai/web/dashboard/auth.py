@@ -4,7 +4,7 @@ import logging
 from rasmai.bot.state.forget import forget_user
 from rasmai.config import region_supported, unsupported_region_text
 from rasmai.security import RateLimiter, login_attempt_allowed
-from rasmai.storage.db import (account_exists, clean_identity, create_person, identity_state, is_discord_id, is_web_id,
+from rasmai.storage.db import (account_exists, clean_identity, create_person, is_discord_id, is_web_id,
                                merge_accounts, resolve_identity)
 from rasmai.web.links import build_login_session_payload
 
@@ -100,14 +100,3 @@ def start_link(handler: Any, user: Dict[str, Any], payload: Dict[str, Any]) -> N
         handler._send_json(400, {"ok": False, "error": "region", "message": unsupported_region_text(region)})
         return
     handler._send_json(200, {"ok": True, "connectUrl": build_login_session_payload(user["id"], region)["connectUrl"]})
-
-
-def identities_payload(handler: Any, user: Dict[str, Any]) -> None:
-    """Which sign-ins are linked to the signed-in account, and whether a maimai account is.
-
-    :param handler: The request being answered.
-    :type handler: Any
-    :param user: The signed-in person.
-    :type user: Dict[str, Any]
-    """
-    handler._send_json(200, {"ok": True, **identity_state(user["id"])})
