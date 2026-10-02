@@ -2,39 +2,59 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/I18n";
 import { getJSON, postJSON, type Overview } from "./api";
 import { Label } from "./bits";
 
 /** An account made on the site without Discord. The bot's slash commands can't reach it until Discord is linked. */
 export const isWebId = (id: string) => /^w[0-9a-f]{20}$/.test(id);
 
-/** Asks the bot for the link that connects a maimai account, from the site rather than from a Discord command. */
-export function LinkMaimai() {
+/** Asks the bot for the link that connects a maimai account, from the site rather than from a Discord command.
+ * `guided` swaps the dropdown for two large region buttons that start linking at once. */
+export function LinkMaimai({ guided = false }: { guided?: boolean }) {
   const t = useTranslations("account");
+  const locale = useLocale();
   const [region, setRegion] = useState("intl");
-  const [busy, setBusy] = useState(false);
+  // the region being opened, so only that button says so
+  const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
-  const go = () => {
-    setBusy(true);
+  const go = (chosen: string) => {
+    setBusy(chosen);
     setNote("");
-    postJSON<{ connectUrl?: string }>("/api/me/link-start", { region })
+    postJSON<{ connectUrl?: string }>("/api/me/link-start", { region: chosen })
       .then((r) => {
         if (!r.connectUrl) throw new Error(t("linkFailed"));
         window.location.assign(r.connectUrl);
       })
       .catch((e: Error) => {
         setNote(e.message || t("linkFailed"));
-        setBusy(false);
+        setBusy("");
       });
   };
+  if (guided) {
+    return (
+      <div className="link-maimai">
+        <div className="regions">
+          {(["intl", "jp"] as const).map((r) => (
+            // Japanese readers most likely play on the Japan version, so it is the highlighted one; nothing starts until they press it
+            <button key={r} type="button" className={r === "jp" && locale === "ja" ? "button pink" : "button"} onClick={() => go(r)} disabled={Boolean(busy)}>
+              {busy === r ? t("linkOpening") : r === "intl" ? t("regionIntl") : t("regionJp")}
+            </button>
+          ))}
+        </div>
+        <p className="hint">{t("regionNote")}</p>
+        {note && <p className="hint bad">{note}</p>}
+      </div>
+    );
+  }
   return (
     <div className="link-maimai">
       <div className="btn-row">
-        <select value={region} onChange={(e) => setRegion(e.target.value)} aria-label={t("region")} disabled={busy}>
+        <select value={region} onChange={(e) => setRegion(e.target.value)} aria-label={t("region")} disabled={Boolean(busy)}>
           <option value="intl">{t("regionIntl")}</option>
           <option value="jp">{t("regionJp")}</option>
         </select>
-        <button type="button" className="button pink" onClick={go} disabled={busy}>
+        <button type="button" className="button pink" onClick={() => go(region)} disabled={Boolean(busy)}>
           {busy ? t("linkOpening") : t("linkMaimai")}
         </button>
       </div>

@@ -37,7 +37,8 @@ export async function POST(request: Request) {
   const userId = String(answer.userId ?? "");
   if (!/^(\d{5,25}|w[0-9a-f]{20})$/.test(userId)) return redirect(upstream.status === 409 ? "/me/?error=identity_taken" : "/me/?error=signin");
 
-  const response = redirect("/me/");
+  // a new account has no maimai linked yet, so the dashboard opens on that step
+  const response = redirect("/me/?setup=1");
   response.headers.append("Set-Cookie", sessionCookie(profileOf(userId, pending.identities)));
   response.headers.append("Set-Cookie", clearPendingCookie());
   return response;

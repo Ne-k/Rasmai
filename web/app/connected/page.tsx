@@ -39,7 +39,13 @@ function Connected() {
         </div>
       </div>
 
-      <h2 className="subhead">{t("backInDiscord")}</h2>
+      <div className="btn-row">
+        <a className="button pink" href="/me/">
+          {t("openDashboard")}
+        </a>
+      </div>
+
+      <h2 className="subhead">{t("usingBot")}</h2>
       <ul className="cmds">
         {Object.entries(commandNames).map(([key, cmd]) => (
           <li key={cmd}>

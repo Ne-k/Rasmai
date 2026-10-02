@@ -54,6 +54,8 @@ export function Dash() {
   const acct = useTranslations("account");
   const [me, setMe] = useState<Overview | null>(null);
   const [signedOut, setSignedOut] = useState(false);
+  // /me/?setup=1 is where a brand-new account lands, to be walked through linking maimai
+  const [setup, setSetup] = useState(false);
   const [oauth, setOauth] = useState(true);
   const [google, setGoogle] = useState(false);
   const [turnstile, setTurnstile] = useState("");
@@ -141,6 +143,7 @@ export function Dash() {
   useEffect(() => {
     load();
     const params = new URLSearchParams(window.location.search);
+    setSetup(params.get("setup") === "1");
     const kind = params.get("error");
     if (kind && t.has(`signInErrors.${kind}` as never)) setError(t(`signInErrors.${kind}` as never));
     else if (kind && auth.has(`errors.${kind}` as never)) setError(auth(`errors.${kind}` as never));
@@ -286,17 +289,19 @@ export function Dash() {
     return (
       <Frame user={me.user} onSignOut={signOut}>
         <div className="gate">
-          <h1>{t.rich("notLinkedTitle", { em: (c) => <em>{c}</em> })}</h1>
+          <h1>{setup ? acct.rich("setupTitle", { em: (c) => <em>{c}</em> }) : t.rich("notLinkedTitle", { em: (c) => <em>{c}</em> })}</h1>
           {banner}
-          <p className="lede">{web ? acct("notLinkedLedeWeb") : t.rich("notLinkedLede", { code: (c) => <code>{c}</code> })}</p>
-          <LinkMaimai />
+          <p className="lede">{acct(setup ? "setupLede" : "guidedLede")}</p>
+          <LinkMaimai guided />
           {!web && (
             <a className="button ghost" href="/">
               {t("howLinking")}
             </a>
           )}
-          <SignIns me={me} />
-          <DeleteAccount />
+          <div className="gate-more">
+            <SignIns me={me} />
+            <DeleteAccount />
+          </div>
         </div>
       </Frame>
     );

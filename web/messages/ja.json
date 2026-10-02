@@ -73,7 +73,6 @@
     "loading": "読み込み中…",
     "loadingCharts": "譜面を読み込み中…",
     "notLinkedTitle": "maimai アカウントが<em>まだ連携されていません</em>。",
-    "notLinkedLede": "ログインはできていますが、この Discord アカウントには maimai アカウントが連携されていません。Discord で <code>/login</code> を実行してリンクを開き、ここに戻ってきてください。",
     "howLinking": "連携のしくみ →",
     "updated": "更新 ",
     "noTitle": "称号はまだ読み取っていません",
@@ -1246,7 +1245,9 @@
     "commands": "コマンド",
     "dashboard": "ダッシュボード",
     "invite": "招待",
-    "support": "サポート"
+    "support": "サポート",
+    "signIn": "ログイン",
+    "signInTitle": "Discord または Google でログイン・新規登録"
   },
   "shell": {
     "steps": {
@@ -1463,19 +1464,20 @@
     "unreachableJp": "現在 maimaidx.jp に接続できませんでした。数分後にもう一度お試しください。ログインリンクはまだ使えます。",
     "failed": "ログインできませんでした。少し待ってからもう一度お試しください。",
     "offline": "Rasmai に接続できませんでした。接続を確認して、もう一度お試しください。",
-    "keeps": "<b>Rasmai が保存するもの。</b> SEGA ID とパスワードは暗号化してから保存し、maimaidx.jp へのログインとスコアの読み取りにだけ使います。<code>/logout</code> または <code>/delete-account</code> を実行すると削除されます。パスワードを変更した場合は、もう一度 <code>/login</code> を実行してください。",
+    "keeps": "<b>Rasmai が保存するもの。</b> SEGA ID とパスワードは暗号化してから保存し、maimaidx.jp へのログインとスコアの読み取りにだけ使います。ダッシュボードでの連携解除・アカウント削除、または Discord での <code>/logout</code>・<code>/delete-account</code> の実行で削除されます。パスワードを変更した場合は、もう一度連携してください。",
     "linkedTitle": "<em>連携</em>できました。",
     "signedInAs": "<b>{name}</b> としてログインしました。Rasmai がスコアを確認できるようになりました。",
-    "linkedGeneric": "maimai アカウントが Discord アカウントに連携されました。",
+    "linkedGeneric": "maimai アカウントを連携しました。",
     "rating": "レーティング",
-    "backInDiscord": "Discord に戻って",
     "nextCommands": {
       "analyze": "伸びが大きい順に、詰めるべき譜面",
       "plan": "次の1000までの計画",
       "new": "あなたのレベルに合った未プレイ譜面",
       "profile": "プレイの傾向と点を落としている所"
     },
-    "closeTab": "このタブは閉じて構いません。"
+    "closeTab": "このタブは閉じて構いません。",
+    "openDashboard": "ダッシュボードを開く",
+    "usingBot": "bot も使うなら、Discord でこちらも"
   },
   "welcome": {
     "metaTitle": "ようこそ",
@@ -1574,7 +1576,6 @@
     "region": "地域",
     "regionIntl": "海外版",
     "regionJp": "日本版",
-    "notLinkedLedeWeb": "ログインはできていますが、maimai アカウントがまだ連携されていません。地域を選んで、ここから連携してください。約1分で終わります。",
     "expiredWeb": "<b>maimai のセッションが期限切れです。</b> maimaiでらっくすNET が{on, select, none {} other {{on}に}}ログインを受け付けなくなったため、スコアが更新されていません。以下は最後に更新した時点のものです。ここから maimai アカウントを再連携してください。{until, select, none {} other {<b>{until}</b>までに再連携しないと、このアカウントについて保存されているものはすべて削除されます。}}",
     "signIns": "ログイン方法",
     "signInsInfo": "Rasmai にログインできる方法です。両方を連携すれば、どちらからでも同じアカウントを開けます。",
@@ -1591,6 +1592,10 @@
     "deleteHint": "サインイン情報、規約への同意の記録、maimaiから保存したデータをすべて削除します。いつでもまた始められます。",
     "deleteAsk": "アカウントを削除…",
     "deleteYes": "はい、すべて削除する",
-    "keepIt": "やめておく"
+    "keepIt": "やめておく",
+    "setupTitle": "あと<em>ひとつ</em>。",
+    "setupLede": "アカウントができました。地域を選んで、maimai アカウントを連携してください。約1分で終わります。",
+    "guidedLede": "地域を選んで、maimai アカウントを連携してください。約1分で終わります。",
+    "regionNote": "海外版は my-aime.net にログインして、ブックマークを押します。日本版は SEGA ID を一度入力するだけで、暗号化して保存されます。"
   }
 }

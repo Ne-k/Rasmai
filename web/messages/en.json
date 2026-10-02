@@ -73,7 +73,6 @@
     "loading": "Loading…",
     "loadingCharts": "Loading charts…",
     "notLinkedTitle": "No maimai account <em>linked yet</em>.",
-    "notLinkedLede": "You're signed in, but this Discord account has no maimai account linked. Run <code>/login</code> in Discord, follow the link, then come back here.",
     "howLinking": "how linking works →",
     "updated": "updated ",
     "noTitle": "no title read yet",
@@ -1238,7 +1237,9 @@
     "commands": "commands",
     "dashboard": "dashboard",
     "invite": "invite",
-    "support": "support"
+    "support": "support",
+    "signIn": "Sign in",
+    "signInTitle": "Sign in or create an account with Discord or Google"
   },
   "shell": {
     "steps": {
@@ -1455,19 +1456,20 @@
     "unreachableJp": "Rasmai couldn't reach maimaidx.jp just now. Try again in a few minutes. Your login link still works.",
     "failed": "The sign-in didn't work. Try again in a moment.",
     "offline": "Couldn't reach Rasmai. Check your connection and try again.",
-    "keeps": "<b>What Rasmai keeps.</b> Your SEGA ID and password are encrypted before they're stored, and they're used only to sign in to maimaidx.jp and read your scores. They're deleted when you run <code>/logout</code> or <code>/delete-account</code>. If you change the password, run <code>/login</code> again.",
+    "keeps": "<b>What Rasmai keeps.</b> Your SEGA ID and password are encrypted before they're stored, and they're used only to sign in to maimaidx.jp and read your scores. They're deleted when you unlink or delete your account, on the dashboard or with <code>/logout</code> or <code>/delete-account</code> in Discord. If you change the password, link again.",
     "linkedTitle": "You're <em>linked</em>.",
     "signedInAs": "Signed in as <b>{name}</b>. Rasmai can check your scores now.",
-    "linkedGeneric": "Your maimai account is now linked to your Discord account.",
+    "linkedGeneric": "Your maimai account is now linked.",
     "rating": "rating",
-    "backInDiscord": "Back in Discord",
     "nextCommands": {
       "analyze": "what to grind, biggest gains first",
       "plan": "a plan for your next thousand",
       "new": "charts you haven't played that fit your level",
       "profile": "how you play and where you lose points"
     },
-    "closeTab": "You can close this tab."
+    "closeTab": "You can close this tab.",
+    "openDashboard": "Open your dashboard",
+    "usingBot": "Using the bot too? Try these in Discord"
   },
   "welcome": {
     "metaTitle": "Welcome",
@@ -1566,7 +1568,6 @@
     "region": "region",
     "regionIntl": "International",
     "regionJp": "Japan",
-    "notLinkedLedeWeb": "You're signed in, but no maimai account is linked yet. Pick your region and link it here. It takes about a minute.",
     "expiredWeb": "<b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on, select, none {} other { on {on}}}, so your scores aren't updating. Everything below is from your last refresh. Link your maimai account again here.{until, select, none {} other { If it isn't linked again by <b>{until}</b>, everything stored for this account is deleted.}}",
     "signIns": "sign-ins",
     "signInsInfo": "The ways you can sign in to Rasmai. Link both and either one opens this same account.",
@@ -1583,6 +1584,10 @@
     "deleteHint": "Deletes your sign-ins, your record of agreeing to the terms and anything stored from maimai. You can start again whenever you like.",
     "deleteAsk": "delete my account…",
     "deleteYes": "yes, delete everything",
-    "keepIt": "keep it"
+    "keepIt": "keep it",
+    "setupTitle": "One more <em>step</em>.",
+    "setupLede": "Your account is ready. Choose your region to link your maimai account. It takes about a minute.",
+    "guidedLede": "Choose your region to link your maimai account. It takes about a minute.",
+    "regionNote": "International: you sign in at my-aime.net and press a bookmark. Japan: you type your SEGA ID once, and it's kept encrypted."
   }
 }

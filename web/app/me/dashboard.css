@@ -10,6 +10,9 @@
 .gate .button { margin-top: 6px; }
 .link-maimai select { padding: 10px 12px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; }
 .link-maimai select:focus-visible { outline: 3px solid var(--cyan); outline-offset: 1px; }
+.regions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 22px 0 14px; }
+.gate .regions .button { margin-top: 0; padding: 26px 16px; font-size: 19px; }
+.gate-more { margin-top: 48px; }
 .expired .link-maimai { margin-top: 10px; }
 .gate .ledger { margin-top: 28px; }
 
