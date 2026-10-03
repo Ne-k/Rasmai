@@ -31,7 +31,8 @@ def _discord_counts(bot: Any) -> Dict[str, int]:
     """What Discord says about installs of this application, for setting beside the live gateway count.
 
     The server figure counts installs Discord has recorded, so it lags a bot that was removed since;
-    the user figure counts people who installed the app to their own account, none of whom are servers.
+    the user figure counts people who installed the app to their own account, none of whom are servers,
+    and the authorized figure counts people holding an OAuth2 authorization for it, which can include people who have not installed it.
     A failed lookup returns what was last read, or nothing.
 
     :rtype: Dict[str, int]
@@ -41,8 +42,10 @@ def _discord_counts(bot: Any) -> Dict[str, int]:
         return _DISCORD_COUNTS["value"]
     _DISCORD_COUNTS["at"] = time.time()          # a failure waits out the interval too, rather than retrying on every poll
     try:
-        app = asyncio.run_coroutine_threadsafe(bot.application_info(), bot.loop).result(timeout=5)
-        found = {"discordServers": app.approximate_guild_count, "discordUserInstalls": app.approximate_user_install_count}
+        # the raw answer, because discord.py's application object has no field for the authorization count
+        app = asyncio.run_coroutine_threadsafe(bot.http.application_info(), bot.loop).result(timeout=5)
+        found = {"discordServers": app.get("approximate_guild_count"), "discordUserInstalls": app.get("approximate_user_install_count"),
+                 "discordAuthorizedUsers": app.get("approximate_user_authorization_count")}
         _DISCORD_COUNTS["value"] = {key: int(value) for key, value in found.items() if value is not None}
     except Exception:
         logger.debug("could not read the application's install counts", exc_info=True)

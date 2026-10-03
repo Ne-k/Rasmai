@@ -122,6 +122,7 @@ export function AdminPanel() {
                   : [
                       ["Discord's server count", `${num(n("discordServers"))} · daily, approximate`],
                       ["user installs", `${num(n("discordUserInstalls"))} · none are servers`],
+                      ["authorized users", `${num(n("discordAuthorizedUsers"))} · hold an OAuth2 authorization, daily, approximate`],
                     ]) as [string, string][]),
                 ["charts indexed", num(n("chartsIndexed"))],
                 ["analysis lifetime", `${num(n("analysisTtlMinutes"))} min`],
