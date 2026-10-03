@@ -1,0 +1,10 @@
+.chart-observed { margin-top: 4px; }
+.cohort-dir.harder { color: var(--pink-edge); }
+:root[data-theme="dark"] .cohort-dir.harder { color: var(--pink); }
+.cohort-dir.easier { color: var(--ok); }
+.cohort-dir.same { color: var(--muted); }
+span.cohort-dir { font-weight: 600; }
+.cohort-dir b { font-weight: 700; }
+.cohort-sub { margin: 14px 0 2px; }
+.cohort-note { margin: 10px 0 0; }
+.cohort-judge { max-width: 520px; }

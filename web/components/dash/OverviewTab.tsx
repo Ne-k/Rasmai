@@ -152,7 +152,7 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
                     <td className="c-num mono dim">{t("charts", { n: e.n })}</td>
                     <td className="c-bar">
                       <span className="bar">
-                        <span style={{ width: `${Math.max(0, Math.min(100, (e.sum / e.n - 80) * 5))}%` }} />
+                        <span style={{ width: `${Math.max(0, Math.min(100, ((e.sum / e.n - 80) * 100) / 21))}%` }} />
                       </span>
                     </td>
                     <td className="c-num mono">{pct(e.sum / e.n)}</td>

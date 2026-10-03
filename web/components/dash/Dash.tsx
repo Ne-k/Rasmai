@@ -22,6 +22,7 @@ import { Best50 } from "./Best50";
 import { ratingBand } from "./band";
 import { RatingPlate } from "./RatingPlate";
 import { Frame } from "./Frame";
+import { Cohort } from "./Cohort";
 import { OverviewTab } from "./OverviewTab";
 import { Recent } from "./Recent";
 import { type Tab, Tabs, RefreshBar, tabsFor } from "./Tabs";
@@ -54,6 +55,8 @@ export function Dash() {
   const auth = useTranslations("auth");
   const acct = useTranslations("account");
   const [me, setMe] = useState<Overview | null>(null);
+  // which beta features are on, kept here because the switches are on the Account tab and the sections they open are on Players
+  const [betaOn, setBetaOn] = useState<Record<string, boolean>>({});
   const [signedOut, setSignedOut] = useState(false);
   // /me/?setup=1 is where a brand-new account lands, to be walked through linking maimai
   const [setup, setSetup] = useState(false);
@@ -77,6 +80,7 @@ export function Dash() {
     getJSON<Overview>("/api/me")
       .then((data) => {
         setMe(data);
+        setBetaOn(data.beta?.on ?? {});
         setSignedOut(false);
         setRefresh(data.refresh ?? null);
       })
@@ -130,7 +134,7 @@ export function Dash() {
       setVisited((v) => new Set(v).add("areas"));
       return;
     }
-    const next: Tab = tabsFor(true).includes(hash) ? hash : "overview";
+    const next: Tab = tabsFor(true, true).includes(hash) ? hash : "overview";
     setTab(next);
     setVisited((v) => new Set(v).add(next));
   }, []);
@@ -297,7 +301,7 @@ export function Dash() {
         </div>
       </section>
 
-      <Tabs current={tab} onPick={pick} admin={me.admin} />
+      <Tabs current={tab} onPick={pick} admin={me.admin} players={Boolean(betaOn.likeyou || betaOn.difficulty)} />
 
       {IMAGE_FOR[tab] && (
         <div className="tab-tools">
@@ -317,6 +321,11 @@ export function Dash() {
         {visited.has("picks") && (
           <div hidden={tab !== "picks"}>
             <Picks initial={String(me.settings?.challenge ?? "balanced")} onOpen={openChart} />
+          </div>
+        )}
+        {visited.has("players") && (
+          <div hidden={tab !== "players"}>
+            <Cohort on={betaOn} onOpen={openChart} />
           </div>
         )}
         {visited.has("new") && (
@@ -368,7 +377,7 @@ export function Dash() {
         )}
         {visited.has("account") && (
           <div hidden={tab !== "account"}>
-            <Account me={me} refresh={refresh} onRefresh={(st) => setRefresh(st)} />
+            <Account me={me} refresh={refresh} onRefresh={(st) => setRefresh(st)} onBeta={setBetaOn} />
           </div>
         )}
         {me.admin && visited.has("admin") && (

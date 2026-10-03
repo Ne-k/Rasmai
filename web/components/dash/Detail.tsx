@@ -5,6 +5,7 @@ import { activeTag } from "@/lib/i18n/active";
 import { noteKind, traitName } from "@/lib/i18n/traits";
 import { getJSON, type ChartDetail, type SongLookup, type UnlockArea } from "./api";
 import { Chip, Empty, Jacket, Label, Lamp, num, pct } from "./bits";
+import { Observed } from "./Cohort";
 import { ScoreHistory } from "./ScoreHistory";
 
 /** A constant revised since the first recorded play: the history was scored against the old number until then. */
@@ -125,6 +126,7 @@ export function Detail({ song, chart, selected, onSelect, onTrait }: { song: Son
         <Where regions={chart.regions} intl={chart.intl} />
         {chart.deleted && <span className="chart-flag">{t("removed")}</span>}
       </p>
+      {chart.observed && <Observed {...chart.observed} />}
       <NoteMix split={chart.noteSplit} />
       {chart.patterns.length > 0 && (
         <>

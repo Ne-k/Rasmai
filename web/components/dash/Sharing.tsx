@@ -96,6 +96,23 @@ export function Sharing({ state, onChange }: { state: SharingState; onChange: (n
         <EmbedCard state={state} onSave={save} busy={busy} onClose={() => setCustomising(false)} />
       )}
 
+      <ul className="share-toggles">
+        <li>
+          <label>
+            <input
+              type="checkbox"
+              checked={state.cohort !== false}
+              disabled={busy}
+              onChange={(e) => save({ cohort: e.target.checked })}
+            />
+            <span>
+              <b>{t("cohort.title")}</b>
+              <span className="dim">{t("cohort.hint")}</span>
+            </span>
+          </label>
+        </li>
+      </ul>
+
       {note && <p className="hint">{note}</p>}
       {state.on && <p className="hint">{t("breaks")}</p>}
     </section>

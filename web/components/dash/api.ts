@@ -29,6 +29,8 @@ export type Sharing = {
   // what the link turns into when it is pasted in Discord
   card: { on: boolean; chart: boolean; gain: boolean; charts: boolean; plays: boolean };
   embed: { region: boolean; charts: boolean };
+  // counted in the anonymous statistics behind the cohort beta features; absent means yes
+  cohort?: boolean;
   colour: string;
   colours: string[];
   visual: string;
@@ -221,6 +223,54 @@ export type NewPick = {
   odds_of_s: number;
 };
 
+/** A chart's observed difficulty beside its listed constant, from the people who play it. */
+export type Observed = { observed: number; listed: number; players: number };
+
+type LikeYouPick = {
+  title: string;
+  chartType: string;
+  difficulty: string;
+  level: string;
+  constant: number;
+  cover: string;
+  yours: number | null;   // null: not played yet
+  typical: number;
+  neighbours: number;
+  average: number | null;   // the median best of everyone who has played it, once enough have
+};
+
+export type JudgementCompare = {
+  players: number;
+  types: { kind: string; per100: number; clean: number; theirPer100: number; theirClean: number }[];
+  lostPerPlay: number;
+  theirLostPerPlay: number | null;
+  lateShare: number | null;
+  theirLateShare: number | null;
+};
+
+export type LikeYouPayload = {
+  ok: boolean;
+  ready: boolean;
+  players: number;
+  picks: LikeYouPick[];
+  reason: "" | "not_enough_players" | "not_enough_scores";
+  judgements?: JudgementCompare | null;
+};
+
+export type ObservedChart = {
+  title: string;
+  chartType: string;
+  difficulty: string;
+  level: string;
+  listed: number;
+  observed: number;
+  players: number;
+  cover: string;
+  average: number | null;
+};
+
+export type DifficultyPayload = { ok: boolean; ready: boolean; players: number; harder: ObservedChart[]; easier: ObservedChart[] };
+
 export type Picks = {
   challenge: string;
   label: string;
@@ -383,6 +433,7 @@ export type ChartDetail = {
   noteSplit: Record<string, number> | null;
   released: string;
   patterns: ChartPattern[];
+  observed?: Observed | null;   // only for people with the difficulty beta on, and only with enough players
 };
 
 type ChartPattern = { key: string; label: string; dimension: string; community: boolean; offset: number | null };

@@ -12,7 +12,7 @@ import { SignIns } from "./Identity";
 import { Kamaitachi } from "./Kamaitachi";
 import { Sharing } from "./Sharing";
 
-export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void }) {
+export function Account({ me, refresh, onRefresh, onBeta }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void; onBeta: (on: Record<string, boolean>) => void }) {
   const t = useTranslations("accountTab");
   const common = useTranslations("common");
   const [busy, setBusy] = useState(false);
@@ -136,7 +136,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
 
       {me.sharing && <Sharing state={sharing} onChange={setSharing} />}
 
-      {beta.features.length > 0 && <Beta state={beta} onChange={setBeta} />}
+      {beta.features.length > 0 && <Beta state={beta} onChange={(b) => { setBeta(b); onBeta(b.on); }} />}
 
       <section className="ledger">
         <div className="ledger-head">

@@ -4,20 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { type RefreshStatus } from "./api";
 
-export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
+export type Tab = "overview" | "picks" | "players" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
 
 // what to play, then how you play, then your scores, then the reference tabs; their names are in the translation files
-const TABS: Tab[] = ["overview", "picks", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
+const TABS: Tab[] = ["overview", "picks", "players", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
 
-// the developer tab is only ever added for the one account the internal API answers the developer route for
-export function tabsFor(admin?: boolean): Tab[] {
-  return admin ? [...TABS, "admin"] : TABS;
+// the developer tab is only ever added for the one account the internal API answers the developer route for;
+// the players tab only while one of the two beta features that fill it is on
+export function tabsFor(admin?: boolean, players?: boolean): Tab[] {
+  const tabs = TABS.filter((t) => t !== "players" || players);
+  return admin ? [...tabs, "admin"] : tabs;
 }
 
 /** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
-export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean }) {
+export function Tabs({ current, onPick, admin, players }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean; players?: boolean }) {
   const t = useTranslations("dash");
-  const shown = tabsFor(admin);
+  const shown = tabsFor(admin, players);
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
   const measure = useCallback(() => {
