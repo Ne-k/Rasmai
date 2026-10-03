@@ -12,12 +12,6 @@ FEATURES: Dict[str, Dict[str, str]] = {
                 "your own curve on, and nudges picks worth the same toward the ones built from what "
                 "you are good at. Measured as the better of the two; still a small sample.",
     },
-    "laya": {
-        "label": "Laya decision model",
-        "note": "Reads what a chart is and what you have been playing, and reorders picks worth the "
-                "same toward the ones you would actually put on. Unproven: it has not yet beaten the "
-                "ordering it replaces.",
-    },
 }
 
 
@@ -56,23 +50,9 @@ FEATURES: Dict[str, Dict[str, str]] = {
 # # probe is kept because the developer page still reports how much of the game has been read.
 
 
-def _laya_status() -> Dict[str, Any]:
-    """Whether the decision model is installed on this bot at all.
-
-    The weights are not part of the image, so a bot that was never given them has to say so
-    rather than let someone switch on a feature that will quietly do nothing. Only the package
-    is looked for, never loaded: loading it pulls in torch and most of a gigabyte of weights.
-    """
-    try:
-        from rasmai.engine.insights import laya
-        if laya.available():
-            return {"ready": True, "status": ""}
-    except Exception:
-        pass
-    return {"ready": False, "status": "this bot was built without the decision model"}
-
-
-READINESS: Dict[str, Any] = {"laya": _laya_status}
+# A feature that can be switched on before it can do anything adds a probe here, keyed like FEATURES,
+# returning {"ready": bool, "status": str}; one with no probe is always ready.
+READINESS: Dict[str, Any] = {}
 
 
 def beta_state(user_id: str) -> Dict[str, Any]:

@@ -20,7 +20,7 @@ TIMEOUT = 60
 
 # the international version opens each release a season after Japan; a play is dated against
 # the version that was actually on the cabinet
-# ponytail: one fixed lag; a per-version intl date table if a season's gap ever matters
+# the lag is one fixed length for every version; a per-version intl date table is the fix if a season's gap ever matters
 INTL_LAG = timedelta(days=90)
 
 _lock = threading.Lock()

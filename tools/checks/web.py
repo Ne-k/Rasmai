@@ -1,4 +1,5 @@
 from tools.checks import ROOT, check
+from tools.checks.stubs import stub_get
 
 
 @check("a public profile carries only what its owner turned on")
@@ -832,35 +833,35 @@ def _nameplate_cache():
     import tempfile, pathlib
     from rasmai.scraping.scraper import nameplates
     problems = []
-    was_dir, was_get = nameplates.NAMEPLATE_DIR, nameplates.requests.get
+    was_dir = nameplates.NAMEPLATE_DIR
     nameplates.NAMEPLATE_DIR = pathlib.Path(tempfile.mkdtemp())
     png = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
     good = "https://maimaidx-eng.com/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png"
     huge = "https://maimaidx.jp/maimai-mobile/img/NamePlate/0000000000000001.png"
     calls = []
-    nameplates.requests.get = _fake_image_get({good: (200, "image/png", png),
-                                               huge: (200, "image/png", png + b"\0" * (2 * 1024 * 1024))}, calls)
-    try:
-        for stranger in ("https://evil.example/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png",
-                         "https://maimaidx-eng.com.evil.example/maimai-mobile/img/NamePlate/x.png",
-                         "http://maimaidx-eng.com/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png",
-                         "https://maimaidx-eng.com/maimai-mobile/img/Icon/3f4e4f3f4aa69f9b.png"):
-            if nameplates.cache_nameplate(stranger) or nameplates.nameplate_key(stranger):
-                problems.append(f"{stranger} was taken for a maimai DX NET name plate")
-        if calls:
-            problems.append(f"a refused address was still fetched: {calls}")
-        if nameplates.cache_nameplate(huge) or list(nameplates.NAMEPLATE_DIR.glob("*")):
-            problems.append("a two-megabyte answer was kept as a name plate")
-        key = nameplates.cache_nameplate(good)
-        path = nameplates.nameplate_path(key)
-        if not key or path is None or path.read_bytes() != png:
-            problems.append("a plate from maimai DX NET was not cached")
-        calls.clear()
-        nameplates.cache_nameplate(good)
-        if calls:
-            problems.append("a cached plate was fetched again")
-    finally:
-        nameplates.NAMEPLATE_DIR, nameplates.requests.get = was_dir, was_get
+    with stub_get(nameplates, _fake_image_get({good: (200, "image/png", png),
+                                               huge: (200, "image/png", png + b"\0" * (2 * 1024 * 1024))}, calls)):
+        try:
+            for stranger in ("https://evil.example/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png",
+                             "https://maimaidx-eng.com.evil.example/maimai-mobile/img/NamePlate/x.png",
+                             "http://maimaidx-eng.com/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png",
+                             "https://maimaidx-eng.com/maimai-mobile/img/Icon/3f4e4f3f4aa69f9b.png"):
+                if nameplates.cache_nameplate(stranger) or nameplates.nameplate_key(stranger):
+                    problems.append(f"{stranger} was taken for a maimai DX NET name plate")
+            if calls:
+                problems.append(f"a refused address was still fetched: {calls}")
+            if nameplates.cache_nameplate(huge) or list(nameplates.NAMEPLATE_DIR.glob("*")):
+                problems.append("a two-megabyte answer was kept as a name plate")
+            key = nameplates.cache_nameplate(good)
+            path = nameplates.nameplate_path(key)
+            if not key or path is None or path.read_bytes() != png:
+                problems.append("a plate from maimai DX NET was not cached")
+            calls.clear()
+            nameplates.cache_nameplate(good)
+            if calls:
+                problems.append("a cached plate was fetched again")
+        finally:
+            nameplates.NAMEPLATE_DIR = was_dir
     return problems
 
 
@@ -871,37 +872,37 @@ def _nameplate_public():
     from rasmai.storage.db import connection as store
     was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
     store._database_ready = False
-    was_dir, was_get = nameplates.NAMEPLATE_DIR, nameplates.requests.get
+    was_dir = nameplates.NAMEPLATE_DIR
     nameplates.NAMEPLATE_DIR = pathlib.Path(tempfile.mkdtemp())
-    nameplates.requests.get = _fake_image_get({}, [])
     problems = []
-    try:
-        from rasmai.storage.db import get_connected_account, upsert_connected_account
-        from rasmai.web.dashboard.public_profile import public_payload, set_sharing
-        plate = "https://maimaidx-eng.com/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png"
-        gone = "https://maimaidx-eng.com/maimai-mobile/img/NamePlate/00000000000000ff.png"
-        key = nameplates.nameplate_key(plate)
-        (nameplates.NAMEPLATE_DIR / f"{key}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-        avatar = base64.b64encode(b"\x89PNG\r\n\x1a\nicon").decode("ascii")
-        shown = {}
-        for user, url in (("with", plate), ("without", ""), ("unreachable", gone)):
-            upsert_connected_account(user, "intl", "cookie://x", official_profile={
-                "name": user, "rating": 13000, "avatar_base64": avatar, "nameplate_url": url})
-            profile = (get_connected_account(user) or {}).get("officialProfile") or {}
-            # the avatar is lifted out into its own column; the plate has to stay behind in the JSON
-            if profile.get("nameplate_url", "") != url or profile.get("avatar_base64") != avatar:
-                problems.append(f"{user}: the plate or the avatar did not come back as stored: {profile.get('nameplate_url')!r}")
-            state = set_sharing(user, True, account=get_connected_account(user))
-            shown[user] = public_payload(state["url"].rsplit("/", 1)[-1]) or {}
-        if shown["with"].get("nameplate") != f"/api/nameplate/{key}":
-            problems.append(f"the plate is missing from a profile that has one: {shown['with'].get('nameplate')!r}")
-        for user in ("without", "unreachable"):
-            if "nameplate" in shown[user]:
-                problems.append(f"a profile {user} a plate still carries one: {shown[user]['nameplate']!r}")
-    finally:
-        store.DATABASE_PATH = was
-        store._database_ready = False
-        nameplates.NAMEPLATE_DIR, nameplates.requests.get = was_dir, was_get
+    with stub_get(nameplates, _fake_image_get({}, [])):
+        try:
+            from rasmai.storage.db import get_connected_account, upsert_connected_account
+            from rasmai.web.dashboard.public_profile import public_payload, set_sharing
+            plate = "https://maimaidx-eng.com/maimai-mobile/img/NamePlate/9b1f0c6a2d3e4f50.png"
+            gone = "https://maimaidx-eng.com/maimai-mobile/img/NamePlate/00000000000000ff.png"
+            key = nameplates.nameplate_key(plate)
+            (nameplates.NAMEPLATE_DIR / f"{key}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+            avatar = base64.b64encode(b"\x89PNG\r\n\x1a\nicon").decode("ascii")
+            shown = {}
+            for user, url in (("with", plate), ("without", ""), ("unreachable", gone)):
+                upsert_connected_account(user, "intl", "cookie://x", official_profile={
+                    "name": user, "rating": 13000, "avatar_base64": avatar, "nameplate_url": url})
+                profile = (get_connected_account(user) or {}).get("officialProfile") or {}
+                # the avatar is lifted out into its own column; the plate has to stay behind in the JSON
+                if profile.get("nameplate_url", "") != url or profile.get("avatar_base64") != avatar:
+                    problems.append(f"{user}: the plate or the avatar did not come back as stored: {profile.get('nameplate_url')!r}")
+                state = set_sharing(user, True, account=get_connected_account(user))
+                shown[user] = public_payload(state["url"].rsplit("/", 1)[-1]) or {}
+            if shown["with"].get("nameplate") != f"/api/nameplate/{key}":
+                problems.append(f"the plate is missing from a profile that has one: {shown['with'].get('nameplate')!r}")
+            for user in ("without", "unreachable"):
+                if "nameplate" in shown[user]:
+                    problems.append(f"a profile {user} a plate still carries one: {shown[user]['nameplate']!r}")
+        finally:
+            store.DATABASE_PATH = was
+            store._database_ready = False
+            nameplates.NAMEPLATE_DIR = was_dir
     return problems
 
 

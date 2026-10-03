@@ -1,7 +1,7 @@
 import { cookieHeader, readCookies, sign, verify } from "./session";
 
 export const PENDING_COOKIE = "rasmai_pending";
-// ponytail: the pending cookie holds the raw email for these ten minutes, signed but not encrypted; seal it or keep only the hash server-side if it ever has to outlive the sign-in
+// the pending cookie holds the raw email for these ten minutes, signed but not encrypted; seal it or keep only the hash server-side if it ever has to outlive the sign-in
 const PENDING_TTL = 600;
 
 export type Summary = { player: string; rating: number | null; region: string };

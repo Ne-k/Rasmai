@@ -22,9 +22,9 @@ export function authorizeUrl({ state, verifier, nonce }: Secrets): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-// ponytail: the ID token is read without its signature, since it came straight from the token endpoint; verify against Google's published keys if a token ever arrives by another route
 /** What the ID token says without checking its signature: it came straight from Google's token endpoint over TLS,
- * which is the case the OpenID spec allows that for. It is only used to tie the answer to this sign-in. */
+ * which is the case the OpenID spec allows that for. It is only used to tie the answer to this sign-in.
+ * Verify it against Google's published keys if a token ever arrives by another route. */
 function claims(idToken: string): Record<string, unknown> {
   try {
     return JSON.parse(Buffer.from(idToken.split(".")[1] ?? "", "base64url").toString("utf-8")) as Record<string, unknown>;

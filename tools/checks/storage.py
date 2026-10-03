@@ -252,7 +252,7 @@ def _unlink_everything():
     store, was = _scratch_database()
     try:
         upsert_connected_account("gone", "intl", "", {"name": "k"}, {"charts": []})
-        set_beta_feedback("gone", "laya", "better", "fine")
+        set_beta_feedback("gone", "patterns", "better", "fine")
         c = store.get_database_connection()
         tables = [name for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
                   if any(col[1] == "user_id" for col in c.execute(f"PRAGMA table_info({name})").fetchall())]
@@ -353,22 +353,6 @@ def _clone_timeout():
         otoge.subprocess.run = real
     if seen[:2] != [300, 120]:
         problems.append(f"the clone and sparse-checkout ran with timeouts {seen[:2]}; without one a stalled GitHub holds every analysis")
-    return problems
-
-
-@check("the laya model is cached outside data/, in a folder of its own")
-def _model_outside_data():
-    import re
-
-    from tools.checks import ROOT
-
-    problems = []
-    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    home = re.search(r"HF_HOME=(\S+)", dockerfile)
-    if not home or home.group(1).startswith("/app/data"):
-        problems.append(f"HF_HOME is {home.group(1) if home else 'unset'}; under /app/data the 800 MB checkpoint rides along in every backup")
-    elif f":{home.group(1)}" not in (ROOT / "docker-compose.yml").read_text(encoding="utf-8"):
-        problems.append(f"docker-compose.yml does not mount {home.group(1)}, so the checkpoint is fetched again on every recreate")
     return problems
 
 

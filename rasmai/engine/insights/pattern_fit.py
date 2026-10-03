@@ -6,12 +6,12 @@ logger = logging.getLogger(__name__)
 
 Key = Tuple[str, str, str]
 
-# How far a chart's patterns may move it, fitted in tools/laya_eval.py against 105 plays eight
-# accounts made after the snapshot the ranking was built from.
+# How far a chart's patterns may move it, fitted against 105 plays eight accounts made after the
+# snapshot the ranking was built from.
 #
-# Unlike the decision model this one is worth listening to, and its best setting is not zero.
-# Inside the shortlist the arithmetic alone places a played chart at 0.565, where 0.5 is a coin
-# toss; at 0.10 that becomes 0.588 with six of the eight accounts improving. Higher is worse
+# Its best setting is not zero. Inside the shortlist the arithmetic alone places a played chart
+# at 0.565, where 0.5 is a coin toss; at 0.10 that becomes 0.588 with six of the eight accounts
+# improving. Higher is worse
 # (0.25 -> 0.586, 0.5 -> 0.578) and the wrong way round is much worse (-0.25 -> 0.489), so the
 # sign means something: a player goes back to the patterns they already score well on.
 #

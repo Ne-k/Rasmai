@@ -1,12 +1,30 @@
 from datetime import timedelta
-from dotenv import load_dotenv
 from pathlib import Path
 import logging
 import os
+import re
 import threading
 
 
-load_dotenv()
+def load_env(path):
+    # a variable that is already set keeps its value, as it does with python-dotenv
+    try:
+        text = Path(path).read_text(encoding="utf-8-sig")
+    except OSError:
+        return
+    for line in text.splitlines():
+        key, sep, value = line.strip().removeprefix("export ").partition("=")
+        key, value = key.strip(), value.strip()
+        if not sep or not key or key.startswith("#"):
+            continue
+        if len(value) > 1 and value[0] in "\"'" and value[-1] == value[0]:
+            value = value[1:-1]
+        else:
+            value = re.sub(r"\s+#.*", "", value)
+        os.environ.setdefault(key, value)
+
+
+load_env(Path(__file__).resolve().parent.parent / ".env")
 
 
 # MAIMAI_DEBUG turns on the verbose logs: what used to print only with a debug flag passed down by hand is logged at debug

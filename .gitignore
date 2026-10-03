@@ -9,7 +9,6 @@ debug/
 # caches
 otoge_cache/
 simai_cache/
-/models/
 __pycache__/
 *.pyc
 

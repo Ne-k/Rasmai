@@ -9,10 +9,6 @@ services:
         # the bot runs as this user; see the volumes note below
         BOT_UID: ${BOT_UID:-1000}
         BOT_GID: ${BOT_GID:-1000}
-        # the decision model behind the "laya" beta, off unless .env says otherwise. It is a build
-        # arg rather than a setting because it decides what goes into the image, so changing it
-        # means rebuilding: docker compose build bot && docker compose up -d bot
-        WITH_LAYA: ${WITH_LAYA:-0}
     container_name: rasmai
     env_file: .env
     environment:
@@ -24,12 +20,11 @@ services:
       RASMAI_INTERNAL_SECRET: ${RASMAI_INTERNAL_SECRET:?set RASMAI_INTERNAL_SECRET in .env (openssl rand -hex 32)}
     # the bot runs as the image's non-root user (BOT_UID, default 1000), so these folders must be
     # writable by it. Docker Desktop on macOS maps that automatically; on a Linux host run
-    #   sudo chown -R 1000:1000 data otoge_cache models simai_cache debug
+    #   sudo chown -R 1000:1000 data otoge_cache simai_cache debug
     # or build with BOT_UID/BOT_GID set to the ids that own them
     volumes:
       - ./data:/app/data
       - ./otoge_cache:/app/otoge_cache
-      - ./models:/app/models          # the laya checkpoint, 800 MB fetched once; kept out of data/ so it stays out of its backups
       - ./simai_cache:/app/simai_cache   # the charts themselves, packed, so a restart re-reads rather than re-downloads
       - ./debug:/app/debug            # the raw page exports MAIMAI_DEBUG writes, so they survive the container
     init: true

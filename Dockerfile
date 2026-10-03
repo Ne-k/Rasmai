@@ -38,8 +38,7 @@ ENV PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     MAIMAI_WEBSERVER_HOST=0.0.0.0 \
     MAIMAI_WEBSERVER_PORT=8765 \
-    MAIMAI_DATABASE_PATH=/app/data/maimai.sqlite3 \
-    HF_HOME=/app/models
+    MAIMAI_DATABASE_PATH=/app/data/maimai.sqlite3
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
@@ -59,18 +58,6 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install -r requirements.txt
 
-# The decision model behind the "laya" beta, off unless asked for: torch is 454 MB on linux/arm64
-# and the checkpoint another 808 MB, and a bot nobody will switch the feature on for should carry
-# neither. Built without it the beta picker says so, rather than offering a switch that does
-# nothing. Build with:  docker build --target bot --build-arg WITH_LAYA=1 .
-ARG WITH_LAYA=0
-COPY requirements-laya.txt .
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    if [ "$WITH_LAYA" = "1" ]; then \
-      pip install --index-url https://download.pytorch.org/whl/cpu torch \
-   && pip install -r requirements-laya.txt; \
-    fi
-
 # The bot and the headless Chromium it drives (launched with --no-sandbox, see images/render.py) run
 # as this user rather than root, so a renderer exploit lands in an account that can write the data
 # folders and nothing else. The ids are build args because a bind mount on a Linux host keeps the
@@ -84,18 +71,18 @@ RUN groupadd --gid "$BOT_GID" bot \
 ENV HOME=/home/bot
 
 # Everything the process writes at run time lives in these folders (the relative paths in config.py,
-# otoge/db.py and simai_bulk.py resolve against /app; HF_HOME is models). They are made and owned
+# otoge/db.py and simai_bulk.py resolve against /app). They are made and owned
 # here, before VOLUME, so a fresh named or anonymous volume copies this ownership. /app itself and
 # the code stay root-owned and read-only to the bot.
-RUN mkdir -p /app/data /app/otoge_cache /app/models /app/simai_cache /app/debug \
- && chown -R bot:bot /app/data /app/otoge_cache /app/models /app/simai_cache /app/debug
+RUN mkdir -p /app/data /app/otoge_cache /app/simai_cache /app/debug \
+ && chown -R bot:bot /app/data /app/otoge_cache /app/simai_cache /app/debug
 
 COPY rasmai/ ./rasmai/
 COPY brand/emoji/png/ ./brand/emoji/png/
 # the linking walkthroughs, so /login can play one in Discord rather than sending people away
 COPY web/public/walkthrough/ ./walkthrough/
 
-VOLUME ["/app/data", "/app/otoge_cache", "/app/models", "/app/simai_cache", "/app/debug"]
+VOLUME ["/app/data", "/app/otoge_cache", "/app/simai_cache", "/app/debug"]
 EXPOSE 8765
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=90s --retries=3 \

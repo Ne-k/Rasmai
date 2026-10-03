@@ -41,14 +41,6 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.plan_stretch: bool = False
         self.region: str = "intl"
         self.user_id: str = ""      # whose account this is, so a per-player beta can be looked up
-        # Whether this analysis is allowed to take its time. A page waiting on a reply is not:
-        # the decision model is the better part of a minute, and a dashboard that rebuilds its
-        # analysis inside the request would sit there loading while every retry queued another.
-        self.background: bool = False
-        # what the decision model said about each chart, kept for as long as this analyzer lives:
-        # one read ranks three times over as unknowns and play counts arrive, and the model is
-        # the better part of a minute each time it is asked something it has already answered
-        self._pick_odds: Dict[Tuple[str, str, str], float] = {}
         self.challenge: str = "balanced"
 
     @property
@@ -146,11 +138,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         return snapshot
 
     def _read_taste(self, candidates: List[ScoredCandidate], chart_index: ChartIndex) -> Dict[Tuple[str, str, str], float]:
-        """What the two shortlist readings make of these picks, multiplied together.
-
-        Both are off for anyone who has not switched them on, and either failing leaves the other
-        alone. Pattern fit is arithmetic and runs wherever the analysis does; the decision model is
-        most of a minute, so it only runs where nothing is waiting on the answer.
+        """What the pattern-fit reading makes of these picks; empty for anyone who has not switched it on.
 
         :rtype: Dict[Tuple[str, str, str], float]
         """
@@ -163,9 +151,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
             from rasmai.engine.insights.tags import chart_traits
         except Exception:
             return {}
-        wants_model = self.background and wants(self.user_id, "laya")
-        wants_patterns = wants(self.user_id, "patterns")
-        if not (wants_model or wants_patterns):
+        if not wants(self.user_id, "patterns"):
             return {}
 
         rows = []
@@ -181,29 +167,11 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
                          "difficulty": candidate.difficulty_type, "chart_type": candidate.chart_type,
                          "is_new": candidate.is_new, "traits": traits})
 
-        weights: Dict[Tuple[str, str, str], float] = {}
-        if wants_patterns:
-            try:
-                weights = dict(pattern_fit.taste(self.play_profile, rows))
-            except Exception as error:
-                logger.warning(f"pattern fit could not weigh the shortlist: {error}")
-        if wants_model:
-            try:
-                # imported here and nowhere else: on a bot built with the package this pulls in torch,
-                # and nobody who left the switch alone should pay for that on every analysis
-                from rasmai.engine.insights import laya
-                asking = [row for row in rows if row["key"] not in self._pick_odds]
-                if asking:
-                    self._pick_odds.update(laya.pick_odds(self.play_profile, asking))
-                # weighed over the whole shortlist at once, never over whatever part of it was new,
-                # or a chart would be ranked against a different set than the one it is shown beside
-                said = laya.weigh({row["key"]: self._pick_odds[row["key"]] for row in rows
-                                   if row["key"] in self._pick_odds})
-                for key, value in said.items():
-                    weights[key] = weights.get(key, 1.0) * value
-            except Exception as error:
-                logger.warning(f"the decision model could not rank the shortlist: {error}")
-        return weights
+        try:
+            return dict(pattern_fit.taste(self.play_profile, rows))
+        except Exception as error:
+            logger.warning(f"pattern fit could not weigh the shortlist: {error}")
+            return {}
 
     def generate_recommendations(self) -> Tuple[List[Recommendation], Dict]:
         """Rank what the player should play next.
@@ -238,8 +206,8 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
             chart_index,
             self.current_version,
         )
-        # the shortlist decides what is worth asking a model about, so the model runs after a
-        # first ranking and the list is ordered again with what it said
+        # the shortlist decides which charts are worth reading, so the reading runs after a first
+        # ranking and the list is ordered again with what it said
         taste = self._read_taste(candidates, chart_index)
         if taste:
             self.play_profile.taste = taste

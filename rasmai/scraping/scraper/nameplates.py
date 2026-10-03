@@ -28,7 +28,7 @@ _MAX_BYTES = 1024 * 1024
 _HOSTS = {urlparse(base).hostname for base in MAIMAI_BASE_URLS.values()}
 
 
-# ponytail: one lock for every plate and failures remembered until restart; plates are fetched once each
+# one lock for every plate and failures remembered until restart; plates are fetched once each
 _lock = threading.Lock()
 _failed: Set[str] = set()
 

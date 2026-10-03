@@ -273,7 +273,7 @@ def create_person(identities: List[Dict[str, Any]], terms_version: str) -> Dict[
         for one in cleaned:
             found = _resolve(connection, one["provider"], one["subject"], one["email"], one["emailVerified"], None, may_merge=False)
             if found["status"] == "signed_in":
-                # ponytail: every pending sign-in joins whichever account the first one opens, without a merge; route a Discord id
+                # every pending sign-in joins whichever account the first one opens, without a merge; route a Discord id
                 # that lands on a site account through _merge if the sign-ins in one pending set can ever disagree
                 for other in cleaned:
                     _attach(connection, other["provider"], other["subject"], found["userId"],
