@@ -1,0 +1,18 @@
+.kamai-sub { margin: 18px 0 8px; font-family: var(--font-mono), monospace; font-size: 11.5px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-2); }
+.kamai-sub:lang(ja) { font-family: var(--font-body), sans-serif; letter-spacing: .06em; font-size: 13px; }
+.kamai-sub:first-of-type { margin-top: 16px; }
+.kamai-sub + .btn-row { margin-top: 0; }
+.kamai-form { margin: 0 0 8px; }
+.kamai-form label { display: block; margin: 0 0 4px; font-weight: 500; font-size: 14px; color: var(--ink); }
+.kamai-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.kamai-row input { flex: 1 1 13rem; min-width: 0; box-sizing: border-box; font-size: 16px; padding: 10px 12px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper-2); color: var(--ink); }
+.kamai-row input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.kamai-row input[aria-invalid="true"] { border-color: var(--pink-edge); }
+.kamai-row input:disabled { opacity: .6; }
+.kamai-row .button { flex: 0 0 auto; }
+.kamai-result { min-height: 1.4em; margin-top: 10px; }
+.kamai-result .hint { margin: 0 0 6px; }
+.kamai-result .hint.bad { margin-top: 0; }
+@media (max-width: 560px) {
+  .kamai-row .button, .kamai .btn-row .button { width: 100%; }
+}

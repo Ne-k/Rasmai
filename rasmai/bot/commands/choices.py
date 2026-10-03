@@ -90,7 +90,8 @@ FOCUS_CHOICES = [
 LAYOUT_CHOICES = OUTPUT_CHOICES
 
 
-EXPORT_CHOICES = [app_commands.Choice(name="JSON", value="json"), app_commands.Choice(name="CSV", value="csv")]
+EXPORT_CHOICES = [app_commands.Choice(name="JSON", value="json"), app_commands.Choice(name="CSV", value="csv"),
+                  app_commands.Choice(name="Kamaitachi", value="kamaitachi")]
 
 
 # only the regions an account can be linked from: China stays out of the picker until it has a sign-in

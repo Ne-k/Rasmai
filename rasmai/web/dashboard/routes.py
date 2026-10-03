@@ -5,7 +5,8 @@ import logging
 import re
 
 from rasmai.bot.builders.charts.index import search_titles
-from rasmai.security import import_limiter, public_reason, refresh_limiter
+from rasmai.bot.builders.kamaitachi import kamaitachi_file
+from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account, is_discord_id, is_web_id
 from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.bot.state.forget import forget_user
@@ -19,7 +20,7 @@ from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
-from rasmai.web.dashboard.imports import import_payload
+from rasmai.web.dashboard.imports import import_kamaitachi, import_payload
 from rasmai.storage.db import VERDICTS, set_beta_feedback
 from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
 from rasmai.web.dashboard.public_profile import set_sharing
@@ -30,12 +31,12 @@ logger = logging.getLogger(__name__)
 # reads that never look at the analysis, so never wait on one
 ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
-DOWNLOADS = ("/internal/me/export", "/internal/me/image")
+DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # every write handle_post answers; one missing here is refused as not found before its branch is reached,
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
-          "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update")
+          "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/kamaitachi/import")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -183,6 +184,18 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         handler.end_headers()
         handler.wfile.write(body)
         return True
+    if path == "/internal/me/kamaitachi":
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
+        body, filename, _counts = kamaitachi_file(cached)
+        handler.send_response(200)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        handler.send_header("Content-Length", str(len(body)))
+        handler.end_headers()
+        handler.wfile.write(body)
+        return True
     return False
 
 
@@ -272,6 +285,28 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
             handler._send_json(400, {"ok": False, "error": "bad_export", "message": "That file could not be read as a Rasmai export."})
             return True
         forget_analysis(user["id"])       # the recorded plays feed the model; the next look rebuilds with them
+        handler._send_json(200, {"ok": True, **result})
+        return True
+    if path == "/internal/me/kamaitachi/import":
+        from rasmai.bot.builders.charts import shared_index
+        from rasmai.scraping.kamaitachi import KamaitachiError, valid_username
+        from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+        username = str((payload or {}).get("username") or "").strip()
+        if not valid_username(username):
+            handler._send_json(400, {"ok": False, "error": "bad_username"})
+            return True
+        if not kamaitachi_limiter.allow(user["id"]):
+            handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five reads from Kamaitachi per quarter hour."})
+            return True
+        cached = cache_get(user["id"])
+        try:
+            result = import_kamaitachi(user["id"], username, cached.analyzer if cached else MaimaiRatingAnalyzer(),
+                                    cached.analyzer.chart_index if cached else shared_index())
+        except KamaitachiError as error:
+            handler._send_json(404 if error.kind == "no_such_user" else 502,
+                               {"ok": False, "error": error.kind, **({} if error.kind == "no_such_user" else {"message": str(error)})})
+            return True
+        forget_analysis(user["id"])
         handler._send_json(200, {"ok": True, **result})
         return True
     return False

@@ -9,6 +9,7 @@ import logging
 import discord
 
 from rasmai.engine.analysis import rank_for
+from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, level_text, message_files, chart_link
 from rasmai.bot.state.prefs import get_prefs
@@ -251,3 +252,9 @@ def build_export(cached: CachedAnalysis, fmt: str) -> discord.File:
     payload["ratingHistory"] = load_rating_history(cached.user_id)
     data = json.dumps(_json_safe(payload), ensure_ascii=False, indent=2).encode("utf-8")
     return discord.File(io.BytesIO(data), filename=f"rasmai-scores-{stamp}.json")
+
+
+def build_kamaitachi_export(cached: CachedAnalysis) -> Tuple[discord.File, Dict[str, int]]:
+    """The scores as a file Kamaitachi can import, and the counts that say what it holds and what was left out."""
+    data, filename, counts = kamaitachi_file(cached)
+    return discord.File(io.BytesIO(data), filename=filename), counts

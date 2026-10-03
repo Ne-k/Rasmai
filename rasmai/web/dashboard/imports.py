@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import re
 
 from rasmai.bot.state.snapshots import play_rows
+from rasmai.scraping.kamaitachi import KamaitachiError, fetch_pbs, pb_rows
 from rasmai.storage.db import best_recorded_scores, import_rating_points, load_play_counts, record_chart_scores, save_play_counts
 
 MAX_ROWS = 6000          # more charts than the game has
@@ -148,3 +149,81 @@ def import_payload(user_id: str, data: Dict[str, Any], analyzer: Any, index: Any
         "ratingPoints": import_rating_points(user_id, points),
         "playCounts": len(counts),
     }
+
+
+def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer: Any, index: Any) -> Dict[str, int]:
+    """Merge personal bests read from Kamaitachi into the stored history; what is already there is left alone.
+
+    Each best is matched to the chart database by the song's title or one of its other names, and kept
+    only when it beats what is recorded. A best with a time becomes a dated play and one without is
+    dated now, as a best; either way the song is stored under the name maimai DX NET would have given it,
+    so it lands beside the scores already held rather than under a second spelling.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param entries: The bests, as :func:`rasmai.scraping.kamaitachi.pb_rows` reads them.
+    :type entries: List[Dict[str, Any]]
+    :param seen: How many bests Kamaitachi sent, readable or not.
+    :type seen: int
+    :param analyzer: A scraper, for the title normalisation stored names use.
+    :type analyzer: Any
+    :param index: The chart database; a best on a chart it does not know is counted as unmatched.
+    :type index: Any
+    :returns: How many bests and plays were new, how many bests found no chart, and how many were seen.
+    :rtype: Dict[str, int]
+    """
+    now = datetime.now()
+    known = best_recorded_scores(user_id)
+    bests: List[Tuple[Any, ...]] = []
+    plays: List[Tuple[Any, ...]] = []
+    matched = 0
+    for entry in entries:
+        ref = next((found for title in entry["titles"]
+                    if (found := index.get((_text(title).casefold(), entry["type"], entry["tier"]), entry["level"] or None))), None)
+        accuracy = _accuracy(entry["percent"])
+        if ref is None or not accuracy:
+            continue
+        matched += 1
+        key = _chart_key(analyzer._normalize_official_song_name(ref.title), entry["type"], entry["tier"])
+        if key in known and accuracy <= known[key] + 0.00005:
+            continue
+        known[key] = accuracy
+        counts = entry["judgements"] or {}
+        total = sum(counts.values())
+        # a note is worth three points when perfect, two when great and one when good
+        dx = _int(3 * (counts.get("pcrit", 0) + counts.get("perfect", 0)) + 2 * counts.get("great", 0) + counts.get("good", 0), 10000)
+        fc = _text(entry["fc"], 8)
+        moment = None
+        if entry["time"] is not None:
+            try:
+                moment = _when(datetime.fromtimestamp(entry["time"] / 1000).astimezone().isoformat(timespec="seconds"), now)
+            except (OverflowError, OSError, ValueError):
+                pass
+        if moment:
+            plays.append((key, moment, accuracy, dx, fc, "", "play", _int(3 * total, 10000), 0))
+        else:
+            bests.append((key, now.astimezone().isoformat(timespec="seconds"), accuracy, dx, fc, "", "best"))
+    return {"bests": record_chart_scores(user_id, bests), "plays": record_chart_scores(user_id, plays),
+            "unmatched": seen - matched, "seen": seen}
+
+
+def import_kamaitachi(user_id: str, username: str, analyzer: Any, index: Any) -> Dict[str, int]:
+    """Read a public Kamaitachi profile and merge its personal bests into the stored history.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :param username: The Kamaitachi username to read.
+    :type username: str
+    :param analyzer: A scraper, for the title normalisation stored names use.
+    :type analyzer: Any
+    :param index: The chart database.
+    :type index: Any
+    :returns: What :func:`record_pbs` returns.
+    :rtype: Dict[str, int]
+    :raises KamaitachiError: When the profile cannot be read, or holds no maimai DX scores.
+    """
+    body = fetch_pbs(username)
+    entries = pb_rows(body)
+    if not entries:
+        raise KamaitachiError("kamaitachi", "That Kamaitachi profile has no maimai DX scores.")
+    return record_pbs(user_id, entries, len(body.get("pbs") or []), analyzer, index)

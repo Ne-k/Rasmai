@@ -131,6 +131,7 @@ _login_limiter = RateLimiter(LOGIN_ATTEMPTS_PER_WINDOW, LOGIN_ATTEMPT_WINDOW.tot
 public_limiter = RateLimiter(120, 60)         # shared profiles read per client
 refresh_limiter = RateLimiter(3, 900)         # score reads started from the site per account
 import_limiter = RateLimiter(5, 900)          # exports merged back from the site per account
+kamaitachi_limiter = RateLimiter(5, 900)      # profiles read from Kamaitachi per account; each is a request to someone else's server
 
 
 def login_attempt_allowed(client_key: str) -> bool:

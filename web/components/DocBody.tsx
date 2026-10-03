@@ -66,6 +66,7 @@ export async function docBody(page: keyof typeof PAGES) {
     cloudflare: (c: React.ReactNode) => <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener noreferrer">{c}</a>,
     discord: (c: React.ReactNode) => <a href="https://discord.com/privacy" rel="noopener noreferrer">{c}</a>,
     google: (c: React.ReactNode) => <a href="https://policies.google.com/privacy" rel="noopener noreferrer">{c}</a>,
+    kamaitachi: (c: React.ReactNode) => <a href="https://kamai.tachi.ac/" rel="noopener noreferrer">{c}</a>,
     ...Object.fromEntries(TERMS.map((term) => [term, (c: React.ReactNode) => <Term word={c} means={t(`glossary.${term}`)} />])),
   };
   const values = { ...tags, contact, site: SITE_URL.replace("https://", "") };

@@ -61,7 +61,7 @@ async def help_command(interaction: discord.Interaction):
             "**`/compare`** - your scores against a player who opted in\n"
             "**`/leaderboard`** - opted-in players in this server\n"
             "**`/settings`** - defaults, a daily read that keeps your history complete, and who can see you\n"
-            "**`/export`** - your scores as JSON or CSV · **`/delete-account`** - delete everything stored about you"
+            "**`/export`** - your scores as JSON, CSV or a Kamaitachi file · **`/delete-account`** - delete everything stored about you"
         ),
         inline=False,
     )

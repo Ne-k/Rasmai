@@ -7,7 +7,7 @@ from discord import app_commands
 from rasmai.bot.core import bot, heavy_cooldown, light_cooldown
 from rasmai.bot.state.prefs import get_prefs, update_prefs
 from rasmai.bot.builders.results import run_simple_command
-from rasmai.bot.builders.social import build_compare, build_export, build_leaderboard, settings_embed
+from rasmai.bot.builders.social import build_compare, build_export, build_kamaitachi_export, build_leaderboard, settings_embed
 from rasmai.security import public_reason
 from rasmai.storage.db import get_guild_settings, set_guild_settings
 from rasmai.bot.commands.choices import CHALLENGE_CHOICES, DIFFICULTY_CHOICES, EXPORT_CHOICES, LAYOUT_CHOICES
@@ -109,6 +109,13 @@ async def export(interaction: discord.Interaction, format: Optional[app_commands
     fmt = format.value if format else "json"
 
     async def build(cached):
+        if fmt == "kamaitachi":
+            file, counts = build_kamaitachi_export(cached)
+            note = f"\n-# {counts['skipped']} left out: Utage charts, and songs the chart database cannot name" if counts["skipped"] else ""
+            embed = discord.Embed(title="Your scores for Kamaitachi", color=discord.Color.blurple(), description=(
+                f"{counts['charts']} best scores and {counts['plays']} plays. On Kamaitachi, Import Scores > Batch Manual, "
+                f"then choose this file. Only you can see this message.{note}"))
+            return embed, [file], None
         file = build_export(cached, fmt)
         embed = discord.Embed(title="Your scores", description=f"Every chart with a score, as {fmt.upper()}. Only you can see this message.",
                               color=discord.Color.blurple())

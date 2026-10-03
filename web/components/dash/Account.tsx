@@ -9,6 +9,7 @@ import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
 import { Beta } from "./Beta";
 import { SignIns } from "./Identity";
+import { Kamaitachi } from "./Kamaitachi";
 import { Sharing } from "./Sharing";
 
 export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void }) {
@@ -130,6 +131,8 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
       )}
 
       <SignIns me={me} />
+
+      <Kamaitachi />
 
       {me.sharing && <Sharing state={sharing} onChange={setSharing} />}
 

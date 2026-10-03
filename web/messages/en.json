@@ -998,8 +998,8 @@
           },
           "c02_export": {
             "name": "/export",
-            "args": "[json|csv]",
-            "what": "All your stored scores as a file. You can import it again from the Account tab on the site."
+            "args": "[json|csv|kamaitachi]",
+            "what": "All your stored scores as a file. You can import the JSON again from the Account tab on the site. Choose kamaitachi for a file you can upload to Kamaitachi with Import Scores, then Batch Manual."
           },
           "c03_delete_account": {
             "name": "/delete-account",
@@ -1016,7 +1016,7 @@
           "i03": "<b>Traits</b> shows what you lose points on, what you're good at, how sure it is about each, and charts at your level to practise the weak ones.",
           "i04": "<b>Best 50</b>, <b>All charts</b> and <b>Recent</b> are your scores with filters, sorting and search in Japanese, romaji or English.",
           "i05": "<b>Look up</b> is <code>/chart</code> with a pattern browser, so you can find every chart with a certain pattern and practise it.",
-          "i06": "<b>Areas</b> and <b>Account</b> cover area travel, your settings, importing an old export and deleting your account."
+          "i06": "<b>Areas</b> and <b>Account</b> cover area travel, your settings, importing an old export or scores from Kamaitachi, downloading a file for Kamaitachi and deleting your account."
         },
         "p02": "You can install it on your phone as an app. Open <me>rasmai.lol/me</me> in Safari or Chrome and add it to your home screen. The icon shortcuts go to What to play, Best 50, Recent and Traits."
       },
@@ -1049,7 +1049,8 @@
           "i10": "<b>Judgement details and area progress.</b> For plays whose judgement page Rasmai reads, the note counts and the fast/late split. For your map areas, how far you have got and when it was recorded.",
           "i11": "<b>Beta feedback.</b> If you tell Rasmai whether a beta feature was better, the same or worse, it keeps that answer and the short note you may add (500 characters at most). The site's owner can read it, and it is not shown to anyone else.",
           "i12": "<b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, and opt-ins that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below), a daily read of your recent-plays page (below) and a Discord message about what that read found. With the compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai.",
-          "i13": "<b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a day."
+          "i13": "<b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a day.",
+          "i07b": "<b>Scores imported from Kamaitachi.</b> If you use the dashboard's <b>import from Kamaitachi</b> box, the username you type is sent to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores. Nothing else about you is sent. What Rasmai stores is the same as for any imported scores: the bests and plays are recorded in your history and deleted with your account. The username itself is not kept."
         },
         "p02": "Scores are read when you run a command, press the read-now button on the dashboard, or, if you turned on <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key (for a Japan account, your stored SEGA ID) and loads only the recent-plays page, so plays aren't lost between commands. <code>/settings</code> shows when it last ran and how many plays it found."
       },
@@ -1079,7 +1080,8 @@
           "i03": "Messages you send in Discord. Rasmai only responds to its own slash commands and doesn't read chat.",
           "i04": "Anything about people who have not created an account or linked one.",
           "i05": "Your email address. Only a one-way hash of it is kept, and it cannot be turned back into the address.",
-          "i06": "Anything from your Google account beyond your name, email address and ID at the moment you sign in: no avatar, contacts, calendar or files, and nothing read afterwards."
+          "i06": "Anything from your Google account beyond your name, email address and ID at the moment you sign in: no avatar, contacts, calendar or files, and nothing read afterwards.",
+          "i07": "The file from the dashboard's <b>download for Kamaitachi</b> button or <code>/export kamaitachi</code>. It is built when you ask from the scores above and is not kept anywhere."
         }
       },
       "whoElse": {
@@ -1090,7 +1092,8 @@
           "i02b": "<b>Google</b>, if you sign in with it. Google sees that you signed in to Rasmai, under <google>Google's privacy policy</google>. Rasmai sends it nothing else about you.",
           "i03": "<b>Cloudflare</b>, as the network in front of the website and the provider of the human check, as described above.",
           "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry.",
-          "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you."
+          "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you.",
+          "i02c": "<b>Kamaitachi</b>, only if you use its import or upload its file yourself. The username you import is sent to <kamaitachi>kamai.tachi.ac</kamaitachi>. Scores you upload there are under Kamaitachi's own policy, not this one."
         }
       },
       "kept": {
@@ -1144,7 +1147,8 @@
         "title": "What you share",
         "u01": {
           "i01": "If you turn on a public profile, <code>/compare</code> or <code>/leaderboard</code>, you choose what other people can see. Anyone with your profile link can see it, so only share the link with people you are happy to show it to.",
-          "i02": "Beta feedback you send is kept with your account and read by the operator to improve Rasmai. Keep notes free of anything you would not want read."
+          "i02": "Beta feedback you send is kept with your account and read by the operator to improve Rasmai. Keep notes free of anything you would not want read.",
+          "i03": "A file you download for Kamaitachi is yours to do with as you like. Once you upload it to Kamaitachi, or import a Kamaitachi profile into Rasmai, that service's own rules apply to its side. Only import a profile you are entitled to use."
         }
       },
       "fairUse": {
@@ -1611,5 +1615,25 @@
     "regionJpHow": "Enter your SEGA ID once. It's stored encrypted.",
     "linkShort": "Link",
     "setupStep": "Step 2 of 2"
+  },
+  "kamaitachi": {
+    "title": "Kamaitachi",
+    "info": "Kamaitachi (kamai.tachi.ac) is a score tracker for rhythm games. Send your Rasmai scores there, or bring a profile's scores here. maimai DX only.",
+    "toSub": "to Kamaitachi",
+    "download": "download for Kamaitachi",
+    "downloadHint": "On Kamaitachi choose Import Scores, then Batch Manual, and pick the file. It holds your best scores and every play Rasmai has stored.",
+    "fromSub": "from Kamaitachi",
+    "username": "Kamaitachi username",
+    "import": "import",
+    "importing": "importing…",
+    "importHint": "Reads that profile's public maimai DX scores and keeps whatever beats what Rasmai has. Nothing is overwritten.",
+    "added": "Added {bests, plural, one {# best score} other {# best scores}} and {plays, plural, one {# play} other {# plays}} from Kamaitachi. Reloading…",
+    "nothingNew": "Read {seen, plural, one {# score} other {# scores}}, but Rasmai already has all of them or better.",
+    "empty": "That profile has no maimai DX scores on Kamaitachi.",
+    "unmatched": "{n, plural, one {# score} other {# scores}} couldn't be matched to a Rasmai chart and {n, plural, one {was} other {were}} skipped.",
+    "badUsername": "That isn't a Kamaitachi username. Use 2 to 30 letters, numbers, - or _.",
+    "noSuchUser": "Kamaitachi has no user with that name.",
+    "rateLimited": "You've imported a few times just now. Try again in about 15 minutes.",
+    "unreachable": "Kamaitachi didn't give a usable answer. Try again in a few minutes."
   }
 }
