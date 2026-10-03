@@ -9,7 +9,8 @@ from rasmai.bot.state.prefs import (CARD_COLOURS, CARD_FIELDS, CARD_VISUALS, EMB
 from rasmai.bot.state.snapshots import snapshot_charts
 from rasmai.config import get_public_base_url
 from rasmai.engine.analysis import rank_for
-from rasmai.storage.db import account_by_share_slug, load_play_history, load_rating_history, set_share_slug
+from rasmai.storage.db import (account_by_share_slug, get_user_settings, load_play_history, load_rating_history,
+                               set_share_slug, set_user_settings)
 from rasmai.util import _json_safe
 
 logger = logging.getLogger(__name__)
@@ -74,13 +75,16 @@ def sharing_payload(user_id: str, account: Optional[Dict[str, Any]]) -> Dict[str
         "visuals": [{"key": name, "needs": VISUAL_NEEDS.get(name, ""),
                      "ready": not VISUAL_NEEDS.get(name) or bool(prefs.get(f"public_{VISUAL_NEEDS[name]}"))}
                     for name in CARD_VISUALS],
+        # whether the person's best scores count toward the anonymous statistics behind the beta features; on unless switched off
+        "cohort": get_user_settings(user_id).get("cohort") is not False,
     }
 
 
 def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, Any]] = None,
                 rotate: bool = False, account: Optional[Dict[str, Any]] = None,
                 card: Optional[Dict[str, Any]] = None, embed: Optional[Dict[str, Any]] = None,
-                colour: Optional[str] = None, visual: Optional[str] = None) -> Dict[str, Any]:
+                colour: Optional[str] = None, visual: Optional[str] = None,
+                cohort: Optional[bool] = None) -> Dict[str, Any]:
     """Turn the public profile on or off, choose what it carries, or issue a fresh link.
 
     Turning it off leaves the slug in place but stops answering on it; asking for a new link
@@ -96,6 +100,8 @@ def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, A
     :type rotate: bool
     :param account: The linked account, as stored.
     :type account: Optional[Dict[str, Any]]
+    :param cohort: Whether the person's scores count in the anonymous statistics, or ``None`` to leave as is.
+    :type cohort: Optional[bool]
     :rtype: Dict[str, Any]
     """
     changes: Dict[str, Any] = {}
@@ -115,6 +121,13 @@ def set_sharing(user_id: str, on: Optional[bool], sections: Optional[Dict[str, A
         changes["card_visual"] = clean_visual(visual, str(get_prefs(user_id).get("card_visual") or "curve"))
     if changes:
         update_prefs(user_id, **changes)
+    if cohort is not None:
+        settings = get_user_settings(user_id)
+        settings["cohort"] = bool(cohort)
+        set_user_settings(user_id, settings)
+        if not cohort:
+            from rasmai.bot.state import cohort as counted      # their scores leave the statistics now, not at the next hourly build
+            counted.drop(user_id)
     slug = str((account or {}).get("shareSlug") or "")
     if rotate or (on and not slug):
         slug = set_share_slug(user_id, _fresh_slug()) or ""

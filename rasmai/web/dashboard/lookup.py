@@ -2,12 +2,14 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import Dict, List, Optional, Any
 import logging
 
+from rasmai.bot.state import cohort
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.config import WIKI_VIDEOS
 from rasmai.engine.analysis import rank_for
 from rasmai.scraping.mai_notes import english_label as mainotes_english
 from rasmai.engine import patterns as patterns_engine
 from rasmai.util import _json_safe
+from rasmai.web.dashboard.beta import wants
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +178,8 @@ def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str 
     from rasmai.scraping import mai_notes
     # the traits the player already scores away from their own curve on, so a chart can say which of its own they are
     trait_offsets = {t["label"]: float(t["offset"]) for t in ((profile.traits if profile else None) or [])}
+    # the beta switch is the person's own, so the key is only there for somebody who turned it on
+    wants_observed = cached is not None and wants(cached.user_id, "difficulty")
     charts: List[Dict[str, Any]] = []
     for ref, row in zip(refs, rows):
         item: Dict[str, Any] = dict(row)
@@ -206,6 +210,8 @@ def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str 
                  "constant": point["constant"], "rating": point["rating"]}
                 for point in _history_points(cached, ref)
             ]
+        if wants_observed:
+            item["observed"] = cohort.difficulty(ref.key)
         item["video"] = None            # filled in by /internal/me/video, which may wait on the wiki
         item["youtube"] = youtube_search_url(ref, both_types)
         charts.append(item)

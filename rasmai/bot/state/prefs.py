@@ -94,5 +94,7 @@ def update_prefs(user_id: str, **changes: Any) -> Dict[str, Any]:
     for key, value in changes.items():
         if value is not None and key in prefs:
             prefs[key] = value
-    set_user_settings(user_id, prefs)
+    # keys that are not preferences (the beta switches, the cohort opt-out) are the settings' own, and writing
+    # only the preferences back used to wipe them every time somebody changed a switch on the Sharing tab
+    set_user_settings(user_id, {**(get_user_settings(user_id) or {}), **prefs})
     return prefs

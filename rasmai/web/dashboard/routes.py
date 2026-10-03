@@ -8,6 +8,7 @@ from rasmai.bot.builders.charts.index import search_titles
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, get_connected_account, is_discord_id, is_web_id
+from rasmai.bot.state import cohort
 from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.bot.state.forget import forget_user
 from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_payload, guilds_payload,
@@ -22,14 +23,16 @@ from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 from rasmai.web.dashboard.imports import import_kamaitachi, import_payload
 from rasmai.storage.db import VERDICTS, set_beta_feedback
-from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
+from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta, wants
+from rasmai.web.dashboard.cohort import difficulty_payload, likeyou_payload
 from rasmai.web.dashboard.public_profile import set_sharing
 
 logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
-ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles",
+                             "/internal/me/difficulty")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -126,6 +129,13 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         return True
     if path == "/internal/me/areas":
         handler._send_json(200, areas_payload(user["id"], account, cached))
+        return True
+    if path in ("/internal/me/likeyou", "/internal/me/difficulty"):
+        # beta features: answered only to somebody who switched them on, and as if they were not there to anyone else
+        if not wants(user["id"], path.rsplit("/", 1)[1]):
+            handler._send_json(404, {"ok": False, "error": "not_enabled"})
+            return True
+        handler._send_json(200, likeyou_payload(account, cached) if path.endswith("likeyou") else difficulty_payload(cached))
         return True
     if path == "/internal/me/search":
         handler._send_json(200, {"songs": search_payload(cached, (query.get("q") or [""])[0][:80])})
@@ -230,6 +240,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         # also for an account with no maimai linked: that is how a site-only person deletes their sign-ins and record of agreement
         delete_connected_account(user["id"])
         forget_user(user["id"])
+        cohort.drop(user["id"])
         handler._send_json(200, {"ok": True})
         return True
     account = get_connected_account(user["id"])
@@ -256,7 +267,7 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
     if path == "/internal/me/sharing":
         body = payload or {}
         state = set_sharing(user["id"], body.get("on"), body.get("sections"), bool(body.get("rotate")), account,
-                            body.get("card"), body.get("embed"), body.get("colour"), body.get("visual"))
+                            body.get("card"), body.get("embed"), body.get("colour"), body.get("visual"), body.get("cohort"))
         handler._send_json(200, state)
         return True
     if path == "/internal/me/refresh":

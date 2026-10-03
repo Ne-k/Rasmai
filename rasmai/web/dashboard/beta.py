@@ -12,6 +12,20 @@ FEATURES: Dict[str, Dict[str, str]] = {
                 "your own curve on, and nudges picks worth the same toward the ones built from what "
                 "you are good at. Measured as the better of the two; still a small sample.",
     },
+    "likeyou": {
+        "label": "Players like you",
+        "note": "Shows charts that players with scores close to yours do well on and you haven't played, or "
+                "score lower on, and sets your judgements beside theirs. It counts everyone's scores and "
+                "judgement pages anonymously and shows nothing while the group is thin. To opt out, switch off "
+                "Sharing > \"Count my scores in anonymous statistics\".",
+    },
+    "difficulty": {
+        "label": "Observed difficulty",
+        "note": "Shows how hard a chart really plays for the people who play it, next to its listed constant, "
+                "and lists the charts that differ most. It counts everyone's best scores anonymously and "
+                "shows nothing for a chart few have played. To opt out, switch off Sharing > "
+                "\"Count my scores in anonymous statistics\".",
+    },
 }
 
 
@@ -50,9 +64,23 @@ FEATURES: Dict[str, Dict[str, str]] = {
 # # probe is kept because the developer page still reports how much of the game has been read.
 
 
+def _cohort_status() -> Dict[str, Any]:
+    """Whether enough players are counted for the cohort features to say anything, and how many there are.
+
+    Reads what is held and never waits for a build, because the picker is part of every overview.
+    """
+    try:
+        from rasmai.bot.state import cohort
+        from rasmai.engine.cohort import MIN_COHORT
+        counted = cohort.players()
+        return {"ready": counted >= MIN_COHORT, "status": f"{counted:,} players counted"}
+    except Exception:
+        return {"ready": False, "status": ""}
+
+
 # A feature that can be switched on before it can do anything adds a probe here, keyed like FEATURES,
 # returning {"ready": bool, "status": str}; one with no probe is always ready.
-READINESS: Dict[str, Any] = {}
+READINESS: Dict[str, Any] = {"likeyou": _cohort_status, "difficulty": _cohort_status}
 
 
 def beta_state(user_id: str) -> Dict[str, Any]:
@@ -70,7 +98,9 @@ def beta_state(user_id: str) -> Dict[str, Any]:
         said = {}
     features = []
     for key, spec in FEATURES.items():
-        ready = READINESS[key]() if key in READINESS else {"ready": True, "status": ""}
+        # a probe only runs for someone who has the feature on: the cohort one starts a build of everyone's scores,
+        # which nobody who has not asked for the feature should cause
+        ready = READINESS[key]() if key in READINESS and on.get(key) else {"ready": True, "status": ""}
         features.append({"key": key, **spec, **ready, "said": said.get(key)})
     return {"on": {key: bool(on.get(key)) for key in FEATURES}, "features": features}
 
