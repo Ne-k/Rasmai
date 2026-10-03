@@ -21,9 +21,9 @@ FEATURES: Dict[str, Dict[str, str]] = {
     },
     "difficulty": {
         "label": "Observed difficulty",
-        "note": "Shows how hard a chart really plays for the people who play it, next to its listed constant, "
-                "and lists the charts that differ most. It counts everyone's best scores anonymously and "
-                "shows nothing for a chart few have played. To opt out, switch off Sharing > "
+        "note": "Shows how often the people who play a chart get an SS, next to how often players of their rating "
+                "do on charts of the same level, and lists the charts that differ most. It counts everyone's best "
+                "scores anonymously and shows nothing for a chart few have played. To opt out, switch off Sharing > "
                 "\"Count my scores in anonymous statistics\".",
     },
 }

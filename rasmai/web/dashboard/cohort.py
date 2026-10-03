@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from rasmai.bot.state import cohort
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.engine.cohort import MIN_COHORT, Key, compare_judgements
+from rasmai.engine.cohort import JUDGE_FLOOR, MIN_COHORT, Key, compare_judgements
 from rasmai.engine.judgements import judgement_profile
 from rasmai.storage.db import load_judgements
 from rasmai.util import _json_safe
@@ -63,12 +63,16 @@ def _judgements(user_id: str, neighbours: List[bytes]) -> Optional[Dict[str, Any
     """How this person's judgements compare with those of the players like them.
 
     The neighbours' tags are only used to read their own stored pages, one profile each; what comes out is
-    the middle value across them, never a profile of anyone, and nothing until enough of them have one.
+    the middle value across them, never a profile of anyone, and nothing until enough of them have one. Only
+    plays of ``JUDGE_FLOOR`` or better count, for the person and for each neighbour.
     """
-    mine = judgement_profile(load_judgements(user_id))
+    def clean(user: str) -> Optional[Dict[str, Any]]:
+        return judgement_profile([page for page in load_judgements(user) if page["achievement"] >= JUDGE_FLOOR])
+
+    mine = clean(user_id)
     if mine is None:
         return None
-    theirs = [judgement_profile(load_judgements(tag.decode())) for tag in neighbours]
+    theirs = [clean(tag.decode()) for tag in neighbours]
     return compare_judgements(mine, [profile for profile in theirs if profile is not None])
 
 
@@ -83,7 +87,7 @@ def difficulty_payload(cached: Optional[CachedAnalysis]) -> Dict[str, Any]:
     counted, harder, easier = cohort.outliers()
 
     def rows(found: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        out = [_chart(index, row["key"], listed=row["listed"], observed=row["observed"], players=row["players"], average=row["average"]) for row in found]
+        out = [_chart(index, row["key"], rate=row["rate"], expected=row["expected"], players=row["players"], lean=row["lean"], average=row["average"]) for row in found]
         return [row for row in out if row is not None]
     return _json_safe({"ok": True, "ready": counted >= MIN_COHORT, "players": counted, "harder": rows(harder), "easier": rows(easier)})
 

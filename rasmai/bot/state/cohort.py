@@ -89,8 +89,8 @@ def _held() -> Optional[_Built]:
 
 
 def _row(built: _Built, key: Key) -> Dict[str, Any]:
-    observed, listed, players, _error = built.found.charts[key]
-    return {"observed": round(observed, 2), "listed": round(listed, 2), "players": players}
+    rate, expected, players, offset, error = built.found.charts[key]
+    return {"rate": round(rate, 3), "expected": round(expected, 3), "players": players, "lean": model.lean(rate, expected, offset, error)}
 
 
 def players() -> int:
@@ -99,7 +99,7 @@ def players() -> int:
 
 
 def difficulty(key: Key) -> Optional[Dict[str, Any]]:
-    """What the cohort says about one chart, ``{"observed", "listed", "players"}``, or ``None`` when too few play it."""
+    """What the cohort says about one chart, ``{"rate", "expected", "players", "lean"}``, or ``None`` when too few play it."""
     built = _held()
     if built is None or built.cohort.players < model.MIN_COHORT or key not in built.found.charts:
         return None
@@ -148,7 +148,7 @@ def drop(user_id: str) -> None:
     tag = str(user_id).encode()
     with _lock:      # a build that is reading right now finishes first, so the row is taken out of its result
         if _built is not None and tag in _built.cohort.tags:
-            _built, _failed_at = _Built(_built.cohort.without(tag), Difficulty(0.0, {}), float("-inf")), None
+            _built, _failed_at = _Built(_built.cohort.without(tag), Difficulty({}), float("-inf")), None
 
 
 def reset() -> None:

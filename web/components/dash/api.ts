@@ -223,8 +223,8 @@ export type NewPick = {
   odds_of_s: number;
 };
 
-/** A chart's observed difficulty beside its listed constant, from the people who play it. */
-export type Observed = { observed: number; listed: number; players: number };
+/** How often the people who play a chart reach an SS, beside how often players of their rating do on charts of its level. */
+export type Observed = { rate: number; expected: number; players: number; lean: "harder" | "easier" | "same" };
 
 type LikeYouPick = {
   title: string;
@@ -241,6 +241,7 @@ type LikeYouPick = {
 
 export type JudgementCompare = {
   players: number;
+  plays: number;     // the person's own plays that were clean enough to count
   types: { kind: string; per100: number; clean: number; theirPer100: number; theirClean: number }[];
   lostPerPlay: number;
   theirLostPerPlay: number | null;
@@ -262,8 +263,9 @@ export type ObservedChart = {
   chartType: string;
   difficulty: string;
   level: string;
-  listed: number;
-  observed: number;
+  rate: number;
+  expected: number;
+  lean: "harder" | "easier";
   players: number;
   cover: string;
   average: number | null;

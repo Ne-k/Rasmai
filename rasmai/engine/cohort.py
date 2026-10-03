@@ -14,12 +14,16 @@ MIN_NEIGHBOURS = 5             # similar players needed before a pick is made
 MIN_CHART_NEIGHBOURS = 4       # of those, how many must have played a chart for it to be picked
 MIN_AVERAGE = 5                # players with a score on a chart before its typical score is shown
 MIN_JUDGED = 5                 # neighbours with a judgement profile before their averages are shown
+# only plays this good go into the judgement comparison, on both sides: someone who is stretching on a chart they fail
+# loses ten points a play where a neighbour on comfortable charts loses two, and that says nothing about how they hit
+JUDGE_FLOOR = 97.0
 
 # Observed difficulty
 TARGET = 99.0                  # a best of at least this counts as having beaten the chart (SS)
 RIDGE_TAU = 0.7                # prior spread of one chart's offset, in logit units: thin charts shrink to zero
-LIST_Z = 1.0                   # a chart is listed as harder/easier only when its shift is this many standard errors
-LIST_MIN_SHIFT = 0.2           # ... and at least this far from the listed constant
+LIST_Z = 1.0                   # a chart is listed as harder/easier only when its offset is this many standard errors
+LIST_MIN_GAP = 0.10            # ... and the beat rate at least this far (ten points) from the expected one
+BAND = 0.5                     # a chart is compared with the charts within this many levels of its constant
 LIST_LENGTH = 10
 
 # Players like you
@@ -109,45 +113,68 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Difficulty:
-    """What the fit found: the slope of the logistic curve and, per chart, ``(observed, listed, players, error)``."""
-    slope: float
-    charts: Dict[Key, Tuple[float, float, int, float]]
+    """What the fit found, per chart: ``(rate, expected, players, offset, error)``.
+
+    ``rate`` is the share of the players who played it that reached ``TARGET``, ``expected`` the share players of
+    their rating reach on charts of the same level, and ``offset`` and ``error`` the shrunk log-odds between the two.
+    """
+    charts: Dict[Key, Tuple[float, float, int, float, float]]
+
+
+def lean(rate: float, expected: float, offset: float, error: float) -> str:
+    """Whether a chart is clearly harder or easier than charts of its level: the offset is clear of its error and the rates are apart."""
+    if abs(offset) < LIST_Z * error or abs(rate - expected) < LIST_MIN_GAP:
+        return "same"
+    return "harder" if offset < 0 else "easier"
 
 
 def fit_difficulty(cohort: Cohort) -> Difficulty:
-    """At what listed constant does each chart actually play, going by who reaches ``TARGET`` on it?
+    """How often do the people who played each chart reach ``TARGET`` on it, against how often players of their rating do on charts of its level?
 
-    One logistic curve is fitted over every (player, chart) pair, P(best >= TARGET) from the player's rating
-    and the chart's listed constant, then each chart gets an offset on top of it with a ridge prior, so a
-    chart few people have played stays at its listed constant. (Refitting the curve with the offsets held
-    in was tried on planted data and moved nothing worth the extra code.)
+    One logistic curve is fitted over every (player, chart) pair: P(best >= TARGET) from the player's rating
+    and a separate base for each half-level of constant (``BAND``), std and dx apart. Each chart then gets an offset on top of
+    that, with a ridge prior, so a chart few people have played stays at what its level says.
 
-    What this measures is how hard a chart is for the people who played it. People pick charts, so those
-    who chose a hard one are usually the ones who were up to it: a chart that looks easier than listed may
-    only be a chart that strong players favour. It is a second opinion on the number, not a replacement.
+    The comparison is with charts of the same level on purpose. It first measured how hard a chart was in
+    levels, with one slope for the constant, and on real players that gave nonsense: people only play charts
+    they can mostly clear, so the clear rate hardly falls as the constant rises, the fitted slope came out at
+    0.29 a level where about 1.5 is believable, and every shift was multiplied by four or five. Charts of the
+    same level need no slope, and a shift is read as a rate.
+
+    What this measures is how the people who played a chart did on it. People pick charts, and a chart that
+    suits its players clears more often than a random player of the same rating would clear it, so some of
+    what shows is taste. It is a second opinion on the number, not a replacement.
     """
     if cohort.players == 0 or not len(cohort.cols):
-        return Difficulty(0.0, {})
+        return Difficulty({})
     rows, cols = cohort.owners(), cohort.cols
     y = (cohort.vals >= TARGET).astype(np.float64)
     r = (cohort.ratings - cohort.ratings.mean())[rows] / 1000.0
-    centre = float(cohort.constants.mean())
-    c = (cohort.constants - centre)[cols]
-    size = len(cohort.keys)
-    count = np.bincount(cols, minlength=size)
-    x = np.column_stack([np.ones_like(r), r, c])
-    beta = np.zeros(3)
-    beta[0] = float(np.log((y.mean() + 1e-3) / (1.0 - y.mean() + 1e-3)))
-    for _ in range(25):
+    # a chart is compared with others of its type as well as its level: on the real players std charts were cleared
+    # a good deal less often than dx charts of the same constant, and without this two thirds of them read as harder
+    labelled = np.array([[int(np.floor(c / BAND)), int(key[1] == "dx")] for key, c in zip(cohort.keys, cohort.constants)])
+    _unique, band = np.unique(labelled, axis=0, return_inverse=True)
+    band = band.reshape(-1)
+    bands = int(band.max()) + 1
+    x = np.zeros((len(y), bands + 1))
+    x[np.arange(len(y)), band[cols]] = 1.0
+    x[:, bands] = r
+    # a thin band is drawn gently toward the rest; the rating slope is left free
+    ridge = np.concatenate([np.full(bands, 1e-2), [1e-6]])
+    mean = float(y.mean())
+    beta = np.zeros(bands + 1)
+    beta[:bands] = float(np.log((mean + 1e-3) / (1.0 - mean + 1e-3)))
+    for _ in range(40):
         p = _sigmoid(x @ beta)
-        w = p * (1.0 - p)
-        step = np.linalg.solve(x.T @ (x * w[:, None]) + 1e-6 * np.eye(3), x.T @ (y - p))
+        step = np.linalg.solve(x.T @ (x * (p * (1.0 - p))[:, None]) + np.diag(ridge), x.T @ (y - p) - ridge * beta)
         beta += step
-        if float(np.abs(step).max()) < 1e-6:
+        if float(np.abs(step).max()) < 1e-7:
             break
     base = x @ beta
+    size = len(cohort.keys)
+    count = np.bincount(cols, minlength=size)
     offset = np.zeros(size)
-    for _ in range(25):
+    for _ in range(40):
         p = _sigmoid(base + offset[cols])
         grad = np.bincount(cols, weights=y - p, minlength=size) - offset / RIDGE_TAU ** 2
         info = np.bincount(cols, weights=p * (1.0 - p), minlength=size) + 1.0 / RIDGE_TAU ** 2
@@ -155,32 +182,26 @@ def fit_difficulty(cohort: Cohort) -> Difficulty:
         offset += step
         if float(np.abs(step).max()) < 1e-6:
             break
-    slope = -float(beta[2])
-    if slope <= 0.05:        # harder charts did not go with fewer players beating them: nothing to translate offsets with
-        return Difficulty(slope, {})
-    p = _sigmoid(x @ beta + offset[cols])
+    p = _sigmoid(base + offset[cols])
     info = np.bincount(cols, weights=p * (1.0 - p), minlength=size) + 1.0 / RIDGE_TAU ** 2
-    out: Dict[Key, Tuple[float, float, int, float]] = {}
+    seen = np.maximum(count, 1)
+    rate = np.bincount(cols, weights=y, minlength=size) / seen
+    expected = np.bincount(cols, weights=_sigmoid(base), minlength=size) / seen
+    out: Dict[Key, Tuple[float, float, int, float, float]] = {}
     for i, key in enumerate(cohort.keys):
-        if count[i] < MIN_PLAYERS_DIFFICULTY:
-            continue
-        listed = float(cohort.constants[i])
-        out[key] = (listed - float(offset[i]) / slope, listed, int(count[i]), 1.0 / (slope * float(np.sqrt(info[i]))))
-    return Difficulty(slope, out)
+        if count[i] >= MIN_PLAYERS_DIFFICULTY:
+            out[key] = (float(rate[i]), float(expected[i]), int(count[i]), float(offset[i]), 1.0 / float(np.sqrt(info[i])))
+    return Difficulty(out)
 
 
 def outliers(found: Difficulty, limit: int = LIST_LENGTH) -> Tuple[List[Key], List[Key]]:
-    """The charts that play furthest harder than listed and furthest easier, each biggest shift first.
-
-    A chart only makes a list when its shift is clear of its own error and of ``LIST_MIN_SHIFT``.
-    """
+    """The charts clearly harder than their level and clearly easier, each biggest offset first (see ``lean``)."""
     harder: List[Tuple[float, Key]] = []
     easier: List[Tuple[float, Key]] = []
-    for key, (observed, listed, _n, error) in found.charts.items():
-        shift = observed - listed
-        if abs(shift) < max(LIST_MIN_SHIFT, LIST_Z * error):
-            continue
-        (harder if shift > 0 else easier).append((-abs(shift), key))
+    for key, (rate, expected, _n, offset, error) in found.charts.items():
+        which = lean(rate, expected, offset, error)
+        if which != "same":
+            (harder if which == "harder" else easier).append((-abs(offset), key))
     harder.sort()
     easier.sort()
     return [key for _s, key in harder[:limit]], [key for _s, key in easier[:limit]]
@@ -313,6 +334,6 @@ def compare_judgements(own: Optional[Dict[str, object]], others: List[Dict[str, 
             types.append({"kind": mine["kind"], "per100": mine["per100"], "clean": mine["clean"], "theirPer100": per100, "theirClean": clean})
     if not types:
         return None
-    return {"players": len(others), "types": types,
+    return {"players": len(others), "plays": own["plays"], "types": types,
             "lostPerPlay": own["lostPerPlay"], "theirLostPerPlay": middle([p["lostPerPlay"] for p in others]),
             "lateShare": own["lateShare"], "theirLateShare": middle([p["lateShare"] for p in others if p["lateShare"] is not None])}

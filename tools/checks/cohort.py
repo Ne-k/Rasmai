@@ -11,7 +11,7 @@ from tools.checks import check
 # to line up with what was planted, and nothing that identifies anybody may come out.
 CHARTS = 220
 PLAYERS = 90
-BAR = 0.6        # rank correlation between the observed shifts and the planted offsets the check demands
+BAR = 0.6        # rank correlation between how much harder the charts played than expected and the planted offsets the check demands
 NAMES = [f"Song {i}" for i in range(CHARTS)]
 
 
@@ -124,7 +124,7 @@ def _rank_correlation(a, b):
     return float(np.corrcoef(ranks(a), ranks(b))[0, 1])
 
 
-@check("observed difficulty recovers the planted order of the charts, and a chart few have played stays out and stays near its listed constant")
+@check("observed difficulty recovers the planted order of the charts, and a chart few have played stays out")
 def _recovers():
     from rasmai.bot.state import cohort
     from rasmai.engine.cohort import MIN_PLAYERS_DIFFICULTY
@@ -144,7 +144,7 @@ def _recovers():
         _store(accounts)
         found = {name: cohort.difficulty(index.get(_key(_stored(name))).key) for name in list(NAMES) + list(extra)}
         shown = [name for name in NAMES if found[name]]
-        shift = {name: found[name]["observed"] - found[name]["listed"] for name in shown}
+        shift = {name: found[name]["expected"] - found[name]["rate"] for name in shown}      # positive: cleared less often than expected
         if len(shown) < CHARTS // 2:
             problems.append(f"only {len(shown)} of {CHARTS} charts had enough players to be shown")
         rank = _rank_correlation([shift[n] for n in shown], [delta[NAMES.index(n)] for n in shown])
@@ -152,18 +152,21 @@ def _recovers():
             problems.append(f"observed shifts line up with the planted offsets at rank correlation {rank:.2f}, below {BAR}")
         harder = sum(1 for n in shown if shift[n] > 0)
         if not 0.25 * len(shown) < harder < 0.75 * len(shown):
-            problems.append(f"{harder} of {len(shown)} charts came out harder than listed: the shifts all lean one way")
+            problems.append(f"{harder} of {len(shown)} charts came out harder than their level: the shifts all lean one way")
+        if abs(np.corrcoef([shift[n] for n in shown], [const[NAMES.index(n)] for n in shown])[0, 1]) > 0.3:
+            problems.append("how much harder a chart played than expected follows its listed constant, which is the trend the level bands are there to take out")
         if found["Thin 3"] or found["Edge 11"]:
             problems.append("a chart under the minimum number of players was shown")
         edge = found["Edge 12"]
         if not edge or edge["players"] != MIN_PLAYERS_DIFFICULTY:
             problems.append(f"a chart with exactly the minimum of players was not shown: {edge}")
-        elif not 0 <= edge["observed"] - edge["listed"] < 2.0:
-            problems.append("a thin chart planted two levels harder was not pulled toward its listed constant")
+        elif not edge["rate"] <= edge["expected"]:
+            problems.append("a thin chart planted two levels harder was cleared more often than expected")
         counted, harder_list, easier_list = cohort.outliers()
         if counted != PLAYERS or not harder_list or not easier_list:
             problems.append(f"the harder and easier lists came out {len(harder_list)} and {len(easier_list)} for {counted} players")
-        if (any(row["observed"] <= row["listed"] for row in harder_list) or any(row["observed"] >= row["listed"] for row in easier_list)
+        if (any(row["rate"] >= row["expected"] or row["lean"] != "harder" for row in harder_list)
+                or any(row["rate"] <= row["expected"] or row["lean"] != "easier" for row in easier_list)
                 or any(row["players"] < MIN_PLAYERS_DIFFICULTY for row in harder_list + easier_list)):
             problems.append("a chart is in the wrong one of the harder and easier lists, or has too few players")
     return problems
@@ -379,7 +382,7 @@ def _private():
                 problems.append(f"a payload carries {sorted(full)} and {sorted(hard)}")
             if any(set(pick) != {"title", "chartType", "difficulty", "level", "constant", "cover", "yours", "typical", "neighbours", "average"} for pick in full["picks"]):
                 problems.append("a pick carries something unexpected")
-            if any(set(row) != {"title", "chartType", "difficulty", "level", "listed", "observed", "players", "cover", "average"} for row in hard["harder"] + hard["easier"]):
+            if any(set(row) != {"title", "chartType", "difficulty", "level", "rate", "expected", "lean", "players", "cover", "average"} for row in hard["harder"] + hard["easier"]):
                 problems.append("a chart in the difficulty lists carries something unexpected")
         logged = "\n".join(seen)
         if any(secret in logged for secret in secrets):
@@ -422,7 +425,7 @@ def _judged():
 
     def profile(per100, late=0.5, kinds=("tap", "break")):
         return {"types": [{"kind": k, "per100": per100 + i, "clean": 0.9 - per100 / 10} for i, k in enumerate(kinds)],
-                "lostPerPlay": per100, "lateShare": late}
+                "lostPerPlay": per100, "lateShare": late, "plays": 6}
 
     problems = []
     mine = profile(2.0)
@@ -444,9 +447,15 @@ def _judged():
     viewer = _median_rating(accounts)
     planted = {user: profile(1.0 + n / 50) for n, user in enumerate(ids)}
     kept = route.load_judgements, route.judgement_profile
-    route.load_judgements = lambda user: user      # stands in for the stored pages; the profile lookup below reads the id back
+    # stands in for the stored pages: one clean play and one failed one for everybody, with the account kept on them
+    route.load_judgements = lambda user: [{"achievement": 99.0, "who": user}, {"achievement": 50.0, "who": user}]
+    seen = []
+
+    def profile_of(rows, only=None):
+        seen.append(len(rows))
+        return planted.get(rows[0]["who"]) if rows and (only is None or rows[0]["who"] == only) else None
     try:
-        route.judgement_profile = lambda user: planted.get(user)
+        route.judgement_profile = profile_of
         with _scratch(), _charts(_constants(const)):
             _store(accounts)
             payload = likeyou_payload(get_connected_account(viewer), None)
@@ -457,7 +466,9 @@ def _judged():
                 problems.append("the viewer's own side of the comparison is not their own profile")
             if any(secret in json.dumps(payload) for secret in ids + [user.encode().hex() for user in ids]):
                 problems.append("an account id or tag reached the judgement comparison")
-            route.judgement_profile = lambda user: {viewer: planted[viewer]}.get(user)
+            if not seen or any(n != 1 for n in seen):
+                problems.append("a play under the floor reached the judgement profile")
+            route.judgement_profile = lambda rows: profile_of(rows, only=viewer)
             if likeyou_payload(get_connected_account(viewer), None)["judgements"] is not None:
                 problems.append("with no neighbour holding judgement pages the comparison still appeared")
     finally:
@@ -518,7 +529,7 @@ def _beta_gate():
                 problems.append("the chart detail has no observed key with the switch on")
             elif there[0]["observed"] is None:
                 problems.append("a chart a dozen players have played has no observed difficulty")
-            elif set(there[0]["observed"]) != {"observed", "listed", "players"}:
+            elif set(there[0]["observed"]) != {"rate", "expected", "players", "lean"}:
                 problems.append(f"observed carries {sorted(there[0]['observed'])}")
     finally:
         routes.analysis_for_user = kept

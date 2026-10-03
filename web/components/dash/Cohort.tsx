@@ -147,22 +147,21 @@ function JudgeCompare({ data }: { data: JudgementCompare }) {
       {data.lateShare !== null && data.theirLateShare !== null && (
         <p className="hint">{t("judgeLate", { you: Math.round(data.lateShare * 100), them: Math.round(data.theirLateShare * 100) })}</p>
       )}
-      <p className="hint">{t("judgeNote", { n: data.players })}</p>
+      <p className="hint">{t("judgeNote", { n: data.players, you: data.plays })}</p>
     </section>
   );
 }
 
-/** One chart's observed difficulty beside its listed constant, with which way it leans. */
-export function Observed({ observed, listed, players }: ObservedData) {
+const share = (v: number) => `${Math.round(v * 100)}%`;
+
+/** How often the people who played a chart got an SS, beside how often players of their rating do on its level, and which way that leans. */
+export function Observed({ rate, expected, players, lean }: ObservedData) {
   const t = useTranslations("cohort");
-  const gap = observed - listed;
-  // the lists start at a 0.2 shift too
-  const dir = Math.abs(gap) < 0.2 ? "same" : gap > 0 ? "harder" : "easier";
   return (
     <p className="hint chart-observed" title={t("observedInfo")}>
-      <span className="mono">{t("observed", { observed: observed.toFixed(1), listed: listed.toFixed(1), n: players })}</span>
+      <span className="mono">{t("observed", { rate: share(rate), expected: share(expected), n: players })}</span>
       {" · "}
-      <span className={`cohort-dir ${dir}`}>{t(`dir.${dir}`)}</span>
+      <span className={`cohort-dir ${lean}`}>{t(`dir.${lean}`)}</span>
     </p>
   );
 }
@@ -179,7 +178,8 @@ function Lean({ rows, kind, onOpen }: { rows: ObservedChart[]; kind: "harder" | 
           <thead>
             <tr>
               <th colSpan={2}>{t("chart")}</th>
-              <th className="c-num">{t("listedToObserved")}</th>
+              <th className="c-num">{t("rateCol")}</th>
+              <th className="c-num">{t("expectedCol")}</th>
               <th className="c-num">{t("averageCol")}</th>
               <th className="c-num">{t("playersCol")}</th>
             </tr>
@@ -194,9 +194,10 @@ function Lean({ rows, kind, onOpen }: { rows: ObservedChart[]; kind: "harder" | 
                   <TitleLink title={r.title} type={r.chartType} difficulty={r.difficulty} onOpen={onOpen} />
                   <Chip difficulty={r.difficulty} level={r.level} type={r.chartType} />
                 </td>
-                <td className={`c-num mono cohort-dir ${kind}`} data-l={t("listedToObserved")}>
-                  {r.listed.toFixed(1)} → <b>{r.observed.toFixed(1)}</b>
+                <td className={`c-num mono cohort-dir ${kind}`} data-l={t("rateCol")}>
+                  <b>{share(r.rate)}</b>
                 </td>
+                <td className="c-num mono dim" data-l={t("expectedCol")}>{share(r.expected)}</td>
                 <td className="c-num mono dim" data-l={t("averageCol")}>{r.average === null ? "–" : pct(r.average)}</td>
                 <td className="c-num mono dim" data-l={t("playersCol")}>{r.players}</td>
               </tr>
