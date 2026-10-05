@@ -5,6 +5,7 @@ import asyncio
 import logging
 
 from rasmai.engine.analysis import ChartRef, loose_title
+from rasmai.bot.state import cohort as cohort_state
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_NAMES, _fit
 from rasmai.web.links import chart_url
@@ -91,6 +92,8 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
         except Exception as error:      # the judgement page is a bonus here; the chart page stands without it
             logger.info("last play detail skipped for %s: %s", title, error)
 
+    # how often players clear it, once enough have played it; the first call after a restart builds the cohort, so not on the loop
+    observed = await asyncio.to_thread(cohort_state.observed_line, ref.key)
     embed = discord.Embed(
         title=f"{title}",
         description=f"{ref.artist}\n-# {ref.genre} · {_version_label(cached, ref)}",
@@ -101,7 +104,7 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
         name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
         value=f"const **{ref.constant:.1f}**" + (f" · {ref.notes:,} notes" if ref.notes else "")
               + ("" if ref.intl else " · **Japan only**") + (" · **removed from the game**" if ref.deleted else "")
-              + _note_split(ref) + _chart_credit(ref), inline=False,
+              + _note_split(ref) + _chart_credit(ref) + (f"\n-# {observed}" if observed else ""), inline=False,
     )
     _page_fields(embed, cached, ref, row, play, detail)
     _pattern_field(embed, cached, ref)

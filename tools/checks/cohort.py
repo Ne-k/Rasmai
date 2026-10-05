@@ -1,6 +1,4 @@
 from contextlib import contextmanager
-import json
-import logging
 
 import numpy as np
 
@@ -124,7 +122,7 @@ def _rank_correlation(a, b):
     return float(np.corrcoef(ranks(a), ranks(b))[0, 1])
 
 
-@check("observed difficulty recovers the planted order of the charts, and a chart few have played stays out")
+@check("observed difficulty recovers the planted order of the charts, follows no trend with the listed constant, and keeps a chart few have played out")
 def _recovers():
     from rasmai.bot.state import cohort
     from rasmai.engine.cohort import MIN_PLAYERS_DIFFICULTY
@@ -144,17 +142,17 @@ def _recovers():
         _store(accounts)
         found = {name: cohort.difficulty(index.get(_key(_stored(name))).key) for name in list(NAMES) + list(extra)}
         shown = [name for name in NAMES if found[name]]
-        shift = {name: found[name]["expected"] - found[name]["rate"] for name in shown}      # positive: cleared less often than expected
+        harder_by = {name: found[name]["expected"] - found[name]["rate"] for name in shown}      # positive: cleared less often than expected
         if len(shown) < CHARTS // 2:
             problems.append(f"only {len(shown)} of {CHARTS} charts had enough players to be shown")
-        rank = _rank_correlation([shift[n] for n in shown], [delta[NAMES.index(n)] for n in shown])
+        rank = _rank_correlation([harder_by[n] for n in shown], [delta[NAMES.index(n)] for n in shown])
         if not rank >= BAR:
-            problems.append(f"observed shifts line up with the planted offsets at rank correlation {rank:.2f}, below {BAR}")
-        harder = sum(1 for n in shown if shift[n] > 0)
+            problems.append(f"charts line up with the planted offsets at rank correlation {rank:.2f}, below {BAR}")
+        harder = sum(1 for n in shown if harder_by[n] > 0)
         if not 0.25 * len(shown) < harder < 0.75 * len(shown):
             problems.append(f"{harder} of {len(shown)} charts came out harder than their level: the shifts all lean one way")
-        if abs(np.corrcoef([shift[n] for n in shown], [const[NAMES.index(n)] for n in shown])[0, 1]) > 0.3:
-            problems.append("how much harder a chart played than expected follows its listed constant, which is the trend the level bands are there to take out")
+        if abs(np.corrcoef([harder_by[n] for n in shown], [const[NAMES.index(n)] for n in shown])[0, 1]) > 0.3:
+            problems.append("how much harder a chart played than expected follows its listed constant, which the level bands are there to take out")
         if found["Thin 3"] or found["Edge 11"]:
             problems.append("a chart under the minimum number of players was shown")
         edge = found["Edge 12"]
@@ -162,13 +160,8 @@ def _recovers():
             problems.append(f"a chart with exactly the minimum of players was not shown: {edge}")
         elif not edge["rate"] <= edge["expected"]:
             problems.append("a thin chart planted two levels harder was cleared more often than expected")
-        counted, harder_list, easier_list = cohort.outliers()
-        if counted != PLAYERS or not harder_list or not easier_list:
-            problems.append(f"the harder and easier lists came out {len(harder_list)} and {len(easier_list)} for {counted} players")
-        if (any(row["rate"] >= row["expected"] or row["lean"] != "harder" for row in harder_list)
-                or any(row["rate"] <= row["expected"] or row["lean"] != "easier" for row in easier_list)
-                or any(row["players"] < MIN_PLAYERS_DIFFICULTY for row in harder_list + easier_list)):
-            problems.append("a chart is in the wrong one of the harder and easier lists, or has too few players")
+        if {row["lean"] for row in found.values() if row} - {"harder", "easier", "same"}:
+            problems.append("a chart's lean is not one of harder, easier or same")
     return problems
 
 
@@ -190,158 +183,63 @@ def _deterministic():
     return [] if same and model.fit_difficulty(b).charts == held.found.charts else ["the order the accounts arrive in changes the cohort or its fit"]
 
 
-@check("an account that opts out changes nobody's result, still gets its own picks, and leaves the counted players at once")
+@check("an account that opts out changes nobody's numbers and leaves the counted players at once, and the opt-out is a setting that survives other changes")
 def _optout():
     from rasmai.bot.state import cohort
-    from rasmai.storage.db import get_connected_account
-    from rasmai.web.dashboard.cohort import difficulty_payload, likeyou_payload
+    from rasmai.storage.db import get_user_settings, upsert_connected_account
+    from rasmai.web.dashboard.beta import set_beta, wants
     from rasmai.web.dashboard.public_profile import set_sharing, sharing_payload
 
     problems = []
     const, _delta, accounts, _rng = _world(seed=5, players=PLAYERS + 1)
     ids = sorted(accounts)
     leaver = ids[-1]
-    viewer = _median_rating(accounts, exclude=leaver)
-
-    def answers():
-        return likeyou_payload(get_connected_account(viewer), None), difficulty_payload(None)
-
-    with _scratch(), _charts(_constants(const)):
+    with _scratch(), _charts(_constants(const)) as index:
+        keys = [index.get(_key(_stored(name))).key for name in NAMES]
         _store(accounts, optout=(leaver,))
         if cohort.players() != PLAYERS:
             problems.append(f"{cohort.players()} players counted with one opted out from the start, expected {PLAYERS}")
-        expected = answers()
-        # the account that opted out is still answered, from its own scores as they are now
-        mine = likeyou_payload(get_connected_account(leaver), None)
-        if mine["reason"] != "" or not mine["picks"]:
-            problems.append(f"an opted-out account got no picks of its own: {mine['reason']!r}, {len(mine['picks'])} picks")
-
-    # an account that opted out is as good as absent: everyone else's result is what it is with the account never stored
-    with _scratch(), _charts(_constants(const)):
+        expected = [cohort.difficulty(key) for key in keys]
+    # an account that opted out is as good as absent: everyone's numbers are what they are with the account never stored
+    with _scratch(), _charts(_constants(const)) as index:
         _store({user: accounts[user] for user in ids[:-1]})
-        if answers() != expected:
-            problems.append("an opted-out account's scores changed somebody else's result")
-
-    # the same account leaving later, while it is counted: gone from what is held at once, and the fit is redone without it
+        if [cohort.difficulty(index.get(_key(_stored(name))).key) for name in NAMES] != expected:
+            problems.append("an opted-out account's scores changed somebody's numbers")
+    # the same account leaving later, while it is counted: gone from what is held at once
     with _scratch(), _charts(_constants(const)):
         _store(accounts)
         if cohort.players() != PLAYERS + 1:
             problems.append("an account that has not opted out was not counted")
         set_sharing(leaver, None, cohort=False)
-        held = cohort._built
-        if held.cohort.players != PLAYERS or held.found.charts:
-            problems.append("what was held still had the account's row, or the difficulty fitted with its scores, after it left")
+        if cohort._built.cohort.players != PLAYERS or cohort._built.found.charts:
+            problems.append("what was held still had the account's row, or the fit made with its scores, after it left")
         if cohort.players() != PLAYERS:
             problems.append(f"switching the opt-out on left {cohort.players()} counted, expected {PLAYERS}")
-        if answers() != expected:
-            problems.append("somebody's result depends on whether the account left before the build or after it")
-        if sharing_payload(leaver, None)["cohort"] is not False:
-            problems.append("the opt-out does not read back from the sharing state")
-    return problems
-
-
-@check("the opt-out is a setting of its own that survives other changes to the settings, and the beta switches survive it")
-def _setting():
-    from rasmai.storage.db import get_user_settings, upsert_connected_account
-    from rasmai.web.dashboard.beta import set_beta, wants
-    from rasmai.web.dashboard.public_profile import set_sharing, sharing_payload
-
-    problems = []
     with _scratch():
         user = _id(1)
         upsert_connected_account(user, "intl", "cookie://" + "a" * 64, {"name": "Player", "rating": 12000})
         if sharing_payload(user, None).get("cohort") is not True:
             problems.append("a person who never chose is not counted by default")
-        set_beta(user, {"likeyou": True, "difficulty": True})
+        set_beta(user, {"patterns": True})
         if set_sharing(user, None, cohort=False).get("cohort") is not False:
             problems.append("switching the opt-out on does not show in the state it returns")
         set_sharing(user, True, {"best50": True}, account={"shareSlug": "abcdefghij"})
         if sharing_payload(user, None).get("cohort") is not False:
             problems.append("changing another sharing setting put the person back in the count")
-        if not (wants(user, "likeyou") and wants(user, "difficulty")):
-            problems.append("changing a sharing setting switched the beta features off")
+        if not wants(user, "patterns"):
+            problems.append("changing a sharing setting switched a beta feature off")
         if set_sharing(user, None, cohort=True).get("cohort") is not True or get_user_settings(user).get("cohort") is not True:
             problems.append("the opt-out did not turn back off")
         if set_sharing(user, None).get("cohort") is not True:
             problems.append("a request that does not mention it changed the opt-out")
-        keys = set(sharing_payload(user, None))
-        if "cohort" not in keys or {"on", "url", "sections", "card", "embed", "colour", "colours", "visual", "visuals"} - keys:
-            problems.append(f"the sharing state lost a key or did not gain cohort: {sorted(keys)}")
     return problems
 
 
-@check("neighbours never include the viewer, whose own row is left out, and the closest player to an identical record is its twin")
-def _not_self():
-    from rasmai.engine import cohort as model
-
-    problems = []
-    const, _delta, accounts, _rng = _world(seed=7, players=50)
-    constants, everyone = _model_input(const, accounts)
-    tag, rating, own = everyone[sorted(accounts).index(_median_rating(accounts))]
-    with_twin = model.build_cohort(everyone + [(b"twin", rating, own)], constants)
-    dense = np.array([own.get(name, np.nan) for name in with_twin.keys])
-    others = with_twin.without(tag)
-    if tag in others.tags or others.players != with_twin.players - 1:
-        problems.append("the viewer's own row was not taken out")
-    order = model._neighbours(others, dense, rating)
-    if not len(order) or others.tags[order[0]] != b"twin":
-        problems.append("the closest player to an identical record was not its twin")
-    if tag in [others.tags[i] for i in order]:
-        problems.append("the viewer was among their own neighbours")
-    mine = model.like_you(with_twin, own, rating, tag)
-    left = model.like_you(model.build_cohort([row for row in everyone if row[0] != tag] + [(b"twin", rating, own)], constants), own, rating)
-    if mine.picks != left.picks or mine.neighbours != left.neighbours:
-        problems.append("the viewer's own row changed their result")
-    return problems
-
-
-@check("players like you offers charts the person has no top score on and can reach, from the minimum of players, and says nothing otherwise")
-def _picks_and_minimums():
-    from rasmai.engine import cohort as model
-
-    problems = []
-    const, _delta, accounts, _rng = _world(seed=9)
-    constants, everyone = _model_input(const, accounts)
-    viewer = sorted(accounts).index(_median_rating(accounts))
-    rating, own = everyone[viewer][1], everyone[viewer][2]
-    others = [row for i, row in enumerate(everyone) if i != viewer]
-    result = model.like_you(model.build_cohort(others, constants), own, rating)
-    if result.reason or not result.picks or result.neighbours < model.MIN_NEIGHBOURS:
-        problems.append(f"no picks for a viewer with a full cohort: {result.reason!r}, {result.neighbours} neighbours")
-    reach = max(constants[k] for k, v in own.items() if v >= 97.0)
-    for pick in result.picks:
-        if pick["yours"] is not None and pick["typical"] - pick["yours"] < model.MIN_GAP:
-            problems.append("a pick the person already scores as well on was offered")
-        if pick["constant"] > reach + model.REACH_ABOVE + 1e-9:
-            problems.append(f"a pick at {pick['constant']} is above the viewer's reach of {reach}")
-        if not model.MIN_CHART_NEIGHBOURS <= pick["neighbours"] <= model.K_NEIGHBOURS:
-            problems.append(f"a pick rests on {pick['neighbours']} neighbours")
-        if pick["typical"] < model.SCORES_WELL:
-            problems.append("a pick's typical score is not a good one")
-    if len(result.picks) > model.PICKS:
-        problems.append(f"{len(result.picks)} picks, expected at most {model.PICKS}")
-    if not any(pick["yours"] is None for pick in result.picks):
-        problems.append("every pick was a chart the person has played: unplayed charts never came up")
-
-    # fewer players than the minimum shows nothing, a viewer with too few scores is told so, and nobody in the rating window means nobody like them
-    small = model.like_you(model.build_cohort(others[:model.MIN_COHORT - 1], constants), own, rating)
-    if small.picks or small.reason != "not_enough_players":
-        problems.append(f"a cohort under the minimum still produced {len(small.picks)} picks ({small.reason!r})")
-    full = model.build_cohort(others, constants)
-    if model.like_you(full, dict(list(own.items())[:model.MIN_SHARED - 1]), rating).reason != "not_enough_scores":
-        problems.append("a viewer with fewer than the minimum of scores was not told so")
-    far = model.like_you(full, own, rating + 10 * model.RATING_WINDOW)
-    if far.picks or far.reason != "not_enough_players" or far.neighbours:
-        problems.append("players outside the rating window were counted as neighbours")
-    return problems
-
-
-@check("the cache shows nothing below the minimum cohort, and nothing it shows names anybody")
-def _private():
+@check("a chart's line shows how many players, the clear rate and the expected one, names nobody, and is empty below the minimum of players")
+def _line():
+    import logging
     from rasmai.bot.state import cohort
-    from rasmai.engine.cohort import MIN_COHORT
-    from rasmai.storage.db import get_connected_account
-    from rasmai.web.dashboard.cohort import difficulty_payload, likeyou_payload
+    from rasmai.engine.cohort import MIN_COHORT, MIN_PLAYERS_DIFFICULTY
 
     problems = []
     const, _delta, accounts, _rng = _world(seed=13)
@@ -357,180 +255,32 @@ def _private():
     previous = root.level
     root.setLevel(logging.DEBUG)
     try:
-        with _scratch(), _charts(_constants(const)):
+        with _scratch(), _charts(_constants(const)) as index:
+            keys = [index.get(_key(_stored(name))).key for name in NAMES]
             _store({user: accounts[user] for user in ids[:MIN_COHORT - 1]})
-            viewer = ids[0]
-            payload = likeyou_payload(get_connected_account(viewer), None)
-            if payload["ready"] or payload["picks"] or payload["players"] != MIN_COHORT - 1:
-                problems.append(f"under the minimum cohort the picks said ready={payload['ready']} with {len(payload['picks'])} picks")
-            hard = difficulty_payload(None)
-            if hard["ready"] or hard["harder"] or hard["easier"]:
-                problems.append("under the minimum cohort the difficulty lists were not empty")
-
+            if any(cohort.observed_line(key) or cohort.difficulty(key) for key in keys):
+                problems.append("under the minimum cohort a chart still got a line")
             _store({user: accounts[user] for user in ids[MIN_COHORT - 1:]})
             cohort.reset()
-            full = likeyou_payload(get_connected_account(viewer), None)
-            hard = difficulty_payload(None)
-            serialised = json.dumps([full, hard], ensure_ascii=False)
-            if not full["ready"] or not full["picks"]:
-                problems.append(f"a full cohort gave no picks: {full['reason']!r}")
-            # an account's tag is its id, so the id and its bytes are what must not come out
+            lines = {key: cohort.observed_line(key) for key in keys}
+            rows = {key: cohort.difficulty(key) for key in keys}
+            shown = [key for key in keys if rows[key]]
+            if not shown:
+                problems.append("a full cohort gave no chart a line")
+            for key in shown:
+                row, line = rows[key], lines[key]
+                if set(row) != {"rate", "expected", "players", "lean"} or row["players"] < MIN_PLAYERS_DIFFICULTY or not 0 <= row["rate"] <= 1 or not 0 <= row["expected"] <= 1:
+                    problems.append(f"a chart's numbers are {row}")
+                if f"of {row['players']} players" not in line or f"{row['rate']:.0%}" not in line or "not hard data" not in line:
+                    problems.append(f"a chart's line reads {line!r}")
+            if any(lines[key] for key in keys if not rows[key]):
+                problems.append("a chart with no numbers still got a line")
             secrets = ids + [user.encode().hex() for user in ids]
-            if any(secret in serialised for secret in secrets + [str(accounts[user][0]) + '"' for user in ids[:5]]):
-                problems.append("an account id or tag reached a payload")
-            if set(full) != {"ok", "ready", "players", "picks", "reason", "judgements"} or set(hard) != {"ok", "ready", "players", "harder", "easier"}:
-                problems.append(f"a payload carries {sorted(full)} and {sorted(hard)}")
-            if any(set(pick) != {"title", "chartType", "difficulty", "level", "constant", "cover", "yours", "typical", "neighbours", "average"} for pick in full["picks"]):
-                problems.append("a pick carries something unexpected")
-            if any(set(row) != {"title", "chartType", "difficulty", "level", "rate", "expected", "lean", "players", "cover", "average"} for row in hard["harder"] + hard["easier"]):
-                problems.append("a chart in the difficulty lists carries something unexpected")
-        logged = "\n".join(seen)
-        if any(secret in logged for secret in secrets):
+            if any(secret in "".join(lines.values()) + str(rows) for secret in secrets):
+                problems.append("an account id or tag reached a chart's line")
+        if any(secret in "\n".join(seen) for secret in secrets):
             problems.append("an account id or tag was logged")
     finally:
         root.removeHandler(handler)
         root.setLevel(previous)
-    return problems
-
-
-@check("a chart's average is the median of everyone's best on it, and absent below the minimum of players")
-def _means():
-    from rasmai.bot.state import cohort
-    from rasmai.engine.cohort import MIN_AVERAGE
-
-    problems = []
-    const, _delta, accounts, _rng = _world(seed=13)
-    with _scratch(), _charts(_constants(const)) as index:
-        _store(accounts)
-        cohort._held()
-        for name in NAMES:
-            scores = [s[_stored(name)] for _rating, s in accounts.values() if _stored(name) in s]
-            got = cohort.average(index.get(_key(_stored(name))).key)
-            if len(scores) >= MIN_AVERAGE:
-                if got is None or abs(got - float(np.median(scores))) > 1e-3:
-                    problems.append(f"{name}: {len(scores)} players, average {got}, expected {float(np.median(scores)):.3f}")
-            elif got is not None:
-                problems.append(f"{name}: {len(scores)} players but an average was shown")
-        if not any(cohort.average(index.get(_key(_stored(name))).key) is not None for name in NAMES):
-            problems.append("no chart had an average")
-    return problems
-
-
-@check("your judgements are set beside the middle of the players like you, only from five of them, and nobody's own profile or id comes out")
-def _judged():
-    from rasmai.engine.cohort import K_NEIGHBOURS, MIN_JUDGED, compare_judgements
-    from rasmai.storage.db import get_connected_account
-    from rasmai.web.dashboard import cohort as route
-    from rasmai.web.dashboard.cohort import likeyou_payload
-
-    def profile(per100, late=0.5, kinds=("tap", "break")):
-        return {"types": [{"kind": k, "per100": per100 + i, "clean": 0.9 - per100 / 10} for i, k in enumerate(kinds)],
-                "lostPerPlay": per100, "lateShare": late, "plays": 6}
-
-    problems = []
-    mine = profile(2.0)
-    crowd = [profile(1.0 + i / 10, late=0.4 + i / 10) for i in range(MIN_JUDGED)]
-    got = compare_judgements(mine, crowd)
-    if got is None or got["players"] != MIN_JUDGED or [t["kind"] for t in got["types"]] != ["tap", "break"]:
-        problems.append(f"five neighbours with a profile gave {got}")
-    elif abs(got["types"][0]["theirPer100"] - 1.2) > 1e-9 or abs(got["types"][1]["theirPer100"] - 2.2) > 1e-9             or abs(got["theirLostPerPlay"] - 1.2) > 1e-9 or abs(got["theirLateShare"] - 0.6) > 1e-9:
-        problems.append(f"the middle of five planted profiles came out as {got}")
-    if compare_judgements(mine, crowd[:-1]) is not None or compare_judgements(None, crowd) is not None:
-        problems.append("fewer than five neighbours, or nobody's own profile, still gave a comparison")
-    if [t["kind"] for t in compare_judgements(mine, crowd[:-1] + [profile(1.0, kinds=("tap",))])["types"]] != ["tap"]:
-        problems.append("a note type only four neighbours have was shown")
-    if compare_judgements(mine, crowd[:-1] + [profile(1.0, late=None)])["theirLateShare"] is not None:
-        problems.append("a timing split only four neighbours have was shown")
-
-    const, _delta, accounts, _rng = _world(seed=13)
-    ids = sorted(accounts)
-    viewer = _median_rating(accounts)
-    planted = {user: profile(1.0 + n / 50) for n, user in enumerate(ids)}
-    kept = route.load_judgements, route.judgement_profile
-    # stands in for the stored pages: one clean play and one failed one for everybody, with the account kept on them
-    route.load_judgements = lambda user: [{"achievement": 99.0, "who": user}, {"achievement": 50.0, "who": user}]
-    seen = []
-
-    def profile_of(rows, only=None):
-        seen.append(len(rows))
-        return planted.get(rows[0]["who"]) if rows and (only is None or rows[0]["who"] == only) else None
-    try:
-        route.judgement_profile = profile_of
-        with _scratch(), _charts(_constants(const)):
-            _store(accounts)
-            payload = likeyou_payload(get_connected_account(viewer), None)
-            there = payload["judgements"]
-            if there is None or not MIN_JUDGED <= there["players"] <= K_NEIGHBOURS:
-                problems.append(f"a full cohort gave the viewer {there and there['players']} neighbours' judgements")
-            elif there["lostPerPlay"] != planted[viewer]["lostPerPlay"]:
-                problems.append("the viewer's own side of the comparison is not their own profile")
-            if any(secret in json.dumps(payload) for secret in ids + [user.encode().hex() for user in ids]):
-                problems.append("an account id or tag reached the judgement comparison")
-            if not seen or any(n != 1 for n in seen):
-                problems.append("a play under the floor reached the judgement profile")
-            route.judgement_profile = lambda rows: profile_of(rows, only=viewer)
-            if likeyou_payload(get_connected_account(viewer), None)["judgements"] is not None:
-                problems.append("with no neighbour holding judgement pages the comparison still appeared")
-    finally:
-        route.load_judgements, route.judgement_profile = kept
-    return problems
-
-
-@check("with a beta switched off the routes answer 404 not_enabled and the chart detail has no observed key; switched on, both answer")
-def _beta_gate():
-    from rasmai.bot.state.cache import CachedAnalysis
-    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
-    from rasmai.storage.models import SongInfo
-    from rasmai.web.dashboard import routes
-    from rasmai.web.dashboard.beta import set_beta
-    from rasmai.web.dashboard.lookup import chart_payload
-
-    class Fake:
-        def __init__(self):
-            self.sent = []
-
-        def _send_json(self, status, body):
-            self.sent.append((status, body))
-
-    def ask(path, user):
-        handler = Fake()
-        routes.handle_get(handler, path, {}, {"id": user})
-        return handler.sent[0]
-
-    problems = []
-    const, _delta, accounts, _rng = _world(seed=17)
-    viewer = sorted(accounts)[40]
-    kept = routes.analysis_for_user
-    routes.analysis_for_user = lambda *args, **kwargs: None
-    try:
-        with _scratch(), _charts(_constants(const)) as index:
-            _store(accounts)
-            analyzer = MaimaiRatingAnalyzer()
-            analyzer._chart_index = index
-            analyzer.songs = [SongInfo(name=NAMES[3].replace(" ", ""), chart_type="dx", difficulty_type="master", accuracy=99.0, level="13")]
-            cached = CachedAnalysis(user_id=viewer, region="intl", analyzer=analyzer, recommendations=[], value_charts=[])
-            for path in ("/internal/me/likeyou", "/internal/me/difficulty"):
-                status, body = ask(path, viewer)
-                if status != 404 or body != {"ok": False, "error": "not_enabled"}:
-                    problems.append(f"{path} answered {status} {body} with the switch off")
-            if any("observed" in chart for chart in chart_payload(cached, NAMES[3], "dx", "master")["charts"]):
-                problems.append("the chart detail carries observed with the switch off")
-            if (status := ask("/internal/me/likeyou", "999999999999999999")[0]) != 404:
-                problems.append(f"somebody without an account was answered {status}")
-
-            set_beta(viewer, {"likeyou": True, "difficulty": True})
-            for path, keys in (("/internal/me/likeyou", {"picks"}), ("/internal/me/difficulty", {"harder", "easier"})):
-                status, body = ask(path, viewer)
-                if status != 200 or not body.get("ok") or not keys <= set(body):
-                    problems.append(f"{path} answered {status} {sorted(body)} with the switch on")
-            charts = chart_payload(cached, NAMES[3], "dx", "master")["charts"]
-            there = [chart for chart in charts if "observed" in chart]
-            if len(there) != len(charts):
-                problems.append("the chart detail has no observed key with the switch on")
-            elif there[0]["observed"] is None:
-                problems.append("a chart a dozen players have played has no observed difficulty")
-            elif set(there[0]["observed"]) != {"rate", "expected", "players", "lean"}:
-                problems.append(f"observed carries {sorted(there[0]['observed'])}")
-    finally:
-        routes.analysis_for_user = kept
     return problems

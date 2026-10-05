@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Tuple
 import logging
 import threading
 import time
 
 from rasmai.engine import cohort as model
-from rasmai.engine.cohort import Cohort, Difficulty, Key, LikeYou
+from rasmai.engine.cohort import Cohort, Difficulty, Key
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ class _Built:
     cohort: Cohort
     found: Difficulty
     at: float
-    medians: Dict[Key, float] = field(default_factory=dict)
 
 
 _lock = threading.Lock()
@@ -64,7 +63,7 @@ def _build() -> _Built:
     cohort = model.build_cohort(((str(user_id).encode(), rating, best(raw)) for user_id, rating, raw in cohort_accounts()), constants)
     found = model.fit_difficulty(cohort)
     logger.info("cohort built: %d players, %d charts with enough players, %.1fs", cohort.players, len(found.charts), time.monotonic() - started)
-    return _Built(cohort, found, time.monotonic(), model.chart_medians(cohort))
+    return _Built(cohort, found, time.monotonic())
 
 
 def _due() -> bool:
@@ -106,40 +105,17 @@ def difficulty(key: Key) -> Optional[Dict[str, Any]]:
     return _row(built, key)
 
 
-def outliers() -> Tuple[int, List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """The cohort's size, then the charts furthest harder than listed and furthest easier."""
-    built = _held()
-    if built is None:
-        return 0, [], []
-    if built.cohort.players < model.MIN_COHORT:
-        return built.cohort.players, [], []
-    harder, easier = model.outliers(built.found)
-    return built.cohort.players, [{"key": k, **_row(built, k), "average": built.medians.get(k)} for k in harder],         [{"key": k, **_row(built, k), "average": built.medians.get(k)} for k in easier]
+def observed_line(key: Key) -> str:
+    """The sentence a chart gets in the bot, or ``""`` when too few players have played it.
 
-
-def average(key: Key) -> Optional[float]:
-    """The median best score on a chart across the cohort, or ``None`` when too few players have one."""
-    built = _held()
-    return built.medians.get(key) if built is not None and built.cohort.players >= model.MIN_COHORT else None
-
-
-def own_scores(user_id: str) -> Dict[Key, float]:
-    """This person's own best scores, read from the database now."""
-    from rasmai.storage.db import best_recorded_scores
-    return _resolver()[0](best_recorded_scores(user_id))
-
-
-def like_you(user_id: str, rating: float, reach: Optional[float] = None,
-             expected: Optional[Callable[[Key, float], Optional[float]]] = None,
-             wanted: Optional[Callable[[Key, float], bool]] = None) -> Tuple[int, Optional[LikeYou]]:
-    """The cohort's size and what players like this person score well on, from their own scores as they are now.
-
-    Their own row is left out, and they are answered whether or not they are counted. ``None`` when there is no cohort yet.
+    The site draws the same numbers in its own words, with the same caution beside them.
     """
-    built = _held()
-    if built is None:
-        return 0, None
-    return built.cohort.players, model.like_you(built.cohort, own_scores(user_id), rating, str(user_id).encode(), reach, expected, wanted)
+    row = difficulty(key)
+    if row is None:
+        return ""
+    where = {"harder": "harder than its level", "easier": "easier than its level"}.get(row["lean"], "about its level")
+    return (f"SS or better by {row['rate']:.0%} of {row['players']} players, {row['expected']:.0%} expected for its level · {where}"
+            " · rough guide, not hard data")
 
 
 def drop(user_id: str) -> None:

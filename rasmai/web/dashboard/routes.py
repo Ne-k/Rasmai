@@ -23,16 +23,14 @@ from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 from rasmai.web.dashboard.imports import import_kamaitachi, import_payload
 from rasmai.storage.db import VERDICTS, set_beta_feedback
-from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta, wants
-from rasmai.web.dashboard.cohort import difficulty_payload, likeyou_payload
+from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
 from rasmai.web.dashboard.public_profile import set_sharing
 
 logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
-ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles",
-                             "/internal/me/difficulty")
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -129,13 +127,6 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         return True
     if path == "/internal/me/areas":
         handler._send_json(200, areas_payload(user["id"], account, cached))
-        return True
-    if path in ("/internal/me/likeyou", "/internal/me/difficulty"):
-        # beta features: answered only to somebody who switched them on, and as if they were not there to anyone else
-        if not wants(user["id"], path.rsplit("/", 1)[1]):
-            handler._send_json(404, {"ok": False, "error": "not_enabled"})
-            return True
-        handler._send_json(200, likeyou_payload(account, cached) if path.endswith("likeyou") else difficulty_payload(cached))
         return True
     if path == "/internal/me/search":
         handler._send_json(200, {"songs": search_payload(cached, (query.get("q") or [""])[0][:80])})

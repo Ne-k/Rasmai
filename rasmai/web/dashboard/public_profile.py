@@ -75,7 +75,7 @@ def sharing_payload(user_id: str, account: Optional[Dict[str, Any]]) -> Dict[str
         "visuals": [{"key": name, "needs": VISUAL_NEEDS.get(name, ""),
                      "ready": not VISUAL_NEEDS.get(name) or bool(prefs.get(f"public_{VISUAL_NEEDS[name]}"))}
                     for name in CARD_VISUALS],
-        # whether the person's best scores count toward the anonymous statistics behind the beta features; on unless switched off
+        # whether the person's best scores count toward the anonymous statistics behind a chart's clear rate; on unless switched off
         "cohort": get_user_settings(user_id).get("cohort") is not False,
     }
 

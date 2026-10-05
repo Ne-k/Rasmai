@@ -31,7 +31,6 @@
     "tabs": {
       "overview": "Overview",
       "picks": "What to play",
-      "players": "Players",
       "new": "New charts",
       "traits": "Traits",
       "best50": "Best 50",
@@ -566,7 +565,7 @@
     },
     "cohort": {
       "title": "Count my scores in anonymous statistics",
-      "hint": "Your best scores, rating and judgement pages are counted with everyone else's, anonymously, for the beta features. Others only see totals. Turn it off and you're left out of the next count."
+      "hint": "Your best scores and rating are counted with everyone else's, anonymously, to work out how often players clear each chart. Others only see totals. Turn it off and you're left out of the next count."
     }
   },
   "embedCard": {
@@ -1056,7 +1055,7 @@
           "i12": "<b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, and opt-ins that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below), a daily read of your recent-plays page (below) and a Discord message about what that read found. With the compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai except the anonymous totals described above, which never show who is in them and which you can leave with the <b>Count my scores in anonymous statistics</b> switch.",
           "i13": "<b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a day.",
           "i07b": "<b>Scores imported from Kamaitachi.</b> If you use the dashboard's <b>import from Kamaitachi</b> box, the username you type is sent to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores. Nothing else about you is sent. What Rasmai stores is the same as for any imported scores: the bests and plays are recorded in your history and deleted with your account. The username itself is not kept.",
-          "i06b": "<b>Anonymous statistics.</b> Your best score on each chart and your rating are counted together with every other linked account's to build two beta features: charts that players with a record like yours score well on, and how often the people who play a chart get an SS compared with players of their rating on charts of the same level. Players like you also reads the judgement pages of the players it picks, one profile each. The same switch covers them. This is on for every linked account, whether or not you use those features, unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. It is not a separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. What is shown is only totals: how many players it drew on, typical scores among players like you, the typical score of everyone who has played a chart once at least 5 have, and from their judgement pages, the middle of the points each note type costs them, how often they hit clean and how often late. That needs at least 5 of them to have pages. It never shows a name, an account ID or any one person's score, and nothing at all for a group too small to hide who is in it. It changes no recommendation, plan or rating, and is shown beside them. Switching it off only stops your scores counting toward other people's results: the features still work for you if you turn them on."
+          "i06b": "<b>Anonymous statistics.</b> Your best score on each chart and your rating are counted together with every other linked account's to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. It is not a separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. What is shown, on a chart's page on the site and in the bot, is only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. It never shows a name, an account ID or any one person's score, and nothing at all for a chart too few players have played to hide who they are. It changes no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results."
         },
         "p02": "Scores are read when you run a command, press the read-now button on the dashboard, or, if you turned on <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key (for a Japan account, your stored SEGA ID) and loads only the recent-plays page, so plays aren't lost between commands. <code>/settings</code> shows when it last ran and how many plays it found."
       },
@@ -1156,7 +1155,7 @@
           "i01": "If you turn on a public profile, <code>/compare</code> or <code>/leaderboard</code>, you choose what other people can see. Anyone with your profile link can see it, so only share the link with people you are happy to show it to.",
           "i02": "Beta feedback you send is kept with your account and read by the operator to improve Rasmai. Keep notes free of anything you would not want read.",
           "i03": "A file you download for Kamaitachi is yours to do with as you like. Once you upload it to Kamaitachi, or import a Kamaitachi profile into Rasmai, that service's own rules apply to its side. Only import a profile you are entitled to use.",
-          "i04": "Unless you switch off <b>Count my scores in anonymous statistics</b> on the dashboard, your best scores, rating and judgement pages are counted, without your name, with other players' to build Rasmai's beta features. Other people see only totals from them, never your scores or who you are. The <privacy>privacy page</privacy> says exactly what is used and shown."
+          "i04": "Unless you switch off <b>Count my scores in anonymous statistics</b> on the dashboard, your best scores and rating are counted, without your name, with other players' to work out how often charts get cleared. Other people see only totals from them, never your scores or who you are. The <privacy>privacy page</privacy> says exactly what is used and shown."
         }
       },
       "fairUse": {
@@ -1170,7 +1169,7 @@
       "noGuarantees": {
         "title": "No guarantees",
         "u01": {
-          "i01": "<b>Recommendations are estimates.</b> Rating maths follows the game's public formula, but chart constants come from a community database and may lag behind or differ from your region. Odds and targets are predictions based on your own history and aren't guaranteed. The beta features that compare you with other players are for interest only: they reflect only the players who chose to play a chart.",
+          "i01": "<b>Recommendations are estimates.</b> Rating maths follows the game's public formula, but chart constants come from a community database and may lag behind or differ from your region. Odds and targets are predictions based on your own history and aren't guaranteed. The clear rates shown on a chart's page are for interest only: they reflect only the players who chose to play that chart.",
           "i02": "<b>The service is provided as is</b>, with no warranty of any kind. It may be unavailable, change, or stop at any time, including if maimai DX NET changes in a way that breaks it.",
           "i03": "<b>Liability is limited</b> to the fullest extent the law allows. The operator is not liable for any loss arising from use of, or inability to use, the bot or site, including anything that happens to your SEGA account."
         }
@@ -1645,50 +1644,12 @@
     "unreachable": "Kamaitachi didn't give a usable answer. Try again in a few minutes."
   },
   "cohort": {
-    "chart": "Chart",
-    "likeTitle": "players like you",
-    "likeInfo": "Charts that players with scores close to yours do well on, and you haven't played or score lower on. It only shows them. It doesn't change your picks. Everyone's best scores count anonymously. To opt out, switch off \"Count my scores in anonymous statistics\" on the Account tab.",
-    "counted": "Counted from the best scores of {n, plural, one {# anonymous player} other {# anonymous players}}.",
-    "findingLike": "Finding players like you…",
-    "thePlayers": "players like you",
-    "thinPlayers": "Not enough players yet. {n, plural, =0 {No one is} one {# player is} other {# players are}} counted so far.",
-    "thinScores": "Not enough scores of yours yet. Play more charts so it can find players like you.",
-    "nothingLike": "Nothing stands out right now. Players like you don't clearly beat you on the charts in your reach.",
-    "likeYouCol": "Like you",
-    "averageCol": "All players",
-    "yoursCol": "Your best",
-    "notPlayed": "not played yet",
-    "similar": "{n, plural, one {# similar player} other {# similar players}}",
-    "diffTitle": "harder and easier than their level",
-    "diffInfo": "How often the people who played a chart got an SS or better (99%+), next to how often players of their rating do on charts of the same level and type. A chart is listed when the gap is clear. Only people who chose to play a chart count, so a chart that suits its players can look easier than it is. Everyone's best scores count anonymously. To opt out, switch off \"Count my scores in anonymous statistics\" on the Account tab.",
-    "show": "show",
-    "hide": "hide",
-    "theDifficulty": "observed difficulty",
-    "findingDiff": "Finding the charts that differ most…",
-    "diffNote": "Counted from the best scores of {n, plural, one {# anonymous player} other {# anonymous players}}. Only charts with enough players are listed.",
-    "harderTitle": "cleared less often than their level",
-    "easierTitle": "cleared more often than their level",
-    "harderNone": "No chart with enough players is clearly harder than its level yet.",
-    "easierNone": "No chart with enough players is clearly easier than its level yet.",
-    "playersCol": "Players",
     "observed": "SS or better by {rate} of {n, plural, one {# player} other {# players}}, {expected} expected for its level",
     "dir": {
       "harder": "harder than its level",
       "easier": "easier than its level",
       "same": "about its level"
     },
-    "observedInfo": "How often the people who played this chart got an SS or better, next to how often players of their rating do on charts of the same level and type. Only people who chose to play it count.",
-    "judgeTitle": "how you hit compared to them",
-    "judgeInfo": "Your judgements next to players like you. Lost per 100 is the points a note type costs per 100 notes, so lower is better. Clean is critical or perfect, so higher is better. Their numbers are the middle of the group. Only plays of 97% or better count, for you and for them, so a stretch chart you failed doesn't skew it.",
-    "judgeNotes": "notes",
-    "judgeLost": "lost per 100",
-    "judgeClean": "clean",
-    "judgeYou": "you",
-    "judgeThem": "like you",
-    "judgeLostPlay": "You lose {you} points a play. Players like you lose {them}.",
-    "judgeLate": "{you}% of your off-timing hits are late. For players like you it's {them}%.",
-    "judgeNote": "From your {you} plays of 97% or better and {n, plural, one {# anonymous player like you} other {# anonymous players like you}}.",
-    "rateCol": "SS or better",
-    "expectedCol": "Expected"
+    "observedInfo": "This isn't hard data. It's how the players who picked this chart did on it, next to how players of the same rating do on charts of the same level. Plenty of things move it: who chooses to play the chart, how long it's been out, how often people retry it. Take it as a rough guide."
   }
 }
