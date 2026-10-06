@@ -311,3 +311,32 @@ def _curve_runs_one_way():
     if abs(profile.expected_accuracy(12.0) - profile._raw_expectation(12.0)) > 0.05:
         problems.append("the flattening moved the curve where the player's own scores are densest")
     return problems
+
+
+@check("a constant is held to the level the player's own game prints, so a chart re-rated in Japan first does not read a level too high")
+def _held_to_the_level():
+    from rasmai.engine.analysis import enrich_songs
+    from rasmai.engine.analysis.charts import ChartIndex, ChartRef
+    from rasmai.engine.analysis.rating import calculate_rating
+    from rasmai.storage.models import SongInfo
+
+    # (database constant, database level, level the player's page shows, constant expected)
+    cases = [(13.0, "13", "12+", 12.9),      # re-rated up in Japan, still 12+ on the international game
+             (12.8, "12+", "13", 13.0),      # the other way round
+             (13.2, "13", "13", 13.2),       # agreeing: untouched
+             (13.0, "13", "", 13.0)]         # a page with no level to hold it to
+    index = ChartIndex("intl")
+    songs = []
+    for n, (constant, level, shown, _expected) in enumerate(cases):
+        index.add(ChartRef(f"Song {n}", "dx", "master", constant, level, 600, "", "", "", 26))
+        songs.append(SongInfo(name=f"Song {n}", chart_type="dx", difficulty_type="master", accuracy=100.0, rating=0, level=shown,
+                              difficulty=0.0, fc_status="", fs_status="", is_new=False, dx_score=0))
+    enrich_songs(songs, index, 26)
+    problems = []
+    for song, (constant, level, shown, expected) in zip(songs, cases):
+        if abs(song.difficulty - expected) > 1e-9:
+            problems.append(f"database {constant} ({level}) on a page that says {shown!r} came out {song.difficulty}, expected {expected}")
+        if song.rating != calculate_rating(song.difficulty, song.accuracy):
+            problems.append("a song's rating was not worked out from the constant it ended up with")
+    return problems
+
