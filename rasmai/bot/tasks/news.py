@@ -66,6 +66,7 @@ class NewsWatch:
         self._session: Optional[aiohttp.ClientSession] = None
         self._tasks: List[asyncio.Task] = []
         self._running: Set[asyncio.Task] = set()
+        self._inflight: Set[str] = set()        # Bluesky posts being waited on, built or sent right now
 
     @property
     def session(self) -> aiohttp.ClientSession:
@@ -76,6 +77,9 @@ class NewsWatch:
     def start(self) -> None:
         if any(not task.done() for task in self._tasks):
             return          # on_ready fires again after a reconnect; the loops must not double
+        logger.info("news: Japanese posts are translated %s",
+                    f"by {news.TRANSLATE_MODEL} at {news.TRANSLATE_URL}, with Google Translate as the fallback" if news.TRANSLATE_URL
+                    else "by Google Translate only: MAIMAI_TRANSLATE_URL is not set")
         self._tasks = [asyncio.create_task(self._bluesky_loop()), asyncio.create_task(self._x_loop())]
 
     def spawn(self, work: Coroutine[Any, Any, Any]) -> None:
@@ -142,6 +146,21 @@ class NewsWatch:
             logger.exception("news: a Bluesky event could not be handled")
 
     async def bluesky_post(self, source: Source, record: Dict[str, Any], uri: str, wait: bool = True) -> int:
+        """``_bluesky_post``, once per post at a time.
+
+        A post is only recorded as seen when it is sent, which is after the wait for its thread. A reconnect asks the stream
+        for a little before where it left off, so the same post can arrive again during that wait: it would pass the seen
+        check and be sent twice.
+        """
+        if uri in self._inflight:
+            return 0
+        self._inflight.add(uri)
+        try:
+            return await self._bluesky_post(source, record, uri, wait)
+        finally:
+            self._inflight.discard(uri)
+
+    async def _bluesky_post(self, source: Source, record: Dict[str, Any], uri: str, wait: bool) -> int:
         """Send a new post if it is one to send and nobody has seen it; returns how many channels got it.
 
         A post is sent when it is about maimai: Preformai International covers CHUNITHM too. The account answering itself
@@ -154,6 +173,8 @@ class NewsWatch:
             if str((reply.get("parent") or {}).get("uri", "")).split("/")[2:3] != [source.did]:
                 return 0            # an answer to somebody else
             root = str((reply.get("root") or {}).get("uri", ""))
+            if root in self._inflight:
+                return 0            # the first post of the thread is still waiting for its replies, and will carry this one
             if not updating and (not root or await asyncio.to_thread(news_unseen, source.key, [root])):
                 return 0            # an answer in a thread that was never sent
         elif not updating:

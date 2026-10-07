@@ -492,6 +492,11 @@ async def translate(session: aiohttp.ClientSession, text: str) -> str:
         return _translated[clean]
     result = await _translate_local(session, clean) or await _translate_google(session, clean)
     if not result:
+        now = time.monotonic()
+        # said once per post, with the reasons, because a post sent in Japanese is otherwise indistinguishable from one that was never meant to be translated
+        logger.warning("news: a post could not be translated, so it goes out in Japanese. Local model: %s. Google: %s.",
+                       "not set up (MAIMAI_TRANSLATE_URL is empty)" if not TRANSLATE_URL else ("paused after a failure" if now < _local_paused_until else "failed or answered badly"),
+                       "paused after being throttled" if now < _translate_paused_until else "failed")
         return text
     _translated[clean] = result
     while len(_translated) > TRANSLATED_KEPT:
