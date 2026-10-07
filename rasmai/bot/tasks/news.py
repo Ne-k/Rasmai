@@ -144,11 +144,11 @@ class NewsWatch:
     async def bluesky_post(self, source: Source, record: Dict[str, Any], uri: str, wait: bool = True) -> int:
         """Send a new post if it is one to send and nobody has seen it; returns how many channels got it.
 
-        A post is sent when it reads like an update. The account answering itself is sent too, since that is how it
-        corrects or continues a post, even when the answer says nothing like an update does, provided what it answers
-        was sent. An answer to somebody else is not sent.
+        A post is sent when it is about maimai: Preformai International covers CHUNITHM too. The account answering itself
+        is sent as well, since that is how it corrects or continues a post, even when the answer never says maimai,
+        provided what it answers was sent. An answer to somebody else is not sent.
         """
-        updating = news.is_update(str(record.get("text", "")), str((record.get("embed") or {}).get("$type", "")))
+        updating = news.is_maimai(str(record.get("text", "")))
         reply = record.get("reply") or {}
         if reply:
             if str((reply.get("parent") or {}).get("uri", "")).split("/")[2:3] != [source.did]:

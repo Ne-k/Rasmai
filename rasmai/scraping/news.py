@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from collections import OrderedDict
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin, urlparse
 import asyncio
@@ -83,17 +84,40 @@ class Post:
     videos: List[bytes] = field(default_factory=list)
     wanted_video: bool = False       # it has a video; if none could be attached the link is left to unfurl
     follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
+    posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
 
     def content(self) -> str:
         body = "\n\n".join(p for p in self.parts if p).strip()
         if len(body) > 1500:
             body = body[:1490] + "…"
         link = self.url if self.wanted_video and not self.videos else f"<{self.url}>"
+        # Discord draws these in each reader's own time zone: the full date and time, then how long ago, which keeps counting
+        when = f"-# Posted <t:{self.posted_at}:F> · <t:{self.posted_at}:R>\n" if self.posted_at else ""
         head = ""
         if self.follow_up:
             earlier, line = self.follow_up
             head = FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post](<{earlier}>)" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
-        return sanitize(f"{head}{body}\n\n{link}\n\n---".strip())
+        return sanitize(f"{head}{body}\n\n{when}{link}\n\n---".strip())
+
+
+TWITTER_EPOCH_MS = 1288834974657
+
+
+def tweet_time(post_id: str) -> Optional[int]:
+    """When an X post was made, in seconds: a status id carries its own creation time, so the feed's date is not needed."""
+    try:
+        return ((int(post_id) >> 22) + TWITTER_EPOCH_MS) // 1000
+    except ValueError:
+        return None
+
+
+def iso_time(stamp: str) -> Optional[int]:
+    """A Bluesky post's ``createdAt`` in seconds. The author writes it, so one claiming to be from the future is taken as now."""
+    try:
+        made = int(datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+    return min(made, int(datetime.now(timezone.utc).timestamp()))
 
 
 def first_line(text: str, limit: int = 140) -> str:
@@ -108,30 +132,12 @@ def trusted(url: str) -> bool:
     return parts.scheme == "https" and (host in TRUSTED_HOSTS or host.endswith(".twimg.com"))
 
 
-def is_update(text: str, embed_type: str = "") -> bool:
-    """Whether a Bluesky post reads like a maimai update, by a few cheap signs adding up to two."""
-    if not text:
-        return False
-    low = text.lower()
-    score = 0
-    if "#maimai" in low or "#chunithm" in low:
-        score += 2
-    if "maimai" in low or "chunithm" in low:
-        score += 1
-    if "🎵" in text:
-        score += 1
-    if "「" in text and "」" in text:
-        score += 1
-    if re.search(r"\d{1,2}/\d{1,2}", text) or "later today" in low:
-        score += 1
-    if any(word in low for word in [
-        "added", "available", "collaboration", "new song", "event", "chart", "map", "returning", "will be added",
-        "coming to", "receive an", "obtainable", "update", "releases", "will receive",
-    ]):
-        score += 1
-    if "images" in embed_type or "video" in embed_type:
-        score += 1
-    return score >= 2
+MAIMAI = re.compile(r"maimai|舞萌|でらっくす", re.IGNORECASE)
+
+
+def is_maimai(text: str) -> bool:
+    """Whether a post is about maimai. Preformai International covers CHUNITHM as well, so its posts are told apart by this; the X accounts are not filtered."""
+    return bool(MAIMAI.search(text or ""))
 
 
 ZWSP = chr(0x200B)      # a zero-width space: "@" + this + "everyone" reads the same and pings nobody
@@ -313,7 +319,8 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
             follow_up = (f"https://bsky.app/profile/{source.handle}/post/{str(above.get('uri', '')).split('/')[-1]}",
                          first_line(str((above.get("record") or {}).get("text", ""))))
     post = Post(source.key, uri, f"https://bsky.app/profile/{source.handle}/post/{uri.split('/')[-1]}", source.label,
-                await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up)
+                await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up,
+                iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))))
     return post, [p["uri"] for p in thread]
 
 
@@ -543,13 +550,14 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
     follow_up = None
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
-    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up)
+    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
+                tweet_time(item.id))
 
 
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
     """The latest ``count`` posts of an account, oldest first, as they would be sent now.
 
-    Bluesky counts only posts that read like updates, the same filter live ones go through; X counts every original post.
+    Bluesky counts only posts about maimai, the same filter live ones go through; X counts every original post.
     """
     if count <= 0:
         return []
@@ -562,7 +570,7 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
             record = post.get("record") or {}
             if entry.get("reason") or (post.get("author") or {}).get("did") != source.did or not post.get("uri"):
                 continue          # a repost, or somebody else's
-            if is_update(str(record.get("text", "")), str((record.get("embed") or {}).get("$type", ""))):
+            if is_maimai(str(record.get("text", ""))):
                 found.append((record, post["uri"]))
             if len(found) == count:
                 break

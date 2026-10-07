@@ -132,7 +132,7 @@ async def subscribe(interaction: discord.Interaction, channel: discord.TextChann
     if previous:
         _history_at[interaction.guild_id or 0] = time.monotonic()
         news_watch.spawn(news_watch.history(channel_id, url, fresh, previous))
-        later = f"\nSending the last {previous} post(s) of each now. Bluesky counts only update posts, the kind it will send from here on."
+        later = f"\nSending the last {previous} post(s) of each now. Bluesky counts only posts about maimai, the kind it will send from here on."
     followed = "\n".join(f"- {_name(key)}" for key in fresh)
     await _reply(
         interaction,
