@@ -12,6 +12,7 @@ import logging
 
 from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
+from rasmai.bot.tasks.news import NewsWatch
 from rasmai.bot.tasks.presence import ServerWatch
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
@@ -425,6 +426,9 @@ watch = ServerWatch(bot)
 history_watch = HistoryWatch(bot, watch)
 
 
+news_watch = NewsWatch(bot)
+
+
 @bot.event
 async def on_ready():
     logger.info(
@@ -433,6 +437,7 @@ async def on_ready():
     )
     watch.start()
     history_watch.start()
+    news_watch.start()
     await sync_application_emojis(bot)
     if not _chart_db_daily.is_running():
         _chart_db_daily.start()      # on_ready fires again after a reconnect; the loop must not
@@ -454,8 +459,10 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     # A server that removed the bot has no one left to change its switches, and one that adds it
     # back should start from the defaults like any new server.
     from rasmai.storage.db.settings import delete_guild_settings
+    from rasmai.storage.db.news import remove_guild_news
     try:
         had = await asyncio.to_thread(delete_guild_settings, str(guild.id))
+        await asyncio.to_thread(remove_guild_news, str(guild.id))      # its channels follow nothing once the bot is gone
     except Exception:
         logger.exception("Could not clear the settings of server %s after leaving it", guild.id)
         return

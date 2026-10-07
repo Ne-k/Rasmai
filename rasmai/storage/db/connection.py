@@ -161,6 +161,28 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute(
                     """
+                    CREATE TABLE IF NOT EXISTS news_subscriptions (   -- a channel following a source; the webhook URL is sealed, bound to its channel
+                        channel_id TEXT NOT NULL,
+                        source     TEXT NOT NULL,
+                        guild_id   TEXT NOT NULL,
+                        webhook    TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        PRIMARY KEY (channel_id, source)
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS news_seen (   -- posts already handled, so a restart sends nothing twice: nobody's data
+                        source  TEXT NOT NULL,
+                        post_id TEXT NOT NULL,
+                        seen_at TEXT NOT NULL,
+                        PRIMARY KEY (source, post_id)
+                    )
+                    """
+                )
+                setup.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS status_samples (   -- the bot's own heartbeat, for the status page: nobody's data
                         at         TEXT PRIMARY KEY,
                         states     TEXT NOT NULL,

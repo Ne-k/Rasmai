@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 _update_lock = threading.Lock()   # one chart-database refresh at a time, however many analyses start together
 _forced_at = None                  # when a read last forced a fetch; the analyses that ask soon after take that copy
 _forced_ok = False                 # whether that fetch succeeded; a failure is not retried for every title that turns up meanwhile
+_intl_tried = False                # whether this process has already fetched to get the international table a cache from before it lacks
 FORCED_COOLDOWN = timedelta(minutes=10)
 
 # The cache file as last read, handed to every instance: each analysis used to unpickle a copy of its
@@ -94,7 +95,7 @@ class CachedOtogeDB:
         return self.songs_data if region == "jp" or not self.songs_data_intl else self.songs_data_intl
 
     def _should_update(self) -> bool:
-        if not self._has_covers() or not self.songs_data_intl:
+        if not self._has_covers() or (not self.songs_data_intl and not _intl_tried):
             return True
         if not any(self.jacket_dir.glob("*")):
             return True
@@ -190,6 +191,8 @@ class CachedOtogeDB:
         :returns: True when the songs were read from a fresh checkout.
         :rtype: bool
         """
+        global _intl_tried
+        _intl_tried = True      # once, win or lose: a network that cannot reach GitHub must not be retried on every call
         logger.debug("Updating otoge-db cache...")
         before = len(self.songs_data)
         if not self._clone_or_update_repo():

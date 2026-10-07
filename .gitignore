@@ -3,6 +3,10 @@
 data/
 brand/
 
+# the standalone watcher this was ported from: it holds a session cookie, a webhook URL and a seen list
+maimai-watch/
+seen_tweets.json
+
 # analysis exports (may contain score data)
 debug/
 

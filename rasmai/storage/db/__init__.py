@@ -6,6 +6,10 @@ from rasmai.storage.db.accounts import (
     set_share_slug, account_by_share_slug, session_deletes_at, expired_accounts_due, purge_expired_accounts,
     accounts_to_warn, mark_deletion_warned,
 )
+from rasmai.storage.db.news import (
+    add_news_subscription, replace_channel_webhook, news_webhook, news_subscribers, channel_sources, news_subscription_count,
+    remove_news_subscription, remove_guild_news, news_seen_any, news_unseen, news_mark_seen,
+)
 from rasmai.storage.db.areas import record_area_progress, stored_area_images, load_area_progress
 from rasmai.storage.db.scores import (
     load_play_counts, save_play_counts, record_chart_scores, best_recorded_scores, load_chart_scores,
