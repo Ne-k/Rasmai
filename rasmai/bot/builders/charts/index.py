@@ -57,8 +57,10 @@ def _build() -> None:
     # thread meanwhile reads a complete index, the old one or the new one, never a half-filled table
     global _shared_index, _titles, _records
     db = CachedOtogeDB()
-    index = analysis.build_chart_index(db.songs_data)
-    _titles = sorted({c.title for c in index.values()}, key=str.casefold)
+    # nobody is signed in here, so the international game's charts stand for everyone; a signed-in player's pages read their own
+    # region's index. The titles are those of both games, so a Japan-only song can still be searched for.
+    index = analysis.build_chart_index(db.songs_for("intl"))
+    _titles = sorted({c.title for c in index.values()} | {c.title for c in analysis.build_chart_index(db.songs_data).values()}, key=str.casefold)
     _build_search(db.songs_data, index)
     records: Dict[str, Dict[str, Any]] = {}
     for record in db.songs_data.values():

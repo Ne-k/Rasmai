@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, Optional
 import threading
 import os
 import pickle
@@ -34,7 +34,8 @@ class CachedOtogeDB:
         self.cache_file = self.cache_dir / "songs_cache.pkl"
         self.last_update_file = self.cache_dir / "last_update.txt"
         self.refresh_after = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
-        self.songs_data = {}
+        self.songs_data = {}          # as Japan has it: the table the search and the jackets read
+        self.songs_data_intl = {}     # as the international game has it, empty until a fetch has made one
         self._load_cache()
 
     def _load_cache(self):
@@ -46,11 +47,11 @@ class CachedOtogeDB:
         with _read_lock:
             held = _read.get("file")
             if held is not None and held[0] == stamp:
-                self.songs_data = held[1]
+                self.songs_data, self.songs_data_intl = held[1], held[2]
                 return
             self._read_cache_file()
             if self.songs_data:
-                _read["file"] = (stamp, self.songs_data)
+                _read["file"] = (stamp, self.songs_data, self.songs_data_intl)
 
     def _has_covers(self) -> bool:
         return any(song.get('cover') for song in self.songs_data.values())
@@ -62,6 +63,7 @@ class CachedOtogeDB:
                     cached_data = pickle.load(f)
                 if isinstance(cached_data, dict) and 'songs' in cached_data:
                     self.songs_data = cached_data['songs']
+                    self.songs_data_intl = cached_data.get('songs_intl') or {}
                     logger.debug(f"Loaded {len(self.songs_data)} songs from cache")
 
                 if not self._has_covers():
@@ -76,13 +78,23 @@ class CachedOtogeDB:
     def _save_cache(self):
         try:
             with open(self.cache_file, 'wb') as f:
-                pickle.dump({'songs': self.songs_data}, f)
+                pickle.dump({'songs': self.songs_data, 'songs_intl': self.songs_data_intl}, f)
             logger.debug(f"Saved {len(self.songs_data)} songs to cache")
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
+    def songs_for(self, region: Optional[str]) -> Dict[str, Any]:
+        """The song table for a region: Japan's for ``"jp"``, the international game's for anything else.
+
+        Until a fetch has made the international table (a cache from before it existed), Japan's stands in.
+
+        :param region: ``"intl"``, ``"jp"``, ``"cn"`` or ``None``.
+        :rtype: Dict[str, Any]
+        """
+        return self.songs_data if region == "jp" or not self.songs_data_intl else self.songs_data_intl
+
     def _should_update(self) -> bool:
-        if not self._has_covers():
+        if not self._has_covers() or not self.songs_data_intl:
             return True
         if not any(self.jacket_dir.glob("*")):
             return True

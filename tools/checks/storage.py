@@ -393,3 +393,49 @@ def _play_order_by_moment():
     finally:
         store.DATABASE_PATH, store._database_ready = was, False
     return problems
+
+
+@check("each region reads its own chart file, a Japan-only song is still found for the international game, and both tables survive the cache")
+def _region_tables():
+    import json
+    import pathlib
+    import tempfile
+
+    from rasmai.scraping.otoge.db import CachedOtogeDB
+    from rasmai.scraping.otoge.loader import load_songs_from_repo
+
+    def song(title, level, constant, intl="1"):
+        return {"title": title, "artist": "A", "image_url": f"{title}.png", "version": "26014", "intl": intl,
+                "dx_lev_mas": level, "dx_lev_mas_i": constant}
+
+    problems = []
+    root = pathlib.Path(tempfile.mkdtemp())
+    data = root / "repo" / "maimai" / "data"
+    data.mkdir(parents=True)
+    # Japan has re-rated "Both" to 13 and has a song the international game has not got; the international file has one Japan lacks
+    (data / "music-ex.json").write_text(json.dumps([song("Both", "13", "13.0"), song("JapanOnly", "12", "12.2", intl="0")]), encoding="utf-8")
+    (data / "music-ex-intl.json").write_text(json.dumps([song("Both", "12+", "12.9"), song("IntlOnly", "11", "11.4")]), encoding="utf-8")
+    db = CachedOtogeDB(str(root / "cache"))
+    db.repo_path = root / "repo"
+    if not load_songs_from_repo(db):
+        return ["a checkout with both files read nothing"]
+    shown = lambda table, title: (table[title.lower()]["dx_lev_mas"], table[title.lower()]["dx_lev_mas_i"]) if title.lower() in table else None
+    if shown(db.songs_for("jp"), "Both") != ("13", "13.0"):
+        problems.append(f"a Japan player's chart reads {shown(db.songs_for('jp'), 'Both')}, not what music-ex.json says")
+    for region in ("intl", None, "cn"):
+        if shown(db.songs_for(region), "Both") != ("12+", "12.9"):
+            problems.append(f"an international player's ({region}) chart reads {shown(db.songs_for(region), 'Both')}, not what music-ex-intl.json says")
+    if shown(db.songs_for("intl"), "JapanOnly") is None:
+        problems.append("a song only music-ex.json has was left out of the international table, so a score on it would find no chart")
+    if shown(db.songs_for("jp"), "IntlOnly") is not None:
+        problems.append("a song only the international file has reached the Japan table")
+    again = CachedOtogeDB(str(root / "cache"))
+    if shown(again.songs_for("jp"), "Both") != ("13", "13.0") or shown(again.songs_for("intl"), "Both") != ("12+", "12.9"):
+        problems.append("the two tables did not both come back from the cache")
+    # a cache from before the international table: Japan's table stands in, and a fetch is wanted
+    old = CachedOtogeDB(str(root / "old"))
+    old.songs_data = db.songs_data
+    if old.songs_for("intl") is not old.songs_data or not old._should_update():
+        problems.append("a cache with no international table did not fall back to Japan's and ask for a fetch")
+    return problems
+

@@ -46,7 +46,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
     @property
     def chart_index(self) -> ChartIndex:
         if self._chart_index is None:
-            self._chart_index = analysis.chart_index_for(self.otoge_db.songs_data, region=getattr(self, "region", None))
+            self._chart_index = analysis.chart_index_for(self.otoge_db.songs_for(getattr(self, "region", None)), region=getattr(self, "region", None))
         return self._chart_index
 
     def fetch_official_maimai_snapshot(self, token: str, region: str = "intl", on_progress=None) -> Dict[str, Any]:

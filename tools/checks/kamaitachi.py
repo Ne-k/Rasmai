@@ -126,7 +126,7 @@ def _passes_validators():
     database = CachedOtogeDB()
     if files and database.songs_data:
         from rasmai.engine.analysis import build_chart_index
-        index = build_chart_index(database.songs_data, region="intl")
+        index = build_chart_index(database.songs_for("intl"), region="intl")
         allowed = SongInfo.__dataclass_fields__
         for path in files:
             data = json.loads(open(path, encoding="utf-8").read())

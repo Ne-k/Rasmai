@@ -16,7 +16,11 @@ _FIELDS = (
 
 
 def load_songs_from_repo(db: Any) -> bool:
-    """Read the songs out of the checkout into ``songs_data``.
+    """Read the songs out of the checkout into ``songs_data`` (Japan) and ``songs_data_intl`` (the international game).
+
+    The two games rate charts differently for a season after every release, so each region reads its own
+    file first: ``music-ex.json`` for Japan, ``music-ex-intl.json`` for everyone else. A song the first file
+    lacks is still taken from the other, so a score the player already has always finds its chart.
 
     :returns: True when at least one song was read; on any failure the data already held is kept.
     :rtype: bool
@@ -28,29 +32,81 @@ def load_songs_from_repo(db: Any) -> bool:
         # must not be marked deleted because an older file also holds it.
         data_dir = db.repo_path / 'maimai' / 'data'
         finals = sorted(path.name for path in data_dir.glob('music-ex-*-final.json'))
-        music_files = [('music-intl.json', 'intl'), ('music-ex.json', 'ex')]
-        music_files += [(name, 'ex') for name in finals] + [('music-ex-deleted.json', 'ex')]
+        japan = [('music-intl.json', 'intl'), ('music-ex.json', 'ex')]
+        japan += [(name, 'ex') for name in finals] + [('music-ex-deleted.json', 'ex')]
+        # all 'ex': nothing in a later file replaces what an earlier one gave
+        abroad = [('music-ex-intl.json', 'ex'), ('music-ex.json', 'ex')]
+        abroad += [(name, 'ex') for name in finals] + [('music-ex-deleted.json', 'ex'), ('music-intl.json', 'intl')]
+        songs = _table(db, japan)
+        songs_intl = _table(db, abroad) if (data_dir / 'music-ex-intl.json').exists() else {}
+        if not songs:
+            return False
+        db.songs_data = songs
+        db.songs_data_intl = songs_intl
+        db._save_cache()
+        logger.debug(f"Cached {len(songs)} song entries, {len(songs_intl)} for the international game")
+        return True
 
-        all_music_data = {}
-        source_stats = {}
+    except Exception as e:
+        logger.exception(f"Error loading songs from repo: {e}")
+        return False
 
-        for music_file, file_type in music_files:
-            music_json_path = db.repo_path / 'maimai' / 'data' / music_file
-            if music_json_path.exists():
-                logger.debug(f"Loading {music_file}...")
-                try:
-                    with open(music_json_path, 'r', encoding='utf-8') as f:
-                        music_data = json.load(f)
 
-                    count = 0
-                    if isinstance(music_data, list):
-                        for song in music_data:
+def _table(db: Any, music_files: list) -> dict:
+    """The song table those files give, keyed by title; empty when none held a song."""
+    all_music_data = {}
+    source_stats = {}
+
+    for music_file, file_type in music_files:
+        music_json_path = db.repo_path / 'maimai' / 'data' / music_file
+        if music_json_path.exists():
+            logger.debug(f"Loading {music_file}...")
+            try:
+                with open(music_json_path, 'r', encoding='utf-8') as f:
+                    music_data = json.load(f)
+
+                count = 0
+                if isinstance(music_data, list):
+                    for song in music_data:
+                        title = song.get('title', song.get('name', ''))
+                        if title:
+                            title_key = title.lower()
+                            # a second song with the same title (the two "Link"s) keeps its own entry
+                            if title_key in all_music_data and str(all_music_data[title_key]['data'].get('artist', '')) != str(song.get('artist', '')):
+                                title_key = f"{title_key}|{str(song.get('artist', '')).lower()}"
+                            if title_key not in all_music_data:
+                                all_music_data[title_key] = {
+                                    'data': song,
+                                    'source': file_type,
+                                    'source_file': music_file
+                                }
+                            else:
+                                existing = all_music_data[title_key]
+                                if file_type == 'ex' and existing['source'] != 'ex':
+                                    existing['data'] = song
+                                    existing['source'] = file_type
+                                    existing['source_file'] = music_file
+                    count = len(music_data)
+
+                elif isinstance(music_data, dict):
+                    songs_list = None
+                    if 'songs' in music_data:
+                        songs_list = music_data['songs']
+                    elif 'music' in music_data:
+                        songs_list = music_data['music']
+                    else:
+                        for key, value in music_data.items():
+                            if isinstance(value, list) and len(value) > 0:
+                                if isinstance(value[0], dict):
+                                    if 'title' in value[0] or 'image_url' in value[0]:
+                                        songs_list = value
+                                        break
+
+                    if songs_list:
+                        for song in songs_list:
                             title = song.get('title', song.get('name', ''))
                             if title:
                                 title_key = title.lower()
-                                # a second song with the same title (the two "Link"s) keeps its own entry
-                                if title_key in all_music_data and str(all_music_data[title_key]['data'].get('artist', '')) != str(song.get('artist', '')):
-                                    title_key = f"{title_key}|{str(song.get('artist', '')).lower()}"
                                 if title_key not in all_music_data:
                                     all_music_data[title_key] = {
                                         'data': song,
@@ -63,106 +119,67 @@ def load_songs_from_repo(db: Any) -> bool:
                                         existing['data'] = song
                                         existing['source'] = file_type
                                         existing['source_file'] = music_file
-                        count = len(music_data)
+                        count = len(songs_list)
 
-                    elif isinstance(music_data, dict):
-                        songs_list = None
-                        if 'songs' in music_data:
-                            songs_list = music_data['songs']
-                        elif 'music' in music_data:
-                            songs_list = music_data['music']
-                        else:
-                            for key, value in music_data.items():
-                                if isinstance(value, list) and len(value) > 0:
-                                    if isinstance(value[0], dict):
-                                        if 'title' in value[0] or 'image_url' in value[0]:
-                                            songs_list = value
-                                            break
+                source_stats[music_file] = count
+                logger.debug(f"  Loaded {count} songs from {music_file}")
 
-                        if songs_list:
-                            for song in songs_list:
-                                title = song.get('title', song.get('name', ''))
-                                if title:
-                                    title_key = title.lower()
-                                    if title_key not in all_music_data:
-                                        all_music_data[title_key] = {
-                                            'data': song,
-                                            'source': file_type,
-                                            'source_file': music_file
-                                        }
-                                    else:
-                                        existing = all_music_data[title_key]
-                                        if file_type == 'ex' and existing['source'] != 'ex':
-                                            existing['data'] = song
-                                            existing['source'] = file_type
-                                            existing['source_file'] = music_file
-                            count = len(songs_list)
+            except Exception as e:
+                logger.error(f"  Error loading {music_file}: {e}")
+        else:
+            logger.debug(f"  {music_file} not found")
 
-                    source_stats[music_file] = count
-                    logger.debug(f"  Loaded {count} songs from {music_file}")
+    if not all_music_data:
+        logger.error("No music data files found!")
+        return {}
 
-                except Exception as e:
-                    logger.error(f"  Error loading {music_file}: {e}")
-            else:
-                logger.debug(f"  {music_file} not found")
+    logger.debug(f"Total loaded {len(all_music_data)} unique songs from all sources")
 
-        if not all_music_data:
-            logger.error("No music data files found!")
-            return False
+    cover_count = 0
+    songs_by_title = {}
 
-        logger.debug(f"Total loaded {len(all_music_data)} unique songs from all sources")
+    for title_lower, entry in all_music_data.items():
+        song = entry['data'].copy()
+        title = song.get('title', song.get('name', ''))
+        if not title:
+            continue
 
-        cover_count = 0
-        songs_by_title = {}
+        alt_title = song.get('altTitle', song.get('title_kana', ''))
+        alt_title_lower = alt_title.lower() if alt_title else ''
 
-        for title_lower, entry in all_music_data.items():
-            song = entry['data'].copy()
-            title = song.get('title', song.get('name', ''))
-            if not title:
-                continue
+        cover = song.get('image_url', '')
+        if not cover:
+            cover = song.get('cover', '')
+        if not cover:
+            cover = song.get('jacket', '')
 
-            alt_title = song.get('altTitle', song.get('title_kana', ''))
-            alt_title_lower = alt_title.lower() if alt_title else ''
+        if cover and '/' in cover:
+            cover = cover.split('/')[-1]
+            if '?' in cover:
+                cover = cover.split('?')[0]
 
-            cover = song.get('image_url', '')
-            if not cover:
-                cover = song.get('cover', '')
-            if not cover:
-                cover = song.get('jacket', '')
+        song_info = {
+            'id': song.get('id'),
+            'title': title,
+            'alt_title': alt_title,
+            'artist': song.get('artist', ''),
+            'genre': song.get('catcode', song.get('genre', '')),
+            'bpm': song.get('bpm'),
+            'cover': cover,
+            'charts': song.get('charts', []),
+            **{field: song.get(field, '') for field in _FIELDS},
+            'deleted': entry['source_file'] == 'music-ex-deleted.json',
+        }
 
-            if cover and '/' in cover:
-                cover = cover.split('/')[-1]
-                if '?' in cover:
-                    cover = cover.split('?')[0]
+        songs_by_title[title_lower] = song_info
+        if cover:
+            cover_count += 1
+        # an alternate title is only an alias while no song owns that title itself:
+        # utage charts like "[音]snooze" carry alt title "SNOOZE" and must not
+        # replace the real "snooze"
+        alias = alt_title_lower if alt_title_lower and alt_title_lower != title_lower else ''
+        if alias and alias not in all_music_data:
+            songs_by_title[alias] = song_info
 
-            song_info = {
-                'id': song.get('id'),
-                'title': title,
-                'alt_title': alt_title,
-                'artist': song.get('artist', ''),
-                'genre': song.get('catcode', song.get('genre', '')),
-                'bpm': song.get('bpm'),
-                'cover': cover,
-                'charts': song.get('charts', []),
-                **{field: song.get(field, '') for field in _FIELDS},
-                'deleted': entry['source_file'] == 'music-ex-deleted.json',
-            }
-
-            songs_by_title[title_lower] = song_info
-            if cover:
-                cover_count += 1
-            # an alternate title is only an alias while no song owns that title itself:
-            # utage charts like "[音]snooze" carry alt title "SNOOZE" and must not
-            # replace the real "snooze"
-            alias = alt_title_lower if alt_title_lower and alt_title_lower != title_lower else ''
-            if alias and alias not in all_music_data:
-                songs_by_title[alias] = song_info
-
-        db.songs_data = songs_by_title
-        db._save_cache()
-        logger.debug(f"Cached {len(db.songs_data)} song entries with {cover_count} covers")
-        return bool(db.songs_data)
-
-    except Exception as e:
-        logger.exception(f"Error loading songs from repo: {e}")
-        return False
+    logger.debug(f"Built {len(songs_by_title)} song entries with {cover_count} covers")
+    return songs_by_title

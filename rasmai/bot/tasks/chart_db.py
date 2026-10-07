@@ -70,7 +70,7 @@ def resolve_unknown(analyzer: Any, tell: Optional[Callable[..., None]] = None) -
         logger.warning("the chart database could not be fetched; %s keep a constant taken from the level", ", ".join(due[:3]))
         return False
     # both indexes are built to the side and swapped in, so a command answered meanwhile reads a whole one
-    analyzer._chart_index = analysis.build_chart_index(analyzer.otoge_db.songs_data, region=getattr(analyzer, "region", None))
+    analyzer._chart_index = analysis.build_chart_index(analyzer.otoge_db.songs_for(getattr(analyzer, "region", None)), region=getattr(analyzer, "region", None))
     refresh_shared_index()
     index = analyzer.chart_index
     found = [t for t in titles if any(index.get((s.name, s.chart_type, s.difficulty_type), s.level) is not None

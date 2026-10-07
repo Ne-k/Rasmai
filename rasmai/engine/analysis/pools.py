@@ -125,13 +125,6 @@ def enrich_songs(
         if chart:
             if chart.constant > 0:
                 song.difficulty = chart.constant
-                # The database follows Japan, which re-rates a chart a season before everyone else, so a chart can be 13.0
-                # there while the player's own game still prints 12+. What their game prints is the truth for them, and a
-                # constant outside the band of that level cannot be right, so it is held to the nearest edge. On 170 real
-                # international players this brought 18 more of them to exactly their official rating.
-                span = level_range(str(getattr(song, "level", "") or ""))
-                if span and not span[0] <= song.difficulty <= span[1]:
-                    song.difficulty = min(max(song.difficulty, span[0]), span[1])
             if not getattr(song, "genre", ""):
                 song.genre = chart.genre
             if not getattr(song, "artist", ""):
