@@ -4,10 +4,12 @@ import logging
 
 from rasmai.security import decrypt_token, encrypt_token
 from rasmai.storage.db.connection import get_database_connection
+from rasmai.storage.db.sources import source_state_get, source_state_set
 
 logger = logging.getLogger(__name__)
 
 SEEN_KEPT = 600      # posts remembered per source; the feeds show a few dozen, so this is plenty
+JETSTREAM_STATE = "news:jetstream"
 
 
 def _owner(channel_id: str) -> str:
@@ -156,3 +158,15 @@ def news_mark_seen(source: str, post_ids: Iterable[str]) -> None:
                 "(SELECT rowid FROM news_seen WHERE source = ? ORDER BY rowid DESC LIMIT ?)", (source, source, SEEN_KEPT))
     finally:
         connection.close()
+
+
+def jetstream_alive() -> Optional[int]:
+    """When the Jetstream connection was last known to be up, in microseconds since 1970, so a reconnect can ask for what it missed."""
+    try:
+        return int((source_state_get(JETSTREAM_STATE) or {}).get("payload") or "")
+    except ValueError:
+        return None
+
+
+def save_jetstream_alive(micros: int) -> None:
+    source_state_set(JETSTREAM_STATE, payload=str(micros))

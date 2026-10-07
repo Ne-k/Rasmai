@@ -2,12 +2,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin, urlparse
 import asyncio
+import html
 import logging
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 import aiohttp
@@ -62,6 +64,8 @@ TRUSTED_HOSTS = {urlparse(base).hostname for base in RSS_INSTANCES} | {"cdn.bsky
 
 _working: Dict[str, str] = {}
 _avatars: Dict[str, str] = {}
+_translate_paused_until = 0.0        # Google's free endpoint throttles; after a refusal it is left alone for a while
+FOLLOW_UP_MARK = chr(0x21A9) + chr(0xFE0F)      # the return arrow as an emoji, spelled out so no invisible character sits in the source
 
 
 @dataclass
@@ -75,13 +79,24 @@ class Post:
     images: List[str] = field(default_factory=list)
     videos: List[bytes] = field(default_factory=list)
     wanted_video: bool = False       # it has a video; if none could be attached the link is left to unfurl
+    follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
 
     def content(self) -> str:
         body = "\n\n".join(p for p in self.parts if p).strip()
-        if len(body) > 1700:
-            body = body[:1690] + "…"
+        if len(body) > 1500:
+            body = body[:1490] + "…"
         link = self.url if self.wanted_video and not self.videos else f"<{self.url}>"
-        return f"{body}\n\n{link}\n\n---".strip()
+        head = ""
+        if self.follow_up:
+            earlier, line = self.follow_up
+            head = FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post](<{earlier}>)" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
+        return sanitize(f"{head}{body}\n\n{link}\n\n---".strip())
+
+
+def first_line(text: str, limit: int = 140) -> str:
+    """The start of a post on one line, to quote: markup entities undone, whitespace collapsed, cut at ``limit``."""
+    line = re.sub(r"\s+", " ", html.unescape(text or "")).strip()
+    return line if len(line) <= limit else line[:limit - 1].rstrip() + "…"
 
 
 def trusted(url: str) -> bool:
@@ -116,14 +131,15 @@ def is_update(text: str, embed_type: str = "") -> bool:
     return score >= 2
 
 
+ZWSP = chr(0x200B)      # a zero-width space: "@" + this + "everyone" reads the same and pings nobody
+
+
 def sanitize(text: str) -> str:
-    """Post text with anything that would ping somebody made inert."""
+    """Text with anything that would ping somebody made inert. Sending also forbids every mention, so this is the second lock, not the first."""
     if not text:
         return text
-    text = re.sub(r"@everyone", "@​everyone", text, flags=re.IGNORECASE)
-    text = re.sub(r"@here", "@​here", text, flags=re.IGNORECASE)
-    text = re.sub(r"<@!?\d+>", "[user]", text)
-    text = re.sub(r"<@&\d+>", "[role]", text)
+    text = re.sub(r"@(everyone|here)", lambda m: "@" + ZWSP + m.group(1), text, flags=re.IGNORECASE)
+    text = re.sub(r"<@[!&]?\d+>", lambda m: "[role]" if m.group(0).startswith("<@&") else "[user]", text)
     return re.sub(r"<#\d+>", "[channel]", text)
 
 
@@ -203,9 +219,13 @@ def _video_sync(url: str) -> Optional[bytes]:
                 pass
 
 
+_video_slots = asyncio.Semaphore(2)
+
+
 async def video_bytes(url: str) -> Optional[bytes]:
     """A video remuxed to mp4 and, when over the size limit, re-encoded under it; None without ffmpeg or when it cannot be made small enough."""
-    return await asyncio.to_thread(_video_sync, url)
+    async with _video_slots:
+        return await asyncio.to_thread(_video_sync, url)
 
 
 # ---------------------------------------------------------------- Bluesky
@@ -228,11 +248,11 @@ def bluesky_media(record: Dict[str, Any], did: str) -> Tuple[List[str], List[str
     return images, videos
 
 
-async def bluesky_thread(session: aiohttp.ClientSession, uri: str, did: str) -> List[Dict[str, Any]]:
-    """Every post by the same author in a thread, oldest first."""
-    data = await _get_json(session, f"{PUBLIC_API}/app.bsky.feed.getPostThread", {"uri": uri, "depth": 10})
+async def bluesky_thread(session: aiohttp.ClientSession, uri: str, did: str) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Every post by the same author in a thread from ``uri`` down, oldest first, and the post above it if the author wrote that too."""
+    data = await _get_json(session, f"{PUBLIC_API}/app.bsky.feed.getPostThread", {"uri": uri, "depth": 10, "parentHeight": 1})
     if not isinstance(data, dict):
-        return []
+        return [], None
     found: Dict[str, Dict[str, Any]] = {}
 
     def walk(node: Any) -> None:
@@ -246,7 +266,10 @@ async def bluesky_thread(session: aiohttp.ClientSession, uri: str, did: str) -> 
                 walk(reply)
 
     walk(data.get("thread"))
-    return sorted(found.values(), key=lambda p: (p.get("record") or {}).get("createdAt", ""))
+    above = ((data.get("thread") or {}).get("parent") or {}).get("post")
+    if not isinstance(above, dict) or (above.get("author") or {}).get("did") != did:
+        above = None
+    return sorted(found.values(), key=lambda p: (p.get("record") or {}).get("createdAt", "")), above
 
 
 async def bluesky_avatar(session: aiohttp.ClientSession, handle: str) -> str:
@@ -261,7 +284,8 @@ async def bluesky_avatar(session: aiohttp.ClientSession, handle: str) -> str:
 
 async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, record: Dict[str, Any], uri: str) -> Tuple[Optional[Post], List[str]]:
     """The post for a thread that started at ``uri``, and the URIs of every post in it; None when it holds nothing of the author's."""
-    thread = await bluesky_thread(session, uri, source.did) or [{"uri": uri, "record": record, "author": {"did": source.did}}]
+    thread, above = await bluesky_thread(session, uri, source.did)
+    thread = thread or [{"uri": uri, "record": record, "author": {"did": source.did}}]
     thread = [p for p in thread if (p.get("author") or {}).get("did") == source.did]
     if not thread:
         return None, []
@@ -279,8 +303,14 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
     images = list(dict.fromkeys(images))
     playlists = list(dict.fromkeys(playlists))
     videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data]
+    follow_up = None
+    if record.get("reply"):
+        follow_up = ("", "")
+        if above:
+            follow_up = (f"https://bsky.app/profile/{source.handle}/post/{str(above.get('uri', '')).split('/')[-1]}",
+                         first_line(str((above.get("record") or {}).get("text", ""))))
     post = Post(source.key, uri, f"https://bsky.app/profile/{source.handle}/post/{uri.split('/')[-1]}", source.label,
-                await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists))
+                await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up)
     return post, [p["uri"] for p in thread]
 
 
@@ -293,6 +323,13 @@ class FeedItem:
     link: str
     description: str
     retweet: bool
+    author: str = ""         # whose status page the link is on: a retweet's is somebody else's
+    reply_to: str = ""       # the account a reply answers; empty for a post that is not a reply
+
+    @property
+    def text(self) -> str:
+        """What was written, without Nitter's "R to @someone:" in front."""
+        return re.sub(r"^R to @\w+:\s*", "", self.title)
 
 
 def tweet_id(link: str) -> str:
@@ -310,8 +347,11 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
     for item in root.findall(".//item"):
         title = (item.findtext("title") or "").strip()
         link = item.findtext("link") or ""
+        author = re.search(r"/([A-Za-z0-9_]+)/status/", link)
+        reply = re.match(r"^R to @(\w+):", title)
         items.append(FeedItem(tweet_id(link), title, link, item.findtext("description") or "",
-                              bool(re.match(r"^(?:RT\b|リツイート\b)", title, flags=re.IGNORECASE))))
+                              bool(re.match(r"^(?:RT\b|リツイート\b)", title, flags=re.IGNORECASE)),
+                              author.group(1) if author else "", reply.group(1) if reply else ""))
     return items, (root.findtext("./channel/image/url") or "").strip()
 
 
@@ -331,25 +371,73 @@ async def fetch_feed(session: aiohttp.ClientSession, username: str) -> Tuple[Lis
     return [], ""
 
 
+def own_posts(items: List[FeedItem], source: Source) -> List[FeedItem]:
+    """The account's own posts, newest first: what it wrote, and what it wrote in answer to itself, which is how it corrects or continues one.
+
+    Left out are retweets and anything on somebody else's status page, and replies to other people. The feed is
+    not in time order, but a status id grows with time, so that is what orders it.
+    """
+    handle = source.handle.lower()
+    own = [item for item in items if item.id and not item.retweet and item.author.lower() == handle
+           and (not item.reply_to or item.reply_to.lower() == handle)]
+    return sorted(own, key=lambda item: int(item.id), reverse=True)
+
+
+def has_english(text: str) -> bool:
+    """Whether a post already carries its own English: a run of four English words in a row, which names and hashtags do not make."""
+    plain = re.sub(r"https?://\S+|[#@]\w+", " ", text or "")
+    return bool(re.search(r"(?:\b[A-Za-z][A-Za-z']+\b[ ,.!?:;&]+){4,}", plain))
+
+
 def has_japanese(text: str) -> bool:
     return bool(text and re.search(r"[぀-ゟ゠-ヿ一-鿿]", text))
 
 
+TRANSLATE_PAUSE = 300
+
+
 async def translate(session: aiohttp.ClientSession, text: str) -> str:
-    """Japanese text in English through Google's free endpoint; the text itself when that fails."""
+    """Japanese text in English through Google's free endpoint; the text itself when that fails, which sends the post as it was written.
+
+    A refusal for going too fast pauses it for a few minutes rather than asking again on every post.
+    """
+    global _translate_paused_until
     clean = re.sub(r"https?://\S+", "", text or "").strip()
-    if not clean:
+    if not clean or time.monotonic() < _translate_paused_until:
         return text
-    data = await _get_json(session, "https://translate.googleapis.com/translate_a/single",
-                           {"client": "gtx", "sl": "ja", "tl": "en", "dt": "t", "q": clean})
-    try:
-        return "".join(segment[0] for segment in data[0] if segment and segment[0]) or text
-    except (TypeError, IndexError, KeyError):
-        return text
+    for attempt in range(2):
+        try:
+            async with session.get("https://translate.googleapis.com/translate_a/single", headers=HEADERS,
+                                   params={"client": "gtx", "sl": "ja", "tl": "en", "dt": "t", "q": clean},
+                                   timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status == 429:
+                    _translate_paused_until = time.monotonic() + TRANSLATE_PAUSE
+                    logger.info("news: translation is throttled, so posts go out untranslated for %d minutes", TRANSLATE_PAUSE // 60)
+                    return text
+                if response.status == 200:
+                    data = await response.json(content_type=None)
+                    return "".join(segment[0] for segment in data[0] if segment and segment[0]) or text
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, IndexError):
+            pass
+        if attempt == 0:
+            await asyncio.sleep(1)
+    return text
 
 
 def media_urls(description_html: str) -> List[str]:
     return [url for url in re.findall(r'<img[^>]+src="([^"]+)"', description_html or "") if not url.startswith("/")]
+
+
+async def syndication_parent(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Tuple[str, str]]:
+    """The address and first line of the post this one answers, when it is the same account's own; None otherwise or when it cannot be read."""
+    for params in ({"id": post_id, "lang": "en", "token": "a"}, {"id": post_id, "lang": "en"}):
+        data = await _get_json(session, "https://cdn.syndication.twimg.com/tweet-result", params)
+        parent = data.get("parent") if isinstance(data, dict) else None
+        if isinstance(parent, dict) and parent.get("id_str"):
+            if str((parent.get("user") or {}).get("screen_name", "")).lower() != handle.lower():
+                return None
+            return f"https://x.com/{handle}/status/{parent['id_str']}", first_line(str(parent.get("text", "")))
+    return None
 
 
 async def syndication_video(session: aiohttp.ClientSession, post_id: str) -> List[str]:
@@ -379,7 +467,39 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
         if data:
             videos.append(data)
             images = []
-    english = await translate(session, item.title) if has_japanese(item.title) else ""
-    parts = [sanitize(english)] if english and english != item.title else []
-    parts.append(sanitize(item.title))
-    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video)
+    written = item.text
+    # some accounts write both languages themselves, and a translation of that would only say it twice
+    english = await translate(session, written) if has_japanese(written) and not has_english(written) else ""
+    parts = [sanitize(english)] if english and english != written else []
+    parts.append(sanitize(written))
+    follow_up = None
+    if item.reply_to:
+        follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
+    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up)
+
+
+async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
+    """The latest ``count`` posts of an account, oldest first, as they would be sent now.
+
+    Bluesky counts only posts that read like updates, the same filter live ones go through; X counts every original post.
+    """
+    if count <= 0:
+        return []
+    if source.platform == "Bluesky":
+        data = await _get_json(session, f"{PUBLIC_API}/app.bsky.feed.getAuthorFeed",
+                               {"actor": source.handle, "filter": "posts_no_replies", "limit": 50})
+        found = []
+        for entry in (data.get("feed") or []) if isinstance(data, dict) else []:
+            post = entry.get("post") or {}
+            record = post.get("record") or {}
+            if entry.get("reason") or (post.get("author") or {}).get("did") != source.did or not post.get("uri"):
+                continue          # a repost, or somebody else's
+            if is_update(str(record.get("text", "")), str((record.get("embed") or {}).get("$type", ""))):
+                found.append((record, post["uri"]))
+            if len(found) == count:
+                break
+        built = [(await build_bluesky_post(session, source, record, uri))[0] for record, uri in found]
+        return [post for post in reversed(built) if post is not None]
+    items, avatar = await fetch_feed(session, source.handle)
+    own = own_posts(items, source)[:count]
+    return [await build_x_post(session, source, item, avatar) for item in reversed(own)]
