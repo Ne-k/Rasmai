@@ -131,6 +131,10 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         message = "That needs the **Manage Server** permission here."
     elif isinstance(error, app_commands.NoPrivateMessage):
         message = "That one only works inside a server."
+    elif isinstance(error, app_commands.TransformerError) and error.type == discord.AppCommandOptionType.channel:
+        # a channel option is looked up in the bot's own cache, which holds only the channels it can see
+        message = (f"I can't see {getattr(error.value, 'mention', 'that channel')}, so I can't use it. Give me **View Channel** in its permissions "
+                   "(it may be a private channel), then try again. It also has to be a text or announcement channel.")
     if message:
         try:
             if interaction.response.is_done():

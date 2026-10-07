@@ -3,6 +3,10 @@
 #   cp .env.beta.example .env.beta        # the beta bot's token and your test server's id
 #   docker compose -f docker-compose.beta.yml up -d --build
 #   docker compose -f docker-compose.beta.yml logs -f
+#   docker compose -f docker-compose.beta.yml down
+#
+# Every command needs that -f, down included: without it Compose reads docker-compose.yml, which is production's and refuses to run
+# without RASMAI_INTERNAL_SECRET.
 #
 # It builds the `bot` stage of the same Dockerfile from this checkout, so whatever branch is checked out is what runs. The project name
 # below keeps its containers and network apart from production's, and everything it writes is under ./beta, never ./data.

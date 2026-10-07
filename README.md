@@ -141,6 +141,7 @@ docker compose pull && docker compose up -d
 cp .env.beta.example .env.beta          # DISCORD_TOKEN of the beta application, MAIMAI_GUILD_ID of your test server
 docker compose -f docker-compose.beta.yml up -d --build
 docker compose -f docker-compose.beta.yml logs -f
+docker compose -f docker-compose.beta.yml down       # stop it; every command needs the -f, or Compose reads production's file
 ```
 
 With no website there is nowhere for `/login` to finish, so the beta cannot link a maimai account: commands that need your scores will not work on it, and the ones that do not (`/news`, `/ping`, looking a chart up) will. It does not touch `./data`, and it publishes no port.
