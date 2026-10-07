@@ -1,7 +1,11 @@
 # secrets and per-user data
 .env
+.env.beta
 data/
 brand/
+
+# the beta bot's data, caches and exports
+beta/
 
 # the standalone watcher this was ported from: it holds a session cookie, a webhook URL and a seen list
 maimai-watch/

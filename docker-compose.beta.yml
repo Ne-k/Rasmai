@@ -1,0 +1,52 @@
+# A second copy of the bot for testing, on its own Discord token and its own data, with no website.
+#
+#   cp .env.beta.example .env.beta        # the beta bot's token and your test server's id
+#   docker compose -f docker-compose.beta.yml up -d --build
+#   docker compose -f docker-compose.beta.yml logs -f
+#
+# It builds the `bot` stage of the same Dockerfile from this checkout, so whatever branch is checked out is what runs. The project name
+# below keeps its containers and network apart from production's, and everything it writes is under ./beta, never ./data.
+name: rasmai-beta
+
+services:
+  bot-beta:
+    image: rasmai-beta:local          # a local tag, so it never pulls or replaces ghcr.io/ne-k/rasmai
+    build:
+      context: .
+      target: bot
+      args:
+        BOT_UID: ${BOT_UID:-1000}
+        BOT_GID: ${BOT_GID:-1000}
+    container_name: rasmai-beta
+    # not .env: that file holds production's Discord token
+    env_file: .env.beta
+    environment:
+      MAIMAI_DATABASE_PATH: /app/data/maimai.sqlite3
+      # the bot starts its internal API for the website to call. With no website it is kept on the container's own loopback, which needs no
+      # secret and cannot be reached from anywhere else, and no port is published
+      MAIMAI_WEBSERVER_HOST: 127.0.0.1
+      MAIMAI_TUNNEL: ""
+      # nobody can open the developer page or run /notice on the beta
+      MAIMAI_ADMIN_ID: ""
+    # as in production: the bot runs as the image's non-root user, so these must be writable by it. Docker Desktop on macOS maps that
+    # automatically; on a Linux host run   sudo chown -R 1000:1000 beta
+    volumes:
+      - ./beta/data:/app/data
+      - ./beta/otoge_cache:/app/otoge_cache
+      - ./beta/simai_cache:/app/simai_cache
+      - ./beta/debug:/app/debug
+    init: true
+    # reaches an Ollama server on the host, for MAIMAI_TRANSLATE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    shm_size: "1gb"
+    # a wrong token would otherwise log in over and over, which Discord answers by limiting it
+    restart: on-failure:3
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"

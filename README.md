@@ -133,6 +133,18 @@ docker compose pull && docker compose up -d
 
 `./data` (accounts, scores, history) and `./otoge_cache` (chart database and jackets) persist across rebuilds.
 
+#### A beta bot, to test on
+
+`docker-compose.beta.yml` runs a second copy of the bot, built from whatever is checked out, on its own Discord application and its own data under `./beta`, with no website. Make a second application in the Discord developer portal for it, and never give it production's token.
+
+```bash
+cp .env.beta.example .env.beta          # DISCORD_TOKEN of the beta application, MAIMAI_GUILD_ID of your test server
+docker compose -f docker-compose.beta.yml up -d --build
+docker compose -f docker-compose.beta.yml logs -f
+```
+
+With no website there is nowhere for `/login` to finish, so the beta cannot link a maimai account: commands that need your scores will not work on it, and the ones that do not (`/news`, `/ping`, looking a chart up) will. It does not touch `./data`, and it publishes no port.
+
 ## Configuration
 
 Everything is in `.env`, see `.env.example` for the full list. The ones that matter:
@@ -154,7 +166,26 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `MAIMAI_MAX_CONCURRENT` | Score reads at once. Default 24. |
 | `MAIMAI_EMOJI` / `MAIMAI_PRESENCE` | Emoji pack upload, status tracking maintenance. Both on by default. |
 | `USER_AGENT` | How the bot names itself to the wikis and chart databases. Empty is `rasmai/1.0 (+MAIMAI_PUBLIC_URL)`; adding a contact address is the polite thing. |
+| `MAIMAI_TRANSLATE_URL` | An Ollama server that translates Japanese `/news` posts. Empty uses Google Translate. See below. |
+| `MAIMAI_TRANSLATE_MODEL` / `MAIMAI_TRANSLATE_KEEP_ALIVE` | The model it asks for (default `translategemma:12b`) and how long it stays in memory after a post (default `2m`). |
 | `MAIMAI_DEBUG` / `MAIMAI_DEBUG_EXPORT_JSON` | Verbose scraper logs and per-analysis JSON dumps. Leave off on a public bot. |
+
+### Translating Japanese posts
+
+`/news` translates Japanese posts with Google Translate unless you give it a model of your own. On a Mac (an M4 mini with 16 GB is plenty), run [Ollama](https://ollama.com) on the Mac itself, not in Docker: it uses the GPU there and a container cannot.
+
+```bash
+brew install ollama && brew services start ollama
+ollama pull translategemma:12b          # 8.1 GB; translategemma:4b is 3.3 GB and less accurate
+```
+
+Then in `.env`, and `docker compose up -d`:
+
+```
+MAIMAI_TRANSLATE_URL=http://host.docker.internal:11434
+```
+
+The model is loaded for a post and dropped two minutes later, so it only holds memory while it works. If Ollama is down or answers badly, the post is translated by Google instead, and failing that is sent as written. If the container cannot reach it, start Ollama with `OLLAMA_HOST=0.0.0.0`.
 
 ## What's stored
 

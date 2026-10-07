@@ -28,6 +28,10 @@ services:
       - ./simai_cache:/app/simai_cache   # the charts themselves, packed, so a restart re-reads rather than re-downloads
       - ./debug:/app/debug            # the raw page exports MAIMAI_DEBUG writes, so they survive the container
     init: true
+    # lets the bot reach an Ollama server on the host (MAIMAI_TRANSLATE_URL=http://host.docker.internal:11434). Docker Desktop on a Mac
+    # already defines the name; this makes a Linux host do the same
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # Chromium runs with --no-sandbox, so it needs no capability and no privilege escalation
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

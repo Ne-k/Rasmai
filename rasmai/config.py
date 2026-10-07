@@ -219,6 +219,12 @@ PLAY_COUNT_FETCH_LIMIT = int(os.getenv("MAIMAI_PLAY_COUNT_FETCH_LIMIT", "60"))
 WIKI_VIDEOS = os.getenv("MAIMAI_WIKI_VIDEOS", "true").lower() == "true"     # /chart links the chart's video from SilentBlue RemyWiki
 
 
+# /news translates Japanese posts with a model on an Ollama server, such as the one on the machine the bot runs on; empty uses Google Translate only
+TRANSLATE_URL = os.getenv("MAIMAI_TRANSLATE_URL", "").strip().rstrip("/")
+TRANSLATE_MODEL = os.getenv("MAIMAI_TRANSLATE_MODEL", "translategemma:12b").strip()
+TRANSLATE_KEEP_ALIVE = os.getenv("MAIMAI_TRANSLATE_KEEP_ALIVE", "2m").strip()      # how long the model stays in memory after a post, so a 16 GB machine has it back between posts
+
+
 PLAY_COUNT_UNKNOWN = -1   # fetched, but the page had no count for that difficulty
 
 

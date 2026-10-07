@@ -994,7 +994,7 @@
           "c05_news": {
             "name": "/news",
             "args": "subscribe #channel",
-            "what": "For server managers. Posts new maimai news into a channel as it appears: Preformai International on Bluesky, and Maimai Official and Laundromai on X. Pick the channel, and one account if you don't want all three. <code>/news unsubscribe</code> stops it."
+            "what": "For server managers. Posts new maimai news into a channel as it appears: Preformai International on Bluesky, and Maimai Official and Laundromai on X. Pick the channel, one account if you don't want all three, and how many earlier posts to send straight away (none by default). If I'm missing the Manage Webhooks permission, the command gives you a link to add it. <code>/news unsubscribe</code> stops it."
           }
         }
       },
@@ -1106,7 +1106,7 @@
           "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry. Apart from what you switch on yourself, the only thing other people ever see that comes from your scores is the anonymous totals described under what is stored.",
           "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you.",
           "i02c": "<b>Kamaitachi</b>, only if you use its import or upload its file yourself. The username you import is sent to <kamaitachi>kamai.tachi.ac</kamaitachi>. Scores you upload there are under Kamaitachi's own policy, not this one.",
-          "i02d": "<b>The news sources.</b> <code>/news</code> reads public posts from Bluesky and, for X, through public Nitter mirrors, and sends Japanese post text to Google Translate to translate it. Nothing about you or your server is sent to any of them."
+          "i02d": "<b>The news sources.</b> <code>/news</code> reads public posts from Bluesky and, for X, through public Nitter mirrors. Japanese post text is translated by a model running on the bot's own machine when its operator has set one up, and otherwise sent to Google Translate. Nothing about you or your server is sent to any of them."
         }
       },
       "kept": {

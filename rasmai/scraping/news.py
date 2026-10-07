@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin, urlparse
 import asyncio
@@ -13,6 +14,8 @@ import time
 import xml.etree.ElementTree as ET
 
 import aiohttp
+
+from rasmai.config import TRANSLATE_KEEP_ALIVE, TRANSLATE_MODEL, TRANSLATE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -393,18 +396,63 @@ def has_japanese(text: str) -> bool:
     return bool(text and re.search(r"[぀-ゟ゠-ヿ一-鿿]", text))
 
 
-TRANSLATE_PAUSE = 300
+TRANSLATE_PAUSE = 300            # how long Google's free endpoint is left alone after it refuses
+LOCAL_PAUSE = 60                 # and how long the local model is, after it was unreachable or refused: the first post after a restart waits for it to load, none after that for it to fail
+LOCAL_TIMEOUT = 150              # seconds a translation may take; loading an 8 GB model into memory is most of it the first time
+TRANSLATED_KEPT = 200
+
+# Google's prompt for TranslateGemma, word for word, down to the two blank lines before the text: the model was trained on exactly this
+LOCAL_PROMPT = (
+    "You are a professional Japanese (ja) to English (en) translator. Your goal is to accurately convey the meaning and nuances of the original "
+    "Japanese text while adhering to English grammar, vocabulary, and cultural sensitivities.\n"
+    "Produce only the English translation, without any additional explanations or commentary. Please translate the following Japanese text into English:\n\n\n")
+
+_local_paused_until = 0.0
+_local_slot = asyncio.Semaphore(1)      # one translation at a time: two at once on a 16 GB machine are slower than one after the other
+_translated: "OrderedDict[str, str]" = OrderedDict()
 
 
-async def translate(session: aiohttp.ClientSession, text: str) -> str:
-    """Japanese text in English through Google's free endpoint; the text itself when that fails, which sends the post as it was written.
+def _acceptable(source: str, result: str) -> bool:
+    """Whether a model's answer can be trusted to be the translation: something, not a runaway, and not still mostly Japanese."""
+    if not result or len(result) > 4 * len(source) + 200:
+        return False
+    letters = [c for c in result if c.isalpha()]
+    return bool(letters) and sum(1 for c in letters if has_japanese(c)) / len(letters) < 0.3
 
-    A refusal for going too fast pauses it for a few minutes rather than asking again on every post.
-    """
+
+async def _translate_local(session: aiohttp.ClientSession, clean: str) -> Optional[str]:
+    """The text in English from the local model; None when none is set up, it is paused, it could not be reached or what it said cannot be used."""
+    global _local_paused_until
+    if not TRANSLATE_URL or time.monotonic() < _local_paused_until:
+        return None
+    body = {"model": TRANSLATE_MODEL, "stream": False, "keep_alive": TRANSLATE_KEEP_ALIVE,
+            "options": {"temperature": 0, "num_ctx": 2048, "num_predict": 1024},
+            "messages": [{"role": "user", "content": LOCAL_PROMPT + clean}]}
+    try:
+        async with _local_slot:
+            async with session.post(f"{TRANSLATE_URL}/api/chat", json=body, timeout=aiohttp.ClientTimeout(total=LOCAL_TIMEOUT)) as response:
+                if response.status != 200:
+                    _local_paused_until = time.monotonic() + LOCAL_PAUSE
+                    logger.warning("news: the translation model answered %s%s", response.status,
+                                   f"; has it been pulled? ollama pull {TRANSLATE_MODEL}" if response.status == 404 else "")
+                    return None
+                data = await response.json(content_type=None)
+        result = str((data.get("message") or {}).get("content", "")).strip()
+    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, AttributeError) as error:
+        _local_paused_until = time.monotonic() + LOCAL_PAUSE
+        logger.warning("news: the translation model could not be reached (%s), so Google Translate is used for a minute", type(error).__name__)
+        return None
+    if not _acceptable(clean, result):
+        logger.warning("news: the translation model's answer was not usable, so Google Translate is used for this post")
+        return None
+    return result
+
+
+async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optional[str]:
+    """Google's free endpoint; None when it fails. A refusal for going too fast pauses it for a few minutes rather than asking again on every post."""
     global _translate_paused_until
-    clean = re.sub(r"https?://\S+", "", text or "").strip()
-    if not clean or time.monotonic() < _translate_paused_until:
-        return text
+    if time.monotonic() < _translate_paused_until:
+        return None
     for attempt in range(2):
         try:
             async with session.get("https://translate.googleapis.com/translate_a/single", headers=HEADERS,
@@ -413,15 +461,35 @@ async def translate(session: aiohttp.ClientSession, text: str) -> str:
                 if response.status == 429:
                     _translate_paused_until = time.monotonic() + TRANSLATE_PAUSE
                     logger.info("news: translation is throttled, so posts go out untranslated for %d minutes", TRANSLATE_PAUSE // 60)
-                    return text
+                    return None
                 if response.status == 200:
                     data = await response.json(content_type=None)
-                    return "".join(segment[0] for segment in data[0] if segment and segment[0]) or text
+                    return "".join(segment[0] for segment in data[0] if segment and segment[0]) or None
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, IndexError):
             pass
         if attempt == 0:
             await asyncio.sleep(1)
-    return text
+    return None
+
+
+async def translate(session: aiohttp.ClientSession, text: str) -> str:
+    """Japanese text in English: from the local model when there is one, else Google's free endpoint, else the text itself, which sends the post as written.
+
+    Links are left out of what is translated. A translation is kept for a while, so the same post is not translated twice.
+    """
+    clean = re.sub(r"https?://\S+", "", text or "").strip()
+    if not clean:
+        return text
+    if clean in _translated:
+        _translated.move_to_end(clean)
+        return _translated[clean]
+    result = await _translate_local(session, clean) or await _translate_google(session, clean)
+    if not result:
+        return text
+    _translated[clean] = result
+    while len(_translated) > TRANSLATED_KEPT:
+        _translated.popitem(last=False)
+    return result
 
 
 def media_urls(description_html: str) -> List[str]:
