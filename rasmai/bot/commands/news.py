@@ -6,7 +6,7 @@ import time
 import discord
 from discord import app_commands
 
-from rasmai.bot.core import bot, news_watch
+from rasmai.bot.core import bot, news_watch, server_invite_url
 from rasmai.bot.tasks.news import NO_MENTIONS
 from rasmai.scraping.news import SOURCES
 from rasmai.storage.db import (
@@ -49,20 +49,10 @@ async def _reply(interaction: discord.Interaction, text: str, view: Optional[dis
         await interaction.response.send_message(text, **options)
 
 
-def _invite_url(interaction: discord.Interaction, guild: discord.Guild) -> str:
-    """A link that adds the bot to this one server again, asking for what it already has plus Manage Webhooks."""
-    wanted = discord.Permissions(guild.me.guild_permissions.value)
-    wanted.manage_webhooks = True
-    return discord.utils.oauth_url(
-        interaction.client.application_id, permissions=wanted, guild=discord.Object(id=guild.id),
-        scopes=("bot", "applications.commands"), disable_guild_select=True,
-    )
-
-
 async def _ask_for_permission(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
     """The bot cannot give itself a permission, so say what to do: a fresh invite link for this server, or the permission by hand."""
     view = discord.ui.View()
-    view.add_item(discord.ui.Button(label="Give Rasmai Manage Webhooks", url=_invite_url(interaction, channel.guild)))
+    view.add_item(discord.ui.Button(label="Give Rasmai Manage Webhooks", url=server_invite_url(channel.guild.id, channel.guild.me.guild_permissions)))
     await _reply(
         interaction,
         f"I need the **Manage Webhooks** permission to make the webhook the posts are sent through in {channel.mention}. Either:\n"

@@ -122,9 +122,24 @@ async def try_render(html: str) -> Optional[bytes]:
         return None
 
 
+# what the bot asks a server for when it is added: embeds and rendered images in replies, and a webhook for /news
+BOT_PERMISSIONS = discord.Permissions(
+    view_channel=True, send_messages=True, embed_links=True, attach_files=True, read_message_history=True,
+    use_external_emojis=True, manage_webhooks=True,
+)
+
+
+def server_invite_url(guild_id: int, have: Optional[discord.Permissions] = None) -> str:
+    """A link that adds the bot to this one server, asking for what it needs and anything it already has there."""
+    wanted = discord.Permissions(BOT_PERMISSIONS.value | (have.value if have is not None else 0))
+    return discord.utils.oauth_url(bot.application_id, permissions=wanted, guild=discord.Object(id=guild_id),
+                                   scopes=("bot", "applications.commands"), disable_guild_select=True)
+
+
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
     message = ""
+    view: Optional[discord.ui.View] = None
     if isinstance(error, app_commands.CommandOnCooldown):
         message = f"Give it a moment - try again in {error.retry_after:.0f}s."
     elif isinstance(error, app_commands.MissingPermissions):
@@ -133,14 +148,27 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         message = "That one only works inside a server."
     elif isinstance(error, app_commands.TransformerError) and error.type == discord.AppCommandOptionType.channel:
         # a channel option is looked up in the bot's own cache, which holds only the channels it can see
-        message = (f"I can't see {getattr(error.value, 'mention', 'that channel')}, so I can't use it. Give me **View Channel** in its permissions "
-                   "(it may be a private channel), then try again. It also has to be a text or announcement channel.")
+        mention = getattr(error.value, "mention", "that channel")
+        member = interaction.guild_id is not None and bot.get_guild(interaction.guild_id) is not None
+        if interaction.guild_id is not None:
+            view = discord.ui.View()
+            view.add_item(discord.ui.Button(label="Add Rasmai with the permissions it needs", url=server_invite_url(interaction.guild_id)))
+        if member:
+            message = (f"I can't see {mention}, so I can't use it. Either give me **View Channel** in its permissions (it may be a private channel), "
+                       "or add me to the server again with the button below, which asks for everything I need. It also has to be a text or announcement channel.")
+        else:
+            # an app installed to someone's account runs commands in servers it is not in, and sees none of their channels
+            message = (f"I'm not in this server. I'm only installed to your account, which lets you use my commands here but gives me no view of its channels, "
+                       f"so I can't use {mention}. Someone with **Manage Server** can add me with the button below, with the permissions I need.")
     if message:
+        options: Dict[str, Any] = {"ephemeral": True}
+        if view is not None:
+            options["view"] = view
         try:
             if interaction.response.is_done():
-                await interaction.followup.send(message, ephemeral=True)
+                await interaction.followup.send(message, **options)
             else:
-                await interaction.response.send_message(message, ephemeral=True)
+                await interaction.response.send_message(message, **options)
         except discord.HTTPException:
             pass
         return
