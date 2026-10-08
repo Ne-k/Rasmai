@@ -7,12 +7,13 @@ import threading
 
 import requests
 
-from rasmai.config import OTOGE_WEBHOOK_URL
+from rasmai.config import OTOGE_WEBHOOK_URL, PUBLIC_URL
 
 logger = logging.getLogger(__name__)
 
 _TIERS = (("bas", "BASIC"), ("adv", "ADVANCED"), ("exp", "EXPERT"), ("mas", "MASTER"), ("remas", "Re:MASTER"))
 _KINDS = (("", "STD"), ("dx_", "DX"))
+USERNAME = "Rasmai · Chart updates"
 CONTENT_LIMIT = 1900         # Discord allows 2000 characters a message; the rest of a long report goes in the attached file
 
 
@@ -129,7 +130,8 @@ def describe(tables: List[Tuple[str, Dict[str, Any], Dict[str, Any]]]) -> str:
 
 def _send(text: str) -> None:
     # the report names songs, and a title could be anything: nothing in it may ping anyone
-    payload = {"username": "otoge-db", "allowed_mentions": {"parse": []}}
+    # the site's own app icon, so the post reads as Rasmai's and not as otoge-db speaking for itself
+    payload = {"username": USERNAME, "avatar_url": f"{PUBLIC_URL}/app/icon-512.png", "allowed_mentions": {"parse": []}}
     files = None
     if len(text) <= CONTENT_LIMIT:
         payload["content"] = "# otoge-db updated\n" + text
