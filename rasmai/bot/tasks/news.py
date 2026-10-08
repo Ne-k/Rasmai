@@ -208,7 +208,7 @@ class NewsWatch:
 
     async def poll(self, source: Source) -> int:
         """Send the posts of an X account that nobody has seen. The very first look sends none: it only learns what is already there."""
-        items, avatar = await news.fetch_feed(self.session, source.handle)
+        items, avatar = await news.fetch_feed(self.session, source.feed or source.handle)
         items = news.own_posts(items, source)
         if not items:
             return 0

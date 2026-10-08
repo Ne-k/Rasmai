@@ -28,12 +28,14 @@ class Source:
     platform: str      # "Bluesky" or "X"
     handle: str
     did: str = ""      # Bluesky only: the account the Jetstream is asked for
+    feed: str = ""     # X only: a feed path on the Nitter instance when it is not one account's (a search), whose posts come from anybody
 
 
 SOURCES: Dict[str, Source] = {
     "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh"),
     "maimai": Source("maimai", "Maimai Official", "X", "maimai_official"),
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
+    "search": Source("search", "maimai search", "X", "search", feed="/search/rss?view=timeline&f=media&q=maimai"),
 }
 
 JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
@@ -133,11 +135,23 @@ def trusted(url: str) -> bool:
 
 
 MAIMAI = re.compile(r"maimai|舞萌|でらっくす", re.IGNORECASE)
+OTHER_GAMES = re.compile(r"chunithm|o\.?n\.?g\.?e\.?k\.?i|オンゲキ|チュウニズム|wacca|sound voltex", re.IGNORECASE)
 
 
 def is_maimai(text: str) -> bool:
-    """Whether a post is about maimai. Preformai International covers CHUNITHM as well, so its posts are told apart by this; the X accounts are not filtered."""
-    return bool(MAIMAI.search(text or ""))
+    """Whether a post is about maimai. Preformai International covers its sister games too, so its posts are told apart by this; the X accounts are not filtered.
+
+    A post that names maimai is about maimai, unless another game comes first: then it is that game's post that happens to
+    mention maimai, a collaboration's map for one, and is left out. Two things bring it back: the `#maimai` tag, and maimai
+    named in the same sentence as the other games, as an event covering several of them does.
+    """
+    found = MAIMAI.search(text or "")
+    if not found:
+        return False
+    other = OTHER_GAMES.search(text)
+    if other is None or other.start() > found.start() or "#maimai" in text.lower():
+        return True
+    return any(MAIMAI.search(part) and OTHER_GAMES.search(part) for part in re.split(r"[\n!?。！？]+", text))
 
 
 ZWSP = chr(0x200B)      # a zero-width space: "@" + this + "everyone" reads the same and pings nobody
@@ -366,12 +380,13 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
 
 
 async def fetch_feed(session: aiohttp.ClientSession, username: str) -> Tuple[List[FeedItem], str]:
-    """An account's posts from the first Nitter instance that answers with any; ([], "") when none does."""
+    """An account's posts, or a feed path's when it starts with "/", from the first Nitter instance that answers with any; ([], "") when none does."""
+    path = username if username.startswith("/") else f"/{username}/rss"
     first = _working.get(username)
     for number, base in enumerate(([first] if first else []) + [b for b in RSS_INSTANCES if b != first]):
         if number:
             await asyncio.sleep(RSS_FALLBACK_DELAY)
-        content = await fetch_bytes(session, f"{base}/{username}/rss", FEED_BYTES)
+        content = await fetch_bytes(session, base + path, FEED_BYTES)
         items, avatar = parse_feed(content) if content else ([], "")
         if items:
             if first != base:
@@ -388,8 +403,11 @@ def own_posts(items: List[FeedItem], source: Source) -> List[FeedItem]:
     not in time order, but a status id grows with time, so that is what orders it.
     """
     handle = source.handle.lower()
-    own = [item for item in items if item.id and not item.retweet and item.author.lower() == handle
-           and (not item.reply_to or item.reply_to.lower() == handle)]
+    if source.feed:         # a search: whoever wrote it, as long as it stands on its own
+        own = [item for item in items if item.id and not item.retweet and not item.reply_to]
+    else:
+        own = [item for item in items if item.id and not item.retweet and item.author.lower() == handle
+               and (not item.reply_to or item.reply_to.lower() == handle)]
     return sorted(own, key=lambda item: int(item.id), reverse=True)
 
 
@@ -555,8 +573,9 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
     follow_up = None
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
-    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
-                tweet_time(item.id))
+    by = item.author if source.feed and item.author else source.handle
+    return Post(source.key, item.id, f"https://x.com/{by}/status/{item.id}", f"@{by}" if source.feed else source.label, "" if source.feed else avatar,
+                parts, images, videos, wanted_video, follow_up, tweet_time(item.id))
 
 
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
@@ -581,6 +600,6 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
                 break
         built = [(await build_bluesky_post(session, source, record, uri))[0] for record, uri in found]
         return [post for post in reversed(built) if post is not None]
-    items, avatar = await fetch_feed(session, source.handle)
+    items, avatar = await fetch_feed(session, source.feed or source.handle)
     own = own_posts(items, source)[:count]
     return [await build_x_post(session, source, item, avatar) for item in reversed(own)]
