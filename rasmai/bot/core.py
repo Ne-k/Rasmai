@@ -9,6 +9,7 @@ import discord
 import hashlib
 import json
 import logging
+import time
 
 from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
@@ -54,6 +55,8 @@ SCRAPE_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_SCRAPES)
 
 
 RENDER_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_RENDERS)
+STARTED = time.monotonic()                  # for the status page's uptime
+RENDER_HEALTH = {"failing": 0}              # renders that failed in a row; the status page calls images broken past a few
 
 
 # Every blocking call (requests, sqlite, otoge-db updates) runs here through asyncio.to_thread.
@@ -115,10 +118,13 @@ async def try_render(html: str) -> Optional[bytes]:
     :rtype: Optional[bytes]
     """
     try:
-        return await render_limited(html)
+        shot = await render_limited(html)
     except Exception as error:
+        RENDER_HEALTH["failing"] += 1
         logger.error(f"Image render failed; sending text only: {type(error).__name__}: {str(error)[:200]}")
         return None
+    RENDER_HEALTH["failing"] = 0
+    return shot
 
 
 @bot.tree.error

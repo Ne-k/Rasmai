@@ -18,6 +18,7 @@ _update_lock = threading.Lock()   # one chart-database refresh at a time, howeve
 _forced_at = None                  # when a read last forced a fetch; the analyses that ask soon after take that copy
 _forced_ok = False                 # whether that fetch succeeded; a failure is not retried for every title that turns up meanwhile
 FORCED_COOLDOWN = timedelta(minutes=10)
+REFRESH_AFTER = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
 
 # The cache file as last read, handed to every instance: each analysis used to unpickle a copy of its
 # own, about five megabytes, and the dashboard keeps five hundred analyses. Nothing writes into these
@@ -34,7 +35,7 @@ class CachedOtogeDB:
         self.jacket_dir = self.cache_dir / "jackets"
         self.cache_file = self.cache_dir / "songs_cache.pkl"
         self.last_update_file = self.cache_dir / "last_update.txt"
-        self.refresh_after = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
+        self.refresh_after = REFRESH_AFTER
         self.songs_data = {}          # as Japan has it: the table the search and the jackets read
         self.songs_data_intl = {}     # as the international game has it, empty until a fetch has made one
         self._load_cache()
