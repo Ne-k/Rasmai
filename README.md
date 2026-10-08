@@ -154,6 +154,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `MAIMAI_MAX_CONCURRENT` | Score reads at once. Default 24. |
 | `MAIMAI_EMOJI` / `MAIMAI_PRESENCE` | Emoji pack upload, status tracking maintenance. Both on by default. |
 | `USER_AGENT` | How the bot names itself to the wikis and chart databases. Empty is `rasmai/1.0 (+MAIMAI_PUBLIC_URL)`; adding a contact address is the polite thing. |
+| `MAIMAI_OTOGE_WEBHOOK_URL` | A Discord webhook that gets a list of what changed in the maimai charts (songs added and removed, level, constant, note count and designer changes) every time otoge-db is fetched. Empty sends nothing. |
 | `MAIMAI_DEBUG` / `MAIMAI_DEBUG_EXPORT_JSON` | Verbose scraper logs and per-analysis JSON dumps. Leave off on a public bot. |
 
 ## What's stored

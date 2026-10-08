@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import logging
 
+from rasmai.scraping.otoge import changes
 from rasmai.scraping.otoge.loader import load_songs_from_repo
 
 logger = logging.getLogger(__name__)
@@ -195,6 +196,8 @@ class CachedOtogeDB:
         if not self._clone_or_update_repo():
             logger.error("Keeping the chart database already held" if before else "No otoge-db data available")
             return False
+        # compared with the saved copy, not this instance's own: the bot and the site both fetch, and only the first to see a change should report it
+        old_jp, old_intl = changes.held(self.cache_file)
         if not load_songs_from_repo(self):
             self._discard_repo()
             logger.error("The checkout held no song data; keeping the chart database already held")
@@ -203,4 +206,5 @@ class CachedOtogeDB:
         self._discard_repo()
         self.last_update_file.write_text(datetime.now().isoformat())
         logger.info("chart database fetched: %d songs, %d before", len(self.songs_data), before)
+        changes.announce([("Japan", old_jp, self.songs_data), ("International", old_intl, self.songs_data_intl)])
         return bool(self.songs_data)

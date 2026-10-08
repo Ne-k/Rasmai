@@ -36,6 +36,9 @@ DEBUG_EXPORT_JSON = os.getenv("MAIMAI_DEBUG_EXPORT_JSON", "false").lower() == "t
 
 DEBUG_EXPORT_DIR = Path("debug/maimai-exports")
 
+# a Discord webhook told what changed in the maimai charts every time otoge-db is fetched; empty sends nothing
+OTOGE_WEBHOOK_URL = os.getenv("MAIMAI_OTOGE_WEBHOOK_URL", "").strip()
+
 
 # The bot's internal API, for the Next.js site in web/ to call. Not for browsers: keep it on
 # loopback or the container network, and give both processes the same RASMAI_INTERNAL_SECRET.
