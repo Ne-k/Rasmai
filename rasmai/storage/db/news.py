@@ -79,6 +79,15 @@ def news_subscribers(source: str) -> List[Tuple[str, str]]:
     return out
 
 
+def followed_news_keys() -> Set[str]:
+    """The sources some channel follows, found without opening any webhook."""
+    connection = get_database_connection()
+    try:
+        return {str(row[0]) for row in connection.execute("SELECT DISTINCT source FROM news_subscriptions")}
+    finally:
+        connection.close()
+
+
 def channel_sources(channel_id: str) -> List[str]:
     connection = get_database_connection()
     try:

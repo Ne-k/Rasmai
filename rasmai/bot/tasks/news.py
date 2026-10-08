@@ -11,7 +11,7 @@ import discord
 from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
-    jetstream_alive, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
+    followed_news_keys, jetstream_alive, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
     remove_unknown_news_sources, save_jetstream_alive,
 )
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 POLL_EVERY = 300                    # seconds between looks at the X feeds
 IDLE_RECHECK = 60                   # seconds between asking whether anyone follows a Bluesky account, while nobody does
 CATCH_UP = 5                        # most posts sent at once after a gap; older ones are marked seen, not sent
+X_AT_ONCE = 4                       # X accounts read at the same time, so a dead one cannot hold up the rest, nor all of them crowd a Nitter instance
 SEND_AT_ONCE = 10                   # channels a post is being sent to at the same time; webhooks share Discord's ~50 a second global limit, so no more
 SEND_TIMEOUT = 30                   # seconds a send may take, Discord's own retries included, before it counts as a failure worth one more try
 UPLOAD_BUDGET = 1 << 30             # bytes a post may upload across all its channels; above it, the link draws the media instead of every channel getting a copy
@@ -86,6 +87,7 @@ class NewsWatch:
         self._tasks: List[asyncio.Task] = []
         self._running: Set[asyncio.Task] = set()
         self._inflight: Set[str] = set()        # Bluesky posts being waited on, built or sent right now
+        self._queued: Dict[str, int] = {}       # of those, how many each account has
         self._bluesky_turn = asyncio.Lock()     # Bluesky posts are built and sent one at a time, in the order they finish waiting
         self._history_turn = asyncio.Semaphore(1)       # one /news subscribe previous: at a time, however many servers ask
 
@@ -114,8 +116,8 @@ class NewsWatch:
     async def _followed_bluesky(self) -> Dict[str, Source]:
         """The Bluesky accounts some channel follows, by DID: the ones the stream is asked for."""
         sources = await asyncio.to_thread(load_sources)
-        return {source.did: source for source in sources.values()
-                if source.did and await asyncio.to_thread(news_subscribers, source.key)}
+        followed = await asyncio.to_thread(followed_news_keys)
+        return {source.did: source for source in sources.values() if source.did and source.key in followed}
 
     async def _bluesky_loop(self) -> None:
         while True:
@@ -202,11 +204,17 @@ class NewsWatch:
         """
         if uri in self._inflight:
             return 0
+        if source.key not in SOURCES and self._queued.get(source.key, 0) >= CATCH_UP:
+            # an added account posting faster than posts are built would hold up everyone's, the maimai news too, until too old to send
+            await asyncio.to_thread(news_mark_seen, source.key, [uri])
+            return 0
         self._inflight.add(uri)
+        self._queued[source.key] = self._queued.get(source.key, 0) + 1
         try:
             return await self._bluesky_post(source, record, uri, wait)
         finally:
             self._inflight.discard(uri)
+            self._queued[source.key] -= 1
 
     async def _bluesky_post(self, source: Source, record: Dict[str, Any], uri: str, wait: bool) -> int:
         """Send a new post if it is one to send and nobody has seen it; returns how many channels got it.
@@ -249,20 +257,23 @@ class NewsWatch:
         except Exception:
             logger.exception("news: old subscriptions could not be cleared")
         # sources followed last round; at the start, every one followed, so what was missed while the bot was down is caught up
-        followed = {key for key in await asyncio.to_thread(load_sources) if await asyncio.to_thread(news_subscribers, key)}
+        followed = await asyncio.to_thread(followed_news_keys)
+        turn = asyncio.Semaphore(X_AT_ONCE)
         while True:
-            for source in (await asyncio.to_thread(load_sources)).values():
-                if source.platform != "X":
-                    continue
-                try:
-                    if not await asyncio.to_thread(news_subscribers, source.key):
-                        followed.discard(source.key)
-                        continue
-                    # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
-                    await self.poll(source, learn=source.key not in followed)
-                    followed.add(source.key)
-                except Exception:
-                    logger.exception("news: reading %s failed", source.handle)
+            sources = await asyncio.to_thread(load_sources)
+            wanted = await asyncio.to_thread(followed_news_keys)
+            polled: Set[str] = set()
+
+            async def read(source: Source) -> None:
+                async with turn:
+                    try:
+                        # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
+                        await self.poll(source, learn=source.key not in followed)
+                        polled.add(source.key)
+                    except Exception:
+                        logger.exception("news: reading %s failed", source.handle)
+            await asyncio.gather(*(read(source) for source in sources.values() if source.platform == "X" and source.key in wanted))
+            followed = (followed & wanted) | polled
             await asyncio.sleep(POLL_EVERY)
 
     async def poll(self, source: Source, learn: bool = False) -> int:
@@ -270,7 +281,8 @@ class NewsWatch:
 
         The very first look sends none: it only learns what is already there. So does one with ``learn``.
         """
-        items, avatar = await news.fetch_feed(self.session, source.handle)
+        # an added account gone private or suspended is empty on every instance, so it is not worth trying all of them each round
+        items, avatar = await news.fetch_feed(self.session, source.handle, len(news.RSS_INSTANCES) if source.key in SOURCES else news.LOOKUP_TRIES)
         items = news.own_posts(items, source)
         if not items:
             return 0

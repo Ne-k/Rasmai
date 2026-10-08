@@ -13,7 +13,7 @@ from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping import news as feeds
 from rasmai.scraping.news import SOURCES, Source
 from rasmai.storage.db import (
-    add_news_source, add_news_subscription, channel_sources, followed_news_source_count, guild_news, news_subscription_count,
+    add_news_source, add_news_subscription, channel_sources, followed_news_keys, followed_news_source_count, guild_news, news_subscription_count,
     news_webhook, remove_news_subscription, replace_channel_webhook,
 )
 
@@ -28,6 +28,7 @@ NEWS_COLOR = discord.Color.from_rgb(92, 211, 232)
 CHANNEL_TYPES = [discord.ChannelType.text, discord.ChannelType.news]     # the kinds of channel a webhook can post in
 MAX_ADDED = 50               # accounts servers added that the bot reads at once: each X one is a Nitter read every few minutes, and those are public servers
 MAX_CHOICES = 25             # what one Discord select can list
+ADDED_FULL = "Rasmai already follows as many extra accounts as it can. Ask in the support server if you need one added."
 
 _history_at: Dict[int, float] = {}
 
@@ -40,13 +41,15 @@ news = app_commands.Group(
 )
 
 
-def _name(key: str) -> str:
+def _name(key: str, plain: bool = False) -> str:
+    """An account's name; escaped unless ``plain``, since an added account picks its own and markdown would let it pose as a link."""
     source = all_sources().get(key)
-    return source.label if source is not None else key
+    name = source.label if source is not None else key
+    return name if plain else discord.utils.escape_markdown(name)
 
 
-def _names(keys: List[str]) -> str:
-    return ", ".join(_name(key) for key in keys) or "nothing"
+def _names(keys: List[str], plain: bool = False) -> str:
+    return ", ".join(_name(key, plain) for key in keys) or "nothing"
 
 
 async def _reply(interaction: discord.Interaction, text: str, view: Optional[discord.ui.View] = None) -> None:
@@ -139,6 +142,12 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
         if await asyncio.to_thread(news_subscription_count, guild_id) - len(dropped) + len(fresh) > MAX_PER_SERVER:
             await _reply(interaction, f"A server can follow up to {MAX_PER_SERVER} accounts across all its channels. Untick some here or in another channel first.")
             return None
+        # checked again here: the check on adding counts only saved accounts, and many menus can be adding at once
+        followed = await asyncio.to_thread(followed_news_keys)
+        extra = [key for key in fresh if key not in SOURCES and key not in followed]
+        if extra and await asyncio.to_thread(followed_news_source_count) + len(extra) > MAX_ADDED:
+            await _reply(interaction, ADDED_FULL)
+            return None
         try:
             url = await _webhook_for(channel)
         except discord.Forbidden:
@@ -205,7 +214,8 @@ class SubscribeMenu(OwnerOnlyView):
     """Where the news goes and from which accounts: a channel, the accounts ticked for it, and Save.
 
     Picking a channel that already gets news ticks what it follows, so this is also where accounts are switched on and off.
-    Besides the built-in accounts it lists the ones this server added, and any typed in with "Add an account".
+    Besides the built-in accounts it lists the ones this server added, and any typed in with "Add an account";
+    the last picker removes an added account from every channel here.
     """
 
     def __init__(self, owner_id: int, guild_id: int, following: Dict[str, List[str]], previous: int = 0):
@@ -219,9 +229,10 @@ class SubscribeMenu(OwnerOnlyView):
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
         self.test = discord.ui.Button(label="Send a test post", style=discord.ButtonStyle.secondary, row=2, disabled=True)
         self.add = discord.ui.Button(label="Add an account", style=discord.ButtonStyle.secondary, row=2)
+        self.drop = discord.ui.Select(placeholder="Remove an added account", row=3)
         self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.send_test
-        self.add.callback = self.open_add
-        for item in (self.where, self.which, self.save, self.test, self.add):
+        self.add.callback, self.drop.callback = self.open_add, self.remove_account
+        for item in (self.where, self.which, self.save, self.test, self.add, self.drop):
             self.add_item(item)
         self._fill(set(SOURCES))
 
@@ -236,6 +247,10 @@ class SubscribeMenu(OwnerOnlyView):
                               for key, source in list(self.choices().items())[:MAX_CHOICES]]
         self.which.max_values = len(self.which.options)
         self.add.disabled = len(self.which.options) >= MAX_CHOICES
+        extra = [(key, source) for key, source in self.choices().items() if key not in SOURCES][:MAX_CHOICES]
+        self.drop.options = [discord.SelectOption(label=source.label[:100], value=key) for key, source in extra] \
+            or [discord.SelectOption(label="No added accounts", value="none")]      # a select needs one, even greyed out
+        self.drop.disabled = not extra
 
     @property
     def ticked(self) -> List[str]:
@@ -309,7 +324,7 @@ class SubscribeMenu(OwnerOnlyView):
         same = next((key for key, known in all_sources().items() if known.platform == source.platform
                      and ((source.did and known.did == source.did) or known.handle.lower() == source.handle.lower())), None)
         if same is None and await asyncio.to_thread(followed_news_source_count) >= MAX_ADDED:
-            await _reply(interaction, "Rasmai already follows as many extra accounts as it can. Ask in the support server if you need one added.")
+            await _reply(interaction, ADDED_FULL)
             return
         key = same or source.key
         if key not in self.choices():
@@ -319,7 +334,37 @@ class SubscribeMenu(OwnerOnlyView):
             await _reply(interaction, "The list is full - untick and remove some accounts first.")
             return
         where = self.channel.mention if self.channel is not None else "the channel you pick"
-        note = f"Added **{_name(key) if same else source.label}** and ticked it. Hit **Save** to start it in {where}."
+        note = f"Added **{_name(key) if same else discord.utils.escape_markdown(source.label)}** and ticked it. Hit **Save** to start it in {where}."
+        await interaction.edit_original_response(embed=self.embed(note), view=self)
+
+    async def remove_account(self, interaction: discord.Interaction) -> None:
+        """Stop an added account in every channel here that gets it, or drop it from the list when no channel does yet."""
+        key = self.drop.values[0]
+        source = self.choices().get(key)
+        await interaction.response.defer()
+        if source is None or key in SOURCES:
+            return
+        removed, refused = [], []
+        for channel_id, keys in self.following.items():
+            if key not in keys:
+                continue
+            channel = interaction.guild.get_channel(int(channel_id)) if interaction.guild is not None else None
+            if channel is not None and _refusal(interaction, channel):      # a deleted channel has nobody to ask, and only its rows are left
+                refused.append(f"<#{channel_id}>")
+                continue
+            if keys == [key]:
+                await stop_channel(channel_id)      # it was all the channel got, so its webhook goes too
+            else:
+                await asyncio.to_thread(remove_news_subscription, channel_id, key)
+            removed.append(f"<#{channel_id}>")
+        self.added.pop(key, None)
+        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        if self.channel is not None:
+            self.current = await asyncio.to_thread(channel_sources, str(self.channel.id))
+            self.test.disabled = not self.current
+        self._fill({k for k in self.ticked if k != key or k in self.current})
+        note = f"Removed **{discord.utils.escape_markdown(source.label)}**" + (f" from {', '.join(removed)}" if removed else "") + "." + \
+               (f" You need **Manage Webhooks** in {', '.join(refused)} to remove it there." if refused else "")
         await interaction.edit_original_response(embed=self.embed(note), view=self)
 
     async def send_test(self, interaction: discord.Interaction) -> None:
@@ -365,7 +410,7 @@ class UnsubscribeMenu(OwnerOnlyView):
         return f"#{channel.name}" if channel is not None else "A deleted channel"
 
     def _fill(self) -> None:
-        self.which.options = [discord.SelectOption(label=self._label(cid)[:100], value=cid, description=_names(keys)[:100])
+        self.which.options = [discord.SelectOption(label=self._label(cid)[:100], value=cid, description=_names(keys, plain=True)[:100])
                               for cid, keys in list(self.following.items())[:25]]
         self.which.max_values = max(1, len(self.which.options))
         self.which.disabled = self.stop_button.disabled = not self.which.options
