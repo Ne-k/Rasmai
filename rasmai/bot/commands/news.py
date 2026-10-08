@@ -182,17 +182,18 @@ class SubscribeMenu(OwnerOnlyView):
     Picking a channel that already gets news ticks what it follows, so this is also where accounts are switched on and off.
     """
 
-    def __init__(self, owner_id: int, previous: int = 0):
+    def __init__(self, owner_id: int, guild_id: int, following: Dict[str, List[str]], previous: int = 0):
         super().__init__(owner_id, timeout=MENU_TIMEOUT)
-        self.previous = previous
+        self.guild_id, self.following, self.previous = guild_id, following, previous
         self.channel: Optional[discord.TextChannel] = None
         self.current: List[str] = []
         self.where = discord.ui.ChannelSelect(placeholder="Pick a channel", channel_types=CHANNEL_TYPES, row=0)
         self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, max_values=len(SOURCES), row=1,
                                        options=[discord.SelectOption(label=_name(key), value=key, default=True) for key in SOURCES])
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
-        self.where.callback, self.which.callback, self.save.callback = self.pick_channel, self.pick_accounts, self.submit
-        for item in (self.where, self.which, self.save):
+        self.test = discord.ui.Button(label="Send a test post", style=discord.ButtonStyle.secondary, row=2, disabled=True)
+        self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.send_test
+        for item in (self.where, self.which, self.save, self.test):
             self.add_item(item)
 
     @property
@@ -206,6 +207,8 @@ class SubscribeMenu(OwnerOnlyView):
         if note:
             lines.append("\n" + note)
         embed = discord.Embed(title="News", description="\n".join(lines), color=NEWS_COLOR)
+        where = [f"<#{cid}>: {_names(keys)}" for cid, keys in self.following.items()]
+        embed.add_field(name="Getting news now", value="\n".join(where)[:1024] if where else "No channels yet.", inline=False)
         embed.set_footer(text=f"Bluesky posts show up within a minute and X posts within about 5. They come through a webhook called \"{WEBHOOK_NAME}\".")
         return embed
 
@@ -224,6 +227,7 @@ class SubscribeMenu(OwnerOnlyView):
             option.default = option.value in ticked
         self.where.default_values = [discord.Object(id=channel.id)]       # it stays shown as picked when the message is redrawn
         self.save.disabled = False
+        self.test.disabled = not self.current
         await interaction.response.edit_message(embed=self.embed(), view=self)
 
     async def pick_accounts(self, interaction: discord.Interaction) -> None:
@@ -241,7 +245,33 @@ class SubscribeMenu(OwnerOnlyView):
         if done is None:
             return
         self.current = await asyncio.to_thread(channel_sources, str(self.channel.id))
+        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        self.test.disabled = not self.current
         await interaction.edit_original_response(embed=self.embed(done), view=self)
+
+    async def send_test(self, interaction: discord.Interaction) -> None:
+        """Send the channel the latest post of the first account it follows, so it can be seen working without waiting for news."""
+        if self.channel is None or not self.current:
+            await _reply(interaction, "Save a channel with at least one account first.")
+            return
+        refused = _refusal(interaction, self.channel)
+        if refused:
+            await _reply(interaction, refused)
+            return
+        # it costs what earlier posts cost, a read, a translation and maybe a video, so it shares their wait
+        wait = HISTORY_SPACING - (time.monotonic() - _history_at.get(self.guild_id, float("-inf")))
+        if wait > 0:
+            await _reply(interaction, f"This server asked for a post a moment ago. Try again in {int(wait // 60) + 1} min.")
+            return
+        channel_id = str(self.channel.id)
+        url = await asyncio.to_thread(news_webhook, channel_id)
+        if not url:
+            await _reply(interaction, f"{self.channel.mention}'s webhook is gone - hit **Save** to make a new one.")
+            return
+        _history_at[self.guild_id] = time.monotonic()
+        key = self.current[0]
+        news_watch.spawn(news_watch.history(channel_id, url, [key], 1))
+        await _reply(interaction, f"Sending the latest {_name(key)} post to {self.channel.mention} so you can see how it looks. It can take a moment.")
 
 
 class UnsubscribeMenu(OwnerOnlyView):
@@ -309,7 +339,8 @@ class UnsubscribeMenu(OwnerOnlyView):
 @app_commands.checks.has_permissions(manage_webhooks=True)
 @app_commands.describe(previous=f"Earlier posts to send from each newly ticked account, up to {MAX_HISTORY} (default 0)")
 async def subscribe(interaction: discord.Interaction, previous: app_commands.Range[int, 0, MAX_HISTORY] = 0):
-    menu = SubscribeMenu(interaction.user.id, previous)
+    following = await asyncio.to_thread(guild_news, str(interaction.guild_id))
+    menu = SubscribeMenu(interaction.user.id, interaction.guild_id or 0, following, previous)
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
     menu.message = await interaction.original_response()
 

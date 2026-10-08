@@ -994,7 +994,7 @@
           "c05_news": {
             "name": "/news",
             "args": "subscribe · unsubscribe",
-            "what": "サーバーの管理者向け。maimai のニュースを、投稿され次第チャンネルに流します。Bluesky の Preformai International と、X の Maimai Official と Laundromai が対象です。<code>/news subscribe</code> でメニューが開きます。チャンネルを選び、流すアカウントにチェックを入れて保存します。すでにニュースが届いているチャンネルを選ぶと、アカウントごとにオン・オフを切り替えられます。<code>previous</code> オプションで、新しくチェックしたアカウントの過去の投稿をその件数だけ送れます（既定は0件）。Webhook の管理権限が足りないときは、追加するためのリンクが表示されます。<code>/news unsubscribe</code> では、このサーバーのチャンネルごとに何が届いているかが一覧で表示され、選んだチャンネルを止められます。どちらも Webhook の管理権限が必要です。"
+            "what": "サーバーの管理者向け。maimai のニュースを、投稿され次第チャンネルに流します。Bluesky の Preformai International と、X の Maimai Official と Laundromai が対象です。<code>/news subscribe</code> でメニューが開きます。チャンネルを選び、流すアカウントにチェックを入れて保存します。すでにニュースが届いているチャンネルを選ぶと、アカウントごとにオン・オフを切り替えたり、「Send a test post」で最新の投稿を試しに送ったりできます。<code>previous</code> オプションで、新しくチェックしたアカウントの過去の投稿をその件数だけ送れます（既定は0件）。Webhook の管理権限が足りないときは、追加するためのリンクが表示されます。<code>/news unsubscribe</code> では、このサーバーのチャンネルごとに何が届いているかが一覧で表示され、選んだチャンネルを止められます。どちらも Webhook の管理権限が必要です。"
           }
         }
       },
