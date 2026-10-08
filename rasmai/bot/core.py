@@ -3,7 +3,7 @@ from discord.app_commands.installs import AppCommandContext, AppInstallationType
 from discord.ext import commands, tasks
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 import asyncio
 import discord
 import hashlib
@@ -136,6 +136,21 @@ def server_invite_url(guild_id: int, have: Optional[discord.Permissions] = None)
                                    scopes=("bot", "applications.commands"), disable_guild_select=True)
 
 
+def cannot_see_channel(interaction: discord.Interaction, mention: str) -> Tuple[str, Optional[discord.ui.View]]:
+    """What to say about a channel someone picked that the bot cannot see, with a button that adds it with what it needs."""
+    member = interaction.guild_id is not None and bot.get_guild(interaction.guild_id) is not None
+    view: Optional[discord.ui.View] = None
+    if interaction.guild_id is not None:
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Add Rasmai with the permissions it needs", url=server_invite_url(interaction.guild_id)))
+    if member:
+        return (f"I can't see {mention}, so I can't use it. Either give me **View Channel** in its permissions (it may be a private channel), "
+                "or add me to the server again with the button below, which asks for everything I need. It also has to be a text or announcement channel."), view
+    # an app installed to someone's account runs commands in servers it is not in, and sees none of their channels
+    return (f"I'm not in this server. I'm only installed to your account, which lets you use my commands here but gives me no view of its channels, "
+            f"so I can't use {mention}. Someone with **Manage Server** can add me with the button below, with the permissions I need."), view
+
+
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
     message = ""
@@ -143,23 +158,14 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     if isinstance(error, app_commands.CommandOnCooldown):
         message = f"Give it a moment - try again in {error.retry_after:.0f}s."
     elif isinstance(error, app_commands.MissingPermissions):
-        message = "That needs the **Manage Server** permission here."
+        # named the way Discord's own settings name them; manage_guild is "Manage Server" there
+        needed = " and ".join("**" + {"manage_guild": "Manage Server"}.get(p, p.replace("_", " ").title()) + "**" for p in error.missing_permissions)
+        message = f"That needs the {needed} permission here."
     elif isinstance(error, app_commands.NoPrivateMessage):
         message = "That one only works inside a server."
     elif isinstance(error, app_commands.TransformerError) and error.type == discord.AppCommandOptionType.channel:
         # a channel option is looked up in the bot's own cache, which holds only the channels it can see
-        mention = getattr(error.value, "mention", "that channel")
-        member = interaction.guild_id is not None and bot.get_guild(interaction.guild_id) is not None
-        if interaction.guild_id is not None:
-            view = discord.ui.View()
-            view.add_item(discord.ui.Button(label="Add Rasmai with the permissions it needs", url=server_invite_url(interaction.guild_id)))
-        if member:
-            message = (f"I can't see {mention}, so I can't use it. Either give me **View Channel** in its permissions (it may be a private channel), "
-                       "or add me to the server again with the button below, which asks for everything I need. It also has to be a text or announcement channel.")
-        else:
-            # an app installed to someone's account runs commands in servers it is not in, and sees none of their channels
-            message = (f"I'm not in this server. I'm only installed to your account, which lets you use my commands here but gives me no view of its channels, "
-                       f"so I can't use {mention}. Someone with **Manage Server** can add me with the button below, with the permissions I need.")
+        message, view = cannot_see_channel(interaction, getattr(error.value, "mention", "that channel"))
     if message:
         options: Dict[str, Any] = {"ephemeral": True}
         if view is not None:
@@ -458,7 +464,7 @@ watch = ServerWatch(bot)
 history_watch = HistoryWatch(bot, watch)
 
 
-news_watch = NewsWatch(bot)
+news_watch = NewsWatch()
 
 
 @bot.event

@@ -28,14 +28,12 @@ class Source:
     platform: str      # "Bluesky" or "X"
     handle: str
     did: str = ""      # Bluesky only: the account the Jetstream is asked for
-    feed: str = ""     # X only: a feed path on the Nitter instance when it is not one account's (a search), whose posts come from anybody
 
 
 SOURCES: Dict[str, Source] = {
     "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh"),
     "maimai": Source("maimai", "Maimai Official", "X", "maimai_official"),
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
-    "search": Source("search", "maimai search", "X", "search", feed="/search/rss?view=timeline&f=media&q=maimai"),
 }
 
 JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
@@ -88,16 +86,17 @@ class Post:
     follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
     posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
 
-    def content(self) -> str:
-        body = "\n\n".join(p for p in self.parts if p).strip()
+    def content(self, unfurl: bool = False) -> str:
+        """The message: ``unfurl`` lets the link draw its preview, for when the post's media could not be attached."""
+        body = unmask("\n\n".join(p for p in self.parts if p).strip())
         if len(body) > 1500:
             body = body[:1490] + "…"
-        link = self.url if self.wanted_video and not self.videos else f"<{self.url}>"
+        link = self.url if unfurl or (self.wanted_video and not self.videos) else f"<{self.url}>"
         # Discord draws these in each reader's own time zone: the full date and time, then how long ago, which keeps counting
         when = f"-# Posted <t:{self.posted_at}:F> · <t:{self.posted_at}:R>\n" if self.posted_at else ""
         head = ""
         if self.follow_up:
-            earlier, line = self.follow_up
+            earlier, line = self.follow_up[0], unmask(self.follow_up[1])
             head = FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post](<{earlier}>)" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
         return sanitize(f"{head}{body}\n\n{when}{link}\n\n---".strip())
 
@@ -129,8 +128,11 @@ def first_line(text: str, limit: int = 140) -> str:
 
 
 def trusted(url: str) -> bool:
-    parts = urlparse(url)
-    host = (parts.hostname or "").lower()
+    try:
+        parts = urlparse(url)
+        host = (parts.hostname or "").lower()       # raises on a malformed host such as "[x"
+    except ValueError:
+        return False
     return parts.scheme == "https" and (host in TRUSTED_HOSTS or host.endswith(".twimg.com"))
 
 
@@ -166,6 +168,11 @@ def sanitize(text: str) -> str:
     return re.sub(r"<#\d+>", "[channel]", text)
 
 
+def unmask(text: str) -> str:
+    """Post text with its ``[words](address)`` links broken, so a post cannot dress one address up as another; the bot's own links are added after."""
+    return (text or "").replace("](", "]" + ZWSP + "(")
+
+
 # ---------------------------------------------------------------- fetching
 
 async def fetch_bytes(session: aiohttp.ClientSession, url: str, limit: int = MAX_FILE_BYTES) -> Optional[bytes]:
@@ -174,7 +181,7 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, limit: int = MAX
         if not trusted(url):
             return None
         try:
-            async with session.get(url, allow_redirects=False, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=20)) as response:
+            async with session.get(url, allow_redirects=False, timeout=aiohttp.ClientTimeout(total=20)) as response:
                 if response.status in (301, 302, 303, 307, 308) and response.headers.get("Location"):
                     url = urljoin(str(response.url), response.headers["Location"])
                     continue
@@ -193,7 +200,7 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, limit: int = MAX
 
 async def _get_json(session: aiohttp.ClientSession, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
     try:
-        async with session.get(url, params=params, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=15)) as response:
+        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as response:
             if response.status != 200:
                 return None
             return await response.json(content_type=None)
@@ -215,13 +222,18 @@ def _ffmpeg(args: List[str], timeout: int) -> bool:
     return result.returncode == 0
 
 
+def _playlist_args(url: str, out: str) -> List[str]:
+    # the playlist names its own segments and keys, and ffmpeg follows them and any redirect wherever they point: this keeps it to https
+    return ["-protocol_whitelist", "https,tls,tcp,crypto", "-headers", "User-Agent: Mozilla/5.0\r\n", "-i", url, "-c", "copy",
+            "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart", out]
+
+
 def _video_sync(url: str) -> Optional[bytes]:
     if not shutil.which("ffmpeg") or not trusted(url):
         return None
     first, second = _temp(), _temp()
     try:
-        if not _ffmpeg(["-headers", "User-Agent: Mozilla/5.0\r\n", "-i", url, "-c", "copy", "-bsf:a", "aac_adtstoasc",
-                        "-movflags", "+faststart", first], 180) or os.path.getsize(first) == 0:
+        if not _ffmpeg(_playlist_args(url, first), 180) or os.path.getsize(first) == 0:
             return None
         final = first
         if os.path.getsize(first) > MAX_FILE_BYTES:
@@ -286,7 +298,9 @@ async def bluesky_thread(session: aiohttp.ClientSession, uri: str, did: str) -> 
             if (post.get("author") or {}).get("did") == did and post.get("uri"):
                 found[post["uri"]] = post
             for reply in node.get("replies") or []:
-                walk(reply)
+                # only down the account's own chain: its answer to a fan sits under the fan's reply, and is not sent
+                if isinstance(reply, dict) and ((reply.get("post") or {}).get("author") or {}).get("did") == did:
+                    walk(reply)
 
     walk(data.get("thread"))
     above = ((data.get("thread") or {}).get("parent") or {}).get("post")
@@ -305,19 +319,16 @@ async def bluesky_avatar(session: aiohttp.ClientSession, handle: str) -> str:
     return _avatars[handle]
 
 
-async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, record: Dict[str, Any], uri: str) -> Tuple[Optional[Post], List[str]]:
-    """The post for a thread that started at ``uri``, and the URIs of every post in it; None when it holds nothing of the author's."""
+async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, record: Dict[str, Any], uri: str) -> Tuple[Post, List[str]]:
+    """The post for a thread that started at ``uri``, and the URIs of every post in it."""
     thread, above = await bluesky_thread(session, uri, source.did)
     thread = thread or [{"uri": uri, "record": record, "author": {"did": source.did}}]
-    thread = [p for p in thread if (p.get("author") or {}).get("did") == source.did]
-    if not thread:
-        return None, []
     parts: List[str] = []
     images: List[str] = []
     playlists: List[str] = []
     for post in thread:
         body = post.get("record") or {}
-        text = sanitize(str(body.get("text", "")).strip())
+        text = str(body.get("text", "")).strip()
         if text:
             parts.append(text)
         more_images, more_videos = bluesky_media(body, source.did)
@@ -380,13 +391,12 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
 
 
 async def fetch_feed(session: aiohttp.ClientSession, username: str) -> Tuple[List[FeedItem], str]:
-    """An account's posts, or a feed path's when it starts with "/", from the first Nitter instance that answers with any; ([], "") when none does."""
-    path = username if username.startswith("/") else f"/{username}/rss"
+    """An account's posts from the first Nitter instance that answers with any; ([], "") when none does."""
     first = _working.get(username)
     for number, base in enumerate(([first] if first else []) + [b for b in RSS_INSTANCES if b != first]):
         if number:
             await asyncio.sleep(RSS_FALLBACK_DELAY)
-        content = await fetch_bytes(session, base + path, FEED_BYTES)
+        content = await fetch_bytes(session, f"{base}/{username}/rss", FEED_BYTES)
         items, avatar = parse_feed(content) if content else ([], "")
         if items:
             if first != base:
@@ -403,11 +413,8 @@ def own_posts(items: List[FeedItem], source: Source) -> List[FeedItem]:
     not in time order, but a status id grows with time, so that is what orders it.
     """
     handle = source.handle.lower()
-    if source.feed:         # a search: whoever wrote it, as long as it stands on its own
-        own = [item for item in items if item.id and not item.retweet and not item.reply_to]
-    else:
-        own = [item for item in items if item.id and not item.retweet and item.author.lower() == handle
-               and (not item.reply_to or item.reply_to.lower() == handle)]
+    own = [item for item in items if item.id and not item.retweet and item.author.lower() == handle
+           and (not item.reply_to or item.reply_to.lower() == handle)]
     return sorted(own, key=lambda item: int(item.id), reverse=True)
 
 
@@ -480,7 +487,7 @@ async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optio
         return None
     for attempt in range(2):
         try:
-            async with session.get("https://translate.googleapis.com/translate_a/single", headers=HEADERS,
+            async with session.get("https://translate.googleapis.com/translate_a/single",
                                    params={"client": "gtx", "sl": "ja", "tl": "en", "dt": "t", "q": clean},
                                    timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 429:
@@ -568,14 +575,13 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
     written = item.text
     # some accounts write both languages themselves, and a translation of that would only say it twice
     english = await translate(session, written) if has_japanese(written) and not has_english(written) else ""
-    parts = [sanitize(english)] if english and english != written else []
-    parts.append(sanitize(written))
+    parts = [english] if english and english != written else []
+    parts.append(written)
     follow_up = None
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
-    by = item.author if source.feed and item.author else source.handle
-    return Post(source.key, item.id, f"https://x.com/{by}/status/{item.id}", f"@{by}" if source.feed else source.label, "" if source.feed else avatar,
-                parts, images, videos, wanted_video, follow_up, tweet_time(item.id))
+    return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
+                tweet_time(item.id))
 
 
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
@@ -598,8 +604,7 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
                 found.append((record, post["uri"]))
             if len(found) == count:
                 break
-        built = [(await build_bluesky_post(session, source, record, uri))[0] for record, uri in found]
-        return [post for post in reversed(built) if post is not None]
-    items, avatar = await fetch_feed(session, source.feed or source.handle)
+        return [(await build_bluesky_post(session, source, record, uri))[0] for record, uri in reversed(found)]
+    items, avatar = await fetch_feed(session, source.handle)
     own = own_posts(items, source)[:count]
     return [await build_x_post(session, source, item, avatar) for item in reversed(own)]

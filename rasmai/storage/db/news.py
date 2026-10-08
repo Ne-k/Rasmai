@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 import logging
 
 from rasmai.security import decrypt_token, encrypt_token
@@ -88,6 +88,19 @@ def channel_sources(channel_id: str) -> List[str]:
     return [str(row["source"]) for row in rows]
 
 
+def guild_news(guild_id: str) -> Dict[str, List[str]]:
+    """Every channel in a server that follows something, with what it follows, in the order they were set up."""
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT channel_id, source FROM news_subscriptions WHERE guild_id = ? ORDER BY created_at, source", (guild_id,)).fetchall()
+    finally:
+        connection.close()
+    out: Dict[str, List[str]] = {}
+    for row in rows:
+        out.setdefault(str(row["channel_id"]), []).append(str(row["source"]))
+    return out
+
+
 def news_subscription_count(guild_id: str) -> int:
     connection = get_database_connection()
     try:
@@ -106,6 +119,30 @@ def remove_news_subscription(channel_id: str, source: Optional[str] = None) -> i
             else:
                 cursor = connection.execute("DELETE FROM news_subscriptions WHERE channel_id = ? AND source = ?", (channel_id, source))
             return cursor.rowcount
+    finally:
+        connection.close()
+
+
+def remove_channel_webhook(channel_id: str, webhook_url: str) -> int:
+    """Stop following whatever a channel follows through this webhook, which is gone. Rows already moved to a newer webhook stay."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            rows = connection.execute("SELECT source, webhook FROM news_subscriptions WHERE channel_id = ?", (channel_id,)).fetchall()
+            gone = [str(row["source"]) for row in rows if decrypt_token(str(row["webhook"]), _owner(channel_id)) == webhook_url]
+            connection.executemany("DELETE FROM news_subscriptions WHERE channel_id = ? AND source = ?", [(channel_id, source) for source in gone])
+            return len(gone)
+    finally:
+        connection.close()
+
+
+def remove_unknown_news_sources(known: Iterable[str]) -> int:
+    """Forget subscriptions to sources the bot no longer has, so they stop counting against a server's limit."""
+    keys = list(known)
+    connection = get_database_connection()
+    try:
+        with connection:
+            return connection.execute(f"DELETE FROM news_subscriptions WHERE source NOT IN ({','.join('?' * len(keys))})", keys).rowcount
     finally:
         connection.close()
 
