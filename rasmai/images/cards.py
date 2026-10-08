@@ -4,14 +4,11 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 from rasmai.images.markup import render
 from rasmai.images.posters import CoverFn, _esc, tier
 from rasmai.images.pages import _image, star_marks
+from rasmai.images.pages.common import _fc
 
 def _card(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], headline_value: str,
           headline_caption: str, body: str, date_text: str) -> str:
     return _image(eyebrow, name, avatar_b64, counters, headline_value, headline_caption, body, date_text, "narrow")
-
-
-def _lamp(fc: str, fs: str) -> str:
-    return " · ".join(b for b in (str(fc or "").upper(), str(fs or "").upper()) if b and b != "NONE")
 
 
 # ---------------------------------------------------------------- /chart and /random
@@ -28,7 +25,7 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
         if r.get("played"):
             score = f'<span class="big">{r["accuracy"]:.4f}<small>{_esc(r["rank"])}</small></span>'
             rate = f'<span class="big">{r["rating"]}</span>'
-            lamp = _esc(_lamp(r.get("fc"), r.get("fs")) or "—")
+            lamp = _esc(_fc(r.get("fc"), r.get("fs")) or "—")
             if r.get("max_dx"):
                 dx = f'{r["dx"]:,} / {r["max_dx"]:,}<br /><span class="stars">{star_marks(r["stars"])}</span>'
             elif r.get("dx"):
@@ -240,7 +237,7 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
         ("Rating after", f"{int(detail.get('rating') or rating)}<small>{change:+d}</small>", "in best-50" if play.get("in_b50") else ("new best" if play.get("pb") else "&nbsp;")),
     ]
     tile_html = "".join(f'<div class="tile"><div class="k">{_esc(k)}</div><div class="v">{v}</div><div class="s">{s}</div></div>' for k, v, s in tiles)
-    lamp = _lamp(play.get("fc"), play.get("fs"))
+    lamp = _fc(play.get("fc"), play.get("fs"))
     body = f"""
     <div class="card-head" style="--tier:{ink};">
       {cover_html(play.get("cover", ""), "song-cover")}

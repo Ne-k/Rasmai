@@ -130,9 +130,11 @@ class NewsWatch:
                 message = await socket.receive(timeout=ALIVE_EVERY)
             except asyncio.TimeoutError:
                 message = None          # a quiet stretch: the account posts rarely, and that is the usual case
+            data: Any = None
             if message is not None and message.type == aiohttp.WSMsgType.TEXT:
                 try:
-                    newest = max(newest, int(json.loads(message.data).get("time_us") or 0))
+                    data = json.loads(message.data)
+                    newest = max(newest, int(data.get("time_us") or 0))
                 except (ValueError, TypeError, AttributeError):
                     pass
             if time.monotonic() - noted >= ALIVE_EVERY:
@@ -143,13 +145,13 @@ class NewsWatch:
             if message is None:
                 continue
             if message.type == aiohttp.WSMsgType.TEXT:
-                self.spawn(self._event(message.data, accounts))
+                if isinstance(data, dict):
+                    self.spawn(self._event(data, accounts))
             elif message.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                 return
 
-    async def _event(self, raw: str, accounts: Dict[str, Source]) -> None:
+    async def _event(self, data: Dict[str, Any], accounts: Dict[str, Source]) -> None:
         try:
-            data = json.loads(raw)
             commit = data.get("commit") or {}
             if data.get("kind") != "commit" or commit.get("operation") != "create":
                 return

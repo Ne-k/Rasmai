@@ -11,7 +11,7 @@ import discord
 from rasmai.engine.analysis import rank_for
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, level_text, message_files, chart_link
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, level_text, message_files, chart_link, today
 from rasmai.bot.state.prefs import get_prefs
 from rasmai.bot.state.snapshots import compact_snapshot, snapshot_charts
 from rasmai.bot.core import try_render
@@ -129,7 +129,7 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
             stats(mine, me.name, int(me.rating or 0), a.best50.total if a.best50 else 0, int(me.total_play_count or 0), len(my_leads)),
             stats(them, their_name, their_rating, int(snapshot.get("best50") or 0), int(snapshot.get("totalPlayCount") or 0), len(their_leads)),
             level_stats, lead_rows(my_leads, mine, them), lead_rows(their_leads, them, mine), len(common),
-            cover_html_factory(a.jacket_path), me.avatar_base64, date_text=datetime.now().strftime("%d %B %Y"),
+            cover_html_factory(a.jacket_path), me.avatar_base64, date_text=today(),
         ))
     files, avatar_url = message_files(me, cached.images[image_key], "rasmai-compare.png")
     embed.set_author(name=me.name, icon_url=avatar_url)
@@ -185,7 +185,7 @@ async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None
         lines.append(f"{tag} {who} · **{rating}**" + (f" ({region.upper()})" if region != "intl" else ""))
     embed.description = "\n".join(lines)
     embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{len(rows)} opted-in players in this server · ratings from each player's last /analyze")
-    shot = await try_render(leaderboard_image_html(guild.name, rows[:20], date_text=datetime.now().strftime("%d %B %Y")))
+    shot = await try_render(leaderboard_image_html(guild.name, rows[:20], date_text=today()))
     files = [discord.File(io.BytesIO(shot), filename="rasmai-leaderboard.png")] if shot else []
     from rasmai.bot.ui.views import PagedView
 

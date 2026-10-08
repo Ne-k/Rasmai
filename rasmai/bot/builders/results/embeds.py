@@ -9,7 +9,7 @@ from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.state.snapshots import moved_by_recent
 from rasmai.bot.core import try_render
 from rasmai.bot.ui.formatting import (
-    stamp,
+    stamp, today,
     chart_link, TIER_NAMES, TIER_SHORT, _fit, add_profile_fields, add_row_break, format_picks_markdown,
     format_plan_markdown, format_plan_verdict, format_try_markdown, level_text, message_files, progress_bar,
 )
@@ -23,10 +23,6 @@ async def _image(cached: CachedAnalysis, key: str, html_factory) -> Optional[byt
     if key not in cached.images:
         cached.images[key] = await try_render(await asyncio.to_thread(html_factory))
     return cached.images[key]
-
-
-def _today() -> str:
-    return datetime.now().strftime("%d %B %Y")
 
 
 def since_last_line(cached: CachedAnalysis) -> str:
@@ -134,7 +130,7 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
     shot = await _image(cached, f"plan:{target}:{stretch}:{challenge}:{difficulty or ''}:{min_level or ''}",
                         lambda: posters.plan_poster_html(
                             plan, player.name, cached.start_rating, player.avatar_base64,
-                            cover_html_factory(a.jacket_path), stretch=stretch, date_text=_today(),
+                            cover_html_factory(a.jacket_path), stretch=stretch, date_text=today(),
                             bolder_label=bolder_label, limit_label=limit_label,
                         ))
     files, avatar_url = message_files(player, shot, "rasmai-route.png")
@@ -205,7 +201,7 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
     if picks:
         shot = await _image(cached, f"new:{difficulty}:{level or ''}:{challenge}:{focus or ''}", lambda: posters.new_poster_html(
             picks[:NEW_PAGE], player.name, cached.start_rating, player.avatar_base64,
-            cover_html_factory(a.jacket_path), label, lower, upper, date_text=_today(),
+            cover_html_factory(a.jacket_path), label, lower, upper, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-new.png")
 
@@ -260,7 +256,7 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
     summary = a.analysis_summary or {}
     shot = await _image(cached, "profile", lambda: posters.profile_poster_html(
         summary, a.play_profile, a.songs, player.name, cached.start_rating, player.avatar_base64,
-        len(a.recent_songs), date_text=_today(), moved=moved_by_recent(a),
+        len(a.recent_songs), date_text=today(), moved=moved_by_recent(a),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-profile.png")
     embed = discord.Embed(title="Play Profile", color=discord.Color.blurple())
@@ -345,7 +341,7 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
     if session.plays:
         shot = await _image(cached, f"session:{credits}:{challenge}:{difficulty or ''}", lambda: posters.session_poster_html(
             session, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path),
-            date_text=_today(), target_kind=target_kind, limit_label=limit_label,
+            date_text=today(), target_kind=target_kind, limit_label=limit_label,
         ))
     files, avatar_url = message_files(player, shot, "rasmai-session.png")
     embed = discord.Embed(
