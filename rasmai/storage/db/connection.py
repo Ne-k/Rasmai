@@ -173,6 +173,18 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute(
                     """
+                    CREATE TABLE IF NOT EXISTS news_sources (   -- a public Bluesky or X account a server added to follow: nobody's private data
+                        key        TEXT PRIMARY KEY,
+                        platform   TEXT NOT NULL,
+                        handle     TEXT NOT NULL,
+                        did        TEXT NOT NULL DEFAULT '',
+                        label      TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                setup.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS news_seen (   -- posts already handled, so a restart sends nothing twice: nobody's data
                         source  TEXT NOT NULL,
                         post_id TEXT NOT NULL,

@@ -1,4 +1,4 @@
-from typing import Any, Coroutine, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 import asyncio
 import io
 import json
@@ -11,7 +11,7 @@ import discord
 from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
-    jetstream_alive, news_mark_seen, news_seen_any, news_subscribers, news_unseen, remove_channel_webhook,
+    jetstream_alive, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
     remove_unknown_news_sources, save_jetstream_alive,
 )
 
@@ -37,6 +37,21 @@ REPLAY_DONE = 120                   # seconds after connecting by which the repl
 
 def _now_us() -> int:
     return int(time.time() * 1_000_000)
+
+
+_added: Dict[str, Source] = {}      # the accounts servers added, as last read from the database
+
+
+def load_sources() -> Dict[str, Source]:
+    """Every source, the built-in ones and the accounts servers added, read fresh. It reads the database, so not on the event loop."""
+    global _added
+    _added = {row["key"]: Source(row["key"], row["label"], row["platform"], row["handle"], row["did"]) for row in news_sources()}
+    return all_sources()
+
+
+def all_sources() -> Dict[str, Source]:
+    """Every source as last read: the built-in ones, then the accounts servers added."""
+    return {**SOURCES, **_added}
 
 
 def jetstream_url(accounts: Dict[str, Source], alive: Optional[int], now: int) -> str:
@@ -96,32 +111,43 @@ class NewsWatch:
 
     # ------------------------------------------------------------ Bluesky
 
+    async def _followed_bluesky(self) -> Dict[str, Source]:
+        """The Bluesky accounts some channel follows, by DID: the ones the stream is asked for."""
+        sources = await asyncio.to_thread(load_sources)
+        return {source.did: source for source in sources.values()
+                if source.did and await asyncio.to_thread(news_subscribers, source.key)}
+
     async def _bluesky_loop(self) -> None:
-        accounts = {source.did: source for source in SOURCES.values() if source.did}
         while True:
             try:
-                followed = [await asyncio.to_thread(news_subscribers, source.key) for source in accounts.values()]
-                if not any(followed):
+                accounts = await self._followed_bluesky()
+                if not accounts:
                     # nobody to send to, so nothing is missed: note that, or the first follower would be sent days of old posts
                     await asyncio.to_thread(save_jetstream_alive, _now_us())
                     await asyncio.sleep(IDLE_RECHECK)
                     continue
                 alive = await asyncio.to_thread(jetstream_alive)
                 url = jetstream_url(accounts, alive, _now_us())
+
+                async def changed() -> bool:
+                    return set(await self._followed_bluesky()) != set(accounts)
                 async with self.session.ws_connect(url, heartbeat=30) as socket:
-                    logger.info("news: connected to Jetstream%s", f", asking for what it missed since {int((_now_us() - alive) / 1e6)}s ago" if alive else "")
-                    await self.read(socket, accounts)
+                    logger.info("news: connected to Jetstream for %d account(s)%s", len(accounts),
+                                f", asking for what it missed since {int((_now_us() - alive) / 1e6)}s ago" if alive else "")
+                    await self.read(socket, accounts, changed)
             except (aiohttp.ClientError, asyncio.TimeoutError) as error:
                 logger.info("news: Jetstream dropped (%s)", type(error).__name__)
             except Exception:
                 logger.exception("news: Jetstream failed")
             await asyncio.sleep(5)
 
-    async def read(self, socket: Any, accounts: Dict[str, Source]) -> None:
+    async def read(self, socket: Any, accounts: Dict[str, Source], changed: Optional[Callable[[], Awaitable[bool]]] = None) -> None:
         """Handle a connection's messages until it closes, noting every minute how far it has been received.
 
         A reconnect first replays the gap, oldest first. Until that has had time to arrive, the mark is the newest event
         received rather than the clock, or a drop part way through the replay would lose the rest of the gap.
+        It also returns when ``changed`` says the accounts to follow are no longer these: the stream is asked for a set of
+        accounts when it opens, so a channel following a new one means opening it again, from the mark just noted.
         """
         connected = noted = time.monotonic()
         newest = 0
@@ -142,6 +168,8 @@ class NewsWatch:
                 if mark:
                     await asyncio.to_thread(save_jetstream_alive, mark)
                 noted = time.monotonic()
+                if changed is not None and await changed():
+                    return
             if message is None:
                 continue
             if message.type == aiohttp.WSMsgType.TEXT:
@@ -183,11 +211,11 @@ class NewsWatch:
     async def _bluesky_post(self, source: Source, record: Dict[str, Any], uri: str, wait: bool) -> int:
         """Send a new post if it is one to send and nobody has seen it; returns how many channels got it.
 
-        A post is sent when it is about maimai: Preformai International covers CHUNITHM too. The account answering itself
-        is sent as well, since that is how it corrects or continues a post, even when the answer never says maimai,
-        provided what it answers was sent. An answer to somebody else is not sent.
+        A post is sent unless the account covers other games too, as Preformai International does with CHUNITHM: then only
+        its posts about maimai are. The account answering itself is sent as well, since that is how it corrects or continues
+        a post, even when the answer never says maimai, provided what it answers was sent. An answer to somebody else is not sent.
         """
-        updating = news.is_maimai(str(record.get("text", "")))
+        updating = not source.maimai_only or news.is_maimai(str(record.get("text", "")))
         reply = record.get("reply") or {}
         if reply:
             if str((reply.get("parent") or {}).get("uri", "")).split("/")[2:3] != [source.did]:
@@ -221,9 +249,9 @@ class NewsWatch:
         except Exception:
             logger.exception("news: old subscriptions could not be cleared")
         # sources followed last round; at the start, every one followed, so what was missed while the bot was down is caught up
-        followed = {key for key in SOURCES if await asyncio.to_thread(news_subscribers, key)}
+        followed = {key for key in await asyncio.to_thread(load_sources) if await asyncio.to_thread(news_subscribers, key)}
         while True:
-            for source in SOURCES.values():
+            for source in (await asyncio.to_thread(load_sources)).values():
                 if source.platform != "X":
                     continue
                 try:
@@ -315,8 +343,11 @@ class NewsWatch:
         async with self._history_turn:          # many servers asking at once would crowd out the posts being sent live
             sent = 0
             for key in keys:
+                source = (await asyncio.to_thread(load_sources)).get(key)
+                if source is None:
+                    continue
                 try:
-                    posts = await news.recent_posts(self.session, SOURCES[key], count)
+                    posts = await news.recent_posts(self.session, source, count)
                 except Exception:
                     logger.exception("news: the earlier posts of %s could not be read", key)
                     continue

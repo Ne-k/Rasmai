@@ -28,10 +28,12 @@ class Source:
     platform: str      # "Bluesky" or "X"
     handle: str
     did: str = ""      # Bluesky only: the account the Jetstream is asked for
+    maimai_only: bool = False      # only its posts about maimai are sent: an account that covers other games too
 
 
+# the accounts every server can pick; servers add others of their own, kept in the database
 SOURCES: Dict[str, Source] = {
-    "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh"),
+    "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh", True),
     "maimai": Source("maimai", "Maimai Official", "X", "maimai_official"),
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
 }
@@ -67,6 +69,7 @@ RSS_INSTANCES = [
 TRUSTED_HOSTS = {urlparse(base).hostname for base in RSS_INSTANCES} | {"cdn.bsky.app", "video.bsky.app", "public.api.bsky.app"}
 
 _working: Dict[str, str] = {}
+_titles: Dict[str, str] = {}         # an X account's display name, from the title of its feed
 _avatars: Dict[str, str] = {}
 _translate_paused_until = 0.0        # Google's free endpoint throttles; after a refusal it is left alone for a while
 FOLLOW_UP_MARK = chr(0x21A9) + chr(0xFE0F)      # the return arrow as an emoji, spelled out so no invisible character sits in the source
@@ -390,10 +393,20 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
     return items, (root.findtext("./channel/image/url") or "").strip()
 
 
-async def fetch_feed(session: aiohttp.ClientSession, username: str) -> Tuple[List[FeedItem], str]:
-    """An account's posts from the first Nitter instance that answers with any; ([], "") when none does."""
+def feed_title(content: bytes) -> str:
+    """The display name a Nitter feed's title gives, "Maimai Official" out of "Maimai Official / @maimai_official"; "" without one."""
+    try:
+        title = ET.fromstring(content).findtext("./channel/title") or ""
+    except ET.ParseError:
+        return ""
+    return title.rsplit(" / @", 1)[0].strip() if " / @" in title else ""
+
+
+async def fetch_feed(session: aiohttp.ClientSession, username: str, tries: int = len(RSS_INSTANCES)) -> Tuple[List[FeedItem], str]:
+    """An account's posts from the first Nitter instance that answers with any, of the first ``tries``; ([], "") when none does."""
     first = _working.get(username)
-    for number, base in enumerate(([first] if first else []) + [b for b in RSS_INSTANCES if b != first]):
+    instances = ([first] if first else []) + [b for b in RSS_INSTANCES if b != first]
+    for number, base in enumerate(instances[:tries]):
         if number:
             await asyncio.sleep(RSS_FALLBACK_DELAY)
         content = await fetch_bytes(session, f"{base}/{username}/rss", FEED_BYTES)
@@ -402,8 +415,65 @@ async def fetch_feed(session: aiohttp.ClientSession, username: str) -> Tuple[Lis
             if first != base:
                 logger.info("news: %s now read through %s", username, urlparse(base).hostname)
                 _working[username] = base
+            _titles[username.lower()] = feed_title(content)
             return items, avatar
     return [], ""
+
+
+BLUESKY_LINK = re.compile(r"^(?:https?://)?(?:www\.)?bsky\.app/profile/([^/?#\s]+)", re.IGNORECASE)
+X_LINK = re.compile(r"^(?:https?://)?(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})(?:[/?#]|$)", re.IGNORECASE)
+X_NAME = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+LOOKUP_TRIES = 3            # Nitter instances asked about an account someone typed; all of them would be a minute of waiting for a typo
+
+
+def _label(name: str, handle: str) -> str:
+    """The name posts are sent under. Discord refuses a webhook name with "discord" or "clyde" in it, so then the handle stands in."""
+    for candidate in (" ".join(str(name or "").split())[:80], handle[:80]):
+        if candidate and not re.search(r"discord|clyde", candidate, re.IGNORECASE):
+            return candidate
+    return "News"
+
+
+def parse_account(text: str) -> Tuple[str, str]:
+    """Which platform an account someone typed is on, and its handle: ("Bluesky", "name.bsky.social"), ("X", "name"), or ("", "").
+
+    A link says which itself. Otherwise a Bluesky handle is a domain, so it always has a dot, and an X username never can.
+    """
+    text = (text or "").strip()
+    link = BLUESKY_LINK.match(text)
+    if link:
+        return "Bluesky", link.group(1)
+    link = X_LINK.match(text)
+    if link:
+        return "X", link.group(1)
+    text = text.lstrip("@")
+    if text.startswith("did:") or "." in text:
+        return ("Bluesky", text) if re.fullmatch(r"[A-Za-z0-9.:_-]{3,253}", text) else ("", "")
+    return ("X", text) if X_NAME.match(text) else ("", "")
+
+
+async def find_account(session: aiohttp.ClientSession, text: str) -> Optional[Source]:
+    """The account someone typed, looked up so it is known to exist and under what name; None when it cannot be found.
+
+    A Bluesky account is kept by its DID, which stays when its handle changes. An X account has to have a readable
+    feed: a private one, or one Nitter cannot reach, has nothing to send.
+    """
+    platform, handle = parse_account(text)
+    if platform == "Bluesky":
+        data = await _get_json(session, f"{PUBLIC_API}/app.bsky.actor.getProfile", {"actor": handle})
+        did = str(data.get("did", "")) if isinstance(data, dict) else ""
+        if not did.startswith("did:"):
+            return None
+        handle = str(data.get("handle") or handle)
+        return Source(f"bsky:{did}", _label(str(data.get("displayName") or ""), handle), "Bluesky", handle, did)
+    if platform == "X":
+        items, _avatar = await fetch_feed(session, handle, LOOKUP_TRIES)
+        if not items:
+            return None
+        # the feed's own links carry the name as the account writes it
+        handle = next((item.author for item in items if item.author.lower() == handle.lower()), handle)
+        return Source(f"x:{handle.lower()}", _label(_titles.get(handle.lower(), ""), "@" + handle), "X", handle)
+    return None
 
 
 def own_posts(items: List[FeedItem], source: Source) -> List[FeedItem]:
@@ -587,7 +657,7 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
     """The latest ``count`` posts of an account, oldest first, as they would be sent now.
 
-    Bluesky counts only posts about maimai, the same filter live ones go through; X counts every original post.
+    An account that covers other games counts only its posts about maimai, the same filter live ones go through.
     """
     if count <= 0:
         return []
@@ -600,7 +670,7 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
             record = post.get("record") or {}
             if entry.get("reason") or (post.get("author") or {}).get("did") != source.did or not post.get("uri"):
                 continue          # a repost, or somebody else's
-            if is_maimai(str(record.get("text", ""))):
+            if not source.maimai_only or is_maimai(str(record.get("text", ""))):
                 found.append((record, post["uri"]))
             if len(found) == count:
                 break

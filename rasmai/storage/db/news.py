@@ -137,12 +137,54 @@ def remove_channel_webhook(channel_id: str, webhook_url: str) -> int:
 
 
 def remove_unknown_news_sources(known: Iterable[str]) -> int:
-    """Forget subscriptions to sources the bot no longer has, so they stop counting against a server's limit."""
+    """Forget subscriptions to sources the bot no longer has, so they stop counting against a server's limit, and accounts
+    servers added that no channel follows any more. Returns the subscriptions removed.
+
+    The added accounts are kept by the subscriptions to them, ``known`` being the built-in ones.
+    """
     keys = list(known)
     connection = get_database_connection()
     try:
         with connection:
-            return connection.execute(f"DELETE FROM news_subscriptions WHERE source NOT IN ({','.join('?' * len(keys))})", keys).rowcount
+            removed = connection.execute(
+                f"DELETE FROM news_subscriptions WHERE source NOT IN ({','.join('?' * len(keys))}) AND source NOT IN (SELECT key FROM news_sources)",
+                keys).rowcount
+            connection.execute("DELETE FROM news_sources WHERE key NOT IN (SELECT DISTINCT source FROM news_subscriptions)")
+            return removed
+    finally:
+        connection.close()
+
+
+def add_news_source(key: str, platform: str, handle: str, did: str, label: str) -> None:
+    """Keep an account a server added, or bring its handle and name up to date when it is added again."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute(
+                "INSERT INTO news_sources (key, platform, handle, did, label, created_at) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET handle = excluded.handle, did = excluded.did, label = excluded.label",
+                (key, platform, handle, did, label, datetime.now().isoformat()),
+            )
+    finally:
+        connection.close()
+
+
+def news_sources() -> List[Dict[str, str]]:
+    """Every account servers added, as ``key``, ``platform``, ``handle``, ``did`` and ``label``."""
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT key, platform, handle, did, label FROM news_sources ORDER BY created_at").fetchall()
+    finally:
+        connection.close()
+    return [dict(row) for row in rows]
+
+
+def followed_news_source_count() -> int:
+    """How many accounts servers added that some channel follows: the number the bot has to keep reading."""
+    connection = get_database_connection()
+    try:
+        return int(connection.execute(
+            "SELECT COUNT(*) FROM news_sources WHERE key IN (SELECT DISTINCT source FROM news_subscriptions)").fetchone()[0])
     finally:
         connection.close()
 

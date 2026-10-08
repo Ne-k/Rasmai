@@ -8,12 +8,13 @@ import discord
 from discord import app_commands
 
 from rasmai.bot.core import bot, cannot_see_channel, news_watch, server_invite_url
-from rasmai.bot.tasks.news import NO_MENTIONS
+from rasmai.bot.tasks.news import NO_MENTIONS, all_sources, load_sources
 from rasmai.bot.ui.views import OwnerOnlyView
-from rasmai.scraping.news import SOURCES
+from rasmai.scraping import news as feeds
+from rasmai.scraping.news import SOURCES, Source
 from rasmai.storage.db import (
-    add_news_subscription, channel_sources, guild_news, news_subscription_count, news_webhook, remove_news_subscription,
-    replace_channel_webhook,
+    add_news_source, add_news_subscription, channel_sources, followed_news_source_count, guild_news, news_subscription_count,
+    news_webhook, remove_news_subscription, replace_channel_webhook,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ WEBHOOK_NAME = "Rasmai news"
 MENU_TIMEOUT = 600           # seconds a menu answers for
 NEWS_COLOR = discord.Color.from_rgb(92, 211, 232)
 CHANNEL_TYPES = [discord.ChannelType.text, discord.ChannelType.news]     # the kinds of channel a webhook can post in
+MAX_ADDED = 50               # accounts servers added that the bot reads at once: each X one is a Nitter read every few minutes, and those are public servers
+MAX_CHOICES = 25             # what one Discord select can list
 
 _history_at: Dict[int, float] = {}
 
@@ -38,12 +41,12 @@ news = app_commands.Group(
 
 
 def _name(key: str) -> str:
-    source = SOURCES[key]
-    return f"{source.label} ({source.platform})"
+    source = all_sources().get(key)
+    return source.label if source is not None else key
 
 
 def _names(keys: List[str]) -> str:
-    return ", ".join(_name(key) for key in keys if key in SOURCES) or "nothing"
+    return ", ".join(_name(key) for key in keys) or "nothing"
 
 
 async def _reply(interaction: discord.Interaction, text: str, view: Optional[discord.ui.View] = None) -> None:
@@ -108,9 +111,11 @@ async def _drop_webhook(url: Optional[str]) -> None:
             pass
 
 
-async def save_channel(interaction: discord.Interaction, channel: discord.TextChannel, wanted: List[str], previous: int = 0) -> Optional[str]:
+async def save_channel(interaction: discord.Interaction, channel: discord.TextChannel, wanted: List[str], previous: int = 0,
+                       added: Optional[Dict[str, Source]] = None) -> Optional[str]:
     """Make a channel follow exactly these accounts: start the new ones, stop the ones left out.
 
+    ``added`` holds the accounts typed into the menu, which are kept only once a channel follows them.
     Returns what changed, to show; None when it could not be done, which has been explained to the person already.
     """
     refused = _refusal(interaction, channel)
@@ -151,7 +156,11 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
             await _reply(interaction, "Couldn't reach Discord - try again in a minute.")
             return None
         for key in fresh:
+            if added and key in added:
+                source = added[key]
+                await asyncio.to_thread(add_news_source, key, source.platform, source.handle, source.did, source.label)
             await asyncio.to_thread(add_news_subscription, guild_id, channel_id, key, url)
+        await asyncio.to_thread(load_sources)
     gone = await asyncio.to_thread(news_webhook, channel_id) if not wanted else None       # nothing left to send there, so its webhook goes too
     for key in dropped:
         await asyncio.to_thread(remove_news_subscription, channel_id, key)
@@ -164,7 +173,10 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
     if fresh and previous:
         _history_at[interaction.guild_id or 0] = time.monotonic()
         news_watch.spawn(news_watch.history(channel_id, url, fresh, previous))
-        lines.append(f"Sending the last {previous} post(s) from each now. For Bluesky that's only the maimai ones, same as what gets posted from now on.")
+        lines.append(f"Sending the last {previous} post(s) from each now.")
+        filtered = [key for key in fresh if getattr(all_sources().get(key), "maimai_only", False)]
+        if filtered:
+            lines[-1] += f" For {_names(filtered)} that's only the maimai ones, same as what gets posted from now on."
     return "\n".join(lines)
 
 
@@ -176,10 +188,24 @@ async def stop_channel(channel_id: str) -> int:
     return removed
 
 
+class AddAccount(discord.ui.Modal, title="Add an account"):
+    """The box an account is typed into: a Bluesky handle, an X username, or a link to either."""
+
+    account = discord.ui.TextInput(label="Bluesky handle or X username", placeholder="someone.bsky.social or @someone", max_length=200)
+
+    def __init__(self, menu: "SubscribeMenu"):
+        super().__init__(timeout=MENU_TIMEOUT)
+        self.menu = menu
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.menu.add_account(interaction, self.account.value)
+
+
 class SubscribeMenu(OwnerOnlyView):
     """Where the news goes and from which accounts: a channel, the accounts ticked for it, and Save.
 
     Picking a channel that already gets news ticks what it follows, so this is also where accounts are switched on and off.
+    Besides the built-in accounts it lists the ones this server added, and any typed in with "Add an account".
     """
 
     def __init__(self, owner_id: int, guild_id: int, following: Dict[str, List[str]], previous: int = 0):
@@ -187,14 +213,29 @@ class SubscribeMenu(OwnerOnlyView):
         self.guild_id, self.following, self.previous = guild_id, following, previous
         self.channel: Optional[discord.TextChannel] = None
         self.current: List[str] = []
+        self.added: Dict[str, Source] = {}      # typed in here and not followed by any channel yet
         self.where = discord.ui.ChannelSelect(placeholder="Pick a channel", channel_types=CHANNEL_TYPES, row=0)
-        self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, max_values=len(SOURCES), row=1,
-                                       options=[discord.SelectOption(label=_name(key), value=key, default=True) for key in SOURCES])
+        self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, row=1)
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
         self.test = discord.ui.Button(label="Send a test post", style=discord.ButtonStyle.secondary, row=2, disabled=True)
+        self.add = discord.ui.Button(label="Add an account", style=discord.ButtonStyle.secondary, row=2)
         self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.send_test
-        for item in (self.where, self.which, self.save, self.test):
+        self.add.callback = self.open_add
+        for item in (self.where, self.which, self.save, self.test, self.add):
             self.add_item(item)
+        self._fill(set(SOURCES))
+
+    def choices(self) -> Dict[str, Source]:
+        """The accounts the picker lists: the built-in ones, the ones a channel here follows, and the ones typed in here."""
+        known = all_sources()
+        here = {key: known[key] for keys in self.following.values() for key in keys if key in known}
+        return {**SOURCES, **here, **self.added}
+
+    def _fill(self, ticked: set) -> None:
+        self.which.options = [discord.SelectOption(label=source.label[:100], value=key, default=key in ticked)
+                              for key, source in list(self.choices().items())[:MAX_CHOICES]]
+        self.which.max_values = len(self.which.options)
+        self.add.disabled = len(self.which.options) >= MAX_CHOICES
 
     @property
     def ticked(self) -> List[str]:
@@ -222,9 +263,7 @@ class SubscribeMenu(OwnerOnlyView):
             return
         self.channel = channel
         self.current = await asyncio.to_thread(channel_sources, str(channel.id))
-        ticked = set(self.current) or set(SOURCES)       # a channel that gets nothing yet starts with every account ticked
-        for option in self.which.options:
-            option.default = option.value in ticked
+        self._fill(set(self.current) or set(SOURCES))       # a channel that gets nothing yet starts with every built-in account ticked
         self.where.default_values = [discord.Object(id=channel.id)]       # it stays shown as picked when the message is redrawn
         self.save.disabled = False
         self.test.disabled = not self.current
@@ -241,13 +280,47 @@ class SubscribeMenu(OwnerOnlyView):
             await _reply(interaction, "Pick a channel first.")
             return
         await interaction.response.defer()
-        done = await save_channel(interaction, self.channel, self.ticked, self.previous)
+        done = await save_channel(interaction, self.channel, self.ticked, self.previous, self.added)
         if done is None:
             return
         self.current = await asyncio.to_thread(channel_sources, str(self.channel.id))
         self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        self.added = {key: source for key, source in self.added.items() if key not in all_sources()}
+        self._fill(set(self.ticked))
         self.test.disabled = not self.current
         await interaction.edit_original_response(embed=self.embed(done), view=self)
+
+    async def open_add(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(AddAccount(self))
+
+    async def add_account(self, interaction: discord.Interaction, text: str) -> None:
+        """Look up an account someone typed and list it, ticked; Save then starts it in the picked channel."""
+        await interaction.response.defer()
+        try:
+            source = await feeds.find_account(news_watch.session, text)
+        except Exception:
+            logger.exception("news: looking up an account failed")
+            source = None
+        if source is None:
+            await _reply(interaction, "Couldn't find that account. A Bluesky handle looks like `someone.bsky.social`, an X username like `@someone`, "
+                                      "and a private X account can't be followed.")
+            return
+        # an account the bot already has goes by its existing key, so it is read once however it was typed
+        same = next((key for key, known in all_sources().items() if known.platform == source.platform
+                     and ((source.did and known.did == source.did) or known.handle.lower() == source.handle.lower())), None)
+        if same is None and await asyncio.to_thread(followed_news_source_count) >= MAX_ADDED:
+            await _reply(interaction, "Rasmai already follows as many extra accounts as it can. Ask in the support server if you need one added.")
+            return
+        key = same or source.key
+        if key not in self.choices():
+            self.added[key] = source
+        self._fill(set(self.ticked) | {key})
+        if key not in {option.value for option in self.which.options}:
+            await _reply(interaction, "The list is full - untick and remove some accounts first.")
+            return
+        where = self.channel.mention if self.channel is not None else "the channel you pick"
+        note = f"Added **{_name(key) if same else source.label}** and ticked it. Hit **Save** to start it in {where}."
+        await interaction.edit_original_response(embed=self.embed(note), view=self)
 
     async def send_test(self, interaction: discord.Interaction) -> None:
         """Send the channel the latest post of the first account it follows, so it can be seen working without waiting for news."""
@@ -339,6 +412,7 @@ class UnsubscribeMenu(OwnerOnlyView):
 @app_commands.checks.has_permissions(manage_webhooks=True)
 @app_commands.describe(previous=f"Earlier posts to send from each newly ticked account, up to {MAX_HISTORY} (default 0)")
 async def subscribe(interaction: discord.Interaction, previous: app_commands.Range[int, 0, MAX_HISTORY] = 0):
+    await asyncio.to_thread(load_sources)
     following = await asyncio.to_thread(guild_news, str(interaction.guild_id))
     menu = SubscribeMenu(interaction.user.id, interaction.guild_id or 0, following, previous)
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
@@ -348,6 +422,7 @@ async def subscribe(interaction: discord.Interaction, previous: app_commands.Ran
 @news.command(name="unsubscribe", description="See which channels get maimai news and stop them")
 @app_commands.checks.has_permissions(manage_webhooks=True)
 async def unsubscribe(interaction: discord.Interaction):
+    await asyncio.to_thread(load_sources)
     following = await asyncio.to_thread(guild_news, str(interaction.guild_id))
     if not following or interaction.guild is None:
         await _reply(interaction, "No channels here get news right now. Use `/news subscribe` to set one up.")
