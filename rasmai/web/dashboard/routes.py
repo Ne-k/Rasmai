@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
-ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles", "/internal/me/session")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -65,6 +65,10 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
 
     if path in ("/internal/me", "/internal/me/"):
         handler._send_json(200, overview_payload(user, account))
+        return True
+    if path == "/internal/me/session":
+        # asked on every page, for the band at the top: only whether maimai still takes the saved login, never the whole dashboard
+        handler._send_json(200, {"sessionExpired": (account or {}).get("sessionExpired") or ""})
         return True
     if path == "/internal/me/refresh":
         handler._send_json(200, refresh_jobs.status(user["id"]))

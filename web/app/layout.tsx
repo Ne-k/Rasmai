@@ -2,7 +2,6 @@ import { env } from "@/lib/env";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { RelinkNotice } from "@/components/RelinkNotice";
 import { SiteNotice } from "@/components/SiteNotice";
 import { Pwa } from "@/components/Pwa";
 import { THEME_BOOT } from "@/components/Theme";
@@ -101,7 +100,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <LocaleProvider locale={locale}>
             <SignedInProvider signedIn={signedIn}>
               <SiteNotice />
-              <RelinkNotice />
               {children}
               <Pwa />
             </SignedInProvider>

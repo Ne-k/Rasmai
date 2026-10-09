@@ -456,6 +456,8 @@ async def on_ready():
 
 
 RELINK_QUIET = {"login", "delete-account"}      # linking again, or leaving: a reminder to link would only get in the way
+RELINK_EVERY = 3600                             # seconds between two reminders to the same person
+_relink_told: Dict[str, float] = {}             # when each person was last reminded, by Discord id
 
 
 @bot.event
@@ -464,23 +466,26 @@ async def on_app_command_completion(interaction: discord.Interaction, command: A
     from rasmai.bot.ui.formatting import stamp
     from rasmai.config import PUBLIC_URL
     from rasmai.storage.db import get_connected_account, session_deletes_at
-    if getattr(command, "qualified_name", "") in RELINK_QUIET:
+    user_id = str(interaction.user.id)
+    if getattr(command, "qualified_name", "") in RELINK_QUIET or time.monotonic() - _relink_told.get(user_id, float("-inf")) < RELINK_EVERY:
         return
     try:
-        since = ((await asyncio.to_thread(get_connected_account, str(interaction.user.id))) or {}).get("sessionExpired") or ""
+        # without the stored scores: unpacking them after every command, for one date, was most of the work
+        since = ((await asyncio.to_thread(get_connected_account, user_id, False)) or {}).get("sessionExpired") or ""
     except Exception:
         logger.exception("could not check whether %s needs to link again", interaction.user.id)
         return
     if not since:
         return
     deletes = session_deletes_at(since)
-    text = ("**Your maimai account needs to be linked again.** maimai DX NET stopped accepting the saved login, so no new scores "
-            "can be fetched until you do. Run `/login`, or use the button below."
-            + (f" If it isn't linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, everything Rasmai stores for it is deleted." if deletes else ""))
+    text = ("Your maimai account needs linking again - maimai DX NET isn't taking your saved login anymore, so I can't fetch "
+            "anything new until you do. Run `/login` or hit the button below."
+            + (f" If it's not linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, everything I've stored for it gets deleted." if deletes else ""))
     view = discord.ui.View()
     view.add_item(discord.ui.Button(label="Link it again", url=f"{PUBLIC_URL}/me/#relink"))
     try:
         await interaction.followup.send(text, view=view, ephemeral=True)
+        _relink_told[user_id] = time.monotonic()
     except discord.HTTPException:
         pass          # the command never answered, so there is nothing to follow up
 

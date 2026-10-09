@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { RelinkNotice, useNeedsRelink } from "@/components/RelinkNotice";
 
 type Notice = { text: string; tone: string; link: string; id: string; hideOnHost?: string };
 
@@ -25,9 +26,11 @@ function dismissed(id: string): boolean {
   }
 }
 
-/** Whatever the site has been told to say, across the top of every page. Set from Discord, dismissed per reader. */
+/** Whatever the site has been told to say, across the top of every page. Set from Discord, dismissed per reader.
+ *  An account that needs linking again is told that instead: it matters more to them than any notice. */
 export function SiteNotice() {
   const t = useTranslations("common");
+  const relink = useNeedsRelink();
   // nothing until the browser has fetched one, so no band flashes on a page that should not carry it
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -47,6 +50,7 @@ export function SiteNotice() {
     };
   }, []);
 
+  if (relink) return <RelinkNotice />;
   if (!notice) return null;
 
   const dismiss = () => {

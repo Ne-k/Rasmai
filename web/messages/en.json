@@ -1244,7 +1244,7 @@
     "themeToggle": "Switch between light and dark",
     "themeTitle": "Light / dark",
     "dismiss": "Dismiss",
-    "relink": "<b>Your maimai account needs to be linked again.</b> maimai DX NET stopped accepting the saved login, so no new scores can be fetched until you do.",
+    "relink": "Your maimai account needs linking again - maimai DX NET isn't taking your saved login anymore, so no new scores come in until you do.",
     "relinkLink": "Link it again",
     "more": "more",
     "period": "."
