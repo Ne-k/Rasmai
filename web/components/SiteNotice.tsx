@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { RelinkNotice, useNeedsRelink } from "@/components/RelinkNotice";
 
@@ -31,6 +32,7 @@ function dismissed(id: string): boolean {
 export function SiteNotice() {
   const t = useTranslations("common");
   const relink = useNeedsRelink();
+  const path = usePathname() ?? "";
   // nothing until the browser has fetched one, so no band flashes on a page that should not carry it
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -50,7 +52,8 @@ export function SiteNotice() {
     };
   }, []);
 
-  if (relink) return <RelinkNotice />;
+  // the dashboard says it itself, with the buttons to relink, so the band would only say it twice there
+  if (relink) return path.startsWith("/me") ? null : <RelinkNotice />;
   if (!notice) return null;
 
   const dismiss = () => {

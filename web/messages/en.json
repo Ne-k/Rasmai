@@ -1244,7 +1244,7 @@
     "themeToggle": "Switch between light and dark",
     "themeTitle": "Light / dark",
     "dismiss": "Dismiss",
-    "relink": "Your maimai account needs linking again - maimai DX NET isn't taking your saved login anymore, so no new scores come in until you do.",
+    "relink": "Your maimai account needs to be relinked, so Rasmai can't fetch anything new.",
     "relinkLink": "Link it again",
     "more": "more",
     "period": "."
@@ -1601,7 +1601,7 @@
     "region": "region",
     "regionIntl": "International",
     "regionJp": "Japan",
-    "expiredWeb": "<b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on, select, none {} other { on {on}}}, so your scores aren't updating. Everything below is from your last refresh. Link your maimai account again here.{until, select, none {} other { If it isn't linked again by <b>{until}</b>, everything stored for this account is deleted.}}",
+    "expiredWeb": "Your maimai account needs to be relinked, so Rasmai can't fetch anything new - everything below is from your last read. Link it again here.{until, select, none {} other { If it's not relinked by {until}, everything stored for it gets deleted.}}",
     "signIns": "sign-ins",
     "signInsInfo": "The ways you can sign in to Rasmai. Link both and either one opens this same account.",
     "providerDiscord": "Discord",

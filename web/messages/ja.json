@@ -1252,7 +1252,7 @@
     "themeToggle": "ライト／ダークを切り替え",
     "themeTitle": "ライト／ダーク",
     "dismiss": "閉じる",
-    "relink": "maimai アカウントの再連携が必要です。maimai DX NET が保存済みのログインを受け付けなくなったので、再連携するまで新しいスコアは取得されません。",
+    "relink": "maimai アカウントの再連携が必要なため、Rasmai は新しいデータを取得できません。",
     "relinkLink": "再連携する",
     "more": "詳しく",
     "period": "。"
@@ -1609,7 +1609,7 @@
     "region": "地域",
     "regionIntl": "海外版",
     "regionJp": "日本版",
-    "expiredWeb": "<b>maimai のセッションが期限切れです。</b> maimaiでらっくすNET が{on, select, none {} other {{on}に}}ログインを受け付けなくなったため、スコアが更新されていません。以下は最後に更新した時点のものです。ここから maimai アカウントを再連携してください。{until, select, none {} other {<b>{until}</b>までに再連携しないと、このアカウントについて保存されているものはすべて削除されます。}}",
+    "expiredWeb": "maimai アカウントの再連携が必要なため、Rasmai は新しいデータを取得できません。下の内容は前回読み込んだときのものです。ここから再連携してください。{until, select, none {} other {{until} までに再連携されない場合、保存されているデータはすべて削除されます。}}",
     "signIns": "ログイン方法",
     "signInsInfo": "Rasmai にログインできる方法です。両方を連携すれば、どちらからでも同じアカウントを開けます。",
     "providerDiscord": "Discord",

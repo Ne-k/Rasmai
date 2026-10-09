@@ -5,7 +5,7 @@ import discord
 import logging
 
 from rasmai.bot.state.cache import CachedAnalysis, cache_put
-from rasmai.bot.core import watch
+from rasmai.bot.core import relink_reply, relink_told, watch
 from rasmai.bot.tasks.chart_db import resolve_unknown_later
 from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.ui.formatting import stamp
@@ -68,7 +68,7 @@ async def _analysis_from_store(user_id: str, account: Dict[str, Any]) -> Optiona
 
 
 async def _stale_analysis(interaction: discord.Interaction, user_id: str, account: Dict[str, Any],
-                          error: Exception, relink: bool = True) -> Optional[CachedAnalysis]:
+                          error: Exception) -> Optional[CachedAnalysis]:
     """The last stored read, when maimai cannot be read right now, with a note saying so.
 
     :param interaction: The Discord interaction the command arrived on.
@@ -89,9 +89,14 @@ async def _stale_analysis(interaction: discord.Interaction, user_id: str, accoun
         return None
     recorded = _snapshot_time(account)
     when = stamp(recorded, "R") if recorded else "earlier"
-    advice = "Run `/login` to link again and refresh." if relink else "Try `/refresh` later."
     try:
-        await interaction.followup.send(f"{public_reason(error)}\n-# Showing your last read from {when} instead. {advice}", ephemeral=True)
+        if isinstance(error, SessionRejected):
+            # one message for it, the relink one, rather than this note and then the reminder after the command
+            text, view = relink_reply(account.get("sessionExpired") or datetime.now().isoformat(timespec="seconds"), when)
+            await interaction.followup.send(text, view=view, ephemeral=True)
+            relink_told(user_id)
+        else:
+            await interaction.followup.send(f"{public_reason(error)}\n-# Showing your last read from {when} instead. Try `/refresh` later.", ephemeral=True)
     except discord.HTTPException:
         pass
     return cached
@@ -220,7 +225,7 @@ async def _stored_analysis(interaction: discord.Interaction, user_id: str, accou
         return await _stale_analysis(interaction, user_id, account, error)
     except Exception as error:
         logger.info("light check for %s failed: %s", user_id, public_reason(error))
-        return await _stale_analysis(interaction, user_id, account, error, relink=False)
+        return await _stale_analysis(interaction, user_id, account, error)
     cached = await _analysis_from_store(user_id, account)
     if cached is None:
         return None

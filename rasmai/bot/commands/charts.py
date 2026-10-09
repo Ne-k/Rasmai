@@ -13,7 +13,7 @@ from rasmai.bot.core import bot, heavy_cooldown, light_cooldown, private_only
 from rasmai.bot.builders.areas import build_areas
 from rasmai.bot.builders.history import build_lastplay, build_progress, build_recent
 from rasmai.bot.builders.results import load_analysis, run_simple_command
-from rasmai.bot.builders.results.view import build_in_time, failure_text
+from rasmai.bot.builders.results.view import build_in_time, failure_reply
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import DIFFICULTY_CHOICES, SORT_CHOICES, level_autocomplete
 
@@ -48,7 +48,7 @@ async def _lookup(interaction: discord.Interaction, what: str, build) -> None:
                 pass
     except Exception as error:
         logger.exception("%s lookup failed", what)
-        await interaction.edit_original_response(content=failure_text("Couldn't look that up.", error), embed=None, attachments=[], view=None)
+        await interaction.edit_original_response(**await failure_reply(interaction, "Couldn't look that up.", error), embed=None, attachments=[])
 
 
 @bot.tree.command(name="chart", description="One chart: your score, the prediction and what each rank is worth")

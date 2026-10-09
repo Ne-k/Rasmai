@@ -3,7 +3,7 @@ from discord.app_commands.installs import AppCommandContext, AppInstallationType
 from discord.ext import commands, tasks
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 import asyncio
 import discord
 import hashlib
@@ -460,12 +460,31 @@ RELINK_EVERY = 3600                             # seconds between two reminders 
 _relink_told: Dict[str, float] = {}             # when each person was last reminded, by Discord id
 
 
+def relink_reply(since: str, last_read: str = "") -> Tuple[str, discord.ui.View]:
+    """The one message saying an account needs relinking, with the button to do it. ``since`` is when maimai first refused the
+    login, for the deletion date; ``last_read`` is when the results shown with it were read, when there are any."""
+    from rasmai.bot.ui.formatting import stamp
+    from rasmai.config import PUBLIC_URL
+    from rasmai.storage.db import session_deletes_at
+    deletes = session_deletes_at(since)
+    text = ("Your maimai account needs to be relinked, so I can't fetch anything new"
+            + (f" - these are from your last read {last_read}" if last_read else "")
+            + ". Run `/login` or hit the button below."
+            + (f" If it's not relinked by {stamp(datetime.fromisoformat(deletes), 'D')}, everything I've stored for it gets deleted." if deletes else ""))
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Link it again", url=f"{PUBLIC_URL}/me/#relink"))
+    return text, view
+
+
+def relink_told(user_id: str) -> None:
+    """Note that someone was just told to relink, however it went out, so the reminder after the command stays quiet for the hour."""
+    _relink_told[user_id] = time.monotonic()
+
+
 @bot.event
 async def on_app_command_completion(interaction: discord.Interaction, command: Any) -> None:
     """After any command, a private reminder for someone whose maimai sign-in is refused: nothing new is fetched until they link again."""
-    from rasmai.bot.ui.formatting import stamp
-    from rasmai.config import PUBLIC_URL
-    from rasmai.storage.db import get_connected_account, session_deletes_at
+    from rasmai.storage.db import get_connected_account
     user_id = str(interaction.user.id)
     if getattr(command, "qualified_name", "") in RELINK_QUIET or time.monotonic() - _relink_told.get(user_id, float("-inf")) < RELINK_EVERY:
         return
@@ -477,15 +496,10 @@ async def on_app_command_completion(interaction: discord.Interaction, command: A
         return
     if not since:
         return
-    deletes = session_deletes_at(since)
-    text = ("Your maimai account needs linking again - maimai DX NET isn't taking your saved login anymore, so I can't fetch "
-            "anything new until you do. Run `/login` or hit the button below."
-            + (f" If it's not linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, everything I've stored for it gets deleted." if deletes else ""))
-    view = discord.ui.View()
-    view.add_item(discord.ui.Button(label="Link it again", url=f"{PUBLIC_URL}/me/#relink"))
+    text, view = relink_reply(since)
     try:
         await interaction.followup.send(text, view=view, ephemeral=True)
-        _relink_told[user_id] = time.monotonic()
+        relink_told(user_id)
     except discord.HTTPException:
         pass          # the command never answered, so there is nothing to follow up
 
