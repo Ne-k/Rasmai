@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,11 +29,12 @@ class Source:
     handle: str
     did: str = ""      # Bluesky only: the account the Jetstream is asked for
     maimai_only: bool = False      # only its posts about maimai are sent: an account that covers other games too
+    x_handle: str = ""             # a Bluesky account's own X username: both are read, and whichever copy of a post comes first is sent
 
 
 # the accounts every server can pick; servers add others of their own, kept in the database
 SOURCES: Dict[str, Source] = {
-    "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh", True),
+    "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh", True, "performaien"),
     "maimai": Source("maimai", "Maimai Official", "X", "maimai_official"),
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
 }
@@ -122,6 +123,23 @@ def iso_time(stamp: str) -> Optional[int]:
     except ValueError:
         return None
     return min(made, int(datetime.now(timezone.utc).timestamp()))
+
+
+def x_side(source: Source) -> Source:
+    """The X half of an account read on both sites: the same account, posting to the same channels, read from its X feed."""
+    return replace(source, platform="X", handle=source.x_handle, did="")
+
+
+def copy_mark(text: str) -> str:
+    """What a post says, cut down so its copy on the other site gives the same: no links, mentions, punctuation or case.
+
+    Bluesky shortens links and writes mentions as domains where X does not, so those go. "" when too little is left
+    to tell one post from another.
+    """
+    words = re.sub(r"https?://\S+|@\S+|\S*\w\.\w{2,}\S*", " ", text or "").lower()
+    letters = "".join(re.findall(r"\w", words))[:60]
+    # shortcut: a post with next to no text (a picture alone) cannot be matched, so both its copies go out; match on time if that happens often
+    return "copy:" + letters if len(letters) >= 12 else ""
 
 
 def first_line(text: str, limit: int = 140) -> str:

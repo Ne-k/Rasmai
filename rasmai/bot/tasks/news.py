@@ -11,7 +11,7 @@ import discord
 from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
-    followed_news_keys, jetstream_alive, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
+    followed_news_keys, jetstream_alive, news_copy_seen, news_copy_sent, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
     remove_unknown_news_sources, save_jetstream_alive,
 )
 
@@ -88,6 +88,7 @@ class NewsWatch:
         self._running: Set[asyncio.Task] = set()
         self._inflight: Set[str] = set()        # Bluesky posts being waited on, built or sent right now
         self._queued: Dict[str, int] = {}       # of those, how many each account has
+        self._copy_turn = asyncio.Lock()        # the two copies of a post, on Bluesky and on X, are decided one after the other
         self._bluesky_turn = asyncio.Lock()     # Bluesky posts are built and sent one at a time, in the order they finish waiting
         self._history_turn = asyncio.Semaphore(1)       # one /news subscribe previous: at a time, however many servers ask
 
@@ -245,6 +246,9 @@ class NewsWatch:
         # every post waits the same, so they reach the lock in the order they arrived, and it lets them through in that order;
         # the build is held too, since that is the slow part: a video post fetches its video, and a text post after it would overtake
         async with self._bluesky_turn:
+            if not await self._first_copy(source, str(record.get("text", ""))):
+                await asyncio.to_thread(news_mark_seen, source.key, [uri])
+                return 0
             post, uris = await news.build_bluesky_post(self.session, source, record, uri)
             await asyncio.to_thread(news_mark_seen, source.key, uris)
             return await self.publish(post)
@@ -256,12 +260,16 @@ class NewsWatch:
             await asyncio.to_thread(remove_unknown_news_sources, SOURCES)       # a source taken out of the bot leaves its rows behind
         except Exception:
             logger.exception("news: old subscriptions could not be cleared")
-        # sources followed last round; at the start, every one followed, so what was missed while the bot was down is caught up
-        followed = await asyncio.to_thread(followed_news_keys)
+        # sources read last round; at the start, every X account followed, so what was missed while the bot was down is caught up.
+        # The X side of a Bluesky account only learns then: the Bluesky stream itself replays what was missed
+        keys = await asyncio.to_thread(followed_news_keys)
+        followed = {source.key for source in (await asyncio.to_thread(load_sources)).values() if source.platform == "X" and source.key in keys}
         turn = asyncio.Semaphore(X_AT_ONCE)
         while True:
             sources = await asyncio.to_thread(load_sources)
             wanted = await asyncio.to_thread(followed_news_keys)
+            feeds = [source for source in sources.values() if source.key in wanted and source.platform == "X"] + \
+                    [news.x_side(source) for source in sources.values() if source.key in wanted and source.platform != "X" and source.x_handle]
             polled: Set[str] = set()
 
             async def read(source: Source) -> None:
@@ -272,7 +280,7 @@ class NewsWatch:
                         polled.add(source.key)
                     except Exception:
                         logger.exception("news: reading %s failed", source.handle)
-            await asyncio.gather(*(read(source) for source in sources.values() if source.platform == "X" and source.key in wanted))
+            await asyncio.gather(*(read(source) for source in feeds))
             followed = (followed & wanted) | polled
             await asyncio.sleep(POLL_EVERY)
 
@@ -283,7 +291,7 @@ class NewsWatch:
         """
         # an added account gone private or suspended is empty on every instance, so it is not worth trying all of them each round
         items, avatar = await news.fetch_feed(self.session, source.handle, len(news.RSS_INSTANCES) if source.key in SOURCES else news.LOOKUP_TRIES)
-        items = news.own_posts(items, source)
+        items = [item for item in news.own_posts(items, source) if not source.maimai_only or news.is_maimai(item.text)]
         if not items:
             return 0
         first = learn or not await asyncio.to_thread(news_seen_any, source.key)
@@ -299,10 +307,29 @@ class NewsWatch:
         older, pending = pending[:-CATCH_UP], pending[-CATCH_UP:]
         if older:
             await asyncio.to_thread(news_mark_seen, source.key, [item.id for item in older])
+        sent = 0
         for item in pending:
-            await self.publish(await news.build_x_post(self.session, source, item, avatar))
+            if await self._first_copy(source, item.text):
+                await self.publish(await news.build_x_post(self.session, source, item, avatar))
+                sent += 1
             await asyncio.to_thread(news_mark_seen, source.key, [item.id])
-        return len(pending)
+        return sent
+
+    async def _first_copy(self, source: Source, text: str) -> bool:
+        """Whether to send this post: always, unless the account posts on both sites and its copy on the other one went first.
+
+        Only the other site's copies count, so the account saying the same thing twice on one site still sends both. Older than
+        MAX_AGE they do not count either: a post that old is not sent, so it cannot be the copy of one being sent now.
+        """
+        mark = news.copy_mark(text) if source.x_handle else ""
+        if not mark:
+            return True
+        other = "Bluesky" if source.platform == "X" else "X"
+        async with self._copy_turn:
+            if await asyncio.to_thread(news_copy_seen, source.key, f"{mark}:{other}", MAX_AGE):
+                return False
+            await asyncio.to_thread(news_copy_sent, source.key, f"{mark}:{source.platform}")
+            return True
 
     # ------------------------------------------------------------ sending
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 import logging
 
@@ -230,6 +230,27 @@ def news_unseen(source: str, post_ids: Iterable[str]) -> Set[str]:
     finally:
         connection.close()
     return set(ids) - known
+
+
+def news_copy_sent(source: str, mark: str) -> None:
+    """Note that a post with this mark was just sent, from one of the two sites an account is read on."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            # REPLACE, so a post said again later is dated by its latest sending
+            connection.execute("INSERT OR REPLACE INTO news_seen (source, post_id, seen_at) VALUES (?, ?, ?)", (source, mark, datetime.now().isoformat()))
+    finally:
+        connection.close()
+
+
+def news_copy_seen(source: str, mark: str, seconds: int) -> bool:
+    """Whether a post with this mark was sent in the last ``seconds``."""
+    connection = get_database_connection()
+    try:
+        since = (datetime.now() - timedelta(seconds=seconds)).isoformat()
+        return connection.execute("SELECT 1 FROM news_seen WHERE source = ? AND post_id = ? AND seen_at >= ?", (source, mark, since)).fetchone() is not None
+    finally:
+        connection.close()
 
 
 def news_mark_seen(source: str, post_ids: Iterable[str]) -> None:

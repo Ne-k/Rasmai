@@ -227,12 +227,12 @@ class SubscribeMenu(OwnerOnlyView):
         self.where = discord.ui.ChannelSelect(placeholder="Pick a channel", channel_types=CHANNEL_TYPES, row=0)
         self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, row=1)
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
-        self.test = discord.ui.Button(label="Send a test post", style=discord.ButtonStyle.secondary, row=2, disabled=True)
+        self.test = discord.ui.Select(placeholder="Send a test post from...", row=4, disabled=True)
         self.add = discord.ui.Button(label="Add an account", style=discord.ButtonStyle.secondary, row=2)
         self.drop = discord.ui.Select(placeholder="Remove an added account", row=3)
         self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.send_test
         self.add.callback, self.drop.callback = self.open_add, self.remove_account
-        for item in (self.where, self.which, self.save, self.test, self.add, self.drop):
+        for item in (self.where, self.which, self.save, self.add, self.drop, self.test):
             self.add_item(item)
         self._fill(set(SOURCES))
 
@@ -251,6 +251,9 @@ class SubscribeMenu(OwnerOnlyView):
         self.drop.options = [discord.SelectOption(label=source.label[:100], value=key) for key, source in extra] \
             or [discord.SelectOption(label="No added accounts", value="none")]      # a select needs one, even greyed out
         self.drop.disabled = not extra
+        # an account typed in but not saved has no feed the bot reads yet, so it has nothing to test with
+        self.test.options = [discord.SelectOption(label=source.label[:100], value=key)
+                             for key, source in list(self.choices().items())[:MAX_CHOICES] if key not in self.added]
 
     @property
     def ticked(self) -> List[str]:
@@ -372,9 +375,14 @@ class SubscribeMenu(OwnerOnlyView):
         await interaction.edit_original_response(embed=self.embed(note), view=self)
 
     async def send_test(self, interaction: discord.Interaction) -> None:
-        """Send the channel the latest post of the first account it follows, so it can be seen working without waiting for news."""
+        """Send the channel the latest post of the account picked, to see it working, or how an account's posts look, without waiting for news."""
+        key = self.test.values[0] if self.test.values else ""
+        await interaction.response.edit_message(view=self)      # redrawn, so the picker is empty again and the same account can be picked twice
         if self.channel is None or not self.current:
             await _reply(interaction, "Save a channel with at least one account first.")
+            return
+        if key not in self.choices() or key in self.added:
+            await _reply(interaction, "Hit **Save** with that account ticked first, then try again.")
             return
         refused = _refusal(interaction, self.channel)
         if refused:
@@ -391,7 +399,6 @@ class SubscribeMenu(OwnerOnlyView):
             await _reply(interaction, f"{self.channel.mention}'s webhook is gone - hit **Save** to make a new one.")
             return
         _history_at[self.guild_id] = time.monotonic()
-        key = self.current[0]
         news_watch.spawn(news_watch.history(channel_id, url, [key], 1))
         await _reply(interaction, f"Sending the latest {_name(key)} post to {self.channel.mention} so you can see how it looks. It can take a moment.")
 
