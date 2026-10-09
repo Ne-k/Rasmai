@@ -170,8 +170,11 @@ def is_maimai(text: str) -> bool:
     A post that names maimai is about maimai, unless another game comes first: then it is that game's post that happens to
     mention maimai, a collaboration's map for one, and is left out. Two things bring it back: the `#maimai` tag, and maimai
     named in the same sentence as the other games, as an event covering several of them does.
+
+    Links do not count: SEGA's sites for every game sit under maimai.sega.jp, so a CHUNITHM post linking its page names maimai.
     """
-    found = MAIMAI.search(text or "")
+    text = re.sub(r"https?://\S+|\S*\w\.\w{2,}\S*", " ", text or "")
+    found = MAIMAI.search(text)
     if not found:
         return False
     other = OTHER_GAMES.search(text)
@@ -753,5 +756,5 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
         return [await build_x_post(session, x, pick, avatar) if isinstance(pick, FeedItem) else (await build_bluesky_post(session, source, *pick))[0]
                 for pick in kept[-count:]]
     items, avatar = await fetch_feed(session, source.handle)
-    own = own_posts(items, source)[:count]
+    own = [item for item in own_posts(items, source) if not only or is_maimai(item.text)][:count]
     return [await build_x_post(session, source, item, avatar) for item in reversed(own)]
