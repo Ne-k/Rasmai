@@ -97,7 +97,6 @@
     },
     "yourCharts": "your charts",
     "yourHistory": "your play history",
-    "expired": "<b>Your maimai session expired.</b> maimai DX NET stopped accepting your login{on, select, none {} other { on {on}}}, so your scores aren't updating. Everything below is from your last refresh. Run <code>/login</code> in Discord to link again.{until, select, none {} other { If it isn't linked again by <b>{until}</b>, everything stored for this account is deleted.}}",
     "api": {
       "bot_unreachable": "Can't reach the bot right now. It might be restarting, so try again in a minute.",
       "rate_limited": "Too many requests. Wait a moment and try again.",
@@ -1245,6 +1244,8 @@
     "themeToggle": "Switch between light and dark",
     "themeTitle": "Light / dark",
     "dismiss": "Dismiss",
+    "relink": "<b>Your maimai account needs to be linked again.</b> maimai DX NET stopped accepting the saved login, so no new scores can be fetched until you do.",
+    "relinkLink": "Link it again",
     "more": "more",
     "period": "."
   },

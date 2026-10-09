@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
-import { isWebId } from "@/lib/ids";
 import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
@@ -235,7 +234,6 @@ export function Dash() {
       </Frame>
     );
   }
-  const web = isWebId(me.user.id);
   const banner = error ? (
     <div className="notice" role="alert">
       {error}
@@ -255,7 +253,7 @@ export function Dash() {
   return (
     <Frame user={me.user} onSignOut={signOut}>
       {banner}
-      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} web={web} /> : null}
+      {me.sessionExpired ? <SessionExpired since={me.sessionExpired} deletesAt={me.sessionDeletesAt} /> : null}
       <section className="ident">
         <div className="ident-who">
           <div className="label">
@@ -382,8 +380,7 @@ export function Dash() {
 }
 
 /** Shown above everything when maimai DX NET has refused the saved sign-in: reads stop until it is linked again. */
-function SessionExpired({ since, deletesAt, web }: { since: string; deletesAt?: string; web: boolean }) {
-  const t = useTranslations("dash");
+function SessionExpired({ since, deletesAt }: { since: string; deletesAt?: string }) {
   const acct = useTranslations("account");
   const when = new Date(since);
   const on = Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString(activeTag(), { day: "numeric", month: "short" });
@@ -392,15 +389,10 @@ function SessionExpired({ since, deletesAt, web }: { since: string; deletesAt?: 
     ? gone.toLocaleDateString(activeTag(), { day: "numeric", month: "short", year: "numeric" })
     : "";
   return (
-    <aside className="expired" role="status">
-      {web ? (
-        <>
-          {acct.rich("expiredWeb", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b> })}
-          <LinkMaimai />
-        </>
-      ) : (
-        t.rich("expired", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b>, code: (c) => <code>{c}</code> })
-      )}
+    // the band at the top of every page links here
+    <aside className="expired" id="relink" role="status">
+      {acct.rich("expiredWeb", { on: on || "none", until: until || "none", b: (c) => <b>{c}</b> })}
+      <LinkMaimai />
     </aside>
   );
 }

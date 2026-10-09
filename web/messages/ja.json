@@ -97,7 +97,6 @@
     },
     "yourCharts": "譜面",
     "yourHistory": "プレイ履歴",
-    "expired": "<b>maimai のセッションが期限切れです。</b> maimaiでらっくすNET が{on, select, none {} other {{on}に}}ログインを受け付けなくなったため、スコアが更新されていません。以下は最後に更新した時点のものです。Discord で <code>/login</code> を実行して再連携してください。{until, select, none {} other {<b>{until}</b>までに再連携しないと、このアカウントについて保存されているものはすべて削除されます。}}",
     "api": {
       "bot_unreachable": "現在 bot に接続できません。再起動中かもしれないので、1分ほどしてからもう一度お試しください。",
       "rate_limited": "リクエストが多すぎます。少し待ってからもう一度お試しください。",
@@ -1253,6 +1252,8 @@
     "themeToggle": "ライト／ダークを切り替え",
     "themeTitle": "ライト／ダーク",
     "dismiss": "閉じる",
+    "relink": "<b>maimai アカウントの再連携が必要です。</b> maimai DX NET が保存済みのログインを受け付けなくなったため、再連携するまで新しいスコアを取得できません。",
+    "relinkLink": "再連携する",
     "more": "詳しく",
     "period": "。"
   },

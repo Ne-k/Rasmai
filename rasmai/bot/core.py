@@ -455,6 +455,36 @@ async def on_ready():
         asyncio.get_running_loop().run_in_executor(None, _warm_area_pictures)
 
 
+RELINK_QUIET = {"login", "delete-account"}      # linking again, or leaving: a reminder to link would only get in the way
+
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command: Any) -> None:
+    """After any command, a private reminder for someone whose maimai sign-in is refused: nothing new is fetched until they link again."""
+    from rasmai.bot.ui.formatting import stamp
+    from rasmai.config import PUBLIC_URL
+    from rasmai.storage.db import get_connected_account, session_deletes_at
+    if getattr(command, "qualified_name", "") in RELINK_QUIET:
+        return
+    try:
+        since = ((await asyncio.to_thread(get_connected_account, str(interaction.user.id))) or {}).get("sessionExpired") or ""
+    except Exception:
+        logger.exception("could not check whether %s needs to link again", interaction.user.id)
+        return
+    if not since:
+        return
+    deletes = session_deletes_at(since)
+    text = ("**Your maimai account needs to be linked again.** maimai DX NET stopped accepting the saved login, so no new scores "
+            "can be fetched until you do. Run `/login`, or use the button below."
+            + (f" If it isn't linked again by {stamp(datetime.fromisoformat(deletes), 'D')}, everything Rasmai stores for it is deleted." if deletes else ""))
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Link it again", url=f"{PUBLIC_URL}/me/#relink"))
+    try:
+        await interaction.followup.send(text, view=view, ephemeral=True)
+    except discord.HTTPException:
+        pass          # the command never answered, so there is nothing to follow up
+
+
 @bot.event
 async def on_guild_remove(guild: discord.Guild) -> None:
     # A server that removed the bot has no one left to change its switches, and one that adds it
