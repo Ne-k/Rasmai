@@ -693,7 +693,24 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
                 found.append((record, post["uri"]))
             if len(found) == count:
                 break
-        return [(await build_bluesky_post(session, source, record, uri))[0] for record, uri in reversed(found)]
+        # oldest first, each site's own order kept where times are equal or missing
+        picks = [(iso_time(str(record.get("createdAt", ""))) or 0, "Bluesky", copy_mark(str(record.get("text", ""))), (record, uri))
+                 for record, uri in reversed(found)]
+        x, avatar = x_side(source), ""
+        if source.x_handle:
+            # its X posts count too: some are only there, and the latest of both sites is what is shown
+            items, avatar = await fetch_feed(session, x.handle)
+            mine = [item for item in own_posts(items, x) if not x.maimai_only or is_maimai(item.text)][:count]
+            picks += [(tweet_time(item.id) or 0, "X", copy_mark(item.text), item) for item in reversed(mine)]
+        kept: List[Any] = []
+        marks: Dict[str, set] = {"Bluesky": set(), "X": set()}
+        for _when, site, mark, pick in sorted(picks, key=lambda pick: pick[0]):
+            if mark and mark in marks["X" if site == "Bluesky" else "Bluesky"]:
+                continue        # the later copy of a post on both sites
+            marks[site].add(mark)
+            kept.append(pick)
+        return [await build_x_post(session, x, pick, avatar) if isinstance(pick, FeedItem) else (await build_bluesky_post(session, source, *pick))[0]
+                for pick in kept[-count:]]
     items, avatar = await fetch_feed(session, source.handle)
     own = own_posts(items, source)[:count]
     return [await build_x_post(session, source, item, avatar) for item in reversed(own)]
