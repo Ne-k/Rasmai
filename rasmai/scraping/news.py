@@ -2,7 +2,7 @@ from dataclasses import dataclass, field, replace
 from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse
 import asyncio
 import html
 import logging
@@ -422,7 +422,7 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
         items.append(FeedItem(tweet_id(link), title, link, item.findtext("description") or "",
                               bool(re.match(r"^(?:RT\b|リツイート\b)", title, flags=re.IGNORECASE)),
                               author.group(1) if author else "", reply.group(1) if reply else ""))
-    return items, (root.findtext("./channel/image/url") or "").strip()
+    return items, twimg((root.findtext("./channel/image/url") or "").strip())
 
 
 def feed_title(content: bytes) -> str:
@@ -631,8 +631,21 @@ async def translate(session: aiohttp.ClientSession, text: str) -> str:
     return result
 
 
+def twimg(url: str) -> str:
+    """A picture behind a Nitter instance's own proxy as the twimg.com address it stands for, any other address as it is.
+
+    Some instances hand out every picture through themselves, over http and from another host: the bot will not fetch
+    those, and Discord will not show such an avatar, so the post went without its pictures and its sender's face.
+    """
+    path = urlparse(url or "").path
+    if not path.startswith("/pic/"):
+        return url
+    inner = re.sub(r"^orig/", "", unquote(path[len("/pic/"):]))
+    return inner if inner.startswith(("http://", "https://")) else f"https://pbs.twimg.com/{inner}"
+
+
 def media_urls(description_html: str) -> List[str]:
-    return [url for url in re.findall(r'<img[^>]+src="([^"]+)"', description_html or "") if not url.startswith("/")]
+    return [twimg(url) for url in re.findall(r'<img[^>]+src="([^"]+)"', description_html or "")]
 
 
 async def syndication_parent(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Tuple[str, str]]:
