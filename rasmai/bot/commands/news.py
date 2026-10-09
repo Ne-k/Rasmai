@@ -49,7 +49,14 @@ def _name(key: str, plain: bool = False) -> str:
 
 
 def _names(keys: List[str], plain: bool = False) -> str:
-    return ", ".join(_name(key, plain) for key in keys) or "nothing"
+    """Account names in the order the picker lists them, so every list of them in a message reads the same way."""
+    order = {key: n for n, key in enumerate(all_sources())}
+    return ", ".join(_name(key, plain) for key in sorted(keys, key=lambda key: order.get(key, len(order)))) or "nothing"
+
+
+def _channel_label(guild: discord.Guild, channel_id: str) -> str:
+    channel = guild.get_channel(int(channel_id)) if channel_id.isdigit() else None
+    return f"#{channel.name}" if channel is not None else "A deleted channel"
 
 
 async def _reply(interaction: discord.Interaction, text: str, view: Optional[discord.ui.View] = None) -> None:
@@ -218,13 +225,15 @@ class SubscribeMenu(OwnerOnlyView):
     the last picker removes an added account from every channel here.
     """
 
+    INTRO = "Pick a channel, tick the accounts you want posted there, then hit **Save**. Untick one to stop it."
+
     def __init__(self, owner_id: int, guild_id: int, following: Dict[str, List[str]], previous: int = 0):
         super().__init__(owner_id, timeout=MENU_TIMEOUT)
         self.guild_id, self.following, self.previous = guild_id, following, previous
         self.channel: Optional[discord.TextChannel] = None
         self.current: List[str] = []
         self.added: Dict[str, Source] = {}      # typed in here and not followed by any channel yet
-        self.where = discord.ui.ChannelSelect(placeholder="Pick a channel", channel_types=CHANNEL_TYPES, row=0)
+        self.where = self._channel_picker()
         self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, row=1)
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
         self.test = discord.ui.Select(placeholder="Send a test post from...", row=4, disabled=True)
@@ -235,6 +244,9 @@ class SubscribeMenu(OwnerOnlyView):
         for item in (self.where, self.which, self.save, self.add, self.drop, self.test):
             self.add_item(item)
         self._fill(set(SOURCES))
+
+    def _channel_picker(self) -> discord.ui.Item:
+        return discord.ui.ChannelSelect(placeholder="Pick a channel", channel_types=CHANNEL_TYPES, row=0)
 
     def choices(self) -> Dict[str, Source]:
         """The accounts the picker lists: the built-in ones, the ones a channel here follows, and the ones typed in here."""
@@ -260,9 +272,10 @@ class SubscribeMenu(OwnerOnlyView):
         return [option.value for option in self.which.options if option.default]
 
     def embed(self, note: str = "") -> discord.Embed:
-        lines = ["Pick a channel, tick the accounts you want posted there, then hit **Save**. Untick one to stop it."]
-        if self.channel is not None:
-            lines.append(f"\n{self.channel.mention} currently gets {_names(self.current)}.")
+        lines = [self.INTRO]
+        # what a channel gets is in the list below and in the ticks, so it is only said here when there is nothing to list
+        if self.channel is not None and not self.current:
+            lines.append(f"\n{self.channel.mention} doesn't get any news yet.")
         if note:
             lines.append("\n" + note)
         embed = discord.Embed(title="News", description="\n".join(lines), color=NEWS_COLOR)
@@ -279,10 +292,14 @@ class SubscribeMenu(OwnerOnlyView):
             message, view = cannot_see_channel(interaction, getattr(chosen, "mention", "that channel"))
             await _reply(interaction, message, view)
             return
+        self.where.default_values = [discord.Object(id=channel.id)]       # it stays shown as picked when the message is redrawn
+        await self.show(interaction, channel)
+
+    async def show(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
+        """Open a channel in the menu: tick what it gets, and let it be saved and tested."""
         self.channel = channel
         self.current = await asyncio.to_thread(channel_sources, str(channel.id))
         self._fill(set(self.current) or set(SOURCES))       # a channel that gets nothing yet starts with every built-in account ticked
-        self.where.default_values = [discord.Object(id=channel.id)]       # it stays shown as picked when the message is redrawn
         self.save.disabled = False
         self.test.disabled = not self.current
         await interaction.response.edit_message(embed=self.embed(), view=self)
@@ -416,12 +433,8 @@ class UnsubscribeMenu(OwnerOnlyView):
         self.add_item(self.stop_button)
         self._fill()
 
-    def _label(self, channel_id: str) -> str:
-        channel = self.guild.get_channel(int(channel_id)) if channel_id.isdigit() else None
-        return f"#{channel.name}" if channel is not None else "A deleted channel"
-
     def _fill(self) -> None:
-        self.which.options = [discord.SelectOption(label=self._label(cid)[:100], value=cid, description=_names(keys, plain=True)[:100])
+        self.which.options = [discord.SelectOption(label=_channel_label(self.guild, cid)[:100], value=cid, description=_names(keys, plain=True)[:100])
                               for cid, keys in list(self.following.items())[:25]]
         self.which.max_values = max(1, len(self.which.options))
         self.which.disabled = self.stop_button.disabled = not self.which.options
@@ -463,6 +476,61 @@ class UnsubscribeMenu(OwnerOnlyView):
         await interaction.edit_original_response(embed=self.embed(note.strip()), view=self)
 
 
+class ManageMenu(SubscribeMenu):
+    """The subscribe menu for channels that already get news, picked from a list of just them, with a button that stops one."""
+
+    INTRO = "Pick a channel that gets news to change its accounts or send a test post. **Stop news here** stops it."
+
+    def __init__(self, owner_id: int, guild: discord.Guild, following: Dict[str, List[str]]):
+        self.guild = guild      # first: the list of channels is filled while the menu is built
+        super().__init__(owner_id, guild.id, following)
+        self.stop_here = discord.ui.Button(label="Stop news here", style=discord.ButtonStyle.danger, row=2, disabled=True)
+        self.stop_here.callback = self.stop_news
+        self.add_item(self.stop_here)
+
+    def _channel_picker(self) -> discord.ui.Item:
+        return discord.ui.Select(placeholder="Pick a channel to manage", row=0)
+
+    def _fill(self, ticked: set) -> None:
+        super()._fill(ticked)
+        picked = str(self.channel.id) if self.channel is not None else ""
+        self.where.options = [discord.SelectOption(label=_channel_label(self.guild, cid)[:100], value=cid, description=_names(keys, plain=True)[:100],
+                                                   default=cid == picked) for cid, keys in list(self.following.items())[:MAX_CHOICES]] \
+            or [discord.SelectOption(label="Nothing left", value="none")]      # a select needs one, even greyed out
+        self.where.disabled = not self.following
+
+    async def pick_channel(self, interaction: discord.Interaction) -> None:
+        value = self.where.values[0]
+        channel = self.guild.get_channel(int(value)) if value.isdigit() else None
+        if channel is None:
+            await interaction.response.defer()
+            if value in self.following:
+                await stop_channel(value)       # deleted: there is nobody to ask, and only this server's rows are left
+                await self._refresh(interaction, "That channel was deleted, so its news is stopped.")
+            return
+        self.stop_here.disabled = False
+        await self.show(interaction, channel)
+
+    async def stop_news(self, interaction: discord.Interaction) -> None:
+        if self.channel is None:
+            await _reply(interaction, "Pick a channel first.")
+            return
+        refused = _refusal(interaction, self.channel)
+        if refused:
+            await _reply(interaction, refused)
+            return
+        await interaction.response.defer()
+        await stop_channel(str(self.channel.id))
+        await self._refresh(interaction, f"Stopped news in {self.channel.mention}.")
+
+    async def _refresh(self, interaction: discord.Interaction, note: str) -> None:
+        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        self.channel, self.current = None, []
+        self.save.disabled = self.test.disabled = self.stop_here.disabled = True
+        self._fill(set())
+        await interaction.edit_original_response(embed=self.embed(note), view=self)
+
+
 # the group's default permission is only where Discord starts: a server can let anyone run the commands in its settings, so it is checked here too
 @news.command(name="subscribe", description="Pick a channel and which accounts post maimai news there")
 @app_commands.checks.has_permissions(manage_webhooks=True)
@@ -484,6 +552,19 @@ async def unsubscribe(interaction: discord.Interaction):
         await _reply(interaction, "No channels here get news right now. Use `/news subscribe` to set one up.")
         return
     menu = UnsubscribeMenu(interaction.user.id, interaction.guild, following)
+    await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
+    menu.message = await interaction.original_response()
+
+
+@news.command(name="manage", description="Change the accounts of a channel that gets maimai news, test it, or stop it")
+@app_commands.checks.has_permissions(manage_webhooks=True)
+async def manage(interaction: discord.Interaction):
+    await asyncio.to_thread(load_sources)
+    following = await asyncio.to_thread(guild_news, str(interaction.guild_id))
+    if not following or interaction.guild is None:
+        await _reply(interaction, "No channels here get news right now. Use `/news subscribe` to set one up.")
+        return
+    menu = ManageMenu(interaction.user.id, interaction.guild, following)
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
     menu.message = await interaction.original_response()
 

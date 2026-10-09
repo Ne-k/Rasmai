@@ -523,9 +523,18 @@ def own_posts(items: List[FeedItem], source: Source) -> List[FeedItem]:
 
 
 def has_english(text: str) -> bool:
-    """Whether a post already carries its own English: a run of four English words in a row, which names and hashtags do not make."""
+    """Whether a post already carries its own English, so a translation would only say it twice.
+
+    Either it is mostly English, or it has an English sentence and at least as much English as Japanese. A sentence is four
+    words in a row, three of them lowercase: a name such as "KING of Performai The 8th" is not one, and a Japanese post that
+    names its event in English is still translated. Links, hashtags and mentions count for neither language.
+    """
     plain = re.sub(r"https?://\S+|[#@]\w+", " ", text or "")
-    return bool(re.search(r"(?:\b[A-Za-z][A-Za-z']+\b[ ,.!?:;&]+){4,}", plain))
+    japanese = len(re.findall(r"[぀-ゟ゠-ヿ一-鿿]", plain))
+    english = len(re.findall(r"[A-Za-z]", plain))
+    sentence = any(sum(word.islower() for word in re.findall(r"[A-Za-z][A-Za-z']+", run.group(0))) >= 3
+                   for run in re.finditer(r"(?:\b[A-Za-z][A-Za-z']+\b[ ,.!?:;&]+){3,}\b[A-Za-z][A-Za-z']+\b", plain))
+    return english >= 1.5 * japanese or (sentence and english >= japanese)
 
 
 def has_japanese(text: str) -> bool:
