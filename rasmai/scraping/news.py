@@ -28,7 +28,7 @@ class Source:
     platform: str      # "Bluesky" or "X"
     handle: str
     did: str = ""      # Bluesky only: the account the Jetstream is asked for
-    maimai_only: bool = False      # only its posts about maimai are sent: an account that covers other games too
+    maimai_only: bool = False      # a channel starting to follow it gets only its posts about maimai, which it can change: an account covering other games too
     x_handle: str = ""             # a Bluesky account's own X username: both are read, and whichever copy of a post comes first is sent
 
 
@@ -91,6 +91,7 @@ class Post:
     wanted_video: bool = False       # it has a video; if none could be attached the link is left to unfurl
     follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
     posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
+    about_maimai: bool = True                        # whether it goes to a channel getting only the account's posts about maimai
 
     def content(self, unfurl: bool = False) -> str:
         """The message: ``unfurl`` lets the link draw its preview, for when the post's media could not be attached."""
@@ -369,7 +370,9 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
                          first_line(str((above.get("record") or {}).get("text", ""))))
     post = Post(source.key, uri, f"https://bsky.app/profile/{source.handle}/post/{uri.split('/')[-1]}", source.label,
                 await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up,
-                iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))))
+                iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))),
+                # the account correcting or continuing a maimai post is about maimai too, whatever the correction says
+                is_maimai("\n".join(parts)) or bool(above and is_maimai(str((above.get("record") or {}).get("text", "")))))
     return post, [p["uri"] for p in thread]
 
 
@@ -707,14 +710,15 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
     return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
-                tweet_time(item.id))
+                tweet_time(item.id), is_maimai(written) or bool(follow_up and is_maimai(follow_up[1])))
 
 
-async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int) -> List[Post]:
+async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int, maimai_only: Optional[bool] = None) -> List[Post]:
     """The latest ``count`` posts of an account, oldest first, as they would be sent now.
 
-    An account that covers other games counts only its posts about maimai, the same filter live ones go through.
+    With ``maimai_only``, only its posts about maimai count, the same filter live ones go through; left out, the account's default.
     """
+    only = source.maimai_only if maimai_only is None else maimai_only
     if count <= 0:
         return []
     if source.platform == "Bluesky":
@@ -726,7 +730,7 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
             record = post.get("record") or {}
             if entry.get("reason") or (post.get("author") or {}).get("did") != source.did or not post.get("uri"):
                 continue          # a repost, or somebody else's
-            if not source.maimai_only or is_maimai(str(record.get("text", ""))):
+            if not only or is_maimai(str(record.get("text", ""))):
                 found.append((record, post["uri"]))
             if len(found) == count:
                 break
@@ -737,7 +741,7 @@ async def recent_posts(session: aiohttp.ClientSession, source: Source, count: in
         if source.x_handle:
             # its X posts count too: some are only there, and the latest of both sites is what is shown
             items, avatar = await fetch_feed(session, x.handle)
-            mine = [item for item in own_posts(items, x) if not x.maimai_only or is_maimai(item.text)][:count]
+            mine = [item for item in own_posts(items, x) if not only or is_maimai(item.text)][:count]
             picks += [(tweet_time(item.id) or 0, "X", copy_mark(item.text), item) for item in reversed(mine)]
         kept: List[Any] = []
         marks: Dict[str, set] = {"Bluesky": set(), "X": set()}

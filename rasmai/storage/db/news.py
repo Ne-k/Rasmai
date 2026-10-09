@@ -17,7 +17,7 @@ def _owner(channel_id: str) -> str:
     return f"news:{channel_id}"
 
 
-def add_news_subscription(guild_id: str, channel_id: str, source: str, webhook_url: str) -> None:
+def add_news_subscription(guild_id: str, channel_id: str, source: str, webhook_url: str, maimai_only: bool = False) -> None:
     """Follow a source in a channel. The webhook URL is sealed here and never written any other way.
 
     :param guild_id: The Discord server id.
@@ -28,14 +28,16 @@ def add_news_subscription(guild_id: str, channel_id: str, source: str, webhook_u
     :type source: str
     :param webhook_url: The webhook that posts into the channel.
     :type webhook_url: str
+    :param maimai_only: Whether a new subscription gets only the account's posts about maimai; an existing one keeps its choice.
+    :type maimai_only: bool
     """
     connection = get_database_connection()
     try:
         with connection:
             connection.execute(
-                "INSERT INTO news_subscriptions (channel_id, source, guild_id, webhook, created_at) VALUES (?, ?, ?, ?, ?) "
+                "INSERT INTO news_subscriptions (channel_id, source, guild_id, webhook, created_at, maimai_only) VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(channel_id, source) DO UPDATE SET webhook = excluded.webhook, guild_id = excluded.guild_id",
-                (channel_id, source, guild_id, encrypt_token(webhook_url, _owner(channel_id)), datetime.now().isoformat()),
+                (channel_id, source, guild_id, encrypt_token(webhook_url, _owner(channel_id)), datetime.now().isoformat(), int(maimai_only)),
             )
     finally:
         connection.close()
@@ -108,6 +110,40 @@ def guild_news(guild_id: str) -> Dict[str, List[str]]:
     for row in rows:
         out.setdefault(str(row["channel_id"]), []).append(str(row["source"]))
     return out
+
+
+def news_channel_filters(source: str) -> Dict[str, bool]:
+    """Every channel following a source, and whether it gets only the source's posts about maimai."""
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT channel_id, maimai_only FROM news_subscriptions WHERE source = ?", (source,)).fetchall()
+    finally:
+        connection.close()
+    return {str(row["channel_id"]): bool(row["maimai_only"]) for row in rows}
+
+
+def guild_maimai_only(guild_id: str) -> Dict[str, Set[str]]:
+    """For each channel in a server, the sources it gets only the maimai posts of."""
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT channel_id, source FROM news_subscriptions WHERE guild_id = ? AND maimai_only = 1", (guild_id,)).fetchall()
+    finally:
+        connection.close()
+    out: Dict[str, Set[str]] = {}
+    for row in rows:
+        out.setdefault(str(row["channel_id"]), set()).add(str(row["source"]))
+    return out
+
+
+def set_channel_maimai_only(channel_id: str, sources: Iterable[str]) -> None:
+    """Have a channel get only the maimai posts of these sources, and every post of the others it follows."""
+    keys = list(sources)
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute(f"UPDATE news_subscriptions SET maimai_only = source IN ({','.join('?' * len(keys))}) WHERE channel_id = ?", (*keys, channel_id))
+    finally:
+        connection.close()
 
 
 def news_subscription_count(guild_id: str) -> int:

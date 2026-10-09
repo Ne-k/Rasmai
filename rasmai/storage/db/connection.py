@@ -171,6 +171,13 @@ def get_database_connection() -> sqlite3.Connection:
                     )
                     """
                 )
+                try:
+                    # whether the channel gets only the account's posts about maimai
+                    setup.execute("ALTER TABLE news_subscriptions ADD COLUMN maimai_only INTEGER NOT NULL DEFAULT 0")
+                    # until a channel could choose, Preformai's filter was the account's own and always on, so its channels keep it
+                    setup.execute("UPDATE news_subscriptions SET maimai_only = 1 WHERE source = 'preformai'")
+                except sqlite3.OperationalError:
+                    pass          # already there
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS news_sources (   -- a public Bluesky or X account a server added to follow: nobody's private data

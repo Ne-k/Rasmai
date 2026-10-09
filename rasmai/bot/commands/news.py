@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 import asyncio
 import logging
 import time
@@ -13,7 +13,7 @@ from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping import news as feeds
 from rasmai.scraping.news import SOURCES, Source
 from rasmai.storage.db import (
-    add_news_source, add_news_subscription, channel_sources, followed_news_keys, followed_news_source_count, guild_news, news_subscription_count,
+    add_news_source, add_news_subscription, channel_sources, guild_maimai_only, set_channel_maimai_only, followed_news_keys, followed_news_source_count, guild_news, news_subscription_count,
     news_webhook, remove_news_subscription, replace_channel_webhook,
 )
 
@@ -48,10 +48,12 @@ def _name(key: str, plain: bool = False) -> str:
     return name if plain else discord.utils.escape_markdown(name)
 
 
-def _names(keys: List[str], plain: bool = False) -> str:
-    """Account names in the order the picker lists them, so every list of them in a message reads the same way."""
+def _names(keys: List[str], plain: bool = False, maimai_only: Iterable[str] = ()) -> str:
+    """Account names in the order the picker lists them, so every list of them in a message reads the same way, with those in
+    ``maimai_only`` marked as sending only their maimai posts."""
     order = {key: n for n, key in enumerate(all_sources())}
-    return ", ".join(_name(key, plain) for key in sorted(keys, key=lambda key: order.get(key, len(order)))) or "nothing"
+    return ", ".join(_name(key, plain) + (" (maimai only)" if key in maimai_only else "")
+                     for key in sorted(keys, key=lambda key: order.get(key, len(order)))) or "nothing"
 
 
 def _channel_label(guild: discord.Guild, channel_id: str) -> str:
@@ -175,7 +177,8 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
             if added and key in added:
                 source = added[key]
                 await asyncio.to_thread(add_news_source, key, source.platform, source.handle, source.did, source.label)
-            await asyncio.to_thread(add_news_subscription, guild_id, channel_id, key, url)
+            # a new one starts with the account's own default: only maimai posts for an account that covers other games too
+            await asyncio.to_thread(add_news_subscription, guild_id, channel_id, key, url, getattr(all_sources().get(key), "maimai_only", False))
         await asyncio.to_thread(load_sources)
     gone = await asyncio.to_thread(news_webhook, channel_id) if not wanted else None       # nothing left to send there, so its webhook goes too
     for key in dropped:
@@ -230,6 +233,39 @@ class TestPosts(discord.ui.Modal, title="Send test posts"):
         await self.menu.send_test(interaction, self.key, self.count.value)
 
 
+class MaimaiOnly(OwnerOnlyView):
+    """Which of a channel's accounts send it only their posts about maimai, applied as soon as they are picked."""
+
+    def __init__(self, menu: "SubscribeMenu"):
+        super().__init__(menu.owner_id, timeout=MENU_TIMEOUT)
+        self.menu = menu
+        on = menu.filtered.get(str(menu.channel.id), set()) if menu.channel is not None else set()
+        self.pick = discord.ui.Select(placeholder="Only maimai posts from...", min_values=0, max_values=max(1, len(menu.current)),
+                                      options=[discord.SelectOption(label=_name(key, plain=True)[:100], value=key, default=key in on) for key in menu.current[:MAX_CHOICES]])
+        self.pick.callback = self.choose
+        self.add_item(self.pick)
+
+    async def choose(self, interaction: discord.Interaction) -> None:
+        menu, channel = self.menu, self.menu.channel
+        refused = _refusal(interaction, channel) if channel is not None else "Pick a channel first."
+        if refused:
+            await _reply(interaction, refused)
+            return
+        chosen = [key for key in self.pick.values if key in menu.current]
+        for option in self.pick.options:
+            option.default = option.value in chosen
+        await asyncio.to_thread(set_channel_maimai_only, str(channel.id), chosen)
+        await menu.reload()
+        text = (f"{channel.mention} now gets only the maimai posts from {_names(chosen)}, and everything from the rest."
+                if chosen else f"{channel.mention} now gets every post from all its accounts.")
+        await interaction.response.edit_message(content=text, view=self, allowed_mentions=NO_MENTIONS)
+        if menu.message is not None:
+            try:
+                await menu.message.edit(embed=menu.embed(), view=menu)       # the menu's list shows the change too
+            except discord.HTTPException:
+                pass
+
+
 class SubscribeMenu(OwnerOnlyView):
     """Where the news goes and from which accounts: a channel, the accounts ticked for it, and Save.
 
@@ -246,15 +282,18 @@ class SubscribeMenu(OwnerOnlyView):
         self.channel: Optional[discord.TextChannel] = None
         self.current: List[str] = []
         self.added: Dict[str, Source] = {}      # typed in here and not followed by any channel yet
+        self.filtered: Dict[str, Set[str]] = {}     # for each channel here, the accounts it gets only the maimai posts of
         self.where = self._channel_picker()
         self.which = discord.ui.Select(placeholder="Pick the accounts", min_values=0, row=1)
         self.save = discord.ui.Button(label="Save", style=discord.ButtonStyle.success, row=2, disabled=True)
         self.test = discord.ui.Select(placeholder="Send a test post from...", row=4, disabled=True)
         self.add = discord.ui.Button(label="Add an account", style=discord.ButtonStyle.secondary, row=2)
+        self.only = discord.ui.Button(label="Maimai posts only...", style=discord.ButtonStyle.secondary, row=2, disabled=True)
+        self.only.callback = self.open_only
         self.drop = discord.ui.Select(placeholder="Remove an added account", row=3)
         self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.pick_test
         self.add.callback, self.drop.callback = self.open_add, self.remove_account
-        for item in (self.where, self.which, self.save, self.add, self.drop, self.test):
+        for item in (self.where, self.which, self.save, self.add, self.only, self.drop, self.test):
             self.add_item(item)
         self._fill(set(SOURCES))
 
@@ -292,7 +331,7 @@ class SubscribeMenu(OwnerOnlyView):
         if note:
             lines.append("\n" + note)
         embed = discord.Embed(title="News", description="\n".join(lines), color=NEWS_COLOR)
-        where = [f"<#{cid}>: {_names(keys)}" for cid, keys in self.following.items()]
+        where = [f"<#{cid}>: {_names(keys, maimai_only=self.filtered.get(cid, set()))}" for cid, keys in self.following.items()]
         embed.add_field(name="Getting news now", value="\n".join(where)[:1024] if where else "No channels yet.", inline=False)
         embed.set_footer(text=f"Bluesky posts show up within a minute and X posts within about 5. They come through a webhook called \"{WEBHOOK_NAME}\".")
         return embed
@@ -314,7 +353,7 @@ class SubscribeMenu(OwnerOnlyView):
         self.current = await asyncio.to_thread(channel_sources, str(channel.id))
         self._fill(set(self.current) or set(SOURCES))       # a channel that gets nothing yet starts with every built-in account ticked
         self.save.disabled = False
-        self.test.disabled = not self.current
+        self.test.disabled = self.only.disabled = not self.current
         await interaction.response.edit_message(embed=self.embed(), view=self)
 
     async def pick_accounts(self, interaction: discord.Interaction) -> None:
@@ -332,11 +371,22 @@ class SubscribeMenu(OwnerOnlyView):
         if done is None:
             return
         self.current = await asyncio.to_thread(channel_sources, str(self.channel.id))
-        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        await self.reload()
         self.added = {key: source for key, source in self.added.items() if key not in all_sources()}
         self._fill(set(self.ticked))
-        self.test.disabled = not self.current
+        self.test.disabled = self.only.disabled = not self.current
         await interaction.edit_original_response(embed=self.embed(done), view=self)
+
+    async def reload(self) -> None:
+        """Read again which channels here get news, from what, and which of it only about maimai."""
+        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        self.filtered = await asyncio.to_thread(guild_maimai_only, str(self.guild_id))
+
+    async def open_only(self, interaction: discord.Interaction) -> None:
+        if self.channel is None or not self.current:
+            await _reply(interaction, "Save a channel with at least one account first.")
+            return
+        await _reply(interaction, f"Pick the accounts that should send {self.channel.mention} only their posts about maimai.", MaimaiOnly(self))
 
     async def open_add(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(AddAccount(self))
@@ -375,7 +425,7 @@ class SubscribeMenu(OwnerOnlyView):
         key = self.drop.values[0]
         await interaction.response.defer()
         # read again: the menu may have been open for minutes, and another manager may have changed what a channel gets since
-        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        await self.reload()
         source = self.choices().get(key)
         if source is None or key in SOURCES:
             self._fill(set(self.ticked))
@@ -395,10 +445,10 @@ class SubscribeMenu(OwnerOnlyView):
                 await asyncio.to_thread(remove_news_subscription, channel_id, key)
             removed.append(f"<#{channel_id}>")
         self.added.pop(key, None)
-        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        await self.reload()
         if self.channel is not None:
             self.current = await asyncio.to_thread(channel_sources, str(self.channel.id))
-            self.test.disabled = not self.current
+            self.test.disabled = self.only.disabled = not self.current
         self._fill({k for k in self.ticked if k != key or k in self.current})
         note = f"Removed **{discord.utils.escape_markdown(source.label)}**" + (f" from {', '.join(removed)}" if removed else "") + "." + \
                (f" You need **Manage Webhooks** in {', '.join(refused)} to remove it there." if refused else "")
@@ -545,9 +595,9 @@ class ManageMenu(SubscribeMenu):
         await self._refresh(interaction, f"Stopped news in {self.channel.mention}.")
 
     async def _refresh(self, interaction: discord.Interaction, note: str) -> None:
-        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        await self.reload()
         self.channel, self.current = None, []
-        self.save.disabled = self.test.disabled = self.stop_here.disabled = True
+        self.save.disabled = self.test.disabled = self.only.disabled = self.stop_here.disabled = True
         self._fill(set())
         await interaction.edit_original_response(embed=self.embed(note), view=self)
 
@@ -560,6 +610,7 @@ async def subscribe(interaction: discord.Interaction, previous: app_commands.Ran
     await asyncio.to_thread(load_sources)
     following = await asyncio.to_thread(guild_news, str(interaction.guild_id))
     menu = SubscribeMenu(interaction.user.id, interaction.guild_id or 0, following, previous)
+    menu.filtered = await asyncio.to_thread(guild_maimai_only, str(interaction.guild_id))
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
     menu.message = await interaction.original_response()
 
@@ -586,6 +637,7 @@ async def manage(interaction: discord.Interaction):
         await _reply(interaction, "No channels here get news right now. Use `/news subscribe` to set one up.")
         return
     menu = ManageMenu(interaction.user.id, interaction.guild, following)
+    menu.filtered = await asyncio.to_thread(guild_maimai_only, str(interaction.guild_id))
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
     menu.message = await interaction.original_response()
 

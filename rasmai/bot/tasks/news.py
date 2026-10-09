@@ -11,7 +11,7 @@ import discord
 from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
-    followed_news_keys, jetstream_alive, news_copy_seen, news_copy_sent, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
+    followed_news_keys, jetstream_alive, news_channel_filters, news_copy_seen, news_copy_sent, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
     remove_unknown_news_sources, save_jetstream_alive,
 )
 
@@ -225,7 +225,7 @@ class NewsWatch:
         its posts about maimai are. The account answering itself is sent as well, since that is how it corrects or continues
         a post, even when the answer never says maimai, provided what it answers was sent. An answer to somebody else is not sent.
         """
-        updating = not source.maimai_only or news.is_maimai(str(record.get("text", "")))
+        updating = not await self._only_maimai(source) or news.is_maimai(str(record.get("text", "")))
         reply = record.get("reply") or {}
         if reply:
             if str((reply.get("parent") or {}).get("uri", "")).split("/")[2:3] != [source.did]:
@@ -292,7 +292,8 @@ class NewsWatch:
         """
         # an added account gone private or suspended is empty on every instance, so it is not worth trying all of them each round
         items, avatar = await news.fetch_feed(self.session, source.handle, len(news.RSS_INSTANCES) if source.key in SOURCES else news.LOOKUP_TRIES)
-        items = [item for item in news.own_posts(items, source) if not source.maimai_only or news.is_maimai(item.text)]
+        only = await self._only_maimai(source)
+        items = [item for item in news.own_posts(items, source) if not only or news.is_maimai(item.text)]
         if not items:
             return 0
         first = learn or not await asyncio.to_thread(news_seen_any, source.key)
@@ -318,6 +319,11 @@ class NewsWatch:
                 sent += 1
             await asyncio.to_thread(news_mark_seen, source.key, [item.id])
         return sent
+
+    async def _only_maimai(self, source: Source) -> bool:
+        """Whether every channel following an account gets only its posts about maimai, so nothing else of it is worth reading."""
+        filters = await asyncio.to_thread(news_channel_filters, source.key)
+        return bool(filters) and all(filters.values())
 
     async def _first_copy(self, source: Source, text: str) -> bool:
         """Whether to send this post: always, unless the account posts on both sites and its copy on the other one went first.
@@ -352,6 +358,9 @@ class NewsWatch:
         if post.posted_at and post.posted_at < time.time() - MAX_AGE:
             return 0
         subscribers: List[Tuple[str, str]] = await asyncio.to_thread(news_subscribers, post.source)
+        if not post.about_maimai:
+            filters = await asyncio.to_thread(news_channel_filters, post.source)
+            subscribers = [(channel_id, url) for channel_id, url in subscribers if not filters.get(channel_id)]
         if not subscribers:
             return 0
         files = await self._files(post)
@@ -390,7 +399,8 @@ class NewsWatch:
                 if source is None:
                     continue
                 try:
-                    posts = await news.recent_posts(self.session, source, count)
+                    only = (await asyncio.to_thread(news_channel_filters, key)).get(channel_id)
+                    posts = await news.recent_posts(self.session, source, count, only)
                 except Exception:
                     logger.exception("news: the earlier posts of %s could not be read", key)
                     continue
