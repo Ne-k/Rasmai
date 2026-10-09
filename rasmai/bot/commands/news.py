@@ -217,6 +217,19 @@ class AddAccount(discord.ui.Modal, title="Add an account"):
         await self.menu.add_account(interaction, self.account.value)
 
 
+class TestPosts(discord.ui.Modal, title="Send test posts"):
+    """How many of an account's latest posts to send as a test."""
+
+    count = discord.ui.TextInput(label=f"How many of its latest posts (1-{MAX_HISTORY})", default="1", min_length=1, max_length=2)
+
+    def __init__(self, menu: "SubscribeMenu", key: str):
+        super().__init__(timeout=MENU_TIMEOUT)
+        self.menu, self.key = menu, key
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.menu.send_test(interaction, self.key, self.count.value)
+
+
 class SubscribeMenu(OwnerOnlyView):
     """Where the news goes and from which accounts: a channel, the accounts ticked for it, and Save.
 
@@ -239,7 +252,7 @@ class SubscribeMenu(OwnerOnlyView):
         self.test = discord.ui.Select(placeholder="Send a test post from...", row=4, disabled=True)
         self.add = discord.ui.Button(label="Add an account", style=discord.ButtonStyle.secondary, row=2)
         self.drop = discord.ui.Select(placeholder="Remove an added account", row=3)
-        self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.send_test
+        self.where.callback, self.which.callback, self.save.callback, self.test.callback = self.pick_channel, self.pick_accounts, self.submit, self.pick_test
         self.add.callback, self.drop.callback = self.open_add, self.remove_account
         for item in (self.where, self.which, self.save, self.add, self.drop, self.test):
             self.add_item(item)
@@ -391,10 +404,17 @@ class SubscribeMenu(OwnerOnlyView):
                (f" You need **Manage Webhooks** in {', '.join(refused)} to remove it there." if refused else "")
         await interaction.edit_original_response(embed=self.embed(note), view=self)
 
-    async def send_test(self, interaction: discord.Interaction) -> None:
-        """Send the channel the latest post of the account picked, to see it working, or how an account's posts look, without waiting for news."""
-        key = self.test.values[0] if self.test.values else ""
+    async def pick_test(self, interaction: discord.Interaction) -> None:
+        """Ask how many posts to send from the account picked."""
+        await interaction.response.send_modal(TestPosts(self, self.test.values[0] if self.test.values else ""))
+
+    async def send_test(self, interaction: discord.Interaction, key: str, count: str = "1") -> None:
+        """Send the channel the latest posts of an account, to see it working, or how an account's posts look, without waiting for news."""
         await interaction.response.edit_message(view=self)      # redrawn, so the picker is empty again and the same account can be picked twice
+        amount = int(count) if count.strip().isdigit() else 0
+        if not 1 <= amount <= MAX_HISTORY:
+            await _reply(interaction, f"Type a number from 1 to {MAX_HISTORY}.")
+            return
         if self.channel is None or not self.current:
             await _reply(interaction, "Save a channel with at least one account first.")
             return
@@ -416,8 +436,9 @@ class SubscribeMenu(OwnerOnlyView):
             await _reply(interaction, f"{self.channel.mention}'s webhook is gone - hit **Save** to make a new one.")
             return
         _history_at[self.guild_id] = time.monotonic()
-        news_watch.spawn(news_watch.history(channel_id, url, [key], 1))
-        await _reply(interaction, f"Sending the latest {_name(key)} post to {self.channel.mention} so you can see how it looks. It can take a moment.")
+        news_watch.spawn(news_watch.history(channel_id, url, [key], amount))
+        what = f"latest {_name(key)} post" if amount == 1 else f"latest {amount} {_name(key)} posts"
+        await _reply(interaction, f"Sending the {what} to {self.channel.mention} so you can see how it looks. It can take a moment.")
 
 
 class UnsubscribeMenu(OwnerOnlyView):
