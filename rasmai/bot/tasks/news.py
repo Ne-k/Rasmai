@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 POLL_EVERY = 300                    # seconds between looks at the X feeds
 IDLE_RECHECK = 60                   # seconds between asking whether anyone follows a Bluesky account, while nobody does
 CATCH_UP = 5                        # most posts sent at once after a gap; older ones are marked seen, not sent
+BURST_WINDOW = 1800                 # seconds; posts this recent are never cut by CATCH_UP, so a burst of them all goes out even when a Nitter feed lags
 X_AT_ONCE = 4                       # X accounts read at the same time, so a dead one cannot hold up the rest, nor all of them crowd a Nitter instance
 SEND_AT_ONCE = 10                   # channels a post is being sent to at the same time; webhooks share Discord's ~50 a second global limit, so no more
 SEND_TIMEOUT = 30                   # seconds a send may take, Discord's own retries included, before it counts as a failure worth one more try
@@ -304,7 +305,10 @@ class NewsWatch:
         if stale:
             await asyncio.to_thread(news_mark_seen, source.key, stale)
         pending = [item for item in reversed(items) if item.id in unseen and item.id not in stale]       # oldest first
-        older, pending = pending[:-CATCH_UP], pending[-CATCH_UP:]
+        # the cap is for a gap, the bot down or the feeds unreadable: posts made minutes apart, as a tournament's announcements are, all go out
+        recent = time.time() - BURST_WINDOW
+        older = [item for item in pending[:-CATCH_UP] if (news.tweet_time(item.id) or 0) < recent]
+        pending = [item for item in pending if item not in older]
         if older:
             await asyncio.to_thread(news_mark_seen, source.key, [item.id for item in older])
         sent = 0

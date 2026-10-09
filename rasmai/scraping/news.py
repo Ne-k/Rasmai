@@ -37,6 +37,8 @@ SOURCES: Dict[str, Source] = {
     "preformai": Source("preformai", "Preformai International", "Bluesky", "performaien.bsky.social", "did:plc:brwck2njp6tj43cns5t5rbdh", True, "performaien"),
     "maimai": Source("maimai", "Maimai Official", "X", "maimai_official"),
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
+    # not filtered: the tournament covers all three games and tags every post with all of them, so the filter cannot tell them apart
+    "kop": Source("kop", "KING of Performai", "X", "kop_sega"),
 }
 
 JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
