@@ -340,9 +340,13 @@ class SubscribeMenu(OwnerOnlyView):
     async def remove_account(self, interaction: discord.Interaction) -> None:
         """Stop an added account in every channel here that gets it, or drop it from the list when no channel does yet."""
         key = self.drop.values[0]
-        source = self.choices().get(key)
         await interaction.response.defer()
+        # read again: the menu may have been open for minutes, and another manager may have changed what a channel gets since
+        self.following = await asyncio.to_thread(guild_news, str(self.guild_id))
+        source = self.choices().get(key)
         if source is None or key in SOURCES:
+            self._fill(set(self.ticked))
+            await interaction.edit_original_response(embed=self.embed("Nothing to remove - no channel here gets that account any more."), view=self)
             return
         removed, refused = [], []
         for channel_id, keys in self.following.items():

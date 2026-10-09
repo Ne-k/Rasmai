@@ -147,7 +147,7 @@ def remove_channel_webhook(channel_id: str, webhook_url: str) -> int:
 
 def remove_unknown_news_sources(known: Iterable[str]) -> int:
     """Forget subscriptions to sources the bot no longer has, so they stop counting against a server's limit, and accounts
-    servers added that no channel follows any more. Returns the subscriptions removed.
+    servers added that no channel follows any more, with the posts recorded as seen for them. Returns the subscriptions removed.
 
     The added accounts are kept by the subscriptions to them, ``known`` being the built-in ones.
     """
@@ -159,6 +159,7 @@ def remove_unknown_news_sources(known: Iterable[str]) -> int:
                 f"DELETE FROM news_subscriptions WHERE source NOT IN ({','.join('?' * len(keys))}) AND source NOT IN (SELECT key FROM news_sources)",
                 keys).rowcount
             connection.execute("DELETE FROM news_sources WHERE key NOT IN (SELECT DISTINCT source FROM news_subscriptions)")
+            connection.execute(f"DELETE FROM news_seen WHERE source NOT IN ({','.join('?' * len(keys))}) AND source NOT IN (SELECT key FROM news_sources)", keys)
             return removed
     finally:
         connection.close()

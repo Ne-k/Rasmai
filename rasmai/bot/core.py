@@ -497,10 +497,14 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     # A server that removed the bot has no one left to change its switches, and one that adds it
     # back should start from the defaults like any new server.
     from rasmai.storage.db.settings import delete_guild_settings
-    from rasmai.storage.db.news import remove_guild_news
+    from rasmai.bot.commands.news import stop_channel
+    from rasmai.storage.db.news import guild_news, remove_guild_news
     try:
         had = await asyncio.to_thread(delete_guild_settings, str(guild.id))
-        await asyncio.to_thread(remove_guild_news, str(guild.id))      # its channels follow nothing once the bot is gone
+        # its channels follow nothing once the bot is gone, and their webhooks go too: a webhook's own URL deletes it from outside the server
+        for channel_id in await asyncio.to_thread(guild_news, str(guild.id)):
+            await stop_channel(channel_id)
+        await asyncio.to_thread(remove_guild_news, str(guild.id))
     except Exception:
         logger.exception("Could not clear the settings of server %s after leaving it", guild.id)
         return

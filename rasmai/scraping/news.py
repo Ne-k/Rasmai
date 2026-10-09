@@ -226,8 +226,9 @@ def _ffmpeg(args: List[str], timeout: int) -> bool:
 
 
 def _playlist_args(url: str, out: str) -> List[str]:
-    # the playlist names its own segments and keys, and ffmpeg follows them and any redirect wherever they point: this keeps it to https
-    return ["-protocol_whitelist", "https,tls,tcp,crypto", "-headers", "User-Agent: Mozilla/5.0\r\n", "-i", url, "-c", "copy",
+    # the playlist names its own segments and keys, and ffmpeg follows them and any redirect wherever they point: this keeps it to https,
+    # and has the playlist's certificate checked, which the ffmpeg in Debian bookworm does not do unless asked, so nobody between can rewrite where it points
+    return ["-protocol_whitelist", "https,tls,tcp,crypto", "-tls_verify", "1", "-headers", "User-Agent: Mozilla/5.0\r\n", "-i", url, "-c", "copy",
             "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart", out]
 
 
