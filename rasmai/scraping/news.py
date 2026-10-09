@@ -385,8 +385,21 @@ class FeedItem:
 
     @property
     def text(self) -> str:
-        """What was written, without Nitter's "R to @someone:" in front."""
-        return re.sub(r"^R to @\w+:\s*", "", self.title)
+        """What was written, with its line breaks: the description's HTML keeps them, where the title runs it all into one line.
+
+        A link is its full address where the post shows it shortened; a mention or hashtag, which Nitter links to itself, is its text.
+        Without a description, the title, less Nitter's "R to @someone:" in front.
+        """
+        body = re.search(r"<p>(.*?)</p>", self.description, re.S)
+        if not body:
+            return re.sub(r"^R to @\w+:\s*", "", self.title)
+
+        def link(match: "re.Match[str]") -> str:
+            href, shown = match.group(1), match.group(2)
+            return href if href.startswith(("http://", "https://")) and urlparse(href).hostname not in TRUSTED_HOSTS else shown
+        written = re.sub(r"<br\s*/?>\s*", "\n", body.group(1))
+        written = re.sub(r'<a [^>]*?href="([^"]*)"[^>]*>(.*?)</a>', link, written, flags=re.S)
+        return html.unescape(re.sub(r"<[^>]+>", "", written)).strip()
 
 
 def tweet_id(link: str) -> str:
