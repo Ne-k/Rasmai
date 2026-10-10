@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "./env";
+import { headerJson } from "./headerJson";
 import { json } from "./http";
 import type { DiscordUser } from "./session";
 
@@ -16,7 +17,7 @@ export async function internal(path: string, options: Options = {}): Promise<Res
   const headers: Record<string, string> = { Accept: "application/json" };
   const secret = env.internalSecret();
   if (secret) headers["X-Rasmai-Internal"] = secret;
-  if (options.user) headers["X-Rasmai-User"] = JSON.stringify(options.user);
+  if (options.user) headers["X-Rasmai-User"] = headerJson(options.user);
   if (options.client) headers["X-Rasmai-Client"] = options.client;
   let body: string | undefined;
   if (options.body !== undefined) {
@@ -24,13 +25,19 @@ export async function internal(path: string, options: Options = {}): Promise<Res
     body = JSON.stringify(options.body);
   }
   const query = options.query ? `?${options.query.toString()}` : "";
-  return fetch(`${env.internalUrl()}${path}${query}`, {
-    method: options.method ?? "GET",
-    headers,
-    body,
-    cache: "no-store",
-    signal: AbortSignal.timeout(120000),
-  });
+  try {
+    return await fetch(`${env.internalUrl()}${path}${query}`, {
+      method: options.method ?? "GET",
+      headers,
+      body,
+      cache: "no-store",
+      signal: AbortSignal.timeout(120000),
+    });
+  } catch (error) {
+    // every route answers this as "can't reach the bot", so say here what it really was: nothing else records it
+    console.error(`call to the bot failed: ${options.method ?? "GET"} ${path}`, error);
+    throw error;
+  }
 }
 
 // content-encoding is deliberately not forwarded: fetch has already decompressed the body
