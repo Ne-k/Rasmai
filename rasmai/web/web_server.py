@@ -226,6 +226,12 @@ class InternalApiServer:
                         self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds,
                                           "position": wait.position, "eta": wait.eta})
                         return
+                    except Exception:
+                        # answered and logged, as a POST is: unanswered, the site saw the connection drop and told the
+                        # person the bot was unreachable, every time, while nothing here said why
+                        logger.exception("dashboard read %s failed", route.path)
+                        self._send_json(500, {"ok": False, "error": "server"})
+                        return
                     if not handled:
                         self._send_json(404, {"ok": False, "error": "not_found"})
                     return
