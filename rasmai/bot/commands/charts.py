@@ -1,5 +1,4 @@
 from typing import Optional
-import logging
 
 import discord
 from discord import app_commands
@@ -17,7 +16,6 @@ from rasmai.bot.builders.results.view import build_in_time, failure_reply
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import DIFFICULTY_CHOICES, SORT_CHOICES, level_autocomplete
 
-logger = logging.getLogger(__name__)
 
 
 async def _lookup(interaction: discord.Interaction, what: str, build) -> None:
@@ -47,7 +45,6 @@ async def _lookup(interaction: discord.Interaction, what: str, build) -> None:
             except discord.HTTPException:
                 pass
     except Exception as error:
-        logger.exception("%s lookup failed", what)
         await interaction.edit_original_response(**await failure_reply(interaction, "Couldn't look that up.", error), embed=None, attachments=[])
 
 

@@ -30,6 +30,23 @@ class OwnerOnlyView(discord.ui.View):
             except discord.HTTPException:
                 pass
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
+        """A button or menu that broke: reported, and the person told so with the id, rather than Discord's "interaction failed"."""
+        from rasmai.bot.core import command_context
+        from rasmai.config import support_line
+        from rasmai.errors import report
+        context = await command_context(interaction)
+        context["Component"] = f"{type(item).__name__} {getattr(item, 'label', None) or getattr(item, 'placeholder', None) or ''} in {type(self).__name__}"
+        error_id = report(error, "A button or menu failed", context)
+        text = f"Something went wrong with that.\n{support_line(error_id)}"
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(text, ephemeral=True)
+            else:
+                await interaction.response.send_message(text, ephemeral=True)
+        except discord.HTTPException:
+            pass
+
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
             await interaction.response.send_message(

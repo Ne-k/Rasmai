@@ -127,6 +127,35 @@ async def try_render(html: str) -> Optional[bytes]:
     return shot
 
 
+async def command_context(interaction: discord.Interaction) -> Dict[str, Any]:
+    """What an error report needs about the command or button it happened in: what was run, with what, by whom, where."""
+    from rasmai.storage.db import get_connected_account
+    # read with care throughout: this runs while something has already gone wrong, and must never be a second failure
+    command = getattr(interaction, "command", None)
+    user = getattr(interaction, "user", None)
+    try:
+        options = ", ".join(f"{name}={value}" for name, value in interaction.namespace) if interaction.namespace else ""
+    except Exception:
+        options = ""
+    guild, channel = getattr(interaction, "guild_id", None), getattr(interaction, "channel_id", None)
+    context: Dict[str, Any] = {
+        "Command": f"/{command.qualified_name}" if command else (getattr(interaction, "data", None) or {}).get("custom_id", "a button"),
+        "Options": options,
+        "User": f"{user} ({getattr(user, 'id', '?')})",
+        "Where": f"server {guild} · channel {channel}" if guild else "DMs or a user install",
+    }
+    try:
+        account = await asyncio.to_thread(get_connected_account, str(getattr(user, "id", "")), False)
+    except Exception:
+        account = None
+    if account:
+        context["Account"] = (f"{account.get('region', '?')} · last read {account.get('updatedAt') or '?'}"
+                              + (f" · login refused since {account['sessionExpired']}" if account.get("sessionExpired") else ""))
+    else:
+        context["Account"] = "not linked"
+    return context
+
+
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
     message = ""
@@ -151,9 +180,11 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         logger.error("Discord no longer knew the %s interaction %.1fs after it arrived: %s", interaction.command.name if interaction.command else "?",
                      age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
         return
-    logger.error("Command failed", exc_info=error)
-    # the person is left looking at a command that did nothing, so say so and say where to ask
-    text = f"Something went wrong running that command.\n{support_line()}"
+    from rasmai.errors import report
+    original = getattr(error, "original", error)        # discord.py wraps what the command raised
+    error_id = report(original, "Command failed", await command_context(interaction))
+    # the person is left looking at a command that did nothing, so say so, and give them the id to quote
+    text = f"Something went wrong running that command.\n{support_line(error_id)}"
     try:
         if interaction.response.is_done():
             await interaction.followup.send(text, ephemeral=True)

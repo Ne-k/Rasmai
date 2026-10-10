@@ -296,6 +296,7 @@
     "api": {
       "bad_response": "Couldn't read the server's response.",
       "bot_unreachable": "Can't reach the bot right now. It might be restarting, so try again in a minute.",
+      "errorId": "If you ask in the support server, send your error ID {id} along with it.",
       "generic": "Something went wrong ({status}).",
       "network": "Couldn't connect. Check your internet and try again.",
       "not_linked": "No maimai account is linked to this Discord account yet.",

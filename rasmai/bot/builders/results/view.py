@@ -5,7 +5,8 @@ import logging
 
 from rasmai.engine import analysis
 from rasmai.bot.state.cache import ANALYSIS_TTL, CachedAnalysis, cache_get
-from rasmai.bot.core import private_only, relink_reply, relink_told
+from rasmai.bot.core import command_context, private_only, relink_reply, relink_told
+from rasmai.errors import report
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping.scraper import SessionRejected
 from rasmai.config import support_line
@@ -50,7 +51,8 @@ async def failure_reply(interaction: discord.Interaction, failure: str, error: E
         text, view = relink_reply((account or {}).get("sessionExpired") or "")
         relink_told(user_id)        # this reply says it, so the reminder after the command does not
         return {"content": text, "view": view}
-    return {"content": f"{failure}\n-# {public_reason(error)}\n{support_line()}", "view": None}
+    error_id = report(error, failure, await command_context(interaction))
+    return {"content": f"{failure}\n-# {public_reason(error)}\n{support_line(error_id)}", "view": None}
 
 
 async def ensure_linked(interaction: discord.Interaction) -> bool:
@@ -278,7 +280,6 @@ class ResultsView(OwnerOnlyView):
         try:
             cached = await load_analysis(interaction, force=True)
         except Exception as error:
-            logger.exception("refresh failed")
             await interaction.edit_original_response(**await failure_reply(interaction, "Couldn't refresh your scores.", error),
                                                      embed=None, attachments=[])
             return
@@ -338,7 +339,6 @@ async def run_view_command(interaction: discord.Interaction, mode: str, failure:
             return
         await show_results(interaction, cached, mode, **state)
     except Exception as error:
-        logger.exception(f"{mode} command failed")
         try:
             await interaction.edit_original_response(**await failure_reply(interaction, failure, error), embed=None, attachments=[])
         except discord.HTTPException:
@@ -410,7 +410,6 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
             except discord.HTTPException:
                 pass
     except Exception as error:
-        logger.exception("command failed")
         try:
             await interaction.edit_original_response(**await failure_reply(interaction, failure, error), embed=None, attachments=[])
         except discord.HTTPException:
