@@ -90,7 +90,8 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
         try:
             detail = await asyncio.to_thread(play_detail, cached, play["idx"])
         except Exception as error:      # the judgement page is a bonus here; the chart page stands without it
-            logger.info("last play detail skipped for %s: %s", title, error)
+            from rasmai.errors import expected
+            (logger.info if expected(error) else logger.exception)("last play detail skipped for %s: %s", title, error)
 
     # how often players clear it, once enough have played it; the first call after a restart builds the cohort, so not on the loop
     observed = await asyncio.to_thread(cohort_state.observed_line, ref.key)

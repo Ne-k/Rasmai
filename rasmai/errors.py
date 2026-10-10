@@ -58,6 +58,19 @@ def report(error: BaseException, what: str, context: Optional[Dict[str, Any]] = 
     return error_id
 
 
+def expected(error: BaseException) -> bool:
+    """Whether an error is the outside world saying no (the network, a timeout, maimai DX NET's answer) rather than a bug.
+
+    Best-effort code catches everything so a page or command still answers; this keeps its quiet log line for these,
+    and lets anything else be logged as an error, so a broken feature reaches the webhook instead of vanishing.
+
+    :rtype: bool
+    """
+    import concurrent.futures
+    # the scraper reports a refused page or an HTTP status as ValueError, SessionRejected included
+    return isinstance(error, (requests.RequestException, ValueError, TimeoutError, OSError, concurrent.futures.TimeoutError))
+
+
 def _clean(text: Any, limit: int) -> str:
     """Text safe to post: no addresses, which can carry a token or a webhook's secret, and short enough to fit."""
     text = _URL.sub("[url]", str(text))

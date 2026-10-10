@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { activeTag } from "@/lib/i18n/active";
 import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartRow, type LookupTarget, type Overview, type QueueSpot, type RecentPlay, type RefreshStatus } from "./api";
 import { Lookup } from "./Lookup";
-import { Ago, Empty, LoadError, day, num, type OpenChart } from "./bits";
+import { Ago, Empty, ErrorText, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
 import { JudgementProfile, Traits } from "./traits";
 import { Charts } from "./Charts";
@@ -230,13 +230,13 @@ export function Dash() {
   if (!me) {
     return (
       <Frame>
-        <div className="gate">{error ? <><p className="hint">{error}</p><Support /></> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t("loading")}</p>}</div>
+        <div className="gate">{error ? <><p className="hint"><ErrorText message={error} /></p><Support /></> : queued ? <QueueNote spot={queued} /> : <p className="hint">{t("loading")}</p>}</div>
       </Frame>
     );
   }
   const banner = error ? (
     <div className="notice" role="alert">
-      {error}
+      <ErrorText message={error} />
     </div>
   ) : null;
   if (!me.linked) {
@@ -300,7 +300,7 @@ export function Dash() {
       {IMAGE_FOR[tab] && (
         <div className="tab-tools">
           {IMAGE_FOR[tab]!.map((kind) => (
-            <SaveImage key={kind} kind={kind} />
+            <SaveImage key={kind} kind={kind} ready={Boolean(me.analysis)} />
           ))}
         </div>
       )}

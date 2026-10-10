@@ -55,4 +55,5 @@ def forget_user(user_id: str) -> None:
         try:
             step()
         except Exception as error:
-            logger.debug("forgetting %s: %s skipped (%s)", uid, step.__name__, error)
+            # a step that fails leaves a deleted account's data in memory: worth knowing about, not a shrug
+            logger.exception("forgetting %s: %s failed (%s)", uid, step.__name__, error)

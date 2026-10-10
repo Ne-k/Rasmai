@@ -154,7 +154,7 @@ class ProfilePages:
         )
         if player_response.is_redirect and region != "jp":
             # the gateway took the token but the site sent the session back out: it was expired or already used
-            raise SessionRejected("maimai didn't accept that session - it's probably expired or already used. Grab a fresh one and run /login again.")
+            raise SessionRejected("maimai didn't accept that session - it's probably expired or already used. Run /login to link again.")
         if player_response.status_code != 200:
             raise ValueError(f'Failed to fetch player data: HTTP {player_response.status_code}')
         player, icon_url = self._parse_official_player_info(player_response.text, region)

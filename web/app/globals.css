@@ -392,7 +392,8 @@ html[data-standalone] .masthead-nav a.tag[href="/invite"] { display: none; }
 .movebar-text a { color: var(--ink); font-weight: 700; }
 .movebar-text { flex: 0 1 auto; text-align: center; }
 .movebar b { font-weight: 700; }
-.movebar-close { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); border: 0; background: none; padding: 0 2px; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+/* a 40px square to tap, inside the bar's right padding: the bare 22x20 glyph was hard to hit on a phone */
+.movebar-close { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: none; padding: 0; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
 .movebar-close:hover { color: var(--ink); }
 .movebar-close:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 @media (max-width: 560px) { .movebar { font-size: 13px; padding: 8px 34px; } .movebar-close { right: 8px; } }

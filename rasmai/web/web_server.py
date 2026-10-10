@@ -464,7 +464,10 @@ class InternalApiServer:
                 except SessionRejected as error:
                     # the sign-in itself was turned down: for Japan, a wrong SEGA ID, password or card
                     logger.info("A sign-in was refused while linking (%s): %s", region, public_reason(error))
-                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error))
+                    # the login code is still unspent here, so the way on is the same link, not a new /login
+                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error) if region == "jp" else
+                         "maimai didn't accept that sign-in - it's probably expired or already used. Sign in to the gateway "
+                         "again and press the bookmark. Your login link still works.")
                     return
                 except Exception as error:
                     reason = public_reason(error)

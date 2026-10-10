@@ -17,10 +17,13 @@ type LoginResult = {
 export async function POST(request: Request) {
   const html = wantsHtml(request);
   const client = clientKey(request);
+  let body: Record<string, string> = {};
+  // the link it came from rides along, so an error the same link can get past offers a way back to it
   const fail = (status: number, kind: string, message: string) =>
-    html ? redirect(`/error/?kind=${encodeURIComponent(kind)}`) : json(status, { ok: false, kind, error: message });
+    html
+      ? redirect(`/error/?${new URLSearchParams({ kind, ...(body.code && body.user ? { code: body.code, user: body.user } : {}) })}`)
+      : json(status, { ok: false, kind, error: message });
 
-  let body: Record<string, string>;
   try {
     body = await parseBody(request);
   } catch (error) {

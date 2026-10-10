@@ -1,6 +1,9 @@
 from typing import Any, Dict
+import logging
 
 from rasmai.storage.db import get_user_settings, set_user_settings
+
+logger = logging.getLogger(__name__)
 
 # Features that are finished enough to use and not finished enough to be on by default. Each one
 # is off until its owner turns it on, and turning it off puts everything back exactly as it was.
@@ -67,6 +70,7 @@ def beta_state(user_id: str) -> Dict[str, Any]:
         from rasmai.storage.db import beta_feedback_for
         said = beta_feedback_for(user_id)
     except Exception:
+        logger.exception("could not read beta feedback")
         said = {}
     features = []
     for key, spec in FEATURES.items():
@@ -106,4 +110,5 @@ def wants(user_id: str, feature: str) -> bool:
     try:
         return bool((get_user_settings(user_id).get("beta") or {}).get(feature))
     except Exception:
+        logger.exception("could not read a beta setting")
         return False

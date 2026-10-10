@@ -122,7 +122,12 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         try:
             detail = play_payload(cached, idx) if cached and idx else None
         except Exception as error:      # the site refused the sign-in or the page; the rest of the tab stands
-            handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error)})
+            from rasmai.errors import expected, report
+            if expected(error):
+                handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error)})
+            else:
+                error_id = report(error, "play detail failed", {"Page": path, "User": user.get("id")})
+                handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error), "errorId": error_id})
             return True
         if detail is None:
             handler._send_json(404, {"ok": False, "error": "no_play"})

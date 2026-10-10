@@ -5,6 +5,7 @@ import discord
 import logging
 
 from rasmai.bot.state.cache import CachedAnalysis, cache_put
+from rasmai.errors import expected
 from rasmai.bot.core import relink_reply, relink_told, watch
 from rasmai.bot.tasks.chart_db import resolve_unknown_later
 from rasmai.bot.tasks.presence import maintenance_at
@@ -181,7 +182,7 @@ async def _still_current(user_id: str, cached: CachedAnalysis) -> bool:
         logger.info("memory copy for %s is out of date: %s", user_id, why)
         return False
     except Exception as error:
-        logger.info("light check for %s failed, keeping the memory copy: %s", user_id, public_reason(error))
+        (logger.info if expected(error) else logger.exception)("light check for %s failed, keeping the memory copy: %s", user_id, public_reason(error))
         cached.checked = datetime.now()
         return True
     cached.checked = datetime.now()
@@ -224,7 +225,7 @@ async def _stored_analysis(interaction: discord.Interaction, user_id: str, accou
     except SessionRejected as error:
         return await _stale_analysis(interaction, user_id, account, error)
     except Exception as error:
-        logger.info("light check for %s failed: %s", user_id, public_reason(error))
+        (logger.info if expected(error) else logger.exception)("light check for %s failed: %s", user_id, public_reason(error))
         return await _stale_analysis(interaction, user_id, account, error)
     cached = await _analysis_from_store(user_id, account)
     if cached is None:

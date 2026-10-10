@@ -62,7 +62,8 @@ def _maintenances() -> List[Dict[str, Any]]:
             found = answer.json()
             _STATUS_PAGE["maintenances"] = found if isinstance(found, list) else []
         except Exception as error:
-            logger.info("could not read maintenances from the status page: %s", type(error).__name__)
+            from rasmai.errors import expected
+            (logger.info if expected(error) else logger.exception)("could not read maintenances from the status page: %s", type(error).__name__)
         return _STATUS_PAGE["maintenances"]
 
 
@@ -220,5 +221,6 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
     try:
         payload["sinceLast"] = since_last_look(user["id"], int(profile.get("rating") or 0), int(profile.get("totalPlayCount") or 0))
     except Exception:
+        logger.exception("the since-last-look stat failed")      # the page goes on without it, but it is a bug, not the network
         payload["sinceLast"] = None
     return payload

@@ -42,7 +42,10 @@ async def _maintenance_note() -> str:
     try:
         # Discord wants an answer within three seconds, and asking the status page can take longer
         band = await asyncio.wait_for(asyncio.to_thread(planned_maintenance), 1.5)
+    except asyncio.TimeoutError:
+        return ""
     except Exception:
+        logger.exception("could not tell whether a planned maintenance has the banner")
         return ""
     return "\n-# Until the planned maintenance on the status page is done, the site shows that instead." if band else ""
 

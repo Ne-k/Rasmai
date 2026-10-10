@@ -71,7 +71,9 @@ def _page(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], h
         avatar=_avatar(avatar_b64),
         eyebrow=_esc(eyebrow),
         name=_esc(name),
-        counters=render_each("counter", [{"label": _esc(k), "value": _esc(v)} for k, v in counters]),
+        # a rating counter wears its band, as the headline plate does; rating_plate reads only the number, so nothing unescaped gets in
+        counters=render_each("counter", [{"label": _esc(k), "value": rating_plate(v, small=True) if k == "Rating" else _esc(v)}
+                                         for k, v in counters]),
         headline_value=headline_value,
         headline_caption=_esc(headline_caption),
         body=body,

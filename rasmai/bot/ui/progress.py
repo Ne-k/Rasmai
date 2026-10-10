@@ -50,6 +50,7 @@ class Progress:
         self._dirty = False
         self._flusher: Optional[asyncio.Task] = None
         self._closed = False
+        self.waiting = ""         # said instead of the bar until the first step starts, while the read waits its turn
         Progress._active.add(id(self))
 
     # ---- state
@@ -137,6 +138,8 @@ class Progress:
 
     # ---- text
     def render(self) -> str:
+        if self.waiting and all(state in ("pending", "skipped") for state in self.status.values()):
+            return f"**{self.title}**\n{self.waiting}"
         fraction, remaining = self.fraction_and_remaining()
         eta = "almost there" if remaining < 3 else f"about {int(round(remaining / 5.0) * 5) or 5}s left"
         current = ""

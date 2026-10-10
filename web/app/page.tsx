@@ -116,6 +116,8 @@ export default async function LandingPage() {
       </header>
       <ServersNotice />
 
+      {/* the landmark screen readers jump to past the header, as every other page has through its shell */}
+      <main>
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">{t("eyebrow")}</p>
@@ -223,6 +225,7 @@ export default async function LandingPage() {
           ))}
         </ul>
       </section>
+      </main>
 
       <footer className="foot">
         <span>

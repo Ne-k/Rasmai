@@ -6,7 +6,7 @@ import { useLocale } from "@/components/I18n";
 import { activeTag } from "@/lib/i18n/active";
 import { noteKind } from "@/lib/i18n/traits";
 import { getJSON, type PlayDetail, type RecentPlay } from "./api";
-import { Chip, Empty, Jacket, Label, Lamp, TitleLink, num, pct, type OpenChart } from "./bits";
+import { Chip, Empty, ErrorText, Jacket, Label, Lamp, TitleLink, num, pct, type OpenChart } from "./bits";
 
 const PAGE = 60;
 const NOTE_ORDER = ["tap", "hold", "slide", "touch", "break"];
@@ -174,7 +174,7 @@ export function Recent({ plays, total, onOpen }: { plays: RecentPlay[] | null; t
                           <span className="lamp" /> {t("loadingPlay")}
                         </div>
                       ) : "error" in (open[p.idx] as object) ? (
-                        <div className="judge-panel judge-wait">{(open[p.idx] as { error: string }).error}</div>
+                        <div className="judge-panel judge-wait"><ErrorText message={(open[p.idx] as { error: string }).error} /></div>
                       ) : (
                         <Judgements detail={open[p.idx] as PlayDetail} achievement={p.achievement} />
                       )}

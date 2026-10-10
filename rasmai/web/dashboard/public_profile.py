@@ -287,7 +287,7 @@ def _traits_on_show(user_id: str, account: Dict[str, Any]) -> Tuple[List[Dict[st
                     for f in insights.family_axes(axes)]
         return [shape(t) for t in insights.notable(axes)], [shape(a) for a in axes], families
     except Exception:
-        logger.info("could not build traits for a public profile", exc_info=False)
+        logger.exception("could not build traits for a public profile")
         return [], [], []
 
 
@@ -311,5 +311,5 @@ def _areas_on_show(user_id: str) -> List[Dict[str, Any]]:
                         "distance": int(row.get("distance") or 0), "state": str(row.get("state") or "")})
         return out
     except Exception:
-        logger.info("could not build areas for a public profile", exc_info=False)
+        logger.exception("could not build areas for a public profile")
         return []
