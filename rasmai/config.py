@@ -92,6 +92,9 @@ _public_url_lock = threading.Lock()
 
 
 DATABASE_PATH = Path(os.getenv("MAIMAI_DATABASE_PATH", "data/maimai.sqlite3"))
+# the folder the chart preview reads its note pictures from; any it lacks are drawn instead. Beside the database, so a pack dropped on
+# the server survives a rebuild and stays out of git
+CHART_SKIN_DIR = Path(os.getenv("MAIMAI_CHART_SKIN_DIR", "") or DATABASE_PATH.parent / "chart_skin")
 
 
 # an account whose maimai sign-in has been refused this many days, and not linked again since, is deleted

@@ -10,6 +10,7 @@ from rasmai.scraping import wiki
 from rasmai.bot.builders.charts.page import DIFFICULTY_STYLE
 from rasmai.bot.builders.charts.song import build_song, build_song_details
 from rasmai.bot.builders.charts.details import video_button
+from rasmai.bot.builders.charts.preview import preview_button
 from rasmai.bot.builders.charts.song_history import build_song_history
 from rasmai.security import public_reason
 
@@ -102,6 +103,10 @@ class SongView(OwnerOnlyView):
             recent = discord.ui.Button(label="Last play", row=4, style=discord.ButtonStyle.secondary)
             recent.callback = self._last_play(last_play)
             self.add_item(recent)
+        # a short looping picture of the chart's busiest stretch, drawn from its notation; offered only for a chart whose notation is stored
+        preview = preview_button(refs[page])
+        if preview is not None:
+            self.add_item(preview)
         # a link button needs no callback; it opens the chart's video, or a search for one
         self.add_item(video_button(refs[page], self.videos, both_types))
 

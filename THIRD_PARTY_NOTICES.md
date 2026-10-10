@@ -275,3 +275,13 @@ The achievement-lost-per-note-type arithmetic in `rasmai/engine/losses.py` follo
    See the License for the specific language governing permissions and
    limitations under the License.
 ```
+
+## MajdataView web
+
+The note pictures the chart preview draws with - the taps, holds, stars, slide chevrons, touch triangles and the playfield ring - are
+the sprites in `Assets/Sprites` of https://github.com/TeamMajdata/MajdataView_web, kept in `rasmai/images/chart_skin/` under the names
+the preview looks for (`tap.png`, `star_each.png`, `field.png`, and so on). Only the file names changed. How fast a note travels, and how
+it grows where it first shows, follow that project's player at its usual speeds (`rasmai/images/preview.py`); the code is ours.
+
+That project is licensed under the GNU General Public License v3.0, the same licence as Rasmai (see LICENSE). The pictures show the notes
+of a game owned by SEGA, which is not affiliated with this project and does not endorse it.

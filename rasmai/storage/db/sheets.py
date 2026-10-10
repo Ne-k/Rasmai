@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 import zlib
 
 from rasmai.storage.db.connection import get_database_connection
@@ -45,6 +45,30 @@ def sheet_put(chart_key: str, chart_id: str, sheet: str) -> None:
                 "INSERT OR REPLACE INTO simai_sheets (chart_key, chart_id, sheet, fetched_at) VALUES (?, ?, ?, ?)",
                 (chart_key, chart_id, _pack(sheet), datetime.now().isoformat(timespec="seconds")),
             )
+    finally:
+        connection.close()
+
+
+def sheet_get(chart_key: str) -> Optional[str]:
+    """One chart's simai as it was stored, or None when it has not been read yet.
+
+    :param chart_key: The chart, as ``"title|type|difficulty"`` with the title folded.
+    :type chart_key: str
+    :rtype: Optional[str]
+    """
+    connection = get_database_connection()
+    try:
+        row = connection.execute("SELECT sheet FROM simai_sheets WHERE chart_key = ?", (chart_key,)).fetchone()
+    finally:
+        connection.close()
+    return _unpack(row["sheet"]) if row else None
+
+
+def sheet_held(chart_key: str) -> bool:
+    """Whether a chart's simai is stored, without reading it out."""
+    connection = get_database_connection()
+    try:
+        return connection.execute("SELECT 1 FROM simai_sheets WHERE chart_key = ?", (chart_key,)).fetchone() is not None
     finally:
         connection.close()
 

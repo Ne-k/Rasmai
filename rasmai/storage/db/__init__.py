@@ -27,7 +27,7 @@ from rasmai.storage.db.feedback import (VERDICTS, beta_feedback, beta_feedback_f
                                         beta_feedback_tally, set_beta_feedback)
 from rasmai.storage.db.sources import (chart_videos_get, chart_videos_set, site_notice_get, site_notice_set,
                                        source_state_get, source_state_set)
-from rasmai.storage.db.sheets import (sheet_put, sheets_all, sheets_held,  # noqa: F401
+from rasmai.storage.db.sheets import (sheet_get, sheet_held, sheet_put, sheets_all, sheets_held,  # noqa: F401
                                       squash_sheets)
 from rasmai.storage.db.identities import (account_exists, clean_identity, create_person,  # noqa: F401
                                           email_hash, is_discord_id, is_web_id, merge_accounts,

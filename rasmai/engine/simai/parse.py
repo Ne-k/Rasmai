@@ -34,6 +34,7 @@ class Note:
     ex: bool = False
     each: int = 1                # how many notes are struck at this moment, this one included
     wait: float = 0.0            # seconds a slide's star sits still before it sets off
+    corners: Tuple[Tuple[str, str], ...] = ()     # a slide's turns in order, as (shape, where it ends), for drawing its path
 
 
 @dataclass
@@ -294,7 +295,7 @@ def _slide(text: str, index: int, clock: float, bpm: float, position: str) -> Tu
             wait = _wait(text[index:close + 1], bpm)
             index = close + 1
     return Note(clock, "slide", position, travel, "".join(sh for sh, _ in corners),
-                corners[-1][1] if corners else "", brk, ex, wait=wait), index
+                corners[-1][1] if corners else "", brk, ex, wait=wait, corners=tuple(corners)), index
 
 
 def note_split(chart: Chart) -> Dict[str, Any]:
