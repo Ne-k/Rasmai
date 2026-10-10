@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
-ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles")
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles", "/internal/me/session")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -65,6 +65,10 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
 
     if path in ("/internal/me", "/internal/me/"):
         handler._send_json(200, overview_payload(user, account))
+        return True
+    if path == "/internal/me/session":
+        # asked on every page, for the band at the top: only whether maimai still takes the saved login, never the whole dashboard
+        handler._send_json(200, {"sessionExpired": (account or {}).get("sessionExpired") or ""})
         return True
     if path == "/internal/me/refresh":
         handler._send_json(200, refresh_jobs.status(user["id"]))
@@ -118,7 +122,12 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         try:
             detail = play_payload(cached, idx) if cached and idx else None
         except Exception as error:      # the site refused the sign-in or the page; the rest of the tab stands
-            handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error)})
+            from rasmai.errors import expected, report
+            if expected(error):
+                handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error)})
+            else:
+                error_id = report(error, "play detail failed", {"Page": path, "User": user.get("id")})
+                handler._send_json(502, {"ok": False, "error": "read_failed", "reason": public_reason(error), "errorId": error_id})
             return True
         if detail is None:
             handler._send_json(404, {"ok": False, "error": "no_play"})
@@ -170,6 +179,9 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     if path == "/internal/me/image":
         # the same picture the matching command attaches, drawn by the same builder
         from rasmai.web.dashboard.files import image_export
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
         image_export(handler, cached, (query.get("kind") or [""])[0].strip())
         return True
 

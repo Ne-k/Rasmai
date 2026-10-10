@@ -5,7 +5,7 @@ import discord
 import logging
 
 from rasmai.bot.state.cache import CachedAnalysis, cache_put
-from rasmai.bot.core import fetch_snapshot_limited
+from rasmai.bot.core import SCRAPE_SEMAPHORE, fetch_snapshot_limited
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.bot.ui.formatting import stamp, NOT_CONNECTED_MESSAGE
 from rasmai.bot.ui.progress import Progress
@@ -142,6 +142,9 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
     # the constructor may refresh the chart database, which is minutes of git and image work
     analyzer = await asyncio.to_thread(MaimaiRatingAnalyzer)
     progress = Progress(interaction)
+    if SCRAPE_SEMAPHORE.locked():
+        # every read slot is taken: a bar standing still at 0% looked stuck, so say what it's waiting for
+        progress.waiting = "I'm reading a lot of scores right now, so yours is waiting for a free slot. It starts on its own as soon as one opens up."
     await progress.flush(force=True)
     try:
         try:

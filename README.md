@@ -169,6 +169,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `USER_AGENT` | How the bot names itself to the wikis and chart databases. Empty is `rasmai/1.0 (+MAIMAI_PUBLIC_URL)`; adding a contact address is the polite thing. |
 | `MAIMAI_TRANSLATE_URL` | An Ollama server that translates Japanese `/news` posts. Empty uses Google Translate. See below. |
 | `MAIMAI_TRANSLATE_MODEL` / `MAIMAI_TRANSLATE_KEEP_ALIVE` | The model it asks for (default `translategemma:12b`) and how long it stays in memory after a post (default `2m`). |
+| `MAIMAI_OTOGE_WEBHOOK_URL` | A Discord webhook that gets a list of what changed in the maimai charts (songs added and removed, level, constant, note count and designer changes) every time otoge-db is fetched. Empty sends nothing. |
 | `MAIMAI_DEBUG` / `MAIMAI_DEBUG_EXPORT_JSON` | Verbose scraper logs and per-analysis JSON dumps. Leave off on a public bot. |
 
 ### Translating Japanese posts

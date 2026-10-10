@@ -12,9 +12,9 @@ SHAPES: Tuple[str, ...] = ("pp", "qq", "-", "^", "<", ">", "v", "V", "p", "q", "
 
 SHAPE_CHARS = "-^<>vVpqszw"
 
-# a firework on a touch note, a star's appearance, and a head that is not struck: none of them
+# a firework on a touch note, a star's appearance (with or without its spin), and a head that is not struck: none of them
 # change what the hand has to do, so they are read and dropped
-DECORATIONS = "f$?!"
+DECORATIONS = "f$@?!"
 
 # a slash joins notes into one moment; a backtick does the same for notes written a hair apart
 JOINERS = "/`"

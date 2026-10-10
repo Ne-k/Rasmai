@@ -30,6 +30,7 @@ web/node_modules/
 web/.next/
 web/next-env.d.ts
 web/*.tsbuildinfo
+web/messages/
 cover_cache/
 
 # walkthrough masters: the web-sized versions live in web/public/walkthrough

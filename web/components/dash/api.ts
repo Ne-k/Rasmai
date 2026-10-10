@@ -412,8 +412,15 @@ export type SongLookup = {
   charts: ChartDetail[];
 };
 
-/** The codes the site's API answers with, as sentences a person can act on, in the page's language. */
+/** The codes the site's API answers with, as sentences a person can act on, in the page's language, with the bot's error id
+ *  when it gave one, for the person to quote when they ask for help. */
 function describeError(status: number, body: Record<string, unknown>): string {
+  const said = sentenceFor(status, body);
+  const id = typeof body.errorId === "string" && /^[0-9A-F]{8}$/.test(body.errorId) ? body.errorId : "";
+  return id ? `${said} ${activeT("dash.api")("errorId", { id })}` : said;
+}
+
+function sentenceFor(status: number, body: Record<string, unknown>): string {
   const t = activeT("dash.api");
   const known = ["bot_unreachable", "rate_limited", "signed_out", "bad_response", "not_linked"] as const;
   const code = String(body.error ?? "");

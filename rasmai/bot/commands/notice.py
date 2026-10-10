@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, Tuple
+import asyncio
 import logging
 
 import discord
@@ -33,6 +34,20 @@ def _describe(notice: Optional[dict]) -> str:
     return (f"The site is showing a **{notice.get('tone', 'notice')}** banner:\n> {notice['text']}"
             + (f"\n<{link}>" if link else "")
             + f"\n-# set {notice.get('setAt', 'at some point')}")
+
+
+async def _maintenance_note() -> str:
+    """A line saying a planned maintenance has the banner for now, so what is set here doesn't seem to vanish."""
+    from rasmai.web.dashboard.overview import planned_maintenance
+    try:
+        # Discord wants an answer within three seconds, and asking the status page can take longer
+        band = await asyncio.wait_for(asyncio.to_thread(planned_maintenance), 1.5)
+    except asyncio.TimeoutError:
+        return ""
+    except Exception:
+        logger.exception("could not tell whether a planned maintenance has the banner")
+        return ""
+    return "\n-# Until the planned maintenance on the status page is done, the site shows that instead." if band else ""
 
 
 def _tone(typed: str) -> Tuple[str, str]:
@@ -78,7 +93,7 @@ async def _publish(interaction: discord.Interaction, message: str, tone: str, li
     await interaction.response.send_message(
         f"Up on every page of {get_public_base_url()} within a minute, as a **{stored['tone']}** banner:\n"
         f"> {stored['text']}" + (f"\n<{stored['link']}>" if stored["link"] else "")
-        + "".join(f"\n-# {line}" for line in notes),
+        + "".join(f"\n-# {line}" for line in notes) + await _maintenance_note(),
         ephemeral=True,
     )
 
@@ -153,12 +168,12 @@ async def notice(interaction: discord.Interaction, clear: bool = False, show: bo
 
     if clear:
         site_notice_set("", by=str(interaction.user.id))
-        await interaction.response.send_message("Banner taken down. The site shows none until you set one.", ephemeral=True)
+        await interaction.response.send_message("Banner taken down. The site shows none until you set one." + await _maintenance_note(), ephemeral=True)
         return
 
     current = site_notice_get()
     if show:
-        await interaction.response.send_message(_describe(current), ephemeral=True)
+        await interaction.response.send_message(_describe(current) + await _maintenance_note(), ephemeral=True)
         return
 
     # nothing set yet means the site is showing its built-in notice, so that is what the form edits

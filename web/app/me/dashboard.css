@@ -728,6 +728,7 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
               padding: 5px 14px; cursor: pointer; }
 .save-image:hover:not(:disabled) { color: var(--ink); border-color: var(--pink-edge); }
 .save-image:disabled { opacity: 0.6; cursor: progress; }
+.save-image.waiting { cursor: default; }
 .save-image:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 
 /* the Discord card customiser, in a window of its own */

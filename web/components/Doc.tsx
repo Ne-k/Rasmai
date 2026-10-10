@@ -5,7 +5,7 @@ import { ThemeToggle } from "./Theme";
 import type { Locale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { getTranslations } from "next-intl/server";
-import { TRANSLATE_URL } from "./Contact";
+import { STATUS_URL, TRANSLATE_URL } from "./Contact";
 
 export { CONTACT_DISCORD, CONTACT_EMAIL, SITE_URL } from "./Contact";
 
@@ -122,7 +122,7 @@ export async function Doc({ tag, title, intro, dated = true, children }: DocProp
           {footer.rich("createdBy", { b: (c) => <b>{c}</b> })} · {footer("notAffiliated")}
         </span>
         <span>
-          <a href="/privacy/">{footer("privacy")}</a> · <a href="/terms/">{footer("terms")}</a> · <a href="/support">{footer("support")}</a> · <a href={TRANSLATE_URL} target="_blank" rel="noopener noreferrer">{footer("translate")}</a>
+          <a href="/privacy/">{footer("privacy")}</a> · <a href="/terms/">{footer("terms")}</a> · <a href="/support">{footer("support")}</a> · <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">{footer("status")}</a> · <a href={TRANSLATE_URL} target="_blank" rel="noopener noreferrer">{footer("translate")}</a>
         </span>
       </footer>
     </div>

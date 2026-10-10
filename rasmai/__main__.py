@@ -52,6 +52,9 @@ def main():
     if hasattr(signal, "SIGUSR1"):      # Windows has no SIGUSR1
         signal.signal(signal.SIGUSR1, dump_stacks)
 
+    from rasmai.errors import install as report_errors
+    report_errors()
+
     web_server = InternalApiServer()
     web_server.start()
     start_tunnel_if_configured()

@@ -34,6 +34,7 @@ from rasmai.storage.db import (
     upsert_connected_account,
 )
 from rasmai.web import dashboard
+from rasmai.errors import report
 from rasmai.web.links import build_login_link_payload
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
 from rasmai.scraping.scraper.session import SessionRejected
@@ -88,7 +89,8 @@ class _QueueingServer(ThreadingHTTPServer):
         # nobody is left to answer, and the traceback the stdlib prints for it is noise
         if isinstance(sys.exc_info()[1], ConnectionError):
             return
-        super().handle_error(request, client_address)
+        # logged rather than printed, so it is reported like every other error and is not only in the container's output
+        logger.exception("internal api: a request failed before it was answered")
 
     def server_close(self) -> None:
         super().server_close()
@@ -225,6 +227,13 @@ class InternalApiServer:
                     except dashboard.StillBuilding as wait:
                         self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds,
                                           "position": wait.position, "eta": wait.eta})
+                        return
+                    except Exception as error:
+                        # answered and reported, as a POST is: unanswered, the site saw the connection drop and told the
+                        # person the bot was unreachable, every time, while nothing here said why
+                        error_id = report(error, f"dashboard read {route.path} failed",
+                                          {"Page": route.path, "Query": ", ".join(sorted(query)), "User": user.get("id")})
+                        self._send_json(500, {"ok": False, "error": "server", "errorId": error_id})
                         return
                     if not handled:
                         self._send_json(404, {"ok": False, "error": "not_found"})
@@ -368,8 +377,8 @@ class InternalApiServer:
                     self._send_json(503, {"ok": False, "error": "building", "retryAfter": wait.seconds,
                                           "position": wait.position, "eta": wait.eta})
                 except Exception as error:
-                    logger.exception("internal api request failed")
-                    self._send_json(502, {"ok": False, "kind": "unknown", "error": public_reason(error)})
+                    error_id = report(error, f"internal api {self.path.split('?')[0]} failed", {"Page": self.path.split("?")[0]})
+                    self._send_json(502, {"ok": False, "kind": "unknown", "error": public_reason(error), "errorId": error_id})
 
             def _verify(self, payload: Dict[str, Any]) -> None:
                 """The web server verified a Turnstile token for this code; remember it on the code.
@@ -455,7 +464,10 @@ class InternalApiServer:
                 except SessionRejected as error:
                     # the sign-in itself was turned down: for Japan, a wrong SEGA ID, password or card
                     logger.info("A sign-in was refused while linking (%s): %s", region, public_reason(error))
-                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error))
+                    # the login code is still unspent here, so the way on is the same link, not a new /login
+                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error) if region == "jp" else
+                         "maimai didn't accept that sign-in - it's probably expired or already used. Sign in to the gateway "
+                         "again and press the bookmark. Your login link still works.")
                     return
                 except Exception as error:
                     reason = public_reason(error)

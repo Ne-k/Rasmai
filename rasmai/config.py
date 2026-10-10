@@ -36,6 +36,16 @@ DEBUG_EXPORT_JSON = os.getenv("MAIMAI_DEBUG_EXPORT_JSON", "false").lower() == "t
 
 DEBUG_EXPORT_DIR = Path("debug/maimai-exports")
 
+# a Discord webhook told what changed in the maimai charts every time otoge-db is fetched; empty sends nothing
+OTOGE_WEBHOOK_URL = os.getenv("MAIMAI_OTOGE_WEBHOOK_URL", "").strip()
+
+# a Discord webhook every error is posted to, with an id the person who met it is shown; empty sends nothing
+ERROR_WEBHOOK_URL = os.getenv("RAS_ERROR_WEBHOOK", "").strip()
+
+# an Instatus API key: a planned maintenance on the status page takes over the site's banner while it is close or under way
+INSTATUS_API = os.getenv("INSTATUS_API", "").strip()
+STATUS_URL = os.getenv("RASMAI_STATUS_URL", "https://status.rasmai.lol").strip().rstrip("/")
+
 
 # The bot's internal API, for the Next.js site in web/ to call. Not for browsers: keep it on
 # loopback or the container network, and give both processes the same RASMAI_INTERNAL_SECRET.
@@ -191,11 +201,16 @@ DISCORD_BOT_INVITE = os.getenv("DISCORD_BOT_INVITE", "").strip()
 SUPPORT_INVITE = os.getenv("DISCORD_SUPPORT_INVITE", "").strip() or "https://discord.gg/EhfdWeK8Aq"
 
 
-def support_line() -> str:
-    """The line that sends someone with a problem to the support server, for the end of an error message.
+def support_line(error_id: str = "") -> str:
+    """The line that sends someone with a problem to the support server, for the end of an error message, with the
+    error's id to bring along when there is one.
 
+    :param error_id: The id the error was reported under.
+    :type error_id: str
     :rtype: str
     """
+    if error_id:
+        return f"-# Still stuck? Join the support server and send your error ID `{error_id}` along with it: {SUPPORT_INVITE}"
     return f"-# Still stuck? Ask in the support server: {SUPPORT_INVITE}"
 
 

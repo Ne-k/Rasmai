@@ -138,8 +138,11 @@ class RefreshJobs:
             collect_judgements(user_id, analyzer, analyzer.recent_songs, region)
         except Exception as error:
             if isinstance(error, SessionRejected):
+                # the player's sign-in ended, not a bug: the relink band tells them, so it stays out of the error channel
                 mark_session_expired(user_id)
-            logger.exception("Dashboard refresh failed")
+                logger.info("Dashboard refresh stopped, the session was signed out: %s", public_reason(error))
+            else:
+                logger.exception("Dashboard refresh failed")
             with self._lock:
                 job.update({"running": False, "stage": "failed", "error": public_reason(error)})
 

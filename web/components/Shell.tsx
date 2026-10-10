@@ -5,7 +5,7 @@ import { ThemeToggle } from "./Theme";
 import { ServersNotice } from "./Servers";
 import { useTranslations } from "next-intl";
 import { LangToggle, useSignedIn } from "./I18n";
-import { TRANSLATE_URL } from "./Contact";
+import { STATUS_URL, TRANSLATE_URL } from "./Contact";
 
 // the keys are what a page passes as `current`; the words come from the reader's language
 const NAV = [
@@ -106,7 +106,7 @@ export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", c
           {footer.rich("createdBy", { b: (c) => <b>{c}</b> })} ·{" "}
           {footLeft}
           {footLeft ? " · " : ""}
-          <a href="/privacy/">{footer("privacy")}</a> · <a href="/terms/">{footer("terms")}</a> · <a href="/invite">{footer("invite")}</a> · <a href="/support">{footer("support")}</a> · <a href={TRANSLATE_URL} target="_blank" rel="noopener noreferrer">{footer("translate")}</a>
+          <a href="/privacy/">{footer("privacy")}</a> · <a href="/terms/">{footer("terms")}</a> · <a href="/invite">{footer("invite")}</a> · <a href="/support">{footer("support")}</a> · <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">{footer("status")}</a> · <a href={TRANSLATE_URL} target="_blank" rel="noopener noreferrer">{footer("translate")}</a>
         </span>
         <span>{footRight}</span>
       </footer>

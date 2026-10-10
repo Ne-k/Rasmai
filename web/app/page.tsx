@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { STATUS_URL } from "@/components/Contact";
 import { DiscordEmbed } from "@/components/DiscordEmbed";
 import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
@@ -115,6 +116,8 @@ export default async function LandingPage() {
       </header>
       <ServersNotice />
 
+      {/* the landmark screen readers jump to past the header, as every other page has through its shell */}
+      <main>
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow">{t("eyebrow")}</p>
@@ -222,11 +225,12 @@ export default async function LandingPage() {
           ))}
         </ul>
       </section>
+      </main>
 
       <footer className="foot">
         <span>
           {footer.rich("createdBy", tags)} · {footer("notAffiliated")} · <a href="/privacy/">{footer("privacy")}</a> ·{" "}
-          <a href="/terms/">{footer("terms")}</a>
+          <a href="/terms/">{footer("terms")}</a> · <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">{footer("status")}</a>
         </span>
         {/* <span>
           <a href="https://github.com/Ne-k/razmai">source on GitHub</a>

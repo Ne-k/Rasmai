@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import logging
 
+from rasmai.scraping.otoge import changes
 from rasmai.scraping.otoge.loader import load_songs_from_repo
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ _forced_at = None                  # when a read last forced a fetch; the analys
 _forced_ok = False                 # whether that fetch succeeded; a failure is not retried for every title that turns up meanwhile
 _intl_tried = False                # whether this process has already fetched to get the international table a cache from before it lacks
 FORCED_COOLDOWN = timedelta(minutes=10)
+REFRESH_AFTER = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
 
 # The cache file as last read, handed to every instance: each analysis used to unpickle a copy of its
 # own, about five megabytes, and the dashboard keeps five hundred analyses. Nothing writes into these
@@ -34,7 +36,7 @@ class CachedOtogeDB:
         self.jacket_dir = self.cache_dir / "jackets"
         self.cache_file = self.cache_dir / "songs_cache.pkl"
         self.last_update_file = self.cache_dir / "last_update.txt"
-        self.refresh_after = timedelta(days=int(os.getenv("MAIMAI_DB_REFRESH_DAYS", "7")))
+        self.refresh_after = REFRESH_AFTER
         self.songs_data = {}          # as Japan has it: the table the search and the jackets read
         self.songs_data_intl = {}     # as the international game has it, empty until a fetch has made one
         self._load_cache()
@@ -198,6 +200,8 @@ class CachedOtogeDB:
         if not self._clone_or_update_repo():
             logger.error("Keeping the chart database already held" if before else "No otoge-db data available")
             return False
+        # compared with the saved copy, not this instance's own: the bot and the site both fetch, and only the first to see a change should report it
+        old_jp, old_intl = changes.held(self.cache_file)
         if not load_songs_from_repo(self):
             self._discard_repo()
             logger.error("The checkout held no song data; keeping the chart database already held")
@@ -206,4 +210,5 @@ class CachedOtogeDB:
         self._discard_repo()
         self.last_update_file.write_text(datetime.now().isoformat())
         logger.info("chart database fetched: %d songs, %d before", len(self.songs_data), before)
+        changes.announce([("Japan", old_jp, self.songs_data), ("International", old_intl, self.songs_data_intl)])
         return bool(self.songs_data)

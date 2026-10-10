@@ -58,7 +58,9 @@ def catalogue(index: Any) -> List[Dict[str, Any]]:
     :type index: Any
     :rtype: List[Dict[str, Any]]
     """
-    stamp = (getattr(index, "stamp", id(index)), len(index), len(_facts()))
+    # the tag list's own version, so an editor retagging a chart is counted here too, not only a list that grew
+    facts = _facts()
+    stamp = (getattr(index, "stamp", id(index)), len(index), getattr(facts, "version", "") or len(facts))
     hit = _catalogue_memo.get(stamp)
     if hit is not None:
         return hit

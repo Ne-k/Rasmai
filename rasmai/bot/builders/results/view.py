@@ -5,10 +5,11 @@ import logging
 
 from rasmai.engine import analysis
 from rasmai.bot.state.cache import ANALYSIS_TTL, CachedAnalysis, cache_get
-from rasmai.bot.core import private_only
+from rasmai.bot.core import command_context, private_only, relink_reply, relink_told
+from rasmai.errors import report
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping.scraper import SessionRejected
-from rasmai.config import EXPIRED_ACCOUNT_DAYS, support_line
+from rasmai.config import support_line
 from rasmai.security import public_reason
 from rasmai.bot.ui.login import send_login_card
 from rasmai.storage.db import get_connected_account
@@ -29,24 +30,29 @@ OUTPUT_LABELS = {"both": "Image + text", "image": "Image only", "embed": "Text o
 VIEW_TIMEOUT = min(ANALYSIS_TTL.total_seconds(), 14 * 60)
 
 
-NOT_LINKED_INTRO = ("**No maimai account linked yet.** Connect one first; it takes about a minute, and the card below "
-                    "walks you through it. Playing on a Japan account? Run `/login region:Japan` instead.")
+NOT_LINKED_INTRO = "It seems like you haven't created an account yet - run `/login` to get started."
 
 
-def failure_text(failure: str, error: Exception) -> str:
-    """What a failed command says: the plain reason, and `/login` only when the session really is the problem.
+async def failure_reply(interaction: discord.Interaction, failure: str, error: Exception) -> dict:
+    """What a failed command's reply becomes: the plain reason, or when maimai refused the login, the relink message and its button.
 
+    :param interaction: The command's interaction.
+    :type interaction: discord.Interaction
     :param failure: The command's own sentence, such as "Something went wrong building your route."
     :type failure: str
     :param error: What went wrong.
     :type error: Exception
-    :rtype: str
+    :returns: The ``content`` and ``view`` to edit the reply to.
+    :rtype: dict
     """
     if isinstance(error, SessionRejected):
-        kept = (f" An account left unlinked for {EXPIRED_ACCOUNT_DAYS} days after its session expires is deleted."
-                if EXPIRED_ACCOUNT_DAYS else "")
-        return f"{failure} Your maimai session has expired: run `/login` to link again.{kept}"
-    return f"{failure}\n-# {public_reason(error)}\n{support_line()}"
+        user_id = str(interaction.user.id)
+        account = await asyncio.to_thread(get_connected_account, user_id, False)
+        text, view = relink_reply((account or {}).get("sessionExpired") or "")
+        relink_told(user_id)        # this reply says it, so the reminder after the command does not
+        return {"content": text, "view": view}
+    error_id = report(error, failure, await command_context(interaction))
+    return {"content": f"{failure}\n-# {public_reason(error)}\n{support_line(error_id)}", "view": None}
 
 
 async def ensure_linked(interaction: discord.Interaction) -> bool:
@@ -274,9 +280,8 @@ class ResultsView(OwnerOnlyView):
         try:
             cached = await load_analysis(interaction, force=True)
         except Exception as error:
-            logger.exception("refresh failed")
-            await interaction.edit_original_response(content=failure_text("Couldn't refresh your scores.", error),
-                                                     embed=None, attachments=[], view=None)
+            await interaction.edit_original_response(**await failure_reply(interaction, "Couldn't refresh your scores.", error),
+                                                     embed=None, attachments=[])
             return
         if cached:
             await show_results(interaction, cached, self.mode, target=self.target, stretch=self.stretch,
@@ -334,9 +339,8 @@ async def run_view_command(interaction: discord.Interaction, mode: str, failure:
             return
         await show_results(interaction, cached, mode, **state)
     except Exception as error:
-        logger.exception(f"{mode} command failed")
         try:
-            await interaction.edit_original_response(content=failure_text(failure, error), embed=None, attachments=[], view=None)
+            await interaction.edit_original_response(**await failure_reply(interaction, failure, error), embed=None, attachments=[])
         except discord.HTTPException:
             pass
 
@@ -406,8 +410,7 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
             except discord.HTTPException:
                 pass
     except Exception as error:
-        logger.exception("command failed")
         try:
-            await interaction.edit_original_response(content=failure_text(failure, error), embed=None, attachments=[], view=None)
+            await interaction.edit_original_response(**await failure_reply(interaction, failure, error), embed=None, attachments=[])
         except discord.HTTPException:
             pass

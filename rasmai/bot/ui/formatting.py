@@ -265,10 +265,7 @@ def format_plan_verdict(plan: Optional["analysis.Plan"]) -> str:
 REGION_LABELS = {"intl": "International", "jp": "Japan", "cn": "China"}
 
 
-NOT_CONNECTED_MESSAGE = (
-    "**No maimai account connected yet.**\n"
-    "Run `/login` and follow the link - it takes about a minute. On a Japan account, run `/login region:Japan`."
-)
+NOT_CONNECTED_MESSAGE = "It seems like you haven't created an account yet - run `/login` to get started."
 
 
 def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> discord.Embed:

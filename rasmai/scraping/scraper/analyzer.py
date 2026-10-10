@@ -170,7 +170,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         try:
             return dict(pattern_fit.taste(self.play_profile, rows))
         except Exception as error:
-            logger.warning(f"pattern fit could not weigh the shortlist: {error}")
+            logger.exception(f"pattern fit could not weigh the shortlist: {error}")      # all local: a failure here is a bug
             return {}
 
     def generate_recommendations(self) -> Tuple[List[Recommendation], Dict]:

@@ -268,6 +268,8 @@
 
 /* ---------------------------------------------------------------- /chart /lastplay /compare /leaderboard */
 body.narrow { width: 1600px; }
+  /* the poster's rings at about 70%: at full size they crowded a card two thirds as wide */
+  body.narrow::before { background-size: 900px, 760px, 380px; background-position: right -290px top -280px, left -230px bottom -230px, 0 0; }
   .card-head { display: grid; grid-template-columns: 300px 1fr; gap: 34px; margin-top: 28px; align-items: start; }
   .song-cover { width: 300px; height: 300px; object-fit: cover; display: block; border: 2px solid var(--rule-2); }
   .card-title { font-size: 44px; font-weight: 700; line-height: 1.15; }
@@ -350,7 +352,7 @@ body.narrow { width: 1600px; }
   .two-col { display: grid; grid-template-columns: 720px 1fr; gap: 44px; align-items: start; }
   .chart-wrap.radar { background: var(--ink-2); border: 1px solid var(--rule); padding: 20px; border-radius: 18px; }
   .chart-wrap.radar svg { display: block; width: 100%; height: auto; }
-  .trait-row { display: grid; grid-template-columns: 84px 1fr 60px; gap: 16px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--rule); }
+  .trait-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 16px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--rule); }
   .trait-off { font-family: var(--font-num); font-size: 21px; font-weight: 700; text-align: right; }
   .trait-off.down { color: var(--fresh); }
   .trait-off.up { color: var(--gain); }

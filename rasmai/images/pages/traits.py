@@ -2,7 +2,8 @@ import re
 from typing import Any, Dict, List, Sequence
 
 from rasmai.scraping.mai_notes import english_label
-from rasmai.images.posters import _esc
+from rasmai.engine.analysis.rating import rating_band
+from rasmai.images.posters import _esc, rating_plate
 from rasmai.images.pages.common import _image
 
 
@@ -143,7 +144,7 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
             label = _esc(english_label(str(item["label"])))
             mark = "" if item.get("verified") else " · leaning"
             out += (f'<div class="trait-row"><span class="trait-off {tone}">{float(item["offset"]):+.2f}</span>'
-                    f'<span class="trait-name">{label}</span><span class="trait-n">{item["count"]}{mark}</span></div>')
+                    f'<span class="trait-name">{label}</span><span class="trait-n">{item["count"]} chart{"" if item["count"] == 1 else "s"}{mark}</span></div>')
         return out or '<div class="trait-none">nothing stands out yet</div>'
 
     body = f"""
@@ -159,4 +160,5 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
       </div>
     </div>"""
     counters = [("Charts", str(charts)), ("Weak spots", str(len(weak))), ("Strengths", str(len(strong)))]
-    return _image("Your traits", player_name, avatar_b64, counters, str(rating), "rating", body, date_text)
+    return _image("Your traits", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}", body, date_text,
+                  "narrow")       # the radar and two short lists: at full poster width the right half sat empty

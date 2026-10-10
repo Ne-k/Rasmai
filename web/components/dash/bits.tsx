@@ -82,11 +82,38 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /** What a section shows when its data could not be fetched: the reason, and a way to try again. Never the empty-state copy. */
+/** An error's words, with its error ID as a button that copies it: the support server asks for the ID, and selecting it by hand is fiddly on a phone. */
+export function ErrorText({ message }: { message: string }) {
+  const t = useTranslations("dash");
+  const [copied, setCopied] = useState(false);
+  const found = /\b[0-9A-F]{8}\b/.exec(message);
+  if (!found) return <>{message}</>;
+  const id = found[0];
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(id)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      })
+      .catch(() => undefined); // the ID is still there to select by hand
+  };
+  return (
+    <>
+      {message.slice(0, found.index)}
+      <button type="button" className="linkish mono" onClick={copy} title={t("copyId")} aria-label={`${t("copyId")} ${id}`}>
+        {copied ? t("copiedId") : id}
+      </button>
+      {message.slice(found.index + id.length)}
+    </>
+  );
+}
+
 export function LoadError({ what, message, onRetry }: { what: string; message: string; onRetry?: () => void }) {
   const t = useTranslations("dash");
   return (
     <p className="empty error" role="alert">
-      {t("couldntLoad", { what, message })}
+      {t.rich("couldntLoad", { what, message: () => <ErrorText message={message} /> })}
       {onRetry ? (
         <>
           {" "}
@@ -156,7 +183,8 @@ export function TitleLink({ title, type, difficulty, onOpen }: { title: string; 
 export type ImageKind = "analyze" | "profile" | "new" | "traits" | "progress" | "best50" | "recent";
 
 /** Saves the picture the matching Discord command draws. Rendering takes a moment, so it says so. */
-export function SaveImage({ kind }: { kind: ImageKind }) {
+/** `ready` is false until the bot holds a read of this player: until then there is nothing to draw, so the button waits instead of failing. */
+export function SaveImage({ kind, ready = true }: { kind: ImageKind; ready?: boolean }) {
   const t = useTranslations("dash");
   const label = t(`images.${kind}`);
   const [state, setState] = useState<"" | "busy" | "empty" | "failed">("");
@@ -188,8 +216,8 @@ export function SaveImage({ kind }: { kind: ImageKind }) {
   };
 
   return (
-    <button type="button" className="save-image" onClick={save} disabled={state === "busy"}
-            title={t("saveTitle", { what: label })}>
+    <button type="button" className={`save-image${ready ? "" : " waiting"}`} onClick={save} disabled={state === "busy" || !ready}
+            title={ready ? t("saveTitle", { what: label }) : t("saveWaits")}>
       {state === "busy" ? t("makingImage")
         : state === "empty" ? t("noImageData")
         : state === "failed" ? t("imageFailed")

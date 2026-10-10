@@ -9,6 +9,7 @@ import discord
 import hashlib
 import json
 import logging
+import time
 
 from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
@@ -55,6 +56,8 @@ SCRAPE_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_SCRAPES)
 
 
 RENDER_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_RENDERS)
+STARTED = time.monotonic()                  # for the status page's uptime
+RENDER_HEALTH = {"failing": 0}              # renders that failed in a row; the status page calls images broken past a few
 
 
 # Every blocking call (requests, sqlite, otoge-db updates) runs here through asyncio.to_thread.
@@ -116,10 +119,42 @@ async def try_render(html: str) -> Optional[bytes]:
     :rtype: Optional[bytes]
     """
     try:
-        return await render_limited(html)
+        shot = await render_limited(html)
     except Exception as error:
+        RENDER_HEALTH["failing"] += 1
         logger.error(f"Image render failed; sending text only: {type(error).__name__}: {str(error)[:200]}")
         return None
+    RENDER_HEALTH["failing"] = 0
+    return shot
+
+
+async def command_context(interaction: discord.Interaction) -> Dict[str, Any]:
+    """What an error report needs about the command or button it happened in: what was run, with what, by whom, where."""
+    from rasmai.storage.db import get_connected_account
+    # read with care throughout: this runs while something has already gone wrong, and must never be a second failure
+    command = getattr(interaction, "command", None)
+    user = getattr(interaction, "user", None)
+    try:
+        options = ", ".join(f"{name}={value}" for name, value in interaction.namespace) if interaction.namespace else ""
+    except Exception:
+        options = ""
+    guild, channel = getattr(interaction, "guild_id", None), getattr(interaction, "channel_id", None)
+    context: Dict[str, Any] = {
+        "Command": f"/{command.qualified_name}" if command else (getattr(interaction, "data", None) or {}).get("custom_id", "a button"),
+        "Options": options,
+        "User": f"{user} ({getattr(user, 'id', '?')})",
+        "Where": f"server {guild} · channel {channel}" if guild else "DMs or a user install",
+    }
+    try:
+        account = await asyncio.to_thread(get_connected_account, str(getattr(user, "id", "")), False)
+    except Exception:
+        account = None
+    if account:
+        context["Account"] = (f"{account.get('region', '?')} · last read {account.get('updatedAt') or '?'}"
+                              + (f" · login refused since {account['sessionExpired']}" if account.get("sessionExpired") else ""))
+    else:
+        context["Account"] = "not linked"
+    return context
 
 
 # what the bot asks a server for when it is added: embeds and rendered images in replies, and a webhook for /news
@@ -184,9 +219,11 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         logger.error("Discord no longer knew the %s interaction %.1fs after it arrived: %s", interaction.command.name if interaction.command else "?",
                      age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
         return
-    logger.error("Command failed", exc_info=error)
-    # the person is left looking at a command that did nothing, so say so and say where to ask
-    text = f"Something went wrong running that command.\n{support_line()}"
+    from rasmai.errors import report
+    original = getattr(error, "original", error)        # discord.py wraps what the command raised
+    error_id = report(original, "Command failed", await command_context(interaction))
+    # the person is left looking at a command that did nothing, so say so, and give them the id to quote
+    text = f"Something went wrong running that command.\n{support_line(error_id)}"
     try:
         if interaction.response.is_done():
             await interaction.followup.send(text, ephemeral=True)
@@ -360,6 +397,7 @@ def _chart_db_upkeep() -> None:
             party_aliases.refresh()          # the names people type instead of a title; search only
         except Exception:
             logger.exception("alias table refresh failed")
+        _read_mai_notes()                    # the editors' pattern tags: one conditional request when nothing changed
         if dxdata.refresh() or fetched:
             refresh_shared_index()
         else:
@@ -490,6 +528,55 @@ async def on_ready():
         asyncio.get_running_loop().run_in_executor(None, _crawl_wiki_titles)
         asyncio.get_running_loop().run_in_executor(None, _crawl_wiki_areas)
         asyncio.get_running_loop().run_in_executor(None, _warm_area_pictures)
+
+
+RELINK_QUIET = {"login", "delete-account"}      # linking again, or leaving: a reminder to link would only get in the way
+RELINK_EVERY = 3600                             # seconds between two reminders to the same person
+_relink_told: Dict[str, float] = {}             # when each person was last reminded, by Discord id
+
+
+def relink_reply(since: str, last_read: str = "") -> Tuple[str, discord.ui.View]:
+    """The one message saying an account needs relinking, with the button to do it. ``since`` is when maimai first refused the
+    login, for the deletion date; ``last_read`` is when the results shown with it were read, when there are any."""
+    from rasmai.bot.ui.formatting import stamp
+    from rasmai.config import PUBLIC_URL
+    from rasmai.storage.db import session_deletes_at
+    deletes = session_deletes_at(since)
+    text = ("Your maimai account needs to be relinked, so I can't fetch anything new"
+            + (f" - these are from your last read {last_read}" if last_read else "")
+            + ". Run `/login` or hit the button below."
+            + (f" If it's not relinked by {stamp(datetime.fromisoformat(deletes), 'D')}, everything I've stored for it gets deleted." if deletes else ""))
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Link it again", url=f"{PUBLIC_URL}/me/#relink"))
+    return text, view
+
+
+def relink_told(user_id: str) -> None:
+    """Note that someone was just told to relink, however it went out, so the reminder after the command stays quiet for the hour."""
+    _relink_told[user_id] = time.monotonic()
+
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command: Any) -> None:
+    """After any command, a private reminder for someone whose maimai sign-in is refused: nothing new is fetched until they link again."""
+    from rasmai.storage.db import get_connected_account
+    user_id = str(interaction.user.id)
+    if getattr(command, "qualified_name", "") in RELINK_QUIET or time.monotonic() - _relink_told.get(user_id, float("-inf")) < RELINK_EVERY:
+        return
+    try:
+        # without the stored scores: unpacking them after every command, for one date, was most of the work
+        since = ((await asyncio.to_thread(get_connected_account, user_id, False)) or {}).get("sessionExpired") or ""
+    except Exception:
+        logger.exception("could not check whether %s needs to link again", interaction.user.id)
+        return
+    if not since:
+        return
+    text, view = relink_reply(since)
+    try:
+        await interaction.followup.send(text, view=view, ephemeral=True)
+        relink_told(user_id)
+    except discord.HTTPException:
+        pass          # the command never answered, so there is nothing to follow up
 
 
 @bot.event

@@ -1,8 +1,11 @@
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from rasmai.engine.analysis.rating import ACHIEVEMENT_CAP, BEST_HEADROOM, _normal_cdf
+
+logger = logging.getLogger(__name__)
 
 
 # a best this far under what the player scores at that level, from a play or two, is a run that was
@@ -22,6 +25,7 @@ def _families(axes):
         from rasmai.engine.insights.families import family_axes
         return family_axes(axes)
     except Exception:
+        logger.exception("the trait families could not be built")      # the wheel goes without them, but say why
         return []
 
 

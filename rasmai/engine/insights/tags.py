@@ -58,20 +58,33 @@ def _read_traits(chart: ChartRef) -> List[Tuple[str, str]]:
         return []
 
 
+def _editor_tags(chart: ChartRef) -> List[str]:
+    """The pattern tags mai-notes' editors put on a chart, with their English gloss; empty when it has none or was never read."""
+    try:
+        from rasmai.scraping import mai_notes
+        row = mai_notes.cached_facts().get(chart.key) or {}
+        return [mai_notes.pattern_label(tag) for tag in row.get("g") or []]
+    except Exception:
+        return []
+
+
 def chart_tags(chart: ChartRef) -> List[Dict[str, Any]]:
-    """What a chart asks of you, for showing on its page, measured from the chart's own notes.
+    """What a chart asks of you, for showing on its page: the editors' tags from mai-notes, then what the chart's own notes say.
 
     The note mix, tempo band and note density are measured from the chart itself, so nearly every
-    chart has a row rather than the third of them an editor has written about.
+    chart has a row rather than the third of them an editor has written about. The editors' tags are
+    shown and searchable but kept out of chart_traits, which feeds the player model: that is measured
+    from the charts alone.
 
     :param chart: The chart being shown.
     :type chart: ChartRef
     :rtype: List[Dict[str, Any]]
     """
     read = {label for _dimension, label in _read_traits(chart)}
-    tags = [{"dimension": dimension, "label": label,
-             "community": dimension == "pattern" and label not in read, "read": label in read}
-            for dimension, label in chart_traits(chart) if dimension not in NOT_A_DEMAND]
+    tags = [{"dimension": "pattern", "label": label, "community": True, "read": False} for label in _editor_tags(chart)]
+    tags += [{"dimension": dimension, "label": label,
+              "community": dimension == "pattern" and label not in read, "read": label in read}
+             for dimension, label in chart_traits(chart) if dimension not in NOT_A_DEMAND]
     tags.sort(key=lambda tag: not tag["community"])     # the editors' words lead, the measured ones follow
     return tags
 
