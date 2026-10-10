@@ -33,7 +33,9 @@ def _songs(table: Dict[str, Any]) -> Dict[Tuple[str, str], Dict[str, Any]]:
 
 
 def _chart(song: Dict[str, Any], prefix: str, tier: str) -> Dict[str, str]:
-    return {field: str(song.get(f"{prefix}lev_{tier}{suffix}", "") or "").strip()
+    # a chart borrowed from Japan's file isn't in the international one, so it isn't news there
+    borrowed = f"{prefix}lev_{tier}" in (song.get("jp_only") or ())
+    return {field: "" if borrowed else str(song.get(f"{prefix}lev_{tier}{suffix}", "") or "").strip()
             for field, suffix in (("level", ""), ("constant", "_i"), ("notes", "_notes"), ("designer", "_designer"))}
 
 

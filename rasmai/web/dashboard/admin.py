@@ -72,18 +72,25 @@ def people(ids: List[str]) -> Dict[str, Dict[str, str]]:
     # an account made on the site has no Discord user to name
     wanted = [str(i) for i in dict.fromkeys(ids) if str(i) not in _PEOPLE and is_discord_id(i)]
     if wanted:
-        try:
-            from rasmai.bot.core import bot
-            loop = getattr(bot, "loop", None)
-            for user_id in wanted:
+        import discord
+        from rasmai.bot.core import bot
+        loop = getattr(bot, "loop", None)
+        missed: List[str] = []
+        for user_id in wanted:
+            # one id per try, so a single deleted user no longer leaves everyone after it unnamed
+            try:
                 found = bot.get_user(int(user_id))
                 if found is None and loop is not None and loop.is_running():
                     found = asyncio.run_coroutine_threadsafe(bot.fetch_user(int(user_id)), loop).result(timeout=4)
                 if found is not None:
                     _PEOPLE[user_id] = _shape(found)
-        except Exception:
-            logger.info("could not name every account on the developer page", exc_info=False)
-    return {i: _PEOPLE[i] for i in {str(x) for x in ids} if i in _PEOPLE}
+            except discord.NotFound:
+                _PEOPLE[user_id] = {}       # Discord has no such user any more: remembered, so it isn't asked for on every load
+            except Exception as error:
+                missed.append(type(error).__name__)
+        if missed:
+            logger.info("could not name %d account(s) on the developer page: %s", len(missed), ", ".join(sorted(set(missed))))
+    return {i: _PEOPLE[i] for i in {str(x) for x in ids} if _PEOPLE.get(i)}
 
 
 def _named(rows: List[Dict[str, Any]], known: Dict[str, Dict[str, str]]) -> List[Dict[str, Any]]:

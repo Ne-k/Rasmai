@@ -208,6 +208,9 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
                 notes = 0
             designer = str(record.get(const_key.replace("_i", "_designer"), "") or "").strip()
             facts = known.get(f"{folded}|{chart_type}|{difficulty}") or {}
+            # a chart the international file lacks, borrowed from Japan's: abroad only if dxrating says so
+            borrowed = level_key in (record.get("jp_only") or ())
+            here = intl and not borrowed
             if designer in ("", "-"):
                 designer = str(facts.get("d", ""))
             if not notes and facts.get("n"):
@@ -223,10 +226,10 @@ def build_chart_index(songs_data: Dict[str, Dict[str, Any]], region: Optional[st
                 artist=artist,
                 cover=cover,
                 version=version,
-                intl=(facts.get("i", 1) != 0) if facts else intl,
-                intl_known=bool(facts),
+                intl=(facts.get("i", 1) != 0) if facts else here,
+                intl_known=bool(facts) or borrowed,     # the file leaving it out is a known answer, even in the current version
                 listed_intl=intl,
-                regions=str(facts.get("g", "jic")) if facts else ("jic" if intl else "jc"),
+                regions=str(facts.get("g", "jic")) if facts else ("jic" if here else "jc"),
                 deleted=deleted,
                 bpm=bpm,
                 designer=designer if designer != "-" else "",

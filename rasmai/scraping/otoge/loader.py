@@ -39,6 +39,7 @@ def load_songs_from_repo(db: Any) -> bool:
         abroad += [(name, 'ex') for name in finals] + [('music-ex-deleted.json', 'ex'), ('music-intl.json', 'intl')]
         songs = _table(db, japan)
         songs_intl = _table(db, abroad) if (data_dir / 'music-ex-intl.json').exists() else {}
+        _borrow_charts(songs_intl, songs)
         if not songs:
             return False
         db.songs_data = songs
@@ -50,6 +51,27 @@ def load_songs_from_repo(db: Any) -> bool:
     except Exception as e:
         logger.exception(f"Error loading songs from repo: {e}")
         return False
+
+
+def _borrow_charts(abroad: dict, japan: dict) -> None:
+    """Give each international song the charts only Japan's file lists yet, named in its ``jp_only``.
+
+    The international file lags: a song that gained a DX chart there (Marisa, Bad Dance Hall) was still
+    listed with its standard charts only, so a score on the new chart found no constant. Borrowed charts
+    are marked so the chart index keeps them out of picks unless dxrating says they are out abroad.
+    """
+    for key, record in abroad.items():
+        home = japan.get(key)
+        if not home or record.get('jp_only'):
+            continue        # an alias shares its song's record, which is already done
+        borrowed = []
+        for level in (f'{prefix}{t}' for prefix in ('lev_', 'dx_lev_') for t in _TIERS):
+            if not record.get(level) and home.get(level):
+                for field in (level, f'{level}_i', f'{level}_notes'):
+                    record[field] = home.get(field, '')
+                borrowed.append(level)
+        if borrowed:
+            record['jp_only'] = borrowed
 
 
 def _table(db: Any, music_files: list) -> dict:
