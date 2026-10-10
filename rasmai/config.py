@@ -42,6 +42,10 @@ OTOGE_WEBHOOK_URL = os.getenv("MAIMAI_OTOGE_WEBHOOK_URL", "").strip()
 # a Discord webhook every error is posted to, with an id the person who met it is shown; empty sends nothing
 ERROR_WEBHOOK_URL = os.getenv("RAS_ERROR_WEBHOOK", "").strip()
 
+# an Instatus API key: a planned maintenance on the status page takes over the site's banner while it is close or under way
+INSTATUS_API = os.getenv("INSTATUS_API", "").strip()
+STATUS_URL = os.getenv("RASMAI_STATUS_URL", "https://status.rasmai.lol").strip().rstrip("/")
+
 
 # The bot's internal API, for the Next.js site in web/ to call. Not for browsers: keep it on
 # loopback or the container network, and give both processes the same RASMAI_INTERNAL_SECRET.

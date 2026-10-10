@@ -19,6 +19,8 @@ STARTED = time.time()
 # names and avatars resolved from Discord, kept for the life of the process: the page polls every
 # few seconds and a display name almost never changes, so one lookup per account is plenty
 _PEOPLE: Dict[str, Dict[str, str]] = {}
+_ASKING = threading.Lock()
+_ASK_PER_LOAD = 5
 
 
 # Discord's own install counts (application info): approximate, and Discord refreshes them about daily,
@@ -76,18 +78,26 @@ def people(ids: List[str]) -> Dict[str, Dict[str, str]]:
         from rasmai.bot.core import bot
         loop = getattr(bot, "loop", None)
         missed: List[str] = []
-        for user_id in wanted:
-            # one id per try, so a single deleted user no longer leaves everyone after it unnamed
-            try:
-                found = bot.get_user(int(user_id))
-                if found is None and loop is not None and loop.is_running():
-                    found = asyncio.run_coroutine_threadsafe(bot.fetch_user(int(user_id)), loop).result(timeout=4)
-                if found is not None:
-                    _PEOPLE[user_id] = _shape(found)
-            except discord.NotFound:
-                _PEOPLE[user_id] = {}       # Discord has no such user any more: remembered, so it isn't asked for on every load
-            except Exception as error:
-                missed.append(type(error).__name__)
+        asked = 0
+        # the page's panels load at once; one at a time keeps them from asking Discord for the same people together
+        with _ASKING:
+            for user_id in wanted:
+                if user_id in _PEOPLE:
+                    continue        # named by a panel that held the lock first
+                # one id per try, so a single deleted user no longer leaves everyone after it unnamed
+                try:
+                    found = bot.get_user(int(user_id))
+                    if found is None and loop is not None and loop.is_running():
+                        if asked >= _ASK_PER_LOAD:
+                            continue        # Discord rate limits a burst of user lookups: the rest are named on later loads
+                        asked += 1
+                        found = asyncio.run_coroutine_threadsafe(bot.fetch_user(int(user_id)), loop).result(timeout=4)
+                    if found is not None:
+                        _PEOPLE[user_id] = _shape(found)
+                except discord.NotFound:
+                    _PEOPLE[user_id] = {}       # Discord has no such user any more: remembered, so it isn't asked for on every load
+                except Exception as error:
+                    missed.append(type(error).__name__)
         if missed:
             logger.info("could not name %d account(s) on the developer page: %s", len(missed), ", ".join(sorted(set(missed))))
     return {i: _PEOPLE[i] for i in {str(x) for x in ids} if _PEOPLE.get(i)}

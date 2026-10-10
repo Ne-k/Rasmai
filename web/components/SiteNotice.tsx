@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { RelinkNotice, useNeedsRelink } from "@/components/RelinkNotice";
 
-type Notice = { text: string; tone: string; link: string; id: string; hideOnHost?: string };
+type Notice = { text: string; tone: string; link: string; id: string; hideOnHost?: string; at?: string };
 
 const KEY = "rasmai-notice-seen";
 const TONES = new Set(["info", "notice", "warning"]);
@@ -17,6 +17,13 @@ const SAFE_LINK = /^https:\/\/[^\s<>'"]{1,300}$/;
 function onHost(host: string): boolean {
   if (!host) return false;
   return location.hostname === host || location.hostname.endsWith(`.${host}`);
+}
+
+// a planned maintenance sends the time it starts or ends, written here in the reader's own time zone
+function when(at: string | undefined): string {
+  const moment = at ? new Date(at) : null;
+  if (!moment || Number.isNaN(moment.getTime())) return "";
+  return ` ${moment.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}.`;
 }
 
 function dismissed(id: string): boolean {
@@ -72,6 +79,7 @@ export function SiteNotice() {
       <span className="movebar-lamp" aria-hidden="true" />
       <span className="movebar-text">
         {notice.text.slice(0, MAX)}
+        {when(notice.at)}
         {link ? (
           <>
             {" "}
