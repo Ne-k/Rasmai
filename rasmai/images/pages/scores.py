@@ -1,6 +1,7 @@
 from typing import Any, Dict, Sequence, Tuple
 
 from rasmai.images.markup import render
+from rasmai.engine.analysis.rating import rating_band
 from rasmai.images.posters import lvl, CoverFn, _esc, tier, rating_plate
 from rasmai.images.pages.common import _fc, _image
 
@@ -83,7 +84,7 @@ def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], play
     total = sum(len(p) for _d, p in days)
     # the image is a picture, so its clock faces cannot follow the reader: say which zone they are
     counters = [("Days", str(len(days))), ("Plays", str(total)), ("New bests", str(pbs)), ("Times", "JST")]
-    return _image("Recent plays", player_name, avatar_b64, counters, str(rating), "rating",
+    return _image("Recent plays", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}",
                   render("recent-body", items=items), date_text)
 
 
@@ -147,7 +148,7 @@ def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_labe
     <div class="section-label">Level {_esc(level_label)} &middot; {sort_label} &middot; charts {start}&ndash;{last} of {total} &middot; {played} played</div>
     <div class="grid level-grid">{cards}</div>"""
     counters = [("Charts", str(total)), ("Played", str(played)), ("Page", f"{(start - 1) // max(1, len(rows)) + 1 if rows else 1}")]
-    return _image(f"Level {level_label}", player_name, avatar_b64, counters, str(rating), "rating", body, date_text)
+    return _image(f"Level {level_label}", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}", body, date_text)
 
 
 STAR_STEPS = ((0.85, 1), (0.90, 2), (0.93, 3), (0.95, 4), (0.97, 5))

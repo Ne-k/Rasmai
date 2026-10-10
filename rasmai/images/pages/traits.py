@@ -2,7 +2,8 @@ import re
 from typing import Any, Dict, List, Sequence
 
 from rasmai.scraping.mai_notes import english_label
-from rasmai.images.posters import _esc
+from rasmai.engine.analysis.rating import rating_band
+from rasmai.images.posters import _esc, rating_plate
 from rasmai.images.pages.common import _image
 
 
@@ -159,4 +160,4 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
       </div>
     </div>"""
     counters = [("Charts", str(charts)), ("Weak spots", str(len(weak))), ("Strengths", str(len(strong)))]
-    return _image("Your traits", player_name, avatar_b64, counters, str(rating), "rating", body, date_text)
+    return _image("Your traits", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}", body, date_text)
