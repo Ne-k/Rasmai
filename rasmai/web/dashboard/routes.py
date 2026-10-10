@@ -174,6 +174,9 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     if path == "/internal/me/image":
         # the same picture the matching command attaches, drawn by the same builder
         from rasmai.web.dashboard.files import image_export
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
         image_export(handler, cached, (query.get("kind") or [""])[0].strip())
         return True
 
