@@ -26,12 +26,24 @@ function when(at: string | undefined): string {
   return ` ${moment.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}.`;
 }
 
-function dismissed(id: string): boolean {
+// the last few banners dismissed: one id alone meant dismissing a maintenance band brought back the notice under it
+function dismissedIds(): string[] {
   try {
-    return localStorage.getItem(KEY) === id;
+    const raw = localStorage.getItem(KEY) ?? "";
+    try {
+      const list: unknown = JSON.parse(raw);
+      if (Array.isArray(list)) return list.filter((id): id is string => typeof id === "string");
+    } catch {
+      /* saved before this was a list: the one id as plain text */
+    }
+    return raw ? [raw] : [];
   } catch {
-    return false; // private mode: the band shows each visit rather than never
+    return []; // private mode: the band shows each visit rather than never
   }
+}
+
+function dismissed(id: string): boolean {
+  return dismissedIds().includes(id);
 }
 
 /** Whatever the site has been told to say, across the top of every page. Set from Discord, dismissed per reader.
@@ -65,7 +77,7 @@ export function SiteNotice() {
 
   const dismiss = () => {
     try {
-      localStorage.setItem(KEY, notice.id);
+      localStorage.setItem(KEY, JSON.stringify([notice.id, ...dismissedIds().filter((id) => id !== notice.id)].slice(0, 10)));
     } catch {
       /* private mode: dismissed for this page only */
     }
