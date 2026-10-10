@@ -218,8 +218,9 @@ def _load(state: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 class ChartFacts:
     """The mai-notes charts, looked up the way the bot keys a chart, with a loose fallback on the title."""
 
-    def __init__(self, charts: Dict[str, Dict[str, Any]]):
+    def __init__(self, charts: Dict[str, Dict[str, Any]], version: str = ""):
         self.exact = charts
+        self.version = version          # the stored copy's ETag: it changes exactly when mai-notes publishes a new one
         self.loose: Dict[str, Dict[str, Any]] = {}
         for key, row in charts.items():
             title, _, rest = key.partition("|")
@@ -266,7 +267,8 @@ def cached_facts() -> ChartFacts:
     checked, facts = _memo
     if facts is not None and time.monotonic() - checked < 300:
         return facts
-    facts = ChartFacts(_load(source_state_get(SOURCE) or {}))
+    state = source_state_get(SOURCE) or {}
+    facts = ChartFacts(_load(state), str(state.get("etag") or ""))
     _memo = (time.monotonic(), facts)
     return facts
 

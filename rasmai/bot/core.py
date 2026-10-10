@@ -327,6 +327,7 @@ def _chart_db_upkeep() -> None:
             party_aliases.refresh()          # the names people type instead of a title; search only
         except Exception:
             logger.exception("alias table refresh failed")
+        _read_mai_notes()                    # the editors' pattern tags: one conditional request when nothing changed
         if dxdata.refresh() or fetched:
             refresh_shared_index()
         else:

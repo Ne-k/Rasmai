@@ -38,6 +38,12 @@ FRESH = timedelta(days=int(os.getenv("MAIMAI_SIMAI_REFRESH_DAYS", "7")))
 CHARTS = CACHE / "charts.json.gz"
 STAMP = CACHE / "taken.json"
 
+# Bumped whenever the cache is built differently, so one built the old way is rebuilt even though the
+# repository has not moved. 2: a standard chart's "[SD]" is taken off its title, as "[DX]" always was;
+# before, every standard chart was keyed "title[sd]", which matched nothing, and all of them sat unused.
+FORMAT = 2
+
+
 # a maidata file holds every difficulty of one song, each under its own &inote_N=
 DIFFICULTIES = {"2": "basic", "3": "advanced", "4": "expert", "5": "master", "6": "remaster"}
 
@@ -129,7 +135,7 @@ def charts() -> Iterator[Tuple[str, str]]:
     """Every chart in the checkout as ``(key, simai)``, keyed the way the manifest keys them.
 
     A maidata file carries one song and all of its difficulties, so one file becomes up to five
-    charts. The title is the game's own, with the ``[DX]`` the converter appends taken back off.
+    charts. The title is the game's own, with the ``[DX]`` or ``[SD]`` the converter appends taken back off.
 
     :rtype: Iterator[Tuple[str, str]]
     """
@@ -138,14 +144,10 @@ def charts() -> Iterator[Tuple[str, str]]:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        title = re.sub(r"\[DX\]$", "", _said(text, "title")).strip()
+        title = re.sub(r"\[(DX|SD)\]$", "", _said(text, "title")).strip()
         if not title:
             continue
-        kind = "dx" if _said(text, "cabinet").upper() == "DX" else "std"
-        for number, body in _SECTION.findall(text):
-            difficulty = DIFFICULTIES.get(number)
-            if difficulty and body.strip():
-                yield f"{title.casefold()}|{kind}|{difficulty}", body
+        yield from _sections(text, "dx" if _said(text, "cabinet").upper() == "DX" else "std", title)
 
 
 def cached() -> Dict[str, str]:
@@ -165,7 +167,7 @@ def _mark(sha: str, held: int) -> None:
     """Record the commit the cache was built from, how much it holds, and when it was last checked."""
     try:
         CACHE.mkdir(parents=True, exist_ok=True)
-        STAMP.write_text(json.dumps({"sha": sha, "charts": held,
+        STAMP.write_text(json.dumps({"sha": sha, "charts": held, "format": FORMAT,
                                      "at": datetime.now().isoformat(timespec="seconds")}), encoding="utf-8")
     except OSError:
         pass
@@ -179,6 +181,14 @@ def _keep(found: Dict[str, str], sha: str) -> None:
         json.dump(found, file, ensure_ascii=False, separators=(",", ":"))
     spare.replace(CHARTS)
     _mark(sha, len(found))
+
+
+def _sections(text: str, kind: str, title: str) -> Iterator[Tuple[str, str]]:
+    """The charts of one maidata file as ``(key, simai)``."""
+    for number, body in _SECTION.findall(text):
+        difficulty = DIFFICULTIES.get(number)
+        if difficulty and body.strip():
+            yield f"{title.casefold()}|{kind}|{difficulty}", body
 
 
 def update(force: bool = False) -> int:
@@ -195,10 +205,11 @@ def update(force: bool = False) -> int:
     """
     taken = _taken()
     have = int(taken.get("charts") or 0)
-    if have and not force and _fresh(taken):
+    current = taken.get("format") == FORMAT
+    if have and not force and current and _fresh(taken):
         return have
     head = _head()
-    if have and not force and head and head == taken.get("sha"):
+    if have and not force and current and head and head == taken.get("sha"):
         _mark(head, have)                  # looked at today, still the same commit: nothing to fetch
         logger.info("simai bulk: the chart repository has not moved, keeping the %d charts on disk", have)
         return have
