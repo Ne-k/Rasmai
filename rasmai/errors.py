@@ -51,8 +51,10 @@ def report(error: BaseException, what: str, context: Optional[Dict[str, Any]] = 
     :rtype: str
     """
     error_id = new_id()
-    logger.error("%s (error %s)", what, error_id, exc_info=(type(error), error, error.__traceback__),
-                 extra={"error_id": error_id, "error_context": context or {}})
+    # logged as the module that reported it, so the post says where the error came from and not that it came through here
+    where = logging.getLogger(sys._getframe(1).f_globals.get("__name__", __name__))
+    where.error("%s (error %s)", what, error_id, exc_info=(type(error), error, error.__traceback__),
+                extra={"error_id": error_id, "error_context": context or {}})
     return error_id
 
 
@@ -73,7 +75,7 @@ def _kind(record: logging.LogRecord) -> str:
 
 def _payload(record: logging.LogRecord, error_id: str) -> Dict[str, Any]:
     """The webhook post: the message, the traceback's end, and what was going on."""
-    message = _clean(record.getMessage(), 250)
+    message = re.sub(r" \(error [0-9A-F]{8}\)$", "", _clean(record.getMessage(), 250))        # the title already says it
     summary = ""
     trace = ""
     if record.exc_info and record.exc_info[1] is not None:
