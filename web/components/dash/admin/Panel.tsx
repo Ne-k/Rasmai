@@ -370,6 +370,59 @@ export function AdminPanel() {
         </section>
 
         <section className="ledger">
+          <Label info="What visitors said on the feedback form. Anonymous unless they left a way to reach them. The newest 100 are shown.">
+            feedback form
+          </Label>
+          {data.feedbackSummary?.total ? (
+            <div className="fb-sum">
+              <p className="hint">
+                <b>{data.feedbackSummary.total}</b> answered · average <b>{data.feedbackSummary.average}</b> out of 5
+              </p>
+              {[5, 4, 3, 2, 1].map((n) => {
+                const count = data.feedbackSummary?.stars[String(n)] ?? 0;
+                const most = Math.max(1, ...Object.values(data.feedbackSummary?.stars ?? {}));
+                return (
+                  <div key={n} className="fb-bar">
+                    <span className="mono">{n}★</span>
+                    <i style={{ width: `${(count / most) * 100}%` }} />
+                    <span className="mono dim">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Empty>No feedback yet.</Empty>
+          )}
+          <ul className="fb-said">
+            {(data.feedback ?? []).map((f) => (
+              <li key={f.id}>
+                <div className="fb-head">
+                  <span className="fb-stars" role="img" aria-label={`${f.rating} out of 5`}>
+                    {"★".repeat(f.rating)}
+                    {"☆".repeat(5 - f.rating)}
+                  </span>
+                  <span className="mono dim">{when(f.at)}</span>
+                  {f.contact ? <span className="mono">{f.contact}</span> : null}
+                </div>
+                {(
+                  [
+                    ["likes", f.liked],
+                    ["turn-offs", f.annoyed],
+                    ["suggestions", f.wish],
+                  ] as const
+                )
+                  .filter(([, said]) => said)
+                  .map(([what, said]) => (
+                    <p key={what}>
+                      <b>{what}</b> {said}
+                    </p>
+                  ))}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="ledger">
           <Label info="What beta users think compared to having it off. One vote per person, updated if they change it.">
             beta feedback
           </Label>

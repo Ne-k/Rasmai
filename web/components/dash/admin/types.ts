@@ -17,6 +17,8 @@ export type AdminData = {
   live: Record<string, number | boolean | number[] | undefined>;
   generatedAt: string;
   betaFeedback?: Feedback[];
+  feedback?: FormFeedback[];
+  feedbackSummary?: FormFeedbackSummary;
   betaTally?: Record<string, Record<string, number>>;
   accounts_list?: Account[];
   guilds_list?: Guild[];
@@ -43,6 +45,10 @@ export type Detail = Person & {
   history: { recordedAt: string; rating: number }[];
   activity: { day: string; plays: number }[];
 };
+
+/** One answer to the site's feedback form: anonymous, with a contact only if they left one. */
+export type FormFeedback = { id: number; at: string; rating: number; liked: string; annoyed: string; wish: string; contact: string };
+export type FormFeedbackSummary = { total: number; average: number; stars: Record<string, number> };
 
 export type Feedback = Person & {
   userId: string; feature: string; verdict: string; said: string; saidAt: string; player: string;

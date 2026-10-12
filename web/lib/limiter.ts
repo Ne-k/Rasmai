@@ -31,3 +31,4 @@ class RateLimiter {
 export const apiLimiter = new RateLimiter(240, 60); // dashboard and connect API calls per client
 export const oauthLimiter = new RateLimiter(20, 600); // Discord sign-in callbacks per client
 export const verifyLimiter = new RateLimiter(30, 600); // Turnstile checks per client
+export const feedbackLimiter = new RateLimiter(5, 600); // feedback form answers per client

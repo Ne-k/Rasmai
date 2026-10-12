@@ -21,6 +21,7 @@ from rasmai.config import (
     unsupported_region_text,
 )
 from rasmai.storage.db import (
+    add_form_feedback,
     consume_login_code,
     get_database_connection,
     get_connected_account,
@@ -369,6 +370,9 @@ class InternalApiServer:
                     if path == "/internal/verify":
                         self._verify(payload)
                         return
+                    if path == "/internal/feedback":
+                        self._feedback(payload)
+                        return
                     if path == "/internal/login":
                         self._login(payload)
                         return
@@ -379,6 +383,26 @@ class InternalApiServer:
                 except Exception as error:
                     error_id = report(error, f"internal api {self.path.split('?')[0]} failed", {"Page": self.path.split("?")[0]})
                     self._send_json(502, {"ok": False, "kind": "unknown", "error": public_reason(error), "errorId": error_id})
+
+            def _feedback(self, payload: Dict[str, Any]) -> None:
+                """One response to the site's feedback form. The web server has already passed the human check and the rate limit.
+
+                :param payload: The request body: a rating from 1 to 5 and optional answers.
+                :type payload: Dict[str, Any]
+                """
+                try:
+                    rating = int(payload.get("rating"))
+                except (TypeError, ValueError):
+                    rating = 0
+                if not 1 <= rating <= 5:
+                    self._send_json(400, {"ok": False, "error": "invalid_rating"})
+                    return
+                # an answer that is not text is not from the form, and is kept as nothing rather than as its repr
+                words = {key: payload[key] if isinstance(payload.get(key), str) else "" for key in ("liked", "annoyed", "wish", "contact")}
+                if add_form_feedback(rating, **words) is None:
+                    self._send_json(503, {"ok": False, "error": "full"})
+                    return
+                self._send_json(200, {"ok": True})
 
             def _verify(self, payload: Dict[str, Any]) -> None:
                 """The web server verified a Turnstile token for this code; remember it on the code.

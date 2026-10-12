@@ -9,6 +9,89 @@ VERDICTS = ("better", "same", "worse")
 
 SAID_LIMIT = 500      # a note, not an essay: anything longer is cut rather than refused
 
+FORM_TEXT_LIMIT = 1000     # each answer on the site's feedback form
+FORM_CONTACT_LIMIT = 200
+FORM_MAX_ROWS = 5000       # the form is open to anybody, so it stops taking answers rather than fill the disk
+
+
+def _form_text(value: Any, limit: int) -> str:
+    """An answer cleaned for keeping: no control characters, lines kept, ends trimmed, cut to the limit."""
+    text = "".join(ch for ch in str(value or "") if ch == "\n" or ch >= " ")
+    return text.strip()[:limit]
+
+
+def add_form_feedback(rating: Any, liked: Any = "", annoyed: Any = "", wish: Any = "", contact: Any = "") -> Optional[int]:
+    """Keep one response to the feedback form.
+
+    :param rating: How they are enjoying Rasmai, 1 to 5.
+    :type rating: Any
+    :param liked: What they like most.
+    :type liked: Any
+    :param annoyed: Anything that turns them off.
+    :type annoyed: Any
+    :param wish: What they would like added or changed.
+    :type wish: Any
+    :param contact: How to reach them, if they want a reply.
+    :type contact: Any
+    :returns: The new row's id; ``None`` when the rating is not a whole number from 1 to 5 or the form already holds as many as it takes.
+    :rtype: Optional[int]
+    """
+    try:
+        stars = int(rating)
+    except (TypeError, ValueError):
+        return None
+    if not 1 <= stars <= 5:
+        return None
+    connection = get_database_connection()
+    try:
+        with connection:
+            if connection.execute("SELECT COUNT(*) FROM feedback").fetchone()[0] >= FORM_MAX_ROWS:
+                return None
+            cursor = connection.execute(
+                "INSERT INTO feedback (created_at, rating, liked, annoyed, wish, contact) VALUES (?, ?, ?, ?, ?, ?)",
+                (datetime.now().isoformat(timespec="seconds"), stars, _form_text(liked, FORM_TEXT_LIMIT),
+                 _form_text(annoyed, FORM_TEXT_LIMIT), _form_text(wish, FORM_TEXT_LIMIT), _form_text(contact, FORM_CONTACT_LIMIT)),
+            )
+            return int(cursor.lastrowid)
+    finally:
+        connection.close()
+
+
+def form_feedback(limit: int = 100) -> List[Dict[str, Any]]:
+    """The newest responses to the feedback form, for the developer page.
+
+    :param limit: Most rows to return.
+    :type limit: int
+    :rtype: List[Dict[str, Any]]
+    """
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            "SELECT id, created_at, rating, liked, annoyed, wish, contact FROM feedback ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()
+    finally:
+        connection.close()
+    return [{"id": row["id"], "at": row["created_at"], "rating": row["rating"], "liked": row["liked"],
+             "annoyed": row["annoyed"], "wish": row["wish"], "contact": row["contact"]} for row in rows]
+
+
+def form_feedback_summary() -> Dict[str, Any]:
+    """How many have answered, the average rating, and how many gave each rating from 1 to 5.
+
+    :rtype: Dict[str, Any]
+    """
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT rating, COUNT(*) AS n FROM feedback GROUP BY rating").fetchall()
+    finally:
+        connection.close()
+    stars = {str(n): 0 for n in range(1, 6)}
+    for row in rows:
+        stars[str(row["rating"])] = int(row["n"])
+    total = sum(stars.values())
+    average = round(sum(int(k) * v for k, v in stars.items()) / total, 2) if total else 0.0
+    return {"total": total, "average": average, "stars": stars}
+
 
 def set_beta_feedback(user_id: str, feature: str, verdict: str, said: str = "") -> Optional[Dict[str, Any]]:
     """Record what one player made of one beta feature, replacing whatever they said before.

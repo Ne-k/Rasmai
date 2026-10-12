@@ -796,3 +796,14 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
              background: transparent; color: inherit; font-size: 12px; }
 .beta-said { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .beta-said li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+
+/* the feedback form's answers on the developer page */
+.fb-sum { margin: 6px 0 10px; }
+.fb-bar { display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; align-items: center; gap: 8px; font-size: 12px; }
+.fb-bar i { display: block; height: 8px; min-width: 2px; border-radius: 4px; background: var(--pink); }
+.fb-said { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fb-said li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
+.fb-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 4px; font-size: 12px; }
+.fb-stars { color: var(--pink-edge); letter-spacing: 2px; font-size: 15px; }
+.fb-said p { margin: 3px 0 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fb-said p b { margin-right: 6px; font: 700 11px ui-monospace, Consolas, monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }

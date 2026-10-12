@@ -9,7 +9,7 @@ import time
 from rasmai.config import ADMIN_USER_ID, DATABASE_PATH, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES
 from rasmai.storage.db.accounts import expired_accounts_due, session_deletes_at
 from rasmai.storage.db.connection import get_database_connection
-from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally
+from rasmai.storage.db.feedback import beta_feedback, beta_feedback_tally, form_feedback, form_feedback_summary
 from rasmai.storage.db.identities import is_discord_id
 
 logger = logging.getLogger(__name__)
@@ -457,5 +457,8 @@ def admin_payload() -> Dict[str, Any]:
         # what the testers made of each beta, counted first and then said in their own words
         "betaFeedback": _named(said, known),
         "betaTally": beta_feedback_tally(),
+        # the site's feedback form: how many answered and how they rated it, then the newest answers in full
+        "feedbackSummary": form_feedback_summary(),
+        "feedback": form_feedback(),
         "generatedAt": datetime.now().isoformat(timespec="seconds"),
     }
