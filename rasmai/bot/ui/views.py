@@ -32,9 +32,12 @@ class OwnerOnlyView(discord.ui.View):
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
         """A button or menu that broke: reported, and the person told so with the id, rather than Discord's "interaction failed"."""
-        from rasmai.bot.core import command_context
+        from rasmai.bot.core import command_context, interaction_gone, tell_it_is_ready
         from rasmai.config import support_line
         from rasmai.errors import report
+        if interaction_gone(error):
+            await tell_it_is_ready(interaction)         # a late reply, not a broken button
+            return
         context = await command_context(interaction)
         context["Component"] = f"{type(item).__name__} {getattr(item, 'label', None) or getattr(item, 'placeholder', None) or ''} in {type(self).__name__}"
         error_id = report(error, "A button or menu failed", context)

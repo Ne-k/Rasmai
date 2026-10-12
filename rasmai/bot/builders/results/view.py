@@ -5,7 +5,7 @@ import logging
 
 from rasmai.engine import analysis
 from rasmai.bot.state.cache import ANALYSIS_TTL, CachedAnalysis, cache_get
-from rasmai.bot.core import command_context, private_only, relink_reply, relink_told
+from rasmai.bot.core import command_context, interaction_gone, private_only, relink_reply, relink_told, tell_it_is_ready
 from rasmai.errors import report
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping.scraper import SessionRejected
@@ -51,6 +51,11 @@ async def failure_reply(interaction: discord.Interaction, failure: str, error: E
         text, view = relink_reply((account or {}).get("sessionExpired") or "")
         relink_told(user_id)        # this reply says it, so the reminder after the command does not
         return {"content": text, "view": view}
+    if interaction_gone(error):
+        # the read outlasted the fifteen minutes Discord keeps a command open for: nothing broke, and the reply cannot be edited any more,
+        # so they are told by message. The edit this returns for will be refused too, which every caller already shrugs off
+        await tell_it_is_ready(interaction)
+        return {"content": None, "view": None}
     error_id = report(error, failure, await command_context(interaction))
     return {"content": f"{failure}\n-# {public_reason(error)}\n{support_line(error_id)}", "view": None}
 
