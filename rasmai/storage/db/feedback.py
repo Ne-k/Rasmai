@@ -57,6 +57,26 @@ def add_form_feedback(rating: Any, liked: Any = "", annoyed: Any = "", wish: Any
         connection.close()
 
 
+def delete_form_feedback(feedback_id: Any) -> bool:
+    """Take one response to the feedback form out, for a fake or bogus one. It is gone for good, and frees its place under the cap.
+
+    :param feedback_id: The id the developer page lists the response under.
+    :type feedback_id: Any
+    :returns: ``True`` when there was a response with that id to remove.
+    :rtype: bool
+    """
+    try:
+        row_id = int(feedback_id)
+    except (TypeError, ValueError):
+        return False
+    connection = get_database_connection()
+    try:
+        with connection:
+            return connection.execute("DELETE FROM feedback WHERE id = ?", (row_id,)).rowcount > 0
+    finally:
+        connection.close()
+
+
 def form_feedback(limit: int = 100) -> List[Dict[str, Any]]:
     """The newest responses to the feedback form, for the developer page.
 

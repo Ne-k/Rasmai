@@ -37,10 +37,10 @@ export async function POST(request: Request, { params }: Params) {
   const user = currentUser(request);
   if (!user) return json(401, { ok: false, error: "signed_out" });
   const path = tail((await params).rest);
-  if (!path || !["refresh", "unlink", "import", "sharing", "beta", "beta/feedback", "admin/update", "kamaitachi/import"].includes(path))
+  if (!path || !["refresh", "unlink", "import", "sharing", "beta", "beta/feedback", "admin/update", "admin/delete-feedback", "kamaitachi/import"].includes(path))
     return json(404, { ok: false, error: "not_found" });
   let body: unknown = {};
-  if (path === "sharing" || path === "beta" || path === "beta/feedback" || path === "admin/update" || path === "kamaitachi/import") {
+  if (path === "sharing" || path === "beta" || path === "beta/feedback" || path === "admin/update" || path === "admin/delete-feedback" || path === "kamaitachi/import") {
     try {
       const text = await request.text();
       // the Kamaitachi import body is one username, so anything bigger is not from the page

@@ -807,3 +807,6 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .fb-stars { color: var(--pink-edge); letter-spacing: 2px; font-size: 15px; }
 .fb-said p { margin: 3px 0 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .fb-said p b { margin-right: 6px; font: 700 11px ui-monospace, Consolas, monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.fb-del { margin-left: auto; display: inline-flex; gap: 12px; }
+.fb-del .bad { color: var(--pink-edge); }
+:root[data-theme="dark"] .fb-del .bad { color: var(--pink); }

@@ -13,6 +13,20 @@ export function AdminPanel() {
   const [open, setOpen] = useState<Detail | null>(null);
   const [opening, setOpening] = useState("");
   const [asked, setAsked] = useState("");
+  // an answer to the feedback form waiting to be confirmed for removal, and a note if taking one out did not work
+  const [removing, setRemoving] = useState<number | null>(null);
+  const [removeNote, setRemoveNote] = useState("");
+
+  // for a fake or bogus answer. It is gone for good, so the button asks twice
+  const removeFeedback = (id: number) => {
+    postJSON("/api/me/admin/delete-feedback", { id })
+      .then(() => setRemoveNote(""))
+      .catch(() => setRemoveNote("Couldn't remove that one. It may already be gone."))
+      .finally(() => {
+        setRemoving(null);
+        load();
+      });
+  };
 
   const openUser = (userId: string) => {
     setOpening(userId);
@@ -393,6 +407,7 @@ export function AdminPanel() {
           ) : (
             <Empty>No feedback yet.</Empty>
           )}
+          {removeNote ? <p className="hint bad">{removeNote}</p> : null}
           <ul className="fb-said">
             {(data.feedback ?? []).map((f) => (
               <li key={f.id}>
@@ -403,6 +418,20 @@ export function AdminPanel() {
                   </span>
                   <span className="mono dim">{when(f.at)}</span>
                   {f.contact ? <span className="mono">{f.contact}</span> : null}
+                  {removing === f.id ? (
+                    <span className="fb-del">
+                      <button type="button" className="linkish bad" onClick={() => removeFeedback(f.id)}>
+                        remove it
+                      </button>
+                      <button type="button" className="linkish" onClick={() => setRemoving(null)}>
+                        keep
+                      </button>
+                    </span>
+                  ) : (
+                    <button type="button" className="linkish fb-del" onClick={() => setRemoving(f.id)}>
+                      remove
+                    </button>
+                  )}
                 </div>
                 {(
                   [
