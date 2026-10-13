@@ -985,7 +985,7 @@
       "rate_limited": "That's a lot of feedback. Try again in a few minutes.",
       "turnstile_failed": "The human check didn't pass. Reload the page and try again."
     },
-    "checkHint": "Quick check that you're a person. It usually runs by itself.",
+    "checkHint": "Beep Boop?",
     "off": "The form is off for a bit. Try again later."
   },
   "flow": {

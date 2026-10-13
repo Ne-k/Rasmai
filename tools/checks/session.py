@@ -36,6 +36,137 @@ def _expired():
         store._database_ready = False
 
 
+@check("after a command, someone whose maimai sign-in is refused is told privately to link again, with a link, at most once an hour, and not after /login or when the sign-in works")
+def _relink_reminder():
+    import asyncio, tempfile, pathlib, types
+
+    import discord
+    from rasmai.bot import core
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    try:
+        from rasmai.storage.db import mark_session_expired, upsert_connected_account
+        problems = []
+        upsert_connected_account("111", "intl", "cookie://abc")
+        upsert_connected_account("222", "intl", "cookie://def")
+        mark_session_expired("111")
+
+        def ran(user_id, name, fails=False):
+            sent = []
+
+            class Followup:
+                async def send(self, text, **options):
+                    if fails:
+                        raise discord.HTTPException(types.SimpleNamespace(status=404, reason="nope"), "never answered")
+                    sent.append((text, options))
+            interaction = types.SimpleNamespace(user=types.SimpleNamespace(id=user_id), followup=Followup())
+            asyncio.run(core.on_app_command_completion(interaction, types.SimpleNamespace(qualified_name=name)))
+            return sent
+        from rasmai.storage import db
+        kept_account, unpacked = db.get_connected_account, []
+
+        def account(user_id, with_snapshot=True):
+            unpacked.append(with_snapshot)
+            return kept_account(user_id, with_snapshot)
+        db.get_connected_account = account
+        try:
+            told = ran("111", "best50")
+        finally:
+            db.get_connected_account = kept_account
+        if any(unpacked) or not unpacked:
+            problems.append(f"the reminder read the account with its stored scores ({unpacked}), after every command")
+        if len(told) != 1:
+            problems.append(f"someone who needs to link again was told {told} after a command")
+        else:
+            text, options = told[0]
+            buttons = [item for item in options["view"].children if getattr(item, "url", None)] if options.get("view") else []
+            if options.get("ephemeral") is not True or "needs to be relinked" not in text or "can't fetch anything new" not in text \
+                    or not buttons or not buttons[0].url.endswith("/me/#relink"):
+                problems.append(f"the reminder was {text!r} with {options}")
+        # once an hour at most
+        if ran("111", "best50"):
+            problems.append("the reminder came twice within the hour")
+        core._relink_told["111"] -= core.RELINK_EVERY
+        if len(ran("111", "best50")) != 1:
+            problems.append("the reminder did not come back after an hour")
+        core._relink_told.clear()
+        if ran("111", "login") or ran("222", "best50"):
+            problems.append("the reminder came after /login, or for someone whose sign-in works")
+        try:
+            core._relink_told.clear()
+            ran("111", "best50", fails=True)
+            if "111" in core._relink_told:
+                problems.append("a reminder that could not be sent counted as sent, so the next hour gets none")
+        except Exception as error:
+            problems.append(f"a command that never answered made the reminder fail: {error!r}")
+        return problems
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+
+@check("a command that meets a refused login says so once: the relink message with its button, as the note on the last read or as the reply itself, and no reminder after it")
+def _relink_once():
+    import asyncio, tempfile, pathlib, types
+
+    from rasmai.bot import core
+    from rasmai.bot.builders.results import stored, view
+    from rasmai.scraping.scraper import SessionRejected
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    kept = stored._analysis_from_store
+    problems = []
+    try:
+        from rasmai.storage.db import get_connected_account, mark_session_expired, upsert_connected_account
+        upsert_connected_account("555", "intl", "cookie://abc")
+        mark_session_expired("555")
+
+        def interaction():
+            sent = []
+
+            class Followup:
+                async def send(self, text, **options):
+                    sent.append((text, options))
+            return types.SimpleNamespace(user=types.SimpleNamespace(id=555), followup=Followup()), sent
+
+        async def from_store(user_id, account):
+            return "the last read"
+        stored._analysis_from_store = from_store
+        # results from the last read: the note under them is the relink message
+        core._relink_told.clear()
+        first, sent = interaction()
+        got = asyncio.run(stored._stale_analysis(first, "555", get_connected_account("555", False), SessionRejected("refused")))
+        asyncio.run(core.on_app_command_completion(first, types.SimpleNamespace(qualified_name="analyze")))
+        buttons = [item for item in sent[0][1]["view"].children if getattr(item, "url", None)] if sent and sent[0][1].get("view") else []
+        if got != "the last read" or len(sent) != 1 or "needs to be relinked" not in sent[0][0] or "last read" not in sent[0][0] or not buttons \
+                or "refused" in sent[0][0]:
+            problems.append(f"a command shown the last read sent {[text for text, _ in sent]}")
+        # another failure says what it was, with no relink message
+        core._relink_told.clear()
+        other, sent = interaction()
+        asyncio.run(stored._stale_analysis(other, "555", get_connected_account("555", False), TimeoutError()))
+        if len(sent) != 1 or "needs to be relinked" in sent[0][0] or "/refresh" not in sent[0][0] or core._relink_told:
+            problems.append(f"a read that timed out sent {[text for text, _ in sent]}")
+        # nothing stored to show: the reply is the relink message, and nothing follows
+        core._relink_told.clear()
+        bare, sent = interaction()
+        reply = asyncio.run(view.failure_reply(bare, "Something went wrong while analyzing your account.", SessionRejected("refused")))
+        asyncio.run(core.on_app_command_completion(bare, types.SimpleNamespace(qualified_name="analyze")))
+        if "needs to be relinked" not in reply["content"] or reply["view"] is None or sent:
+            problems.append(f"a command with nothing to show replied {reply['content']!r} and then sent {sent}")
+        plain = asyncio.run(view.failure_reply(bare, "Couldn't look that up.", ValueError("bad page")))
+        if not plain["content"].startswith("Couldn't look that up.") or plain["view"] is not None:
+            problems.append(f"another failure replied {plain}")
+    finally:
+        stored._analysis_from_store = kept
+        core._relink_told.clear()
+        store.DATABASE_PATH = was
+        store._database_ready = False
+    return problems
+
+
 @check("an account left expired for 30 days is deleted with everything stored for it, and no other")
 def _expired_purge():
     import tempfile, pathlib
@@ -737,4 +868,102 @@ def _japan_mid_read():
         pass
     except ValueError:
         problems.append("an International read signed out part way no longer asks for /login")
+    return problems
+
+
+@check("a command whose read outlasts Discord's fifteen minutes tells the person by message to ask again, once, and is not reported as a bug; any other failure still is")
+def _late_reply():
+    import asyncio
+    import logging
+    import types
+    from datetime import timedelta
+    import discord
+    from discord import app_commands
+    from rasmai.bot import core
+    from rasmai.bot.builders.results.view import failure_reply
+    from rasmai.bot.ui.views import OwnerOnlyView
+
+    problems = []
+    seen = []
+
+    class Grab(logging.Handler):
+        def emit(self, record):
+            seen.append(record)
+
+    grab = Grab()
+    logging.getLogger().addHandler(grab)
+    answered = types.SimpleNamespace(status=401, reason="Unauthorized")
+
+    def gone(code=50027):
+        return discord.HTTPException(answered, {"code": code, "message": "Invalid Webhook Token"})
+
+    def interaction(minutes=20, closed=False):
+        sent = []
+
+        class User:
+            id = 4242
+
+            async def send(self, text):
+                if closed:
+                    raise discord.Forbidden(types.SimpleNamespace(status=403, reason="Forbidden"), {"code": 50007, "message": "Cannot send messages to this user"})
+                sent.append(text)
+
+        return types.SimpleNamespace(user=User(), created_at=discord.utils.utcnow() - timedelta(minutes=minutes), command=types.SimpleNamespace(qualified_name="analyze", name="analyze"),
+                                     extras={}, guild_id=None, channel_id=None, data={}, namespace=[], sent=sent)
+
+    def errors():
+        return [r for r in seen if r.levelno >= logging.ERROR]
+
+    try:
+        late = interaction()
+        reply = asyncio.run(failure_reply(late, "Something went wrong while analyzing your account.", gone()))
+        if errors() or len(late.sent) != 1 or "`/analyze`" not in late.sent[0] or "again" not in late.sent[0] or reply.get("content") is not None:
+            problems.append(f"a late reply was reported as a bug or the person was not told once: {[r.getMessage() for r in errors()]} {late.sent} {reply}")
+        asyncio.run(failure_reply(late, "x", gone(10015)))
+        if len(late.sent) != 1:
+            problems.append("the same late command was told twice")
+
+        seen.clear()
+        shut = interaction(closed=True)
+        asyncio.run(failure_reply(shut, "x", gone()))
+        if errors():
+            problems.append("a person who takes no messages from the bot made a late reply an error")
+
+        seen.clear()
+        ordinary = interaction(minutes=1)
+        reply = asyncio.run(failure_reply(ordinary, "Something went wrong.", ValueError("boom")))
+        if not errors() or ordinary.sent or "error ID" not in str(reply.get("content")):
+            problems.append(f"an ordinary failure was not reported with an ID, or a message was sent: {reply} {ordinary.sent}")
+
+        # the handler every command falls to: a late reply is a message, a command never acknowledged in time is still an error, a real bug still is
+        seen.clear()
+        late = interaction()
+        error = app_commands.CommandInvokeError(types.SimpleNamespace(name="analyze"), gone())
+        asyncio.run(core.on_app_command_error(late, error))
+        if errors() or len(late.sent) != 1:
+            problems.append(f"the global handler reported a late reply or stayed quiet: {[r.getMessage() for r in errors()]} {late.sent}")
+        seen.clear()
+        quick = interaction(minutes=0)
+        unknown = discord.NotFound(types.SimpleNamespace(status=404, reason="Not Found"), {"code": 10062, "message": "Unknown interaction"})
+        asyncio.run(core.on_app_command_error(quick, app_commands.CommandInvokeError(types.SimpleNamespace(name="analyze"), unknown)))
+        if not errors() or quick.sent:
+            problems.append("a command never acknowledged in time stopped being logged as an error, or was told 'ask again'")
+        seen.clear()
+        slow = interaction()
+        asyncio.run(core.on_app_command_error(slow, app_commands.CommandInvokeError(types.SimpleNamespace(name="analyze"), unknown)))
+        if errors() or len(slow.sent) != 1:
+            problems.append("an unknown interaction after twenty minutes was treated as 'not acknowledged in time' instead of a late reply")
+
+        # a button whose reply ran out of time
+        seen.clear()
+        button = interaction()
+
+        async def press():
+            view = OwnerOnlyView(4242, timeout=5)
+            await view.on_error(button, gone(), discord.ui.Button())
+        asyncio.run(press())
+        if errors() or len(button.sent) != 1:
+            problems.append(f"a button's late reply was reported as a broken button: {[r.getMessage() for r in errors()]} {button.sent}")
+    finally:
+        logging.getLogger().removeHandler(grab)
     return problems

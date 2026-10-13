@@ -293,9 +293,25 @@ def _guild_left():
         if handler is None:
             problems.append("the bot has no on_guild_remove, so a server that removed it keeps its settings for good")
         else:
-            asyncio.run(handler(types.SimpleNamespace(id=1234, name="left")))
+            from rasmai.bot.commands import news as command
+            from rasmai.storage.db import add_news_subscription, channel_sources
+            hook = "https://discord.com/api/webhooks/1/left"
+            add_news_subscription("1234", "91", "maimai", hook)
+            add_news_subscription("5678", "92", "maimai", hook + "2")
+            dropped = []
+
+            async def drop(url):
+                dropped.append(url)
+            kept = command._drop_webhook
+            command._drop_webhook = drop
+            try:
+                asyncio.run(handler(types.SimpleNamespace(id=1234, name="left")))
+            finally:
+                command._drop_webhook = kept
             if get_guild_settings("1234") or not get_guild_settings("5678"):
                 problems.append("leaving a server did not clear its settings, or cleared another server's")
+            if channel_sources("91") or channel_sources("92") != ["maimai"] or dropped != [hook]:
+                problems.append(f"leaving a server left its news ({channel_sources('91')}) or its webhooks ({len(dropped)} deleted), or touched another server's")
     finally:
         store.DATABASE_PATH, store._database_ready = was, False
     return problems
@@ -435,7 +451,19 @@ def _region_tables():
     # a cache from before the international table: Japan's table stands in, and a fetch is wanted
     old = CachedOtogeDB(str(root / "old"))
     old.songs_data = db.songs_data
-    if old.songs_for("intl") is not old.songs_data or not old._should_update():
-        problems.append("a cache with no international table did not fall back to Japan's and ask for a fetch")
+    (root / "old" / "jackets" / "x.png").parent.mkdir(exist_ok=True)
+    (root / "old" / "jackets" / "x.png").write_bytes(b"x")
+    old.last_update_file.write_text(__import__("datetime").datetime.now().isoformat())      # fresh and with jackets: only the missing table is a reason to fetch
+    from rasmai.scraping.otoge import db as module
+    was = module._intl_tried
+    module._intl_tried = False
+    try:
+        if old.songs_for("intl") is not old.songs_data or not old._should_update():
+            problems.append("a cache with no international table did not fall back to Japan's and ask for a fetch")
+        module._intl_tried = True
+        if old._should_update():
+            problems.append("a cache with no international table asked for a fetch again after one was tried")
+    finally:
+        module._intl_tried = was
     return problems
 

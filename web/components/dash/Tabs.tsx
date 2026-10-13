@@ -37,7 +37,7 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
     el?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [current]);
   return (
-    <div className="tabs-wrap">
+    <div className="tabs-wrap" data-more={more}>
       <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure}>
         {shown.map((id) => (
           <button key={id} type="button" className={id === current ? "on" : ""} aria-current={id === current ? "true" : undefined} onClick={() => onPick(id)}>
@@ -45,6 +45,10 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
           </button>
         ))}
       </nav>
+      <span className="tabs-hint" aria-hidden="true">
+        <span className="tabs-hint-label">SWIPE</span>
+        <span className="tabs-hint-arrow">›</span>
+      </span>
     </div>
   );
 }

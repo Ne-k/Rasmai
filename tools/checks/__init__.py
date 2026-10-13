@@ -10,6 +10,8 @@ if str(ROOT) not in sys.path:
 # exercise the developer page and /notice are given stand-ins before rasmai.config is first read
 os.environ.setdefault("MAIMAI_ADMIN_ID", "100000000000000042")
 os.environ.setdefault("MAIMAI_CONTROL_GUILD_ID", "100000000000000043")
+# and nothing in the sweep may ask the real status page about maintenance
+os.environ.setdefault("INSTATUS_API", "")
 
 FAILURES = []
 
@@ -22,7 +24,7 @@ except (AttributeError, OSError):
 
 # The order the sweep reads in. Each of these runs its checks as it is imported, so this list is
 # what decides the order they are reported in, and a new file only counts once it is named here.
-TOPICS = ["wiring", "rating", "session", "lookup", "habits", "traits", "simai", "web", "load", "storage", "identity", "kamaitachi", "cohort", "envfile"]
+TOPICS = ["wiring", "rating", "session", "lookup", "habits", "traits", "simai", "web", "load", "storage", "identity", "kamaitachi", "cohort", "news", "envfile", "otoge", "preview", "feedback"]
 
 
 def check(name):

@@ -93,6 +93,53 @@ def _walkthrough():
     return problems
 
 
+@check("the band on every page asks only whether the saved login still works, without building the dashboard or reading the scores")
+def _session_route():
+    import pathlib
+    import tempfile
+
+    from rasmai.storage.db import connection as store
+    from rasmai.web.dashboard import routes
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    problems = []
+    kept = routes.analysis_for_user, routes.get_connected_account
+    asked = []
+
+    def no_analysis(*args, **kwargs):
+        raise AssertionError("the analysis was loaded")
+
+    def account(user_id, with_snapshot=True):
+        asked.append(with_snapshot)
+        return kept[1](user_id, with_snapshot=with_snapshot)
+    routes.analysis_for_user, routes.get_connected_account = no_analysis, account
+    try:
+        from rasmai.storage.db import mark_session_expired, upsert_connected_account
+        upsert_connected_account("333", "intl", "cookie://abc")
+        mark_session_expired("333", "2026-10-01T10:00:00")
+
+        class Fake:
+            def __init__(self):
+                self.sent = []
+
+            def _send_json(self, status, body):
+                self.sent.append((status, body))
+        answers = []
+        for who in ("333", "444"):
+            handler = Fake()
+            try:
+                routes.handle_get(handler, "/internal/me/session", {}, {"id": who})
+            except AssertionError as error:
+                problems.append(str(error))
+            answers.append(handler.sent)
+        if answers != [[(200, {"sessionExpired": "2026-10-01T10:00:00"})], [(200, {"sessionExpired": ""})]] or any(asked):
+            problems.append(f"the session route answered {answers}, reading the scores {asked}")
+    finally:
+        routes.analysis_for_user, routes.get_connected_account = kept
+        store.DATABASE_PATH, store._database_ready = was, False
+    return problems
+
+
 @check("the developer page answers one account and 404s for everyone else")
 def _admin():
     from rasmai.config import ADMIN_USER_ID
@@ -272,7 +319,7 @@ def _seam_addresses():
             problems.append(f"the site proxies {target} and the bot dispatches no such path")
 
     # writes are allow-listed on both sides, and a list that drifts is a form that stops working
-    allowed = re.search(r"\[((?:\"[a-z/]+\",?\s*)+)\]\.includes\(path\)", web)
+    allowed = re.search(r"\[((?:\"[a-z/-]+\",?\s*)+)\]\.includes\(path\)", web)
     # what handle_post lets through its gate, not every path its source mentions: beta feedback had a
     # branch of its own and was still turned away as not found, because the gate never listed it
     from rasmai.web.dashboard import routes as route_table
@@ -280,7 +327,7 @@ def _seam_addresses():
     if not allowed:
         problems.append("the site no longer allow-lists which writes under /api/me it will forward")
     else:
-        site_posts = set(re.findall(r'"([a-z/]+)"', allowed.group(1)))
+        site_posts = set(re.findall(r'"([a-z/-]+)"', allowed.group(1)))
         for name in sorted(site_posts - posts):
             problems.append(f"the site forwards a write to /api/me/{name} that the bot does not accept")
         for name in sorted(posts - site_posts):
@@ -950,6 +997,72 @@ def _statuspage():
             problems.append(f"an empty, working database read as {payload['components'].get('database')!r}, {payload['metrics'].get('accounts')!r} accounts")
         if not set(payload["components"].values()) <= words or payload["status"] not in words:
             problems.append(f"a state outside Statuspage's vocabulary: {payload['components']}")
+        if "diskFreeMb" not in payload["metrics"] or "uptimeSeconds" not in payload["metrics"]:
+            problems.append(f"the payload had no free disk space or uptime: {payload['metrics']}")
+
+        import asyncio
+        import threading
+        import time
+        from datetime import datetime, timedelta
+        from rasmai.bot import core
+        from rasmai.scraping.otoge.db import REFRESH_AFTER
+
+        # images: a few renders failing in a row is a partial outage, one is not
+        kept_render = core.RENDER_HEALTH["failing"]
+        try:
+            core.RENDER_HEALTH["failing"] = 1
+            if S.status_payload()["components"].get("images") != S.OPERATIONAL:
+                problems.append("one failed render took the images down")
+            core.RENDER_HEALTH["failing"] = S.RENDER_FAILS
+            if S.status_payload()["components"].get("images") != S.PARTIAL:
+                problems.append("renders failing in a row did not read as a partial outage of the images")
+        finally:
+            core.RENDER_HEALTH["failing"] = kept_render
+
+        # disk: under the floor, a working database reads as degraded
+        kept_floor = S.LOW_DISK_MB
+        try:
+            S.LOW_DISK_MB = 10 ** 12
+            if S.status_payload()["components"].get("database") != S.DEGRADED:
+                problems.append("a disk nearly full did not read as a degraded database")
+        finally:
+            S.LOW_DISK_MB = kept_floor
+
+        # chart data: fresh is fine, a few refreshes missed or never fetched is degraded
+        kept_stamp = S.CHART_STAMP
+        folder = pathlib.Path(tempfile.mkdtemp())
+        try:
+            S.CHART_STAMP = str(folder / "last_update.txt")
+            for age, expect in ((timedelta(hours=5), S.OPERATIONAL), (2 * REFRESH_AFTER + timedelta(days=1), S.DEGRADED)):
+                pathlib.Path(S.CHART_STAMP).write_text((datetime.now() - age).isoformat())
+                got = S._charts()
+                if got["state"] != expect or got["ageHours"] != round(age.total_seconds() / 3600):
+                    problems.append(f"chart data {age} old read as {got}, not {expect}")
+            S.CHART_STAMP = str(folder / "missing.txt")
+            if S._charts()["state"] != S.DEGRADED:
+                problems.append("chart data never fetched did not read as degraded")
+        finally:
+            S.CHART_STAMP = kept_stamp
+
+        # the bot's own loop: one that answers is a lag in ms, one that is stuck is the full wait
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=loop.run_forever, daemon=True).start()
+        kept_loop, kept_stuck = core.bot.loop, S.STUCK_LOOP_S
+        try:
+            core.bot.loop = loop
+            lag = S.loop_lag_ms()
+            if lag is None or not 0 <= lag < 500:
+                problems.append(f"a free loop answered in {lag} ms")
+            S.STUCK_LOOP_S = 0.2
+            loop.call_soon_threadsafe(time.sleep, 0.6)
+            if S.loop_lag_ms() != 200:
+                problems.append("a stuck loop was not reported as stuck")
+        finally:
+            core.bot.loop, S.STUCK_LOOP_S = kept_loop, kept_stuck
+            loop.call_soon_threadsafe(loop.stop)
+        core.bot.loop = kept_loop
+        if S.loop_lag_ms() is not None:
+            problems.append("a bot that is not running reported a loop lag")
     finally:
         store.DATABASE_PATH, store._database_ready = was, False
     return problems
@@ -1222,4 +1335,275 @@ def _regions():
         web_server.INTERNAL_API_SECRET = kept
         store.DATABASE_PATH = was
         store._database_ready = False
+    return problems
+
+@check("a dashboard read that fails inside the bot is answered and logged, not dropped, so the site can say what happened")
+def _dashboard_read_fails_loudly():
+    import json as jsonlib
+    import logging
+    import re
+    import urllib.error
+    import urllib.request
+
+    from rasmai.web import dashboard, web_server
+
+    problems = []
+    kept_secret, kept_get = web_server.INTERNAL_API_SECRET, dashboard.handle_get
+    web_server.INTERNAL_API_SECRET = "check-only-secret"
+
+    def broken(handler, path, query, user):
+        if path == "/internal/me":
+            raise KeyError("something only this account has")
+        return kept_get(handler, path, query, user)
+    dashboard.handle_get = broken
+    logged = []
+
+    class Catch(logging.Handler):
+        def emit(self, record):
+            logged.append(record)
+    catch = Catch(level=logging.ERROR)
+    logging.getLogger().addHandler(catch)
+    server = web_server.InternalApiServer(host="127.0.0.1", port=0)
+    try:
+        server.start()
+        port = server.httpd.server_address[1]
+
+        def call(path):
+            request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers={
+                "X-Rasmai-Internal": "check-only-secret", "X-Rasmai-User": jsonlib.dumps({"id": "123456789012345678", "name": "t"})})
+            try:
+                with urllib.request.urlopen(request, timeout=10) as answer:
+                    return answer.status, jsonlib.loads(answer.read())
+            except urllib.error.HTTPError as error:
+                return error.code, jsonlib.loads(error.read() or b"{}")
+            except (urllib.error.URLError, ConnectionError) as error:
+                return 0, {"dropped": type(error).__name__}
+        answered = call("/internal/me")
+        rest = {key: value for key, value in answered[1].items() if key != "errorId"}
+        if answered[0] != 500 or rest != {"ok": False, "error": "server"} or not re.fullmatch(r"[0-9A-F]{8}", str(answered[1].get("errorId"))):
+            problems.append(f"a dashboard read that failed was answered {answered}")
+        if not any(record.exc_info for record in logged):
+            problems.append("the failure was not logged with its traceback, so nobody could find out why")
+        if call("/health")[0] != 200:
+            problems.append("the server stopped answering after one read failed")
+    finally:
+        server.stop()
+        logging.getLogger().removeHandler(catch)
+        dashboard.handle_get, web_server.INTERNAL_API_SECRET = kept_get, kept_secret
+    return problems
+
+
+@check("every error is posted to the error webhook under an id with what was going on, a repeat as one line, no addresses, not the developer page's, and the person is given the id")
+def _error_reports():
+    import asyncio
+    import logging
+    import re
+    import types
+
+    import discord
+    from rasmai import errors
+
+    problems = []
+    posted = []
+    kept = errors.ERROR_WEBHOOK_URL, errors._enqueue
+    errors.ERROR_WEBHOOK_URL, errors._enqueue = "https://discord.com/api/webhooks/1/check", posted.append
+    errors._seen.clear()
+    errors._sent.clear()
+    handler = errors.ErrorWebhook()
+    root = logging.getLogger()
+    root.addHandler(handler)
+
+    def fail(text):
+        raise ValueError(text)          # one line, so two calls are the same error twice, as a real bug met twice is
+    try:
+        try:
+            fail("the page at https://maimaidx-eng.com/maimai-mobile/?token=secret said no")
+        except ValueError as error:
+            first = errors.report(error, "/analyze failed", {"Command": "/analyze", "User": "someone (123)"})
+        if not re.fullmatch(r"[0-9A-F]{8}", first) or len(posted) != 1:
+            problems.append(f"a report gave the id {first!r} and posted {len(posted)} time(s)")
+        else:
+            post = posted[0]
+            embed = post["embeds"][0]
+            text = json_dump = str(post)
+            if post["username"] != "Rasmai · Errors" or not post["avatar_url"].endswith("/app/icon-512.png") or post["allowed_mentions"] != {"parse": []}:
+                problems.append(f"the post was sent as {post['username']!r} with {post['avatar_url']!r}")
+            if first not in embed["title"] or "ValueError" not in embed["description"] or "Traceback" not in embed["description"]:
+                problems.append(f"the post did not carry the id, the error and its traceback: {embed['title']!r}")
+            if "secret" in json_dump or "maimaidx-eng.com" in text:
+                problems.append("an address, and the token in it, reached the webhook")
+            if not any(field["name"] == "Command" and field["value"] == "/analyze" for field in embed["fields"]):
+                problems.append(f"what was going on was not in the post: {embed['fields']}")
+            logged_by = next((field["value"] for field in embed["fields"] if field["name"] == "Logged by"), "")
+            if "`tools.checks.web`" not in logged_by and "`__main__`" not in logged_by and "rasmai.errors" in logged_by:
+                problems.append(f"the post says it was logged by the reporter, not by what reported: {logged_by!r}")
+            if first in embed["description"].splitlines()[0]:
+                problems.append(f"the id is in the message as well as the title: {embed['description'][:80]!r}")
+        # the same error again: one line pointing at the first, still under its own id
+        try:
+            fail("the page at https://maimaidx-eng.com/x said no")
+        except ValueError as error:
+            second = errors.report(error, "/analyze failed", {"User": "another (456)"})
+        if len(posted) != 2 or "embeds" in posted[-1] or second not in posted[-1]["content"] or first not in posted[-1]["content"]:
+            problems.append(f"a repeat was posted as {posted[-1] if len(posted) > 1 else None}")
+        # the developer page's errors are its own
+        before = len(posted)
+        logging.getLogger("rasmai.web.dashboard.admin").error("the developer page broke")
+        try:
+            raise KeyError("x")
+        except KeyError as error:
+            errors.report(error, "dashboard read failed", {"Page": "/internal/me/admin"})
+        if len(posted) != before:
+            problems.append("an error on the developer page was posted")
+        # a logged error with no one to tell is posted too, under an id of its own
+        logging.getLogger("rasmai.bot.tasks.somewhere").error("a background job failed")
+        if len(posted) != before + 1 or not re.search(r"Error [0-9A-F]{8}", posted[-1]["embeds"][0]["title"]):
+            problems.append("an error logged in a background job was not posted")
+        # a flood is capped, and the next post says how many were left out
+        errors._sent[:] = [__import__("time").monotonic()] * errors.PER_MINUTE
+        logging.getLogger("rasmai.flood").error("one too many")
+        if len(posted) != before + 1:
+            problems.append("an error past the per-minute cap was posted")
+        errors._sent.clear()
+        logging.getLogger("rasmai.after").error("after the flood")
+        if "not posted" not in str(posted[-1].get("content", "")):
+            problems.append("the post after a flood did not say how many were left out")
+        # no webhook, nothing posted, and the reporter never raises
+        errors.ERROR_WEBHOOK_URL = ""
+        before = len(posted)
+        logging.getLogger("rasmai.quiet").error("nobody listening")
+        if len(posted) != before:
+            problems.append("an error was posted with no webhook set")
+        errors.ERROR_WEBHOOK_URL = "https://discord.com/api/webhooks/1/check"
+
+        # the person: a command's own failure, a command that raised, and a broken button all give them the id
+        from rasmai.bot import core
+        from rasmai.bot.builders.results import view
+        from rasmai.bot.ui.views import OwnerOnlyView
+
+        class Response:
+            def __init__(self):
+                self.said = []
+
+            def is_done(self):
+                return False
+
+            async def send_message(self, text, **options):
+                self.said.append(text)
+
+        async def no_context(interaction):
+            return {"User": "check"}
+        kept_context = core.command_context
+        core.command_context = view.command_context = no_context
+        try:
+            interaction = types.SimpleNamespace(user=types.SimpleNamespace(id=1), response=Response(), followup=None, command=None)
+            reply = asyncio.run(view.failure_reply(interaction, "Couldn't look that up.", ValueError("bad page")))
+            if not re.search(r"send your error ID `[0-9A-F]{8}` along with it", reply["content"]):
+                problems.append(f"a command's failure told the person {reply['content']!r}")
+            interaction.command = types.SimpleNamespace(name="analyze", qualified_name="analyze")
+            asyncio.run(core.on_app_command_error(interaction, discord.app_commands.CommandInvokeError(interaction.command, RuntimeError("boom"))))
+            if not interaction.response.said or not re.search(r"send your error ID `[0-9A-F]{8}` along with it", interaction.response.said[-1]):
+                problems.append(f"a command that raised told the person {interaction.response.said}")
+            errors._seen.clear()           # the button's report in full, not as a repeat of the command's above
+            menu = OwnerOnlyView(1, timeout=None)
+            pressed = types.SimpleNamespace(user=types.SimpleNamespace(id=1), response=Response(), followup=None)
+            asyncio.run(menu.on_error(pressed, RuntimeError("boom"), discord.ui.Button(label="Refresh")))
+            if not pressed.response.said or not re.search(r"send your error ID `[0-9A-F]{8}` along with it", pressed.response.said[-1]):
+                problems.append(f"a broken button told the person {pressed.response.said}")
+            if "Refresh" not in str(posted[-1]):
+                problems.append("the broken button's report did not say which button it was")
+        finally:
+            core.command_context = view.command_context = kept_context
+    finally:
+        root.removeHandler(handler)
+        errors.ERROR_WEBHOOK_URL, errors._enqueue = kept
+        errors._seen.clear()
+        errors._sent.clear()
+    return problems
+
+
+@check("a name with Japanese, full-width letters or an emoji reaches the bot unchanged: the user header is plain ASCII, so fetch accepts it, and the bot reads it back")
+def _user_header_survives_any_name():
+    import http.server
+    import json as jsonlib
+    import shutil
+    import subprocess
+    import threading
+
+    node = shutil.which("node")
+    if node is None:
+        return []           # shortcut: no Node on this machine to run the site's own code with; the site's build covers it where there is one
+    names = ["Darkful", "café", "ゆうき", "Dark 🌙 ful", "ｄａｒｋ", 'quo"te\\slash', "🇯🇵 日本語 mixed"]
+    problems = []
+    seen = []
+
+    class Bot(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            # as the bot reads it: http.server decodes a header as Latin-1, and the value is then parsed as JSON
+            seen.append(jsonlib.loads(self.headers.get("X-Rasmai-User", "{}")).get("name"))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+    server = http.server.HTTPServer(("127.0.0.1", 0), Bot)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    script = ("import { headerJson } from %s;\nconst names = JSON.parse(process.argv[1]);\nconst out = [];\n"
+              "for (const name of names) {\n  try {\n    const header = headerJson({ id: '1', name, handle: 'h', avatar: '' });\n"
+              "    if (/[^\x20-\x7e]/.test(header)) { out.push('not ascii: ' + name); continue; }\n"
+              "    await fetch('http://127.0.0.1:%d/', { headers: { 'X-Rasmai-User': header } });\n"
+              "  } catch (error) { out.push('threw for ' + name + ': ' + error.message.slice(0, 60)); }\n}\nconsole.log(JSON.stringify(out));\n"
+              ) % (jsonlib.dumps((ROOT / "web" / "lib" / "headerJson.ts").as_uri()), server.server_address[1])
+    try:
+        done = subprocess.run([node, "--input-type=module", "-e", script, jsonlib.dumps(names)], capture_output=True, text=True,
+                              encoding="utf-8", timeout=60)
+        failed = jsonlib.loads(done.stdout.strip().splitlines()[-1]) if done.stdout.strip() else [f"node said: {done.stderr[-200:]}"]
+    except (subprocess.TimeoutExpired, ValueError) as error:
+        failed = [f"could not run the site's code: {type(error).__name__}"]
+    finally:
+        server.shutdown()
+    if failed:
+        problems.append(f"names that could not be sent: {failed}")
+    if seen != names:
+        problems.append(f"the bot read {seen}, not {names}")
+    return problems
+
+
+@check("a planned maintenance on the status page takes over the site's banner from three days out until it's done, and the stored one comes back after")
+def _maintenance_band():
+    from datetime import datetime, timedelta, timezone
+    from rasmai.web.dashboard import overview
+
+    problems = []
+    now = datetime(2026, 10, 12, 12, 0, tzinfo=timezone.utc)
+    iso = lambda moment: moment.isoformat().replace("+00:00", ".000Z")
+    soon = {"id": "m1", "name": "Database move", "status": "NOTSTARTEDYET", "start": iso(now + timedelta(days=1)), "duration": 60}
+    later = {"id": "m2", "name": "Far off", "status": "NOTSTARTEDYET", "start": iso(now + timedelta(days=5)), "duration": 60}
+    going = {"id": "m3", "name": {"en": "Server swap"}, "status": "INPROGRESS", "start": iso(now - timedelta(minutes=10)), "end": iso(now + timedelta(hours=2))}
+    done = {"id": "m4", "name": "Old", "status": "COMPLETED", "start": iso(now - timedelta(days=1)), "duration": 30}
+    kept = overview._maintenances
+    try:
+        overview._maintenances = lambda: [later, soon, done]
+        band = overview.planned_maintenance(now)
+        if not band or "Database move" not in band["text"] or band["at"] != (now + timedelta(days=1)).isoformat() or band["id"] != "maintenance-m1-soon":
+            problems.append(f"a maintenance tomorrow did not make the band, or named the wrong time: {band}")
+        if band and (band["tone"] != "warning" or not band["link"].startswith("https://")):
+            problems.append(f"the maintenance band is not a warning linking the status page: {band}")
+        overview._maintenances = lambda: [soon, going]
+        band = overview.planned_maintenance(now)
+        if not band or "Server swap" not in band["text"] or "right now" not in band["text"] or band["at"] != (now + timedelta(hours=2)).isoformat():
+            problems.append(f"one under way did not lead with when it should end: {band}")
+        overview._maintenances = lambda: [later, done]
+        if overview.planned_maintenance(now) is not None:
+            problems.append("a maintenance five days out, or one already done, made the band")
+        overview._maintenances = lambda: [dict(soon, start=iso(now - timedelta(hours=2)))]
+        if overview.planned_maintenance(now) is not None:
+            problems.append("a maintenance whose hour has passed still made the band")
+        overview._maintenances = lambda: []
+        if overview.notice_payload().get("id", "").startswith("maintenance-"):
+            problems.append("the band stayed on maintenance with none planned")
+    finally:
+        overview._maintenances = kept
+    if overview._maintenances() != []:
+        problems.append("the sweep asked the real status page about maintenance")
     return problems
