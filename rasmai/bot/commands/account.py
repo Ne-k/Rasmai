@@ -131,10 +131,8 @@ async def invite(interaction: discord.Interaction):
     view = discord.ui.View()
     if DISCORD_BOT_INVITE:
         view.add_item(discord.ui.Button(label="Invite (App Install)", url=DISCORD_BOT_INVITE))
-    # adds the bot to a server with the permissions it needs, this one when asked in a server; for a server the bot is already in, what it has stays
-    guild = interaction.guild
-    have = guild.me.guild_permissions if guild is not None and getattr(guild, "me", None) is not None else None
-    view.add_item(discord.ui.Button(label="Invite (Server)", url=server_invite_url(interaction.guild_id, have)))
+    # adds the bot to any server the person picks, with the permissions it needs, wherever /invite is run
+    view.add_item(discord.ui.Button(label="Invite (Server)", url=server_invite_url()))
 
     view.add_item(discord.ui.Button(label="Dashboard", url=f"{site}/me/"))
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)

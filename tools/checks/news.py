@@ -2649,7 +2649,7 @@ def _installs():
     return problems
 
 
-@check("/invite offers the app install and a server install that asks for every permission the bot needs, for this server when run in one and for any when run in a DM")
+@check("/invite offers the app install and a server install that asks for every permission the bot needs and lets the person pick any server, wherever it is run")
 def _invite_buttons():
     from urllib.parse import parse_qs, urlparse
     from rasmai.bot import core
@@ -2666,7 +2666,7 @@ def _invite_buttons():
             query = parse_qs(urlparse(link).query)
             if "Invite (App Install)" not in labels or not link:
                 problems.append(f"/invite in {guild_id or 'a DM'} offered {sorted(labels)}")
-            if query.get("guild_id") != ([str(guild_id)] if guild_id else None) or int(query.get("permissions", ["0"])[0]) & core.BOT_PERMISSIONS.value != core.BOT_PERMISSIONS.value:
+            if query.get("guild_id") or query.get("disable_guild_select") or int(query.get("permissions", ["0"])[0]) & core.BOT_PERMISSIONS.value != core.BOT_PERMISSIONS.value:
                 problems.append(f"the server link from {guild_id or 'a DM'} was {link}")
     finally:
         core.bot._connection.application_id, account.DISCORD_BOT_INVITE = kept
