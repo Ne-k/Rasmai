@@ -17,7 +17,9 @@ from rasmai.storage.db import (
 
 logger = logging.getLogger(__name__)
 
-POLL_EVERY = 300                    # seconds between looks at the X feeds
+POLL_EVERY = 240                    # seconds from one look at an X feed to the next, start to start, so a post is out inside five minutes
+POLL_SPREAD = 0.8                   # share of that cycle the looks are spread over, one account after another, instead of every account at once
+POLL_GAP_MAX = 30                   # seconds between two accounts' looks at most, so a few accounts are not left waiting out the cycle
 IDLE_RECHECK = 60                   # seconds between asking whether anyone follows a Bluesky account, while nobody does
 CATCH_UP = 5                        # most posts sent at once after a gap; older ones are marked seen, not sent
 BURST_WINDOW = 1800                 # seconds; posts this recent are never cut by CATCH_UP, so a burst of them all goes out even when a Nitter feed lags
@@ -280,8 +282,12 @@ class NewsWatch:
                         [news.x_side(source) for source in sources.values() if source.key in wanted and source.platform != "X" and source.x_handle]
                 polled: Set[str] = set()
                 learned = followed
+                began = time.monotonic()
+                gap = min(POLL_GAP_MAX, POLL_EVERY * POLL_SPREAD / max(1, len(feeds)))
 
-                async def read(source: Source) -> None:
+                async def read(source: Source, wait: float) -> None:
+                    if wait > 0:
+                        await asyncio.sleep(wait)       # the feeds are asked one after another across the cycle: a Nitter instance sees a trickle, not a burst
                     async with turn:
                         try:
                             # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
@@ -289,12 +295,13 @@ class NewsWatch:
                             polled.add(source.key)
                         except Exception:
                             logger.exception("news: reading %s failed", source.handle)
-                await asyncio.gather(*(read(source) for source in feeds))
+                await asyncio.gather(*(read(source, number * gap) for number, source in enumerate(feeds)))
                 followed = (followed & wanted) | polled
             except Exception:
                 # a locked database must cost one round, not the loop: nothing else would start it again
                 logger.exception("news: a round of reading X failed")
-            await asyncio.sleep(POLL_EVERY)
+                began = time.monotonic()
+            await asyncio.sleep(max(min(5.0, POLL_EVERY / 10), POLL_EVERY - (time.monotonic() - began)))
 
     async def poll(self, source: Source, learn: bool = False) -> int:
         """Send the posts of an X account that nobody has seen.

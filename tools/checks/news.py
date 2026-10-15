@@ -1869,12 +1869,14 @@ def _added():
             watch.poll = poll
             kept_sleep = tasks.asyncio.sleep
             tasks.asyncio.sleep = stop
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
             try:
                 asyncio.run(watch._x_loop())
             except Stop:
                 pass
             finally:
                 tasks.asyncio.sleep = kept_sleep
+                tasks.POLL_GAP_MAX = kept_gap
             if fanx.key not in looked:
                 problems.append(f"the X loop looked at {looked}, not the added X account")
             # forgotten once no channel follows it; one still followed stays, with its subscription
@@ -1991,12 +1993,14 @@ def _added_limits():
             watch.poll = poll
             kept_sleep = tasks.asyncio.sleep
             tasks.asyncio.sleep = stop
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
             try:
                 asyncio.run(watch._x_loop())
             except Stop:
                 pass
             finally:
                 tasks.asyncio.sleep = kept_sleep
+                tasks.POLL_GAP_MAX = kept_gap
             if sorted(done) != sorted(["maimai", "preformai", fanx.key]):      # Preformai is read on X as well
                 problems.append(f"the X loop finished {done}: it reads one account at a time, or skipped one")
             # an added X account is tried on few instances, a built-in one on all
@@ -2147,12 +2151,14 @@ def _both_sites():
             loop.poll = poll
             kept_sleep = tasks.asyncio.sleep
             tasks.asyncio.sleep = stop
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
             try:
                 asyncio.run(loop._x_loop())
             except Stop:
                 pass
             finally:
                 tasks.asyncio.sleep = kept_sleep
+                tasks.POLL_GAP_MAX = kept_gap
             wanted = [("maimai", "maimai_official", False), ("preformai", "performaien", True), ("maimai", "maimai_official", False), ("preformai", "performaien", False)]
             if sorted(looked) != sorted(wanted):
                 problems.append(f"two rounds of the X loop read {looked}")
@@ -2560,4 +2566,41 @@ def _unseen():
         asyncio.run(command.save_channel(allowed, channel, list(extras)[:command.MAX_EXTRA_PER_SERVER], 0, extras))
         if db.guild_news("77").get("5", []) != list(extras)[:command.MAX_EXTRA_PER_SERVER]:
             problems.append(f"{command.MAX_EXTRA_PER_SERVER} accounts of its own choosing were not allowed: {db.guild_news('77')}")
+    return problems
+
+
+@check("X accounts are read one after another across the cycle, not all at once, and each is read again one cycle after its last look began")
+def _spread():
+    import time
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping.news import Source
+    problems = []
+    accounts = {f"x:a{n}": Source(f"x:a{n}", f"A{n}", "X", f"a{n}") for n in range(5)}
+    looks = []
+    kept = tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources
+    tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources = lambda: set(accounts), lambda: accounts, 1.0, lambda sources: None
+    tasks.POLL_GAP_MAX = 30
+
+    async def run():
+        watch = tasks.NewsWatch()
+
+        async def poll(source, learn=False):
+            looks.append((source.key, time.monotonic()))
+            await asyncio.sleep(0.05)       # a look takes a moment; the next cycle must still start on time
+            return 0
+        watch.poll = poll
+        loop = asyncio.create_task(watch._x_loop())
+        await asyncio.sleep(2.3)
+        loop.cancel()
+    try:
+        asyncio.run(run())
+    finally:
+        tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources = kept
+        tasks.POLL_GAP_MAX = 30
+    first = sorted(at for key, at in looks if key in accounts)[:5]
+    if len(first) < 5 or first[-1] - first[0] < 0.4:
+        problems.append(f"the first five looks began within {first[-1] - first[0] if first else 0:.2f}s of each other, all at once")
+    own = sorted(at for key, at in looks if key == "x:a0")
+    if len(own) < 2 or not 0.9 < own[1] - own[0] < 1.1:
+        problems.append(f"an account was looked at again {own[1] - own[0] if len(own) > 1 else 0:.2f}s later, not one cycle after its look began")
     return problems
