@@ -99,12 +99,12 @@ def _reading():
     if "@everyone" in clean or "<@" in clean or "<#" in clean or "@here" in clean:
         problems.append(f"a ping survived: {clean!r}")
 
-    feed = b"""<rss><channel><image><url>https://pic/a.png</url></image>
+    feed = b"""<rss><channel><image><url>https://pbs.twimg.com/profile_images/1/a.png</url></image>
       <item><title>RT by someone</title><link>https://n/x/status/3#m</link><description></description></item>
       <item><title>new song</title><link>https://n/maimai_official/status/2#m</link><description>&lt;img src="https://pbs.twimg.com/m.jpg"&gt;&lt;img src="/pic/a"&gt;</description></item>
       <item><title>\xe3\x83\xaa\xe3\x83\x84\xe3\x82\xa4\xe3\x83\xbc\xe3\x83\x88 x</title><link>https://n/x/status/1#m</link><description></description></item></channel></rss>"""
     items, avatar = news.parse_feed(feed)
-    if [(i.id, i.retweet) for i in items] != [("3", True), ("2", False), ("1", True)] or avatar != "https://pic/a.png":
+    if [(i.id, i.retweet) for i in items] != [("3", True), ("2", False), ("1", True)] or avatar != "https://pbs.twimg.com/profile_images/1/a.png":
         problems.append(f"the feed read as {[(i.id, i.retweet) for i in items]}, {avatar!r}")
     # a relative /pic/ address is the instance's own proxy of a twimg.com picture, so it is read as that
     if news.media_urls(items[1].description) != ["https://pbs.twimg.com/m.jpg", "https://pbs.twimg.com/a"]:
@@ -1111,6 +1111,12 @@ class _Guild:
     def get_channel(self, cid):
         return self.channels.get(cid)
 
+    async def fetch_channel(self, cid):
+        import discord
+        if cid not in self.channels:
+            raise discord.NotFound(type("R", (), {"status": 404, "reason": "Not Found"})(), "Unknown Channel")
+        return self.channels[cid]
+
 
 class _Channel:
     def __init__(self, cid, user_ok=True, bot_ok=True, guild_id=77):
@@ -1792,9 +1798,11 @@ def _added():
                 problems.append(f"an added account was not listed under its name and ticked: {labels}, ticked {menu.ticked}")
             if any("(" in label for label in labels.values()):
                 problems.append(f"the accounts still say where they come from: {list(labels.values())}")
+            command._lookup_at.clear()
             asyncio.run(menu.add_account(_Interaction(), "maimai_official"))
             if "x:maimai_official" in [option.value for option in menu.which.options] or len(menu.which.options) != len(news.SOURCES) + 1 or "maimai" in menu.added:
                 problems.append("a built-in account typed in again was listed twice")
+            command._lookup_at.clear()
             nope = _Interaction()
             asyncio.run(menu.add_account(nope, "zzz"))
             if not nope.said or "Couldn't find" not in nope.said[0]:
@@ -2413,4 +2421,143 @@ def _maimai_choice():
         news.fetch_feed = kept_feed
     if filtered != ["2"] or everything != ["1", "2", "3"]:
         problems.append(f"KOP's earlier posts were {filtered} with the maimai filter and {everything} without")
+    return problems
+
+
+@check("a post fits Discord's 2000 characters however many pings are made inert in it, a feed's pictures and a record's blobs can only point at the places trusted, and a dead webhook's token counts as gone")
+def _limits():
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping import news
+    problems = []
+    quote = "q" * 140
+    post = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["@everyone " * 400], posted_at=1_800_000_000, follow_up=("https://x.com/a/status/0", quote))
+    text = post.content()
+    if len(text) > 2000 or "@everyone" in text.replace("@" + news.ZWSP + "everyone", ""):
+        problems.append(f"a long post of pings came out {len(text)} characters, or with a live ping")
+    short = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).content()
+    if "hello" not in short or "…" in short:
+        problems.append(f"a short post was cut: {short!r}")
+    for blob in ("../../x", "abc?d=1", "a/b", 5, None, ""):
+        images, videos = news.bluesky_media({"embed": {"$type": "app.bsky.embed.images", "images": [{"image": {"ref": {"$link": blob}}}]}}, "did:plc:x")
+        more, clips = news.bluesky_media({"embed": {"$type": "app.bsky.embed.video", "video": {"ref": {"$link": blob}}}}, "did:plc:x")
+        if images or videos or more or clips:
+            problems.append(f"a blob {blob!r} was put into an address")
+    images, _ = news.bluesky_media({"embed": {"$type": "app.bsky.embed.images", "images": [{"image": {"ref": {"$link": "bafkreih" + "a" * 40}}}]}}, "did:plc:x")
+    if len(images) != 1:
+        problems.append("a real content id was refused")
+    feed = b"<rss><channel><image><url>%s</url></image><item><title>t</title><link>https://n/a/status/1</link></item></channel></rss>"
+    for address, kept in (("https://pbs.twimg.com/profile_images/1/a.jpg", True), ("https://evil.example/a.png", False), ("http://pbs.twimg.com/a.jpg", False)):
+        _items, avatar = news.parse_feed(feed % address.encode())
+        if bool(avatar) != kept:
+            problems.append(f"a feed's picture at {address} was {'dropped' if kept else 'kept'}")
+    if 50027 not in tasks.GONE_CODES:
+        problems.append("a webhook answering Invalid Webhook Token is kept and tried on every post")
+    if len(news.FeedItem("1", "t", "", "<p>" + "<a " * 100000 + "</p>", False).text) > 20000:
+        problems.append("a feed's description was read whole")
+    return problems
+
+
+@check("the X loop outlives a database that fails for a moment, and starting the news again restarts a loop that ended without doubling the one running")
+def _loops():
+    from rasmai.bot.tasks import news as tasks
+    problems = []
+    calls = []
+
+    def keys():
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("database is locked")
+        return set()
+    kept = tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources
+    tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources = keys, lambda: {}, 0.01, lambda sources: None
+
+    async def run():
+        watch = tasks.NewsWatch()
+        loop = asyncio.create_task(watch._x_loop())
+        await asyncio.sleep(0.3)
+        alive = not loop.done()
+        loop.cancel()
+        return alive, len(calls)
+
+    async def restart():
+        watch = tasks.NewsWatch()
+        started = []
+
+        async def forever(name):
+            started.append(name)
+            await asyncio.sleep(60)
+        watch._bluesky_loop, watch._x_loop = (lambda: forever("bluesky")), (lambda: forever("x"))
+        watch.start()
+        await asyncio.sleep(0)
+        watch.start()
+        await asyncio.sleep(0)
+        watch._tasks[1].cancel()
+        await asyncio.sleep(0.01)
+        watch.start()
+        await asyncio.sleep(0)
+        for task in watch._tasks:
+            task.cancel()
+        return started
+    try:
+        alive, seen = asyncio.run(run())
+        if not alive or seen < 3:
+            problems.append(f"one failed read of the database ended the X loop (alive {alive}, {seen} reads)")
+        started = asyncio.run(restart())
+        if started != ["bluesky", "x", "x"]:
+            problems.append(f"starting the news again started {started}, not just the loop that had ended")
+    finally:
+        tasks.followed_news_keys, tasks.load_sources, tasks.POLL_EVERY, tasks.remove_unknown_news_sources = kept
+    return problems
+
+
+@check("a channel the bot cannot see is only changed by someone with Manage Webhooks across the server, a deleted one by anybody who may use the command, and adding accounts is spaced out and capped per server")
+def _unseen():
+    import discord
+    import time
+    import types
+    from rasmai.bot.commands import news as command
+    from rasmai.scraping.news import Source
+    problems = []
+
+    class Hidden(_Guild):
+        async def fetch_channel(self, cid):
+            raise discord.Forbidden(type("R", (), {"status": 403, "reason": "Forbidden"})(), "Missing Access")
+
+    def person(server_wide):
+        who = _Interaction().user
+        who.guild_permissions = _Perms(server_wide)
+        return types.SimpleNamespace(user=who, guild_id=77)
+
+    async def ask(guild, server_wide, channel=None):
+        return await command._refusal_for(person(server_wide), guild, channel, "5")
+    if asyncio.run(ask(_Guild(), False)):
+        problems.append("a deleted channel's news could not be cleared by someone who may use the command")
+    if not asyncio.run(ask(Hidden(), False)) or asyncio.run(ask(Hidden(), True)):
+        problems.append("a channel the bot cannot see was open to someone with Manage Webhooks in only another channel, or shut to someone with it everywhere")
+    if not asyncio.run(ask(_Guild(), False, _Channel(5, user_ok=False))):
+        problems.append("a channel the person cannot manage was not refused")
+
+    with _scratch():
+        menu = command.SubscribeMenu(1, 77, {}, 0)
+        command._lookup_at[1] = time.monotonic()
+        wait = _Interaction()
+        asyncio.run(menu.add_account(wait, "fan"))
+        if not wait.said or "One lookup at a time" not in wait.said[0]:
+            problems.append(f"a second lookup straight away was answered with {wait.said}")
+        command._lookup_at.clear()
+
+        from rasmai.storage import db
+        extras = {f"x:fan{n}": Source(f"x:fan{n}", f"Fan {n}", "X", f"fan{n}") for n in range(command.MAX_EXTRA_PER_SERVER + 1)}
+        guild = _Guild(77)
+        channel = _Channel(5)
+        channel.guild = guild
+        guild.channels[5] = channel
+        refused = _Interaction(guild=guild)
+        result = asyncio.run(command.save_channel(refused, channel, list(extras), 0, extras))
+        if result is not None or not refused.said or "of its own choosing" not in refused.said[0]:
+            problems.append(f"a server following {len(extras)} accounts of its own choosing was told {refused.said}")
+        allowed = _Interaction(guild=guild)
+        asyncio.run(command.save_channel(allowed, channel, list(extras)[:command.MAX_EXTRA_PER_SERVER], 0, extras))
+        if db.guild_news("77").get("5", []) != list(extras)[:command.MAX_EXTRA_PER_SERVER]:
+            problems.append(f"{command.MAX_EXTRA_PER_SERVER} accounts of its own choosing were not allowed: {db.guild_news('77')}")
     return problems

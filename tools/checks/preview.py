@@ -164,7 +164,12 @@ class _Followup:
 
 
 def _interaction(guild=None, ephemeral=False, user=1234):
+    taken_down = []
+
+    async def delete_original_response():
+        taken_down.append(True)
     return types.SimpleNamespace(
+        taken_down=taken_down, delete_original_response=delete_original_response,
         user=types.SimpleNamespace(id=user, __str__=lambda s: "u"), guild=guild, guild_id=None, channel_id=None, command=None, data={}, namespace=[],
         message=types.SimpleNamespace(flags=types.SimpleNamespace(ephemeral=ephemeral)), response=_Reply(), followup=_Followup())
 
@@ -248,6 +253,13 @@ def _button_failures():
         text = nothing.followup.sent[0][0] if nothing.followup.sent else ""
         if "haven't read" not in text or not nothing.followup.sent[0][1].get("ephemeral") or module._last:
             problems.append(f"a chart with no stored notation was not told so privately and left free to try again: {text!r}")
+        if not nothing.taken_down:
+            problems.append("the public wait was left in the channel under a refusal meant only for the person who asked")
+        private = _interaction(ephemeral=True)
+        module._last.clear()
+        asyncio.run(module.send_preview(private, ref))
+        if private.taken_down or not private.followup.sent:
+            problems.append("a refusal on a message only its owner sees took down a reply that was already private, or went unsaid")
         sheet_put("|".join(ref.key), "id1", "(150){8}" + ",".join(["1", "3/6"] * 20) + ",")
 
         def broken(*args):
