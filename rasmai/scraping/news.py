@@ -95,9 +95,7 @@ class Post:
 
     def content(self, unfurl: bool = False) -> str:
         """The message: ``unfurl`` lets the link draw its preview, for when the post's media could not be attached."""
-        body = unmask("\n\n".join(p for p in self.parts if p).strip())
-        if len(body) > 1500:
-            body = body[:1490] + "…"
+        whole = unmask("\n\n".join(p for p in self.parts if p).strip())
         link = self.url if unfurl or (self.wanted_video and not self.videos) else f"<{self.url}>"
         # Discord draws these in each reader's own time zone: the full date and time, then how long ago, which keeps counting
         when = f"-# Posted <t:{self.posted_at}:F> · <t:{self.posted_at}:R>\n" if self.posted_at else ""
@@ -105,7 +103,14 @@ class Post:
         if self.follow_up:
             earlier, line = self.follow_up[0], unmask(self.follow_up[1])
             head = FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post](<{earlier}>)" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
-        return sanitize(f"{head}{body}\n\n{when}{link}\n\n---".strip())
+        room = 1500
+        while True:
+            body = whole if len(whole) <= room else whole[:room - 10] + "…"
+            text = sanitize(f"{head}{body}\n\n{when}{link}\n\n---".strip())
+            # Discord refuses a message over 2000, and the mentions made inert, a quoted line and the links all add to the post's own words
+            if len(text) <= 2000 or room <= 200:
+                return text[:2000]
+            room -= len(text) - 2000 + 50
 
 
 TWITTER_EPOCH_MS = 1288834974657
@@ -293,6 +298,11 @@ async def video_bytes(url: str) -> Optional[bytes]:
 
 # ---------------------------------------------------------------- Bluesky
 
+def _blob(blob: Any) -> bool:
+    """Whether a record's blob reference is a plain content id. The author writes it, and it goes into an address: no ``../``, ``?`` or ``#``."""
+    return isinstance(blob, str) and re.fullmatch(r"[A-Za-z0-9]{1,100}", blob) is not None
+
+
 def bluesky_media(record: Dict[str, Any], did: str) -> Tuple[List[str], List[str]]:
     """The image URLs and video playlist URLs a post's embed points at."""
     images: List[str] = []
@@ -302,11 +312,11 @@ def bluesky_media(record: Dict[str, Any], did: str) -> Tuple[List[str], List[str
     if "images" in kind:
         for item in embed.get("images", []):
             blob = ((item.get("image") or {}).get("ref") or {}).get("$link")
-            if blob:
+            if _blob(blob):
                 images.append(f"{IMG_CDN}/{did}/{blob}")
     elif "video" in kind:
         blob = ((embed.get("video") or {}).get("ref") or {}).get("$link")
-        if blob:
+        if _blob(blob):
             videos.append(f"{VID_CDN}/{quote(did, safe='')}/{blob}/playlist.m3u8")
     return images, videos
 
@@ -341,7 +351,7 @@ async def bluesky_avatar(session: aiohttp.ClientSession, handle: str) -> str:
     if handle not in _avatars:
         data = await _get_json(session, f"{PUBLIC_API}/app.bsky.actor.getProfile", {"actor": handle})
         avatar = str(data.get("avatar", "")) if isinstance(data, dict) else ""
-        if avatar:
+        if avatar and trusted(avatar):
             _avatars[handle] = avatar
         return avatar
     return _avatars[handle]
@@ -364,7 +374,8 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
         playlists += more_videos
     images = list(dict.fromkeys(images))
     playlists = list(dict.fromkeys(playlists))
-    videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data]
+    # fetching and re-encoding a video takes minutes and holds up every post behind it, so only the built-in accounts' videos are attached
+    videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data] if source.key in SOURCES else []
     follow_up = None
     if record.get("reply"):
         follow_up = ("", "")
@@ -398,7 +409,8 @@ class FeedItem:
         A link is its full address where the post shows it shortened; a mention or hashtag, which Nitter links to itself, is its text.
         Without a description, the title, less Nitter's "R to @someone:" in front.
         """
-        body = re.search(r"<p>(.*?)</p>", self.description, re.S)
+        description = self.description[:20000]          # the feed is trusted to be a Nitter's, not to be small: the patterns below must not be fed megabytes
+        body = re.search(r"<p>(.*?)</p>", description, re.S)
         if not body:
             return re.sub(r"^R to @\w+:\s*", "", self.title)
 
@@ -430,7 +442,8 @@ def parse_feed(content: bytes) -> Tuple[List[FeedItem], str]:
         items.append(FeedItem(tweet_id(link), title, link, item.findtext("description") or "",
                               bool(re.match(r"^(?:RT\b|リツイート\b)", title, flags=re.IGNORECASE)),
                               author.group(1) if author else "", reply.group(1) if reply else ""))
-    return items, twimg((root.findtext("./channel/image/url") or "").strip())
+    avatar = twimg((root.findtext("./channel/image/url") or "").strip())
+    return items, avatar if trusted(avatar) else ""         # a feed could point Discord's webhook avatar at any address
 
 
 def feed_title(content: bytes) -> str:
@@ -502,8 +515,8 @@ async def find_account(session: aiohttp.ClientSession, text: str) -> Optional[So
     if platform == "Bluesky":
         data = await _get_json(session, f"{PUBLIC_API}/app.bsky.actor.getProfile", {"actor": handle})
         did = str(data.get("did", "")) if isinstance(data, dict) else ""
-        if not did.startswith("did:"):
-            return None
+        if not did.startswith("did:") or len(did) > 90:
+            return None         # the key is kept in a select menu's value, which Discord cuts at 100 characters
         handle = str(data.get("handle") or handle)
         return Source(f"bsky:{did}", _label(str(data.get("displayName") or ""), handle), "Bluesky", handle, did)
     if platform == "X":

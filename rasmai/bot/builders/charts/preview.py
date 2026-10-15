@@ -76,6 +76,17 @@ def preview_button(ref: ChartRef) -> Optional[discord.ui.Button]:
     return button
 
 
+async def _refuse(interaction: discord.Interaction, text: str) -> None:
+    """Say why there is no preview to the person who asked. The public wait is taken down first: the first followup to a deferred reply
+    takes its visibility, so an ephemeral one sent straight away would show in the channel."""
+    if not (interaction.message and interaction.message.flags.ephemeral):
+        try:
+            await interaction.delete_original_response()
+        except discord.HTTPException:
+            pass
+    await interaction.followup.send(text, ephemeral=True)
+
+
 async def send_preview(interaction: discord.Interaction, ref: ChartRef) -> None:
     """Draw the chart's busiest stretch and post it under the chart page, as a new message so the page stays where it is."""
     from rasmai.bot.core import command_context
@@ -89,6 +100,7 @@ async def send_preview(interaction: discord.Interaction, ref: ChartRef) -> None:
         for stale in [p for p, at in _last.items() if now - at > COOLDOWN]:
             del _last[stale]
     _last[person] = now
+    # the preview is posted for the channel, so the wait is public too; a refusal is only for them, which a followup cannot be after a public defer
     await interaction.response.defer(ephemeral=bool(interaction.message and interaction.message.flags.ephemeral), thinking=True)
     limit = (interaction.guild.filesize_limit if interaction.guild else UPLOAD_LIMIT) - MARGIN
     try:
@@ -96,15 +108,14 @@ async def send_preview(interaction: discord.Interaction, ref: ChartRef) -> None:
     except Exception as error:
         _last.pop(person, None)         # it was not their doing, so they may try again at once
         error_id = report(error, "chart preview failed", await command_context(interaction))
-        await interaction.followup.send(f"Couldn't draw that preview.\n{support_line(error_id)}", ephemeral=True)
+        await _refuse(interaction, f"Couldn't draw that preview.\n{support_line(error_id)}")
         return
     if made is None:
         _last.pop(person, None)
-        await interaction.followup.send("I haven't read that chart's notes yet, so there's nothing to draw. They come in a few at a time, so check back later.",
-                                        ephemeral=True)
+        await _refuse(interaction, "I haven't read that chart's notes yet, so there's nothing to draw. They come in a few at a time, so check back later.")
         return
     if len(made.gif) > limit:
-        await interaction.followup.send("That one came out too big to upload here, even at the smallest size.", ephemeral=True)
+        await _refuse(interaction, "That one came out too big to upload here, even at the smallest size.")
         return
     name = f"{ref.chart_type}-{ref.difficulty}-preview.gif"
     await interaction.followup.send(

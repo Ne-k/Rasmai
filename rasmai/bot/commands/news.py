@@ -26,11 +26,14 @@ WEBHOOK_NAME = "Rasmai news"
 MENU_TIMEOUT = 600           # seconds a menu answers for
 NEWS_COLOR = discord.Color.from_rgb(92, 211, 232)
 CHANNEL_TYPES = [discord.ChannelType.text, discord.ChannelType.news]     # the kinds of channel a webhook can post in
+MAX_EXTRA_PER_SERVER = 5     # accounts of its own choosing one server may follow, so a few servers cannot take every one of the MAX_ADDED
+LOOKUP_SPACING = 15          # seconds between one person's lookups of an account to add: each is up to three reads of a public Nitter instance
 MAX_ADDED = 50               # accounts servers added that the bot reads at once: each X one is a Nitter read every few minutes, and those are public servers
 MAX_CHOICES = 25             # what one Discord select can list
 ADDED_FULL = "Rasmai already follows as many extra accounts as it can. Ask in the support server if you need one added."
 
 _history_at: Dict[int, float] = {}
+_lookup_at: Dict[int, float] = {}
 
 news = app_commands.Group(
     name="news", description="Get maimai news posted in a channel",
@@ -114,6 +117,23 @@ def _refusal(interaction: discord.Interaction, channel: discord.TextChannel) -> 
     return ""
 
 
+async def _refusal_for(interaction: discord.Interaction, guild: Optional[discord.Guild], channel: Optional[discord.TextChannel], channel_id: str) -> str:
+    """``_refusal`` for a channel that may not be in the bot's view: one it cannot find is looked up, or anybody with Manage Webhooks in
+    some channel could stop the news of one they have no say over. A deleted one has nobody to ask, and only its rows are left."""
+    if channel is not None:
+        return _refusal(interaction, channel)
+    try:
+        found = await guild.fetch_channel(int(channel_id)) if guild is not None else None
+    except discord.NotFound:
+        return ""
+    except (discord.HTTPException, ValueError):
+        found = None            # it exists but the bot cannot read it: only the server-wide right will do
+    if found is not None:
+        return _refusal(interaction, found)
+    rights = getattr(interaction.user, "guild_permissions", None)
+    return "" if rights is not None and rights.manage_webhooks else "You need **Manage Webhooks** for the whole server to change a channel I can't see."
+
+
 async def _drop_webhook(url: Optional[str]) -> None:
     """Delete the webhook a channel was sent news through, now that nothing is left to send there."""
     if url:
@@ -154,6 +174,11 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
         # checked again here: the check on adding counts only saved accounts, and many menus can be adding at once
         followed = await asyncio.to_thread(followed_news_keys)
         extra = [key for key in fresh if key not in SOURCES and key not in followed]
+        elsewhere = await asyncio.to_thread(guild_news, guild_id)
+        own = {key for cid, keys in elsewhere.items() if cid != channel_id for key in keys if key not in SOURCES} | {key for key in wanted if key not in SOURCES}
+        if len(own) > MAX_EXTRA_PER_SERVER:
+            await _reply(interaction, f"A server can follow up to {MAX_EXTRA_PER_SERVER} accounts of its own choosing. Stop one before adding another.")
+            return None
         if extra and await asyncio.to_thread(followed_news_source_count) + len(extra) > MAX_ADDED:
             await _reply(interaction, ADDED_FULL)
             return None
@@ -393,6 +418,13 @@ class SubscribeMenu(OwnerOnlyView):
 
     async def add_account(self, interaction: discord.Interaction, text: str) -> None:
         """Look up an account someone typed and list it, ticked; Save then starts it in the picked channel."""
+        wait = LOOKUP_SPACING - (time.monotonic() - _lookup_at.get(interaction.user.id, float("-inf")))
+        if wait > 0:
+            await _reply(interaction, f"One lookup at a time - try again in {int(wait) + 1}s.")
+            return
+        if len(_lookup_at) > 1000:
+            _lookup_at.clear()
+        _lookup_at[interaction.user.id] = time.monotonic()
         await interaction.response.defer()
         try:
             source = await feeds.find_account(news_watch.session, text)
@@ -436,7 +468,7 @@ class SubscribeMenu(OwnerOnlyView):
             if key not in keys:
                 continue
             channel = interaction.guild.get_channel(int(channel_id)) if interaction.guild is not None else None
-            if channel is not None and _refusal(interaction, channel):      # a deleted channel has nobody to ask, and only its rows are left
+            if await _refusal_for(interaction, interaction.guild, channel, channel_id):
                 refused.append(f"<#{channel_id}>")
                 continue
             if keys == [key]:
@@ -535,7 +567,7 @@ class UnsubscribeMenu(OwnerOnlyView):
         stopped, refused = [], []
         for channel_id in chosen:
             channel = self.guild.get_channel(int(channel_id))
-            if channel is not None and _refusal(interaction, channel):      # a deleted channel has nobody to ask, and only its rows are left
+            if await _refusal_for(interaction, self.guild, channel, channel_id):
                 refused.append(f"<#{channel_id}>")
                 continue
             await stop_channel(channel_id)
@@ -576,6 +608,10 @@ class ManageMenu(SubscribeMenu):
         if channel is None:
             await interaction.response.defer()
             if value in self.following:
+                refused = await _refusal_for(interaction, self.guild, None, value)
+                if refused:
+                    await _reply(interaction, refused)
+                    return
                 await stop_channel(value)       # deleted: there is nobody to ask, and only this server's rows are left
                 await self._refresh(interaction, "That channel was deleted, so its news is stopped.")
             return

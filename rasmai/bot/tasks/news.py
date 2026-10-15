@@ -25,7 +25,7 @@ X_AT_ONCE = 4                       # X accounts read at the same time, so a dea
 SEND_AT_ONCE = 10                   # channels a post is being sent to at the same time; webhooks share Discord's ~50 a second global limit, so no more
 SEND_TIMEOUT = 30                   # seconds a send may take, Discord's own retries included, before it counts as a failure worth one more try
 UPLOAD_BUDGET = 1 << 30             # bytes a post may upload across all its channels; above it, the link draws the media instead of every channel getting a copy
-GONE_CODES = (10003, 10015)         # Discord's Unknown Channel and Unknown Webhook
+GONE_CODES = (10003, 10015, 50027)  # Discord's Unknown Channel, Unknown Webhook and Invalid Webhook Token
 NO_MENTIONS = discord.AllowedMentions.none()      # on every send: whatever a post says, it cannot ping a user, a role, @everyone or @here
 
 ALIVE_EVERY = 60                    # seconds between noting that the Jetstream connection is still up
@@ -85,7 +85,7 @@ class NewsWatch:
 
     def __init__(self):
         self._session: Optional[aiohttp.ClientSession] = None
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: List[Optional[asyncio.Task]] = [None, None]       # the Bluesky loop and the X loop
         self._running: Set[asyncio.Task] = set()
         self._inflight: Set[str] = set()        # Bluesky posts being waited on, built or sent right now
         self._queued: Dict[str, int] = {}       # of those, how many each account has
@@ -100,12 +100,17 @@ class NewsWatch:
         return self._session
 
     def start(self) -> None:
-        if any(not task.done() for task in self._tasks):
-            return          # on_ready fires again after a reconnect; the loops must not double
-        logger.info("news: Japanese posts are translated %s",
-                    f"by {news.TRANSLATE_MODEL} at {news.TRANSLATE_URL}, with Google Translate as the fallback" if news.TRANSLATE_URL
-                    else "by Google Translate only: MAIMAI_TRANSLATE_URL is not set")
-        self._tasks = [asyncio.create_task(self._bluesky_loop()), asyncio.create_task(self._x_loop())]
+        loops = (self._bluesky_loop, self._x_loop)
+        # on_ready fires again after a reconnect: a loop still running must not double, and one that ended is started again
+        stopped = [number for number, task in enumerate(self._tasks) if task is None or task.done()]
+        if not stopped:
+            return
+        if len(stopped) == len(loops):
+            logger.info("news: Japanese posts are translated %s",
+                        f"by {news.TRANSLATE_MODEL} at {news.TRANSLATE_URL}, with Google Translate as the fallback" if news.TRANSLATE_URL
+                        else "by Google Translate only: MAIMAI_TRANSLATE_URL is not set")
+        for number in stopped:
+            self._tasks[number] = asyncio.create_task(loops[number]())
 
     def spawn(self, work: Coroutine[Any, Any, Any]) -> None:
         """Run something in the background, kept referenced until it ends."""
@@ -263,26 +268,32 @@ class NewsWatch:
             logger.exception("news: old subscriptions could not be cleared")
         # sources read last round; at the start, every X account followed, so what was missed while the bot was down is caught up.
         # The X side of a Bluesky account only learns then: the Bluesky stream itself replays what was missed
-        keys = await asyncio.to_thread(followed_news_keys)
-        followed = {source.key for source in (await asyncio.to_thread(load_sources)).values() if source.platform == "X" and source.key in keys}
+        followed: Optional[Set[str]] = None
         turn = asyncio.Semaphore(X_AT_ONCE)
         while True:
-            sources = await asyncio.to_thread(load_sources)
-            wanted = await asyncio.to_thread(followed_news_keys)
-            feeds = [source for source in sources.values() if source.key in wanted and source.platform == "X"] + \
-                    [news.x_side(source) for source in sources.values() if source.key in wanted and source.platform != "X" and source.x_handle]
-            polled: Set[str] = set()
+            try:
+                sources = await asyncio.to_thread(load_sources)
+                wanted = await asyncio.to_thread(followed_news_keys)
+                if followed is None:
+                    followed = {source.key for source in sources.values() if source.platform == "X" and source.key in wanted}
+                feeds = [source for source in sources.values() if source.key in wanted and source.platform == "X"] + \
+                        [news.x_side(source) for source in sources.values() if source.key in wanted and source.platform != "X" and source.x_handle]
+                polled: Set[str] = set()
+                learned = followed
 
-            async def read(source: Source) -> None:
-                async with turn:
-                    try:
-                        # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
-                        await self.poll(source, learn=source.key not in followed)
-                        polled.add(source.key)
-                    except Exception:
-                        logger.exception("news: reading %s failed", source.handle)
-            await asyncio.gather(*(read(source) for source in feeds))
-            followed = (followed & wanted) | polled
+                async def read(source: Source) -> None:
+                    async with turn:
+                        try:
+                            # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
+                            await self.poll(source, learn=source.key not in learned)
+                            polled.add(source.key)
+                        except Exception:
+                            logger.exception("news: reading %s failed", source.handle)
+                await asyncio.gather(*(read(source) for source in feeds))
+                followed = (followed & wanted) | polled
+            except Exception:
+                # a locked database must cost one round, not the loop: nothing else would start it again
+                logger.exception("news: a round of reading X failed")
             await asyncio.sleep(POLL_EVERY)
 
     async def poll(self, source: Source, learn: bool = False) -> int:
