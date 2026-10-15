@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import { ApiError, getJSON, type PatternBrowse } from "./api";
-import { Chip, Empty, Jacket, pct } from "./bits";
+import { Chip, Empty, Jacket, chartHref, openInPlace, pct } from "./bits";
 
 const LEVELS = ["", "15", "14+", "14", "13+", "13", "12+", "12", "11+", "11", "10+", "10", "9+", "9", "8+", "8", "7+", "7"];
 
@@ -129,13 +129,13 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
               {data.charts.map((c) => (
                 <li key={`${c.title}|${c.chart_type}|${c.difficulty}`} className="hit">
                   <Jacket cover={c.cover} size={44} />
-                  <button type="button" className="hit-title" onClick={() => onOpen(c.title, c.chart_type, c.difficulty)}>
+                  <a className="hit-title" href={chartHref(c.title, c.chart_type, c.difficulty)} onClick={(e) => openInPlace(e, () => onOpen(c.title, c.chart_type, c.difficulty))}>
                     {c.title}
                     <small>
                       {c.played ? `${pct(c.accuracy)} ${c.rank} · ${c.rating}${c.note ? ` · ${c.note}` : ""}` : t("neverPlayed")}
                       {c.tags.length ? t("also", { tags: c.tags.map((x) => traitName(x, undefined, locale)).join(sep) }) : ""}
                     </small>
-                  </button>
+                  </a>
                   <div className="hit-charts">
                     <span className={c.played ? "" : "faded"} style={{ display: "contents" }}>
                       <Chip difficulty={c.difficulty} level={c.level} constant={c.constant} type={c.chart_type} />

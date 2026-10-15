@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const PAGES: { path: string; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]; priority: number }[] = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
   { path: "/link/", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/feedback/", changeFrequency: "yearly", priority: 0.3 },
   { path: "/privacy/", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms/", changeFrequency: "yearly", priority: 0.3 },
 ];

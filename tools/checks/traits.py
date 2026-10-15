@@ -694,3 +694,58 @@ def _stale_bests():
         problems.append(f"{T.STALE_PLAYS} plays is enough to mean a score, so it should not be "
                         f"treated as one attempt nobody came back to")
     return problems
+
+
+@check("the tags mai-notes' editors put on a chart show on its page and can be searched, but stay out of the player model")
+def _editor_tags():
+    from rasmai.engine.analysis import ChartRef
+    from rasmai.engine.insights.tags import chart_tags, chart_traits
+    from rasmai.scraping import mai_notes
+
+    problems = []
+    chart = ChartRef(title="tagged", chart_type="dx", difficulty="master", constant=13.0, level="13", notes=750,
+                     genre="", artist="", cover="", version=26, bpm=170.0)
+    kept = mai_notes.cached_facts
+    mai_notes.cached_facts = lambda: {chart.key: {"g": ["乱打", "スライド難"]}}
+    try:
+        tags = chart_tags(chart)
+        traits = chart_traits(chart)
+    finally:
+        mai_notes.cached_facts = kept
+    community = [tag["label"] for tag in tags if tag["community"]]
+    if community != ["乱打 (streams)", "スライド難 (hard slides)"] or tags[:2] != [{"dimension": "pattern", "label": label, "community": True, "read": False} for label in community]:
+        problems.append(f"a chart the editors tagged showed {tags}")
+    if any("乱打" in label or "スライド難" in label for _dimension, label in traits):
+        problems.append(f"the editors' tags reached the player model: {traits}")
+    return problems
+
+
+@check("an editor retagging a chart reaches the pattern list once mai-notes publishes it, even with the same number of charts")
+def _retag_reaches_catalogue():
+
+    from rasmai.engine import patterns
+    from rasmai.engine.analysis import ChartRef
+    from rasmai.scraping import mai_notes
+
+    chart = ChartRef(title="retagged", chart_type="dx", difficulty="master", constant=13.0, level="13", notes=750,
+                     genre="", artist="", cover="", version=26, bpm=170.0)
+    index = type("Index", (), {"stamp": "check", "values": lambda self: [chart], "playable": lambda self, c: True, "__len__": lambda self: 1})()
+
+    class Facts(dict):
+        def __init__(self, version, tag):
+            super().__init__({chart.key: {"g": [tag]}})
+            self.version = version
+    kept = mai_notes.cached_facts
+    problems = []
+    try:
+        patterns._catalogue_memo.clear()
+        mai_notes.cached_facts = lambda: Facts("etag-1", "乱打")
+        first = [item["tag"] for item in patterns.catalogue(index) if item["community"]]
+        mai_notes.cached_facts = lambda: Facts("etag-2", "縦連")        # same count of charts, a new list
+        second = [item["tag"] for item in patterns.catalogue(index) if item["community"]]
+    finally:
+        mai_notes.cached_facts = kept
+        patterns._catalogue_memo.clear()
+    if first != ["乱打"] or second != ["縦連"]:
+        problems.append(f"after a retag the pattern list went from {first} to {second}")
+    return problems

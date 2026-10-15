@@ -1255,6 +1255,46 @@
       "hint": "Go back to the connect page, pass the check, then press the bookmark again."
     }
   },
+  "feedback": {
+    "metaTitle": "Feedback",
+    "metaDescription": "Tell Rasmai what you like, what turns you off and what you'd like to see next.",
+    "title": "How's <em>Rasmai</em> going?",
+    "intro": "A few quick questions. Answer what you want and skip the rest - only the first one is needed.",
+    "rateLabel": "How are you enjoying Rasmai?",
+    "rates": {
+      "1": "not for me",
+      "2": "meh",
+      "3": "it's okay",
+      "4": "like it",
+      "5": "love it"
+    },
+    "likedLabel": "What do you like most?",
+    "likedHint": "A command, the dashboard, something small - anything.",
+    "annoyedLabel": "Is there anything that turns you off?",
+    "annoyedHint": "Bugs, things that confuse you, anything slow or annoying.",
+    "wishLabel": "Any suggestions?",
+    "wishHint": "What you'd like added or changed.",
+    "contactLabel": "Want a reply? (optional)",
+    "contactHint": "A Discord name or an email. Leave it empty and this stays anonymous.",
+    "anon": "Nothing here is tied to your Discord account.",
+    "send": "send feedback",
+    "sending": "sending...",
+    "thanksTitle": "Thank you!",
+    "thanks": "That got through. I read every one.",
+    "another": "send another",
+    "errors": {
+      "check_failed": "The check didn't load. Reload the page, or turn off anything that blocks Cloudflare.",
+      "check_unavailable": "The check isn't working right now. Try again later.",
+      "full": "The form is full right now. Try again later.",
+      "generic": "Couldn't send that. Try again in a minute.",
+      "invalid_rating": "Pick how you're enjoying it first.",
+      "needRating": "Pick how you're enjoying it first.",
+      "rate_limited": "That's a lot of feedback. Try again in a few minutes.",
+      "turnstile_failed": "The human check didn't pass. Reload the page and try again."
+    },
+    "checkHint": "Beep Boop?",
+    "off": "The form is off for a bit. Try again later."
+  },
   "meta": {
     "title": "Rasmai · maimai DX rating bot for Discord",
     "tagline": "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating."

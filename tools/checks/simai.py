@@ -73,6 +73,10 @@ def _simai_trust():
         problems.append("an empty chart was read as though it held something")
     if parse(good).skipped:
         problems.append("a chart made only of ordinary notation was reported as unreadable")
+    # every mark the notation spec lists, as the wiki's transcriptions use them: none of them is unreadable
+    for written in ("1@-5[8:1],E", "1$$-5[8:1],E", "1?-5[8:1],E", "1!-5[8:1],E", "1bx,E", "Ch,E", "E7h[4:11],E", "Cf,E", "{#0.35}1,2,E", "1`2,E"):
+        if parse(written).skipped:
+            problems.append(f"{written!r} was reported as unreadable")
 
     held = {"a": {"off": 0.001}, "b": {"off": 0.05}, "c": {"off": -0.3}, "d": {}}
     if simai.disputed(held) != 2:
@@ -653,4 +657,44 @@ def _simai_loose_title():
     finally:
         simai.cached = held
         simai._loose = (None, {})
+    return problems
+
+
+@check("a standard chart loses its [SD] as a DX one loses its [DX], and a cache built before that is rebuilt once")
+def _simai_more_sources():
+    import pathlib
+    import tempfile
+
+    from rasmai.scraping import simai_bulk
+
+    problems = []
+    root = pathlib.Path(tempfile.mkdtemp())
+    (root / "a").mkdir()
+    (root / "a" / "maidata.txt").write_text("&title=Std Song[SD]\n&cabinet=SD\n\n&inote_5=\n(120){4}1,2,E\n", encoding="utf-8")
+    was_checkout, simai_bulk.CHECKOUT = simai_bulk.CHECKOUT, root
+    try:
+        found = dict(simai_bulk.charts())
+    finally:
+        simai_bulk.CHECKOUT = was_checkout
+    if set(found) != {"std song|std|master"}:
+        problems.append(f"a standard chart was keyed {list(found)}, which matches nothing in the song list")
+
+    # a cache built before the fix is rebuilt once, though the repository has not moved
+    was_cache, was_stamp = simai_bulk.CACHE, simai_bulk.STAMP
+    simai_bulk.CACHE = pathlib.Path(tempfile.mkdtemp())
+    simai_bulk.STAMP = simai_bulk.CACHE / "taken.json"
+    try:
+        simai_bulk.STAMP.write_text('{"sha": "abc", "charts": 5, "at": "2999-01-01T00:00:00"}', encoding="utf-8")
+        kept = simai_bulk._head, simai_bulk._git, simai_bulk.charts, simai_bulk._keep, simai_bulk.discard
+        rebuilt = []
+        simai_bulk._head, simai_bulk._git, simai_bulk.discard = (lambda: "abc"), (lambda *args: rebuilt.append(args[0]) or True), (lambda: None)
+        simai_bulk.charts, simai_bulk._keep = (lambda: iter([("x|dx|master", "1,E")])), (lambda found, sha: None)
+        try:
+            simai_bulk.update()
+        finally:
+            simai_bulk._head, simai_bulk._git, simai_bulk.charts, simai_bulk._keep, simai_bulk.discard = kept
+        if rebuilt != ["clone"]:
+            problems.append("a cache built the old way was kept because the repository had not moved")
+    finally:
+        simai_bulk.CACHE, simai_bulk.STAMP = was_cache, was_stamp
     return problems

@@ -309,6 +309,19 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute(
                     """
+                    CREATE TABLE IF NOT EXISTS feedback (   -- what a visitor said on the site's feedback form, tied to no account
+                        id         INTEGER PRIMARY KEY,
+                        created_at TEXT NOT NULL,
+                        rating     INTEGER NOT NULL,
+                        liked      TEXT NOT NULL DEFAULT '',
+                        annoyed    TEXT NOT NULL DEFAULT '',
+                        wish       TEXT NOT NULL DEFAULT '',
+                        contact    TEXT NOT NULL DEFAULT ''
+                    )
+                    """
+                )
+                setup.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS people (   -- an account made on the site: who accepted which terms, and when
                         user_id           TEXT PRIMARY KEY,
                         created_at        TEXT NOT NULL,

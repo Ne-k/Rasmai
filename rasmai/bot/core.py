@@ -186,6 +186,36 @@ def cannot_see_channel(interaction: discord.Interaction, mention: str) -> Tuple[
             f"so I can't use {mention}. Someone with **Manage Server** can add me with the button below, with the permissions I need."), view
 
 
+# What Discord answers to anything said on a command that was opened more than fifteen minutes ago, or that it never knew:
+# invalid webhook token, unknown webhook, unknown interaction. A score read that waited behind a crowd can outlast the token.
+INTERACTION_GONE = (50027, 10015, 10062)
+
+
+def interaction_gone(error: BaseException) -> bool:
+    """Whether Discord no longer lets anything be said on a command's interaction. Not a bug: nothing in the bot did it."""
+    return isinstance(error, discord.HTTPException) and error.code in INTERACTION_GONE
+
+
+async def tell_it_is_ready(interaction: discord.Interaction) -> None:
+    """Say, by direct message, that a command's reply ran out of time.
+
+    The message the person was waiting at can no longer be changed. What the command was reading is done and kept for an hour,
+    so asking again answers at once, and that is what they are told.
+    """
+    extras = getattr(interaction, "extras", None)
+    if extras is not None:
+        if extras.get("told_it_is_ready"):
+            return          # the reply and the handler above it can both land here for one command; once is enough
+        extras["told_it_is_ready"] = True
+    age = (discord.utils.utcnow() - interaction.created_at).total_seconds() if getattr(interaction, "created_at", None) else 0
+    command = getattr(getattr(interaction, "command", None), "qualified_name", "")
+    logger.warning("a reply to %s was ready %.0f minutes after the command arrived, past the 15 Discord allows", f"/{command}" if command else "a button", age / 60)
+    try:
+        await interaction.user.send(f"That took longer than Discord lets me answer in. Your scores are read now - run {f'`/{command}`' if command else 'it'} again and I'll answer right away.")
+    except discord.HTTPException:
+        logger.info("could not tell %s that a late reply was ready: they take no direct messages from here", getattr(interaction.user, "id", "?"))
+
+
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
     message = ""
@@ -216,8 +246,13 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     original = getattr(error, "original", error)
     if isinstance(original, discord.NotFound) and original.code == 10062:
         age = (discord.utils.utcnow() - interaction.created_at).total_seconds()
-        logger.error("Discord no longer knew the %s interaction %.1fs after it arrived: %s", interaction.command.name if interaction.command else "?",
-                     age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
+        # not acknowledged in time (the person got nothing), as against a reply that finished after the fifteen minutes were up
+        if age < 15 * 60:
+            logger.error("Discord no longer knew the %s interaction %.1fs after it arrived: %s", interaction.command.name if interaction.command else "?",
+                         age, "answered too late" if age >= 3 else "another process holding this bot token acknowledged it first")
+            return
+    if interaction_gone(original):
+        await tell_it_is_ready(interaction)
         return
     from rasmai.errors import report
     original = getattr(error, "original", error)        # discord.py wraps what the command raised

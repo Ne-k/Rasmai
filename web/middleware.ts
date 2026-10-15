@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buttons, embed, headline, say, serialise } from "@/lib/embed";
 
 // the link-preview fetchers of chat apps and social sites; search engines are left out, so they index the PDF itself
 const PREVIEWERS = /Discordbot|Twitterbot|facebookexternalhit|Facebot|Slackbot|TelegramBot|WhatsApp|LinkedInBot|redditbot|Bluesky|Mastodon|Embedly|Iframely|SkypeUriPreview|vkShare/i;
@@ -10,6 +11,12 @@ const DESCRIPTION = "How Rasmai works out which charts will raise your rating, b
 export function middleware(request: NextRequest) {
   if (!PREVIEWERS.test(request.headers.get("user-agent") ?? "")) return NextResponse.next();
   const site = (process.env.MAIMAI_PUBLIC_URL ?? "https://rasmai.lol").trim().replace(/\/+$/, "");
+  const pdf = `${site}/whitepaper.pdf`;
+  const card = serialise(embed("#ff5c9f", [
+    headline(TITLE, pdf, ["How Rasmai works out which charts will raise your rating, based on how you play."], { image: `${site}/app/icon-512.png` }),
+    say("-# 19 pages"),
+    buttons({ label: "Read the whitepaper", url: pdf }, { label: "Add to Discord", url: `${site}/invite` }),
+  ]));
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${TITLE}</title>
 <meta name="description" content="${DESCRIPTION}">
 <meta name="theme-color" content="#ff5c9f">
@@ -18,11 +25,8 @@ export function middleware(request: NextRequest) {
 <meta property="og:title" content="${TITLE}">
 <meta property="og:description" content="${DESCRIPTION}">
 <meta property="og:url" content="${site}/whitepaper.pdf">
-<meta property="og:image" content="${site}/whitepaper/card/">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${TITLE}">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:card" content="summary">
+${card ? `<script id="discord:component-embed" type="application/json">${card}</script>` : ""}
 </head><body><a href="/whitepaper.pdf">${TITLE}</a></body></html>`;
   // no-store, so no cache between here and the reader can hand this page to a person asking for the PDF
   return new NextResponse(html, {

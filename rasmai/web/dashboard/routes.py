@@ -7,7 +7,7 @@ import re
 from rasmai.bot.builders.charts.index import search_titles
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
-from rasmai.storage.db import delete_connected_account, get_connected_account, is_discord_id, is_web_id
+from rasmai.storage.db import delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id
 from rasmai.bot.state import cohort
 from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.bot.state.forget import forget_user
@@ -37,7 +37,8 @@ READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # every write handle_post answers; one missing here is refused as not found before its branch is reached,
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
-          "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/kamaitachi/import")
+          "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/admin/delete-feedback",
+          "/internal/me/kamaitachi/import")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -238,6 +239,16 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
             return True
         started = start_update(str((payload or {}).get("source") or ""))
         handler._send_json(202 if started.get("ok") else 409, started)
+        return True
+    if path == "/internal/me/admin/delete-feedback":
+        # one answer to the feedback form taken out, for a fake or bogus one: answered before the linked-account check and refused
+        # the same way the developer page itself is, so nobody else can tell it exists
+        if not is_admin(user["id"]):
+            logger.warning("feedback removal refused for %s", user["id"])
+            handler._send_json(404, {"ok": False, "error": "not_found"})
+            return True
+        removed = delete_form_feedback((payload or {}).get("id"))
+        handler._send_json(200 if removed else 404, {"ok": removed} if removed else {"ok": False, "error": "no_such_answer"})
         return True
     if path == "/internal/me/unlink":
         # also for an account with no maimai linked: that is how a site-only person deletes their sign-ins and record of agreement
