@@ -3,7 +3,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 
-from rasmai.bot.core import bot
+from rasmai.bot.core import bot, server_invite_url
 from rasmai.bot.ui.login import send_login_card
 from rasmai.bot.tasks.presence import describe
 from rasmai.bot.ui.views import DeleteAccountView
@@ -130,7 +130,12 @@ async def invite(interaction: discord.Interaction):
     embed.add_field(name="Your scores on the web", value=f"[{site.split('://', 1)[-1]}/me]({site}/me/) · sign in with Discord", inline=False)
     view = discord.ui.View()
     if DISCORD_BOT_INVITE:
-        view.add_item(discord.ui.Button(label="Invite", url=DISCORD_BOT_INVITE))
+        view.add_item(discord.ui.Button(label="Invite (App Install)", url=DISCORD_BOT_INVITE))
+    # adds the bot to a server with the permissions it needs, this one when asked in a server; for a server the bot is already in, what it has stays
+    guild = interaction.guild
+    have = guild.me.guild_permissions if guild is not None and getattr(guild, "me", None) is not None else None
+    view.add_item(discord.ui.Button(label="Invite (Server)", url=server_invite_url(interaction.guild_id, have)))
+
     view.add_item(discord.ui.Button(label="Dashboard", url=f"{site}/me/"))
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 

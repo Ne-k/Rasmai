@@ -2647,3 +2647,27 @@ def _installs():
     if group.allowed_contexts.dm_channel or group.allowed_contexts.private_channel or not group.allowed_contexts.guild:
         problems.append("/news can be run outside a server, where a webhook has no channel")
     return problems
+
+
+@check("/invite offers the app install and a server install that asks for every permission the bot needs, for this server when run in one and for any when run in a DM")
+def _invite_buttons():
+    from urllib.parse import parse_qs, urlparse
+    from rasmai.bot import core
+    from rasmai.bot.commands import account
+    problems = []
+    kept = core.bot._connection.application_id, account.DISCORD_BOT_INVITE
+    core.bot._connection.application_id, account.DISCORD_BOT_INVITE = 4242, "https://discord.com/oauth2/authorize?client_id=4242&scope=bot"
+    try:
+        for guild_id in (77, None):
+            asked = _Interaction(guild_id=guild_id)
+            asyncio.run(account.invite.callback(asked))
+            labels = {item.label: item.url for item in asked.sent[0]["view"].children}
+            link = labels.get("Invite (Server)", "")
+            query = parse_qs(urlparse(link).query)
+            if "Invite (App Install)" not in labels or not link:
+                problems.append(f"/invite in {guild_id or 'a DM'} offered {sorted(labels)}")
+            if query.get("guild_id") != ([str(guild_id)] if guild_id else None) or int(query.get("permissions", ["0"])[0]) & core.BOT_PERMISSIONS.value != core.BOT_PERMISSIONS.value:
+                problems.append(f"the server link from {guild_id or 'a DM'} was {link}")
+    finally:
+        core.bot._connection.application_id, account.DISCORD_BOT_INVITE = kept
+    return problems

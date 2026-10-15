@@ -164,11 +164,13 @@ BOT_PERMISSIONS = discord.Permissions(
 )
 
 
-def server_invite_url(guild_id: int, have: Optional[discord.Permissions] = None) -> str:
-    """A link that adds the bot to this one server, asking for what it needs and anything it already has there."""
+def server_invite_url(guild_id: Optional[int] = None, have: Optional[discord.Permissions] = None) -> str:
+    """A link that adds the bot to a server, asking for what it needs and anything it already has there.
+
+    With a ``guild_id`` it is that one server; without, the person picks the server on Discord's page."""
     wanted = discord.Permissions(BOT_PERMISSIONS.value | (have.value if have is not None else 0))
-    return discord.utils.oauth_url(bot.application_id, permissions=wanted, guild=discord.Object(id=guild_id),
-                                   scopes=("bot", "applications.commands"), disable_guild_select=True)
+    options: Dict[str, Any] = {"guild": discord.Object(id=guild_id), "disable_guild_select": True} if guild_id else {}
+    return discord.utils.oauth_url(bot.application_id, permissions=wanted, scopes=("bot", "applications.commands"), **options)
 
 
 def cannot_see_channel(interaction: discord.Interaction, mention: str) -> Tuple[str, Optional[discord.ui.View]]:
