@@ -386,16 +386,16 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .hits { list-style: none; margin: 14px 0 0; padding: 0; border-top: 2px solid var(--edge); }
 .hit { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: start; }
 .hit .jacket { grid-row: 1 / span 2; }
-.hit .hit-title { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.hit .hit-title { text-decoration: none; border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .hit .hit-title:hover { color: var(--pink); }
 .hit .hit-title small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
 .hit .hit-title .alias { font-weight: 500; color: var(--ink-2); margin-left: 8px; }
 .hit .hit-title .charter { margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--line); }
 .hit .hit-charts { display: flex; flex-wrap: wrap; gap: 4px; }
-.hit .hit-charts button { border: 0; padding: 0; background: none; cursor: pointer; }
+.hit .hit-charts button, .hit .hit-charts a { border: 0; padding: 0; background: none; cursor: pointer; }
 .hit .hit-charts .chip { margin: 0; }
 .hit .hit-charts .faded .chip { opacity: .55; }
-.hit .hit-charts button:hover .chip, .hit .hit-charts button:focus-visible .chip { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.hit .hit-charts :is(button, a):hover .chip, .hit .hit-charts :is(button, a):focus-visible .chip { outline: 2px solid var(--cyan); outline-offset: 1px; }
 
 .detail { margin-top: 22px; }
 .detail-head { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 18px; align-items: start; }

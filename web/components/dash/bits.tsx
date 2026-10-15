@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { useDismiss } from "@/components/Term";
 import { Support } from "@/components/Support";
 import { useTranslations } from "next-intl";
@@ -170,13 +170,25 @@ export function Label({ children, info }: { children: React.ReactNode; info?: st
 
 export type OpenChart = (title: string, type: string, difficulty: string) => void;
 
+/** Where a chart's Look up page lives, the same address the dashboard pushes when it opens one. */
+export function chartHref(title: string, type: string, difficulty: string): string {
+  return `?chart=${encodeURIComponent(title)}&type=${type}&difficulty=${difficulty}#chart`;
+}
+
+/** A plain click opens the chart in place; ctrl, cmd, shift or a middle click is left to the browser, which opens the address in a new tab. */
+export function openInPlace(event: MouseEvent, open: () => void) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  open();
+}
+
 /** A chart title that opens the chart in the Look up tab. */
 export function TitleLink({ title, type, difficulty, onOpen }: { title: string; type: string; difficulty: string; onOpen?: OpenChart }) {
   if (!onOpen) return <span className="title">{title}</span>;
   return (
-    <button type="button" className="title title-link" onClick={() => onOpen(title, type, difficulty)}>
+    <a className="title title-link" href={chartHref(title, type, difficulty)} onClick={(e) => openInPlace(e, () => onOpen(title, type, difficulty))}>
       {title}
-    </button>
+    </a>
   );
 }
 

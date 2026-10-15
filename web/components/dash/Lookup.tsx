@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, getJSON, type LookupTarget, type SearchHit, type SongLookup } from "./api";
-import { Chip, Empty, Jacket, pct } from "./bits";
+import { Chip, Empty, Jacket, chartHref, openInPlace, pct } from "./bits";
 import { Detail } from "./Detail";
 import { PatternBrowser } from "./PatternBrowser";
 
@@ -138,26 +138,26 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
           {hits.map((h) => (
             <li key={h.title} className="hit">
               <Jacket cover={h.cover} size={44} />
-              <button type="button" className="hit-title" onClick={() => open(h.title)}>
+              <a className="hit-title" href={chartHref(h.title, "", "")} onClick={(e) => openInPlace(e, () => open(h.title))}>
                 {h.title}
                 {h.alias ? <span className="alias">{h.alias}</span> : null}
                 <small>
                   {h.artist}
                   {h.charters?.length ? <span className="charter">{t("chartedBy", { who: h.charters.join(list("sep")) })}</span> : null}
                 </small>
-              </button>
+              </a>
               <div className="hit-charts">
                 {h.charts.map((c) => (
-                  <button
+                  <a
                     key={`${c.chart_type}|${c.difficulty}`}
-                    type="button"
-                    onClick={() => open(h.title, c.chart_type, c.difficulty)}
+                    href={chartHref(h.title, c.chart_type, c.difficulty)}
+                    onClick={(e) => openInPlace(e, () => open(h.title, c.chart_type, c.difficulty))}
                     title={c.played ? `${pct(c.accuracy)} ${c.rank}` : t("neverPlayed")}
                   >
                     <span className={c.played ? "" : "faded"} style={{ display: "contents" }}>
                       <Chip difficulty={c.difficulty} level={c.level} type={c.chart_type} />
                     </span>
-                  </button>
+                  </a>
                 ))}
               </div>
             </li>

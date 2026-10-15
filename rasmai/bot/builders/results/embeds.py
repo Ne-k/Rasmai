@@ -99,7 +99,7 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
                     value=format_picks_markdown(recs, limit=6), inline=True)
     to_try = format_try_markdown(recs, limit=4) if any(r.category == "try" for r in recs) else ""
     if to_try:
-        embed.add_field(name="Worth a first run", value=to_try, inline=True)
+        embed.add_field(name="Worth a first run · more in /new", value=to_try, inline=True)
     if plan and plan.steps:
         embed.add_field(name=f"Road to {plan.goal_rating}",
                         value=_fit([format_plan_verdict(plan), format_plan_markdown(plan, limit=6)]), inline=True)
