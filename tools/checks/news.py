@@ -2604,3 +2604,34 @@ def _spread():
     if len(own) < 2 or not 0.9 < own[1] - own[0] < 1.1:
         problems.append(f"an account was looked at again {own[1] - own[0] if len(own) > 1 else 0:.2f}s later, not one cycle after its look began")
     return problems
+
+
+@check("a database that already holds a news table of another shape is mended instead of failing every read, with the old rows kept under another name")
+def _old_tables():
+    import sqlite3
+    from rasmai.storage import db
+    from rasmai.bot.tasks import news as tasks
+    problems = []
+    with _scratch() as store:
+        old = sqlite3.connect(store.DATABASE_PATH)
+        old.execute("CREATE TABLE news_subscriptions (channel_id TEXT, guild_id TEXT, webhook TEXT)")
+        old.execute("INSERT INTO news_subscriptions VALUES ('c0', 'g0', 'sealed')")
+        old.execute("CREATE TABLE news_seen (post_id TEXT)")
+        old.commit()
+        old.close()
+        try:
+            db.add_news_subscription("g1", "c1", "maimai", URL)
+            keys = db.followed_news_keys()
+            db.remove_unknown_news_sources(tasks.SOURCES)
+        except sqlite3.OperationalError as error:
+            problems.append(f"a news table of an older shape still broke the queries: {error}")
+            return problems
+        if keys != {"maimai"}:
+            problems.append(f"the subscription made after the repair was read back as {keys}")
+        connection = db.get_database_connection()
+        names = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'news_%unfit%'")]
+        kept = [row[0] for name in names if name.startswith("news_subscriptions") for row in connection.execute(f"SELECT channel_id FROM {name}")]
+        connection.close()
+        if len(names) != 2 or kept != ["c0"]:
+            problems.append(f"the old tables were {names} holding {kept}, not set aside with their rows")
+    return problems

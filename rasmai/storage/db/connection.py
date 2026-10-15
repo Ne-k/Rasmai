@@ -3,6 +3,7 @@ import json
 import sqlite3
 import threading
 import logging
+import time
 import zlib
 
 from rasmai.config import DATABASE_PATH
@@ -12,6 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 _database_ready = False
+
+
+def _set_aside_if_unfit(setup: sqlite3.Connection, table: str, columns: tuple) -> None:
+    """Rename a table of this name that lacks any of these columns, so the CREATE after it makes the right one.
+
+    ``CREATE TABLE IF NOT EXISTS`` leaves a table of another shape as it is, and then every query on it fails. The old rows are
+    kept under a new name rather than dropped, since nothing here knows what they meant.
+    """
+    have = {row[1] for row in setup.execute(f"PRAGMA table_info({table})")}
+    if have and not set(columns) <= have:
+        kept = f"{table}_unfit_{int(time.time())}"
+        setup.execute(f"ALTER TABLE {table} RENAME TO {kept}")
+        logger.warning("%s had columns %s, not %s: set aside as %s and made again", table, sorted(have), sorted(columns), kept)
 
 
 _database_lock = threading.Lock()
@@ -159,6 +173,9 @@ def get_database_connection() -> sqlite3.Connection:
                     )
                     """
                 )
+                _set_aside_if_unfit(setup, "news_subscriptions", ("channel_id", "source", "guild_id", "webhook", "created_at"))
+                _set_aside_if_unfit(setup, "news_sources", ("key", "platform", "handle", "did", "label", "created_at"))
+                _set_aside_if_unfit(setup, "news_seen", ("source", "post_id", "seen_at"))
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS news_subscriptions (   -- a channel following a source; the webhook URL is sealed, bound to its channel
@@ -176,8 +193,9 @@ def get_database_connection() -> sqlite3.Connection:
                     setup.execute("ALTER TABLE news_subscriptions ADD COLUMN maimai_only INTEGER NOT NULL DEFAULT 0")
                     # until a channel could choose, Preformai's filter was the account's own and always on, so its channels keep it
                     setup.execute("UPDATE news_subscriptions SET maimai_only = 1 WHERE source = 'preformai'")
-                except sqlite3.OperationalError:
-                    pass          # already there
+                except sqlite3.OperationalError as error:
+                    if "duplicate column" not in str(error):
+                        raise         # anything but "already there" is a table that is wrong, which must not pass unseen
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS news_sources (   -- a public Bluesky or X account a server added to follow: nobody's private data
