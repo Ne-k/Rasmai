@@ -197,8 +197,9 @@ def _button():
         view = asyncio.run(built())
         bottom = [item for item in view.children if item.row == 4]
         labels = [getattr(item, "label", "") for item in bottom]
-        if "Preview" not in labels or len(bottom) > 5:
-            problems.append(f"the chart page's last row should hold the Preview button in five places or fewer: {labels}")
+        # Preview is switched off on the chart page until it is tested; when it goes back, it must fit the row with the rest
+        if "Preview" in labels or len(bottom) > 5:
+            problems.append(f"the chart page offers Preview while it is off, or its last row is over five places: {labels}")
         module._last.clear()
         module._made.clear()
         first = _interaction(ephemeral=True)
