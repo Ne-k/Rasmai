@@ -225,7 +225,9 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     elif isinstance(error, app_commands.MissingPermissions):
         # named the way Discord's own settings name them; manage_guild is "Manage Server" there
         needed = " and ".join("**" + {"manage_guild": "Manage Server"}.get(p, p.replace("_", " ").title()) + "**" for p in error.missing_permissions)
-        message = f"That needs the {needed} permission here."
+        command = getattr(getattr(interaction, "command", None), "qualified_name", "")
+        message = (f"You need the {needed} permission in this channel to use {f'`/{command}`' if command else 'that'}. "
+                   "Ask a server admin to give it to you (Server Settings > Roles), or to do it for you.")
     elif isinstance(error, app_commands.NoPrivateMessage):
         message = "That one only works inside a server."
     elif isinstance(error, app_commands.TransformerError) and error.type == discord.AppCommandOptionType.channel:

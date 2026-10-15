@@ -114,7 +114,7 @@ def _refusal(interaction: discord.Interaction, channel: discord.TextChannel) -> 
     if channel.guild.id != interaction.guild_id:
         return "Pick a channel in this server."
     if not channel.permissions_for(interaction.user).manage_webhooks:      # type: ignore[arg-type]
-        return f"You need **Manage Webhooks** in {channel.mention} to do that."
+        return f"You need **Manage Webhooks** in {channel.mention} to do that. Ask a server admin to give it to you (Server Settings > Roles, or that channel's permissions)."
     return ""
 
 
@@ -132,7 +132,7 @@ async def _refusal_for(interaction: discord.Interaction, guild: Optional[discord
     if found is not None:
         return _refusal(interaction, found)
     rights = getattr(interaction.user, "guild_permissions", None)
-    return "" if rights is not None and rights.manage_webhooks else "You need **Manage Webhooks** for the whole server to change a channel I can't see."
+    return "" if rights is not None and rights.manage_webhooks else "I can't see that channel, so I can't check your access to it. You need **Manage Webhooks** for the whole server to change it. Ask a server admin."
 
 
 async def _drop_webhook(url: Optional[str]) -> None:
