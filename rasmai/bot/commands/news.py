@@ -38,9 +38,10 @@ _lookup_at: Dict[int, float] = {}
 news = app_commands.Group(
     name="news", description="Get maimai news posted in a channel",
     default_permissions=discord.Permissions(manage_webhooks=True),
-    # a webhook belongs to a server channel: no DMs, and no user installs, which have no channels to make one in
+    # a webhook belongs to a server channel, so no DMs. An app installed to someone's account runs commands in servers it is not in, and
+    # there picking a channel answers with a link that adds the bot with the permissions it needs, so the group is offered there too
     allowed_contexts=app_commands.AppCommandContext(guild=True, dm_channel=False, private_channel=False),
-    allowed_installs=app_commands.AppInstallationType(guild=True, user=False),
+    allowed_installs=app_commands.AppInstallationType(guild=True, user=True),
 )
 
 

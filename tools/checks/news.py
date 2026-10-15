@@ -1187,8 +1187,8 @@ def _command():
     group = command.news
     names = {c.name: c for c in group.commands}
     sent = group.to_dict(__import__("rasmai.bot.core", fromlist=["bot"]).bot.tree)
-    if set(names) != {"subscribe", "unsubscribe", "manage"} or sent["contexts"] != [0] or sent["integration_types"] != [0]:
-        problems.append(f"the group has {sorted(names)}, contexts {sent['contexts']}, installs {sent['integration_types']}: it must be server-only")
+    if set(names) != {"subscribe", "unsubscribe", "manage"} or sent["contexts"] != [0] or sent["integration_types"] != [0, 1]:
+        problems.append(f"the group has {sorted(names)}, contexts {sent['contexts']}, installs {sent['integration_types']}: it must be for servers only, installed to a server or an account")
     if sent["default_member_permissions"] != discord.Permissions(manage_webhooks=True).value:
         problems.append("the picker is not limited to people who can manage webhooks")
     subscribe, unsubscribe, manage = names.get("subscribe"), names.get("unsubscribe"), names.get("manage")
@@ -2634,4 +2634,16 @@ def _old_tables():
         connection.close()
         if len(names) != 2 or kept != ["c0"]:
             problems.append(f"the old tables were {names} holding {kept}, not set aside with their rows")
+    return problems
+
+
+@check("/news is offered in servers the app is only installed to an account in, where picking a channel hands out the link that adds the bot, and never in a DM")
+def _installs():
+    from rasmai.bot.commands import news as command
+    problems = []
+    group = command.news
+    if not (group.allowed_installs.guild and group.allowed_installs.user):
+        problems.append("/news is hidden where the app is only installed to an account, so those servers never see it")
+    if group.allowed_contexts.dm_channel or group.allowed_contexts.private_channel or not group.allowed_contexts.guild:
+        problems.append("/news can be run outside a server, where a webhook has no channel")
     return problems
