@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 import asyncio
 import logging
+import math
 import os
 import shutil
 import time
@@ -36,7 +37,8 @@ def worst(states: Any) -> str:
 def _bot() -> Dict[str, Any]:
     from rasmai.bot.core import SCRAPE_SEMAPHORE, bot, watch
     from rasmai.bot.tasks.presence import maintenance_at
-    latency = round((bot.latency or 0) * 1000) if bot.is_ready() else 0
+    # discord.py reports infinity (or nan) for the latency while no heartbeat has been answered, as after a dropped connection
+    latency = round(bot.latency * 1000) if bot.is_ready() and math.isfinite(bot.latency) else 0
     if not bot.is_ready():
         discord_state = MAJOR
     else:

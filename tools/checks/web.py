@@ -1607,3 +1607,57 @@ def _maintenance_band():
     if overview._maintenances() != []:
         problems.append("the sweep asked the real status page about maintenance")
     return problems
+
+
+@check("the status check survives a gateway that reports no latency, and a dashboard read that maimai DX NET refuses is told to the person without being reported as a bug")
+def _outages():
+    import logging
+    from rasmai.bot import core
+    from rasmai.web import statuspage
+    from rasmai.web.dashboard import refresh
+    problems = []
+    cls = type(core.bot)
+    kept = cls.latency, cls.is_ready
+    try:
+        cls.is_ready = lambda self: True
+        for value in (float("inf"), float("nan")):
+            cls.latency = property(lambda self, value=value: value)
+            try:
+                if statuspage._bot()["gatewayMs"] != 0:
+                    problems.append(f"a latency of {value} was reported as a number of milliseconds")
+            except OverflowError:
+                problems.append(f"a latency of {value} broke the status check")
+            except ValueError:
+                problems.append(f"a latency of {value} broke the status check")
+    finally:
+        cls.latency, cls.is_ready = kept
+
+    class Records(logging.Handler):
+        def __init__(self):
+            super().__init__(logging.DEBUG)
+            self.seen = []
+
+        def emit(self, record):
+            self.seen.append(record)
+    grab = Records()
+    log = logging.getLogger("rasmai.web.dashboard.refresh")
+    log.addHandler(grab)
+    kept_analyzer = refresh.MaimaiRatingAnalyzer
+    try:
+        for error, bug in ((ValueError("maimai DX NET is having trouble right now (HTTP 503). Try again in a few minutes."), False), (KeyError("a bug"), True)):
+            class Analyzer:
+                def fetch_official_maimai_snapshot(self, *args):
+                    raise error
+            refresh.MaimaiRatingAnalyzer = Analyzer
+            grab.seen.clear()
+            job = {"running": True}
+            refresh.refresh_jobs._read("1", {"token": "t", "region": "intl"}, job, lambda *a: None)
+            reported = any(record.levelno >= logging.ERROR for record in grab.seen)
+            if reported != bug:
+                problems.append(f"{type(error).__name__} was {'reported' if reported else 'not reported'} as a bug")
+            if job.get("stage") != "failed" or not job.get("error"):
+                problems.append(f"the person was not told the read failed after {type(error).__name__}: {job}")
+    finally:
+        refresh.MaimaiRatingAnalyzer = kept_analyzer
+        log.removeHandler(grab)
+    return problems

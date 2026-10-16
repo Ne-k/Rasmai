@@ -156,6 +156,8 @@ class ProfilePages:
             # the gateway took the token but the site sent the session back out: it was expired or already used
             raise SessionRejected("maimai didn't accept that session - it's probably expired or already used. Run /login to link again.")
         if player_response.status_code != 200:
+            if player_response.status_code >= 500:
+                raise ValueError(f'maimai DX NET is having trouble right now (HTTP {player_response.status_code}). Try again in a few minutes.')
             raise ValueError(f'Failed to fetch player data: HTTP {player_response.status_code}')
         player, icon_url = self._parse_official_player_info(player_response.text, region)
         player.avatar_base64 = download_image_base64(icon_url, cookie_jar_to_header(session))

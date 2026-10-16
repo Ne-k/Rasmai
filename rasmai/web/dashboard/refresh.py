@@ -10,6 +10,7 @@ from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.config import MAIMAI_BASE_URLS, MAX_CONCURRENT_SCRAPES
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
+from rasmai.errors import expected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
     load_judgements, load_play_counts, load_recorded_plays, mark_session_expired, save_play_counts,
@@ -141,6 +142,9 @@ class RefreshJobs:
                 # the player's sign-in ended, not a bug: the relink band tells them, so it stays out of the error channel
                 mark_session_expired(user_id)
                 logger.info("Dashboard refresh stopped, the session was signed out: %s", public_reason(error))
+            elif expected(error):
+                # maimai DX NET answering with an error page, or not at all, is theirs to fix: the person is told, and it is no bug to report
+                logger.info("Dashboard refresh stopped, maimai DX NET could not be read: %s", public_reason(error))
             else:
                 logger.exception("Dashboard refresh failed")
             with self._lock:
