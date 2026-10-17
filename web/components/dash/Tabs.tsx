@@ -14,12 +14,50 @@ export function tabsFor(admin?: boolean): Tab[] {
   return admin ? [...TABS, "admin"] : TABS;
 }
 
+// the SWIPE hint is for somebody who has not swiped yet: once they have, on this device, it stays away
+const SWIPED = "rasmai.swiped";
+const NUDGED = "rasmai.nudged";
+
 /** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
 export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean }) {
   const t = useTranslations("dash");
   const shown = tabsFor(admin);
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
+  const [swiped, setSwiped] = useState(false);
+  const learn = useCallback(() => {
+    setSwiped(true);
+    try {
+      localStorage.setItem(SWIPED, "1");
+    } catch {
+      // private window or blocked storage: the hint just comes back next visit
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SWIPED)) setSwiped(true);
+    } catch {
+      // nothing remembered
+    }
+  }, []);
+  // once a session, on a phone, the strip leans toward the next tabs and settles back, so it shows it moves before anyone is told to
+  useEffect(() => {
+    const el = strip.current;
+    if (!el || swiped || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !window.matchMedia("(max-width: 860px)").matches) return;
+    try {
+      if (sessionStorage.getItem(NUDGED)) return;
+      sessionStorage.setItem(NUDGED, "1");
+    } catch {
+      return;
+    }
+    if (el.scrollWidth <= el.clientWidth + 8) return;
+    const lean = setTimeout(() => el.scrollTo({ left: 52, behavior: "smooth" }), 700);
+    const back = setTimeout(() => el.scrollTo({ left: 0, behavior: "smooth" }), 1300);
+    return () => {
+      clearTimeout(lean);
+      clearTimeout(back);
+    };
+  }, [swiped]);
   const measure = useCallback(() => {
     const el = strip.current;
     if (!el) return;
@@ -34,11 +72,11 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
   }, [measure]);
   useEffect(() => {
     const el = strip.current?.querySelector<HTMLButtonElement>("button.on");
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [current]);
   return (
-    <div className="tabs-wrap" data-more={more}>
-      <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure}>
+    <div className="tabs-wrap" data-more={more} data-swiped={swiped ? "" : undefined}>
+      <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure} onTouchMove={learn}>
         {shown.map((id) => (
           <button key={id} type="button" className={id === current ? "on" : ""} aria-current={id === current ? "true" : undefined} onClick={() => onPick(id)}>
             {t(`tabs.${id}`)}
@@ -47,7 +85,7 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
       </nav>
       <span className="tabs-hint" aria-hidden="true">
         <span className="tabs-hint-label">SWIPE</span>
-        <span className="tabs-hint-arrow">›</span>
+        <span className="tabs-hint-arrow"><i>›</i><i>›</i><i>›</i></span>
       </span>
     </div>
   );
