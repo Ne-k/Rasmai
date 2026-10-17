@@ -14,6 +14,7 @@ import time
 from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
 from rasmai.bot.tasks.news import NewsWatch
+from rasmai.bot.tasks.lag import LagWatch
 from rasmai.bot.tasks.presence import ServerWatch
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
@@ -542,6 +543,7 @@ history_watch = HistoryWatch(bot, watch)
 
 
 news_watch = NewsWatch()
+lag_watch = LagWatch()
 
 
 @bot.event
@@ -550,6 +552,7 @@ async def on_ready():
         f"Logged in as {bot.user}: {len(bot.guilds)} server(s) over {bot.shard_count or 1} shard(s); "
         f"up to {MAX_CONCURRENT_SCRAPES} analyses and {MAX_CONCURRENT_RENDERS} renders at once"
     )
+    lag_watch.start()
     watch.start()
     history_watch.start()
     news_watch.start()

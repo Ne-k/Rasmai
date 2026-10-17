@@ -283,3 +283,53 @@ def _warm_then_asked():
         for key in [k for k in list(getattr(cache, "_analysis_cache", {})) if str(k).startswith("warm-check")]:
             cache._analysis_cache.pop(key, None)
     return problems
+
+
+@check("a stalled event loop is logged with the call that blocked it and what the other threads were doing, once per stall, and a quiet one is not")
+def _lag():
+    import asyncio
+    import logging
+    import threading
+    import time
+    from rasmai.bot.tasks.lag import LagWatch
+    problems = []
+
+    class Records(logging.Handler):
+        def __init__(self):
+            super().__init__(logging.DEBUG)
+            self.lines = []
+
+        def emit(self, record):
+            self.lines.append(record.getMessage())
+    grab = Records()
+    log = logging.getLogger("rasmai.bot.tasks.lag")
+    log.addHandler(grab)
+    log.setLevel(logging.DEBUG)
+
+    def blocking_call_in_the_loop():
+        time.sleep(1.3)
+
+    async def run(stall):
+        watch = LagWatch(threshold=0.8)
+        watch.start()
+        busy = threading.Thread(target=lambda: time.sleep(2.5), name="busy-worker", daemon=True)
+        busy.start()
+        await asyncio.sleep(0.5)
+        for _ in range(stall):
+            blocking_call_in_the_loop()
+            await asyncio.sleep(0.6)
+        await asyncio.sleep(0.5)
+        watch.stop()
+    try:
+        asyncio.run(run(0))
+        if grab.lines:
+            problems.append(f"a loop that never stopped was reported: {grab.lines}")
+        asyncio.run(run(1))
+        said = [line for line in grab.lines if "has not run" in line]
+        if len(said) != 1 or "blocking_call_in_the_loop" not in said[0] or "busy-worker" not in said[0]:
+            problems.append(f"a stall was logged as {said}")
+        if not any("ran again" in line for line in grab.lines):
+            problems.append("the end of the stall was not logged")
+    finally:
+        log.removeHandler(grab)
+    return problems
