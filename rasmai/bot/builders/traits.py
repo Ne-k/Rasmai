@@ -18,7 +18,7 @@ def _lines(items: List[Dict[str, Any]]) -> str:
     # a chart trait is counted in charts; a note type is counted in the plays its judgements came from
     return _fit([f"`{float(t['offset']):+.2f}` **{english_label(str(t['label']))}** · {t['count']} "
                  + ("plays" if t.get("dimension") == "judgement" else "charts")
-                 + ("" if t.get("verified") else " · leaning") for t in items])
+                 + ("" if t.get("verified") else (" · leaning" if t.get("leaning") else " · watching")) for t in items])
 
 
 def _practice_lines(axis: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[str]:
@@ -59,12 +59,13 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     confirmed = insights.notable(axes)
     leaning = insights.leaning(axes)
     even = insights.even(axes)
-    shown = confirmed + leaning
-    weak = sorted([t for t in shown if float(t["offset"]) < 0], key=lambda t: float(t["offset"]))[:6]
-    strong = sorted([t for t in shown if float(t["offset"]) > 0], key=lambda t: -float(t["offset"]))[:6]
+    # the lists and the wheel are picked the way the dashboard picks them, so the picture and the page name the same traits
+    weak, strong = insights.two_sides(confirmed, axes)
 
     shot = None
-    wheel = insights.radar_axes(axes)
+    families = [{"dimension": "family", "label": f["label"], "offset": f["offset"], "count": f["charts"], "verified": f["verified"], "leaning": not f["verified"]}
+                for f in insights.family_axes(axes)]
+    wheel = families if len(families) >= 3 else insights.radar_axes(axes)
     if len(wheel) >= 3:
         shot = await _image(cached, "traits", lambda: traits_image_html(
             wheel, weak, strong, player.name, cached.start_rating, player.avatar_base64, sample, date_text=cached.extras.get("date", ""),
@@ -73,7 +74,7 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     embed = discord.Embed(title="Your traits", color=discord.Color.from_rgb(92, 211, 232))
     embed.set_author(name=player.name, icon_url=avatar_url)
 
-    if not shown:
+    if not weak and not strong:
         largest = sorted(axes, key=lambda t: -abs(float(t["offset"])))[:4]
         embed.description = (f"Nothing separates from noise yet: **{len(axes)}** groups measured over **{sample}** scored charts, "
                              f"none far enough from your usual score to trust.\n-# more plays sharpen this: every recorded play counts, not only your bests")
@@ -96,7 +97,7 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
         if weak:
             embed.add_field(name="Where you lose points", value=_lines(weak), inline=True)
         if strong:
-            embed.add_field(name="Where you shine", value=_lines(strong), inline=True)
+            embed.add_field(name="Where you're strong", value=_lines(strong), inline=True)
 
     practice: List[str] = []
     for axis in [t for t in weak if t["dimension"] == "pattern"][:PRACTICE_TRAITS]:
@@ -109,7 +110,7 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     if judged:
         embed.add_field(name="Judgements, measured", value=_judgement_lines(judged), inline=False)
     footer = "against your own curve · confirmed beats shuffled tags, leaning is a hint · tags via maiノーツ"
-    if any(t["dimension"] == "judgement" for t in shown):
+    if any(t["dimension"] == "judgement" for t in weak + strong):
         footer += " · note types measured from your judgement pages"
     if judged:
         footer += f" · judgements from {judged['plays']} plays"

@@ -749,3 +749,36 @@ def _retag_reaches_catalogue():
     if first != ["乱打"] or second != ["縦連"]:
         problems.append(f"after a retag the pattern list went from {first} to {second}")
     return problems
+
+
+@check("the traits picture and the dashboard pick the same lists: confirmed first then leaning then watching, three a side at least, never fewer than the confirmed, by size, and the wheel is drawn on the groups")
+def _same_lists():
+    import pathlib
+    import re
+    from rasmai.engine import insights
+    problems = []
+
+    def axis(label, offset, verified=False, leaning=False, count=20, dimension="pattern"):
+        return {"dimension": dimension, "label": label, "offset": offset, "count": count, "plays": 3, "p": 0.01, "verified": verified, "leaning": leaning}
+    everything = [axis("a", -1.0, verified=True), axis("b", -0.2, leaning=True), axis("c", -0.3), axis("d", -0.9, leaning=True), axis("e", -0.1),
+                  axis("f", 0.8, verified=True), axis("g", 0.3), axis("h", 0.5, dimension="designer", verified=True),
+                  axis("i", -0.6, leaning=True, count=5), axis("j", 0.27)]
+    confirmed = insights.notable(everything)
+    weak, strong = insights.two_sides(confirmed, everything)
+    if [t["label"] for t in weak] != ["a", "d", "b"] or [t["label"] for t in strong] != ["f", "g", "j"]:
+        problems.append(f"the sides were {[t['label'] for t in weak]} and {[t['label'] for t in strong]}: confirmed, then leaning, then watching, three a side, biggest first, no charter and no thin lean")
+    many = [axis(str(n), -1.0 - n / 10, verified=True) for n in range(5)]
+    weak, strong = insights.two_sides(insights.notable(many), many)
+    if len(weak) != 5 or len(strong) != 0:
+        problems.append(f"five confirmed weak traits were cut to {len(weak)}")
+    weak, _ = insights.two_sides([everything[0]], [everything[0], dict(everything[0])])
+    if len(weak) != 1:
+        problems.append("the same trait listed twice appeared twice")
+    root = pathlib.Path(__file__).resolve().parents[2]
+    rules = (root / "web" / "components" / "dash" / "traits" / "rules.ts").read_text(encoding="utf-8")
+    if re.search(r"const BASELINE = (\d+)", rules).group(1) != str(insights.traits.TWO_SIDES_MIN):
+        problems.append("the dashboard and the picture show a different number of traits a side")
+    page = (root / "rasmai" / "bot" / "builders" / "traits.py").read_text(encoding="utf-8")
+    if "two_sides" not in page or "family_axes" not in page:
+        problems.append("the traits picture is not picked with the dashboard's lists and families")
+    return problems

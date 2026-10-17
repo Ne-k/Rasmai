@@ -142,7 +142,7 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
         out = ""
         for item in items:
             label = _esc(english_label(str(item["label"])))
-            mark = "" if item.get("verified") else " · leaning"
+            mark = "" if item.get("verified") else (" · leaning" if item.get("leaning") else " · watching")
             out += (f'<div class="trait-row"><span class="trait-off {tone}">{float(item["offset"]):+.2f}</span>'
                     f'<span class="trait-name">{label}</span><span class="trait-n">{item["count"]} chart{"" if item["count"] == 1 else "s"}{mark}</span></div>')
         return out or '<div class="trait-none">nothing stands out yet</div>'
@@ -155,7 +155,7 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
       <div>
         <div class="section-label">Where you lose points</div>
         {rows(weak, "down")}
-        <div class="section-label">Where you shine</div>
+        <div class="section-label">Where you're strong</div>
         {rows(strong, "up")}
       </div>
     </div>"""

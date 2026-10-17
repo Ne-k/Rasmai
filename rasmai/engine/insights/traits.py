@@ -351,6 +351,58 @@ def leaning(axes: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
                    and axis["dimension"] not in NOT_A_SKILL], key=lambda axis: float(axis["offset"]))
 
 
+def _is_lean(axis: Dict[str, Any]) -> bool:
+    return bool(axis.get("leaning")) and not axis.get("verified") and int(axis.get("count") or 0) >= TRAIT_CONFIRM_CHARTS
+
+
+def watching(axes: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Traits far enough from the player's usual score to read and on enough charts to mean something, but not rare enough to claim.
+
+    :param axes: Every trait group measured.
+    :type axes: Sequence[Dict[str, Any]]
+    :rtype: List[Dict[str, Any]]
+    """
+    return [axis for axis in axes if not axis.get("verified") and not _is_lean(axis) and int(axis.get("count") or 0) >= TRAIT_CONFIRM_CHARTS
+            and abs(float(axis["offset"])) >= TRAIT_LEAN_OFFSET and axis["dimension"] not in NOT_A_SKILL]
+
+
+TWO_SIDES_MIN = 3         # how many to show a side, so the page answers "what should I work on" with something either way
+
+
+def two_sides(confirmed: Sequence[Dict[str, Any]], everything: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """The two lists the traits page shows, (weak, strong), as the dashboard shows them: this is the same rule as ``twoSides`` in
+    ``web/components/dash/traits/rules.ts``, and the two must change together or the picture and the page name different traits.
+
+    Both sides are filled from one order, confirmed then leaning then worth watching. A confirmed trait is never dropped to make the
+    sides match: they are levelled up, never down. Each is then listed by size.
+
+    :param confirmed: The confirmed traits, as ``notable`` returns them.
+    :type confirmed: Sequence[Dict[str, Any]]
+    :param everything: Every trait group measured.
+    :type everything: Sequence[Dict[str, Any]]
+    :rtype: Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]
+    """
+    allowed = [axis for axis in everything if axis["dimension"] not in NOT_A_SKILL]
+    seen: set = set()
+    ranked: List[Dict[str, Any]] = []
+    for axis in [*[c for c in confirmed if c["dimension"] not in NOT_A_SKILL], *[a for a in allowed if _is_lean(a)], *watching(allowed)]:
+        key = (axis["dimension"], axis["label"])
+        if key not in seen:
+            seen.add(key)
+            ranked.append(axis)
+
+    def rank(axis: Dict[str, Any]) -> int:
+        return 0 if axis.get("verified") else 1 if _is_lean(axis) else 2
+
+    def side(below: bool) -> List[Dict[str, Any]]:
+        return sorted([a for a in ranked if (float(a["offset"]) < 0 if below else float(a["offset"]) > 0)],
+                      key=lambda a: (rank(a), -abs(float(a["offset"]))))
+    low, high = side(True), side(False)
+    room = max(TWO_SIDES_MIN, sum(1 for a in low if a.get("verified")), sum(1 for a in high if a.get("verified")))
+    by_size = lambda a: -abs(float(a["offset"]))  # noqa: E731
+    return sorted(low[:room], key=by_size), sorted(high[:room], key=by_size)
+
+
 def even(axes: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Traits the player plays no differently from the rest: enough charts to tell, and inside the lean threshold.
 

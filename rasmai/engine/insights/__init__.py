@@ -9,6 +9,8 @@ from rasmai.engine.insights.traits import (  # noqa: F401
     trait_residuals,
     notable,
     leaning,
+    watching,
+    two_sides,
     even,
     practice_for,
     radar_axes,
