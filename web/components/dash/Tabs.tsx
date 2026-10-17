@@ -14,8 +14,6 @@ export function tabsFor(admin?: boolean): Tab[] {
   return admin ? [...TABS, "admin"] : TABS;
 }
 
-// the SWIPE hint is for somebody who has not swiped yet: once they have, on this device, it stays away
-const SWIPED = "rasmai.swiped";
 const NUDGED = "rasmai.nudged";
 
 /** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
@@ -24,22 +22,9 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
   const shown = tabsFor(admin);
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
+  // the SWIPE hint says it in words and motion until the first swipe, then goes quiet; it never goes away while there are more tabs to reach
   const [swiped, setSwiped] = useState(false);
-  const learn = useCallback(() => {
-    setSwiped(true);
-    try {
-      localStorage.setItem(SWIPED, "1");
-    } catch {
-      // private window or blocked storage: the hint just comes back next visit
-    }
-  }, []);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(SWIPED)) setSwiped(true);
-    } catch {
-      // nothing remembered
-    }
-  }, []);
+  const learn = useCallback(() => setSwiped(true), []);
   // once a session, on a phone, the strip leans toward the next tabs and settles back, so it shows it moves before anyone is told to
   useEffect(() => {
     const el = strip.current;
@@ -83,6 +68,7 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
           </button>
         ))}
       </nav>
+      <span className="tabs-hint-left" aria-hidden="true">‹</span>
       <span className="tabs-hint" aria-hidden="true">
         <span className="tabs-hint-label">SWIPE</span>
         <span className="tabs-hint-arrow"><i>›</i><i>›</i><i>›</i></span>

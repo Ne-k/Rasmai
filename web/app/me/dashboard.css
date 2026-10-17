@@ -55,7 +55,7 @@
 .tabs button:hover { color: var(--ink); }
 .tabs button.on { color: var(--ink); border-bottom-color: var(--pink); }
 .tabs button:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
-.tabs-hint { display: none; }
+.tabs-hint, .tabs-hint-left { display: none; }
 
 .panel { margin-top: 26px; min-width: 0; }
 .refresh-bar { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 10px 14px; border: 2px dashed var(--line); border-radius: 12px; font-size: 14px; }
@@ -261,9 +261,17 @@
   .two-up, .two-up.wide-right { grid-template-columns: 1fr; }
   .tabs-wrap { margin-top: 22px; }
   .tabs button { padding: 12px 13px 13px; }
-  .tabs-wrap[data-more="right"]:not([data-swiped]) .tabs-hint,
-  .tabs-wrap[data-more="both"]:not([data-swiped]) .tabs-hint {
+  .tabs-wrap[data-more="right"] .tabs-hint,
+  .tabs-wrap[data-more="both"] .tabs-hint {
     display: flex;
+  }
+  .tabs-wrap[data-more="left"] .tabs-hint-left,
+  .tabs-wrap[data-more="both"] .tabs-hint-left {
+    display: flex;
+  }
+  .tabs-hint-left {
+    position: absolute; left: 0; bottom: 3px; width: 34px; height: 42px; align-items: center; padding-left: 8px; pointer-events: none;
+    color: var(--pink); background: linear-gradient(270deg, transparent, var(--paper) 30%); font-size: 24px; line-height: 1; opacity: .6;
   }
   .tabs-hint {
     position: absolute;
@@ -289,6 +297,11 @@
   .tabs-hint-arrow i { font-style: normal; margin-left: -5px; opacity: .2; animation: tabs-hint-run 1.4s ease-in-out infinite; }
   .tabs-hint-arrow i:nth-child(2) { animation-delay: .18s; }
   .tabs-hint-arrow i:nth-child(3) { animation-delay: .36s; }
+  /* after the first swipe: the words and the running go, one steady chevron stays for as long as there is more to reach */
+  .tabs-hint { transition: width .3s ease; }
+  .tabs-wrap[data-swiped] .tabs-hint { width: 40px; }
+  .tabs-wrap[data-swiped] .tabs-hint-label, .tabs-wrap[data-swiped] .tabs-hint-arrow i:nth-child(n+2) { display: none; }
+  .tabs-wrap[data-swiped] .tabs-hint-arrow i { animation: none; opacity: .6; margin-left: 0; }
   .panel { margin-top: 20px; }
 }
 
