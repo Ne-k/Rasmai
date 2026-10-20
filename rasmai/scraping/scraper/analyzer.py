@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple, Any
+from typing import FrozenSet, List, Dict, Optional, Set, Tuple, Any
 import logging
 
 from rasmai.engine.analysis import ChartIndex, PlayProfile, ScoredCandidate
@@ -27,6 +27,10 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.otoge_db = CachedOtogeDB()
         self.jacket_path = str(self.otoge_db.jacket_dir) + "/"
         self._chart_index: Optional[ChartIndex] = None
+        # the charts this player's song list on maimai DX NET showed, from a fresh read; None when there is none, or when the
+        # list showed no unplayed song, so a missing chart cannot be told apart from one the list never shows
+        self.listed_charts: Optional[Set[Tuple[str, str, str]]] = None
+        self.stored_unlisted: FrozenSet[Tuple[str, str, str]] = frozenset()     # what an earlier read found locked, from the stored copy
         self.recent_songs: List[Dict[str, Any]] = []
         self.play_profile: Optional[PlayProfile] = None
         self.best50 = None
@@ -47,7 +51,15 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
     def chart_index(self) -> ChartIndex:
         if self._chart_index is None:
             self._chart_index = analysis.chart_index_for(self.otoge_db.songs_for(getattr(self, "region", None)), region=getattr(self, "region", None))
-        return self._chart_index
+        index = self._chart_index
+        # a fresh read's whole list, or else what the last one found missing; kept in step however late either is set,
+        # and rebuilt only when one of them is replaced, since this is read in every loop over the charts
+        source = (id(self.listed_charts), id(self.stored_unlisted))
+        if getattr(index, "_listed_from", None) != source:
+            index.listed = frozenset(self.listed_charts) if self.listed_charts is not None else None
+            index.unlisted = self.stored_unlisted if self.listed_charts is None else frozenset()
+            index._listed_from = source
+        return index
 
     def fetch_official_maimai_snapshot(self, token: str, region: str = "intl", on_progress=None) -> Dict[str, Any]:
         """Everything the analysis needs from maimai DX NET, reporting each stage to `on_progress`.
@@ -82,11 +94,19 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
 
         all_songs_data: Dict[int, List[SongInfo]] = {}
         difficulties = [0, 1, 2, 3, 4, 10]
+        listed: Set[Tuple[str, str, str]] = set()
+        unplayed = 0
         tell("scores", 0, len(difficulties))
         for number, difficulty in enumerate(difficulties, 1):
             songs_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/record/musicGenre/search/?genre=99&diff={difficulty}", referer)
             tell("scores", number, len(difficulties))
             all_songs_data[difficulty] = self._parse_official_score_page(songs_html, difficulty)
+            shown, empty = self._listed_official_charts(songs_html, difficulty)
+            listed |= shown
+            unplayed += empty
+        # a song this player cannot pick yet is missing from their list, which databases of the whole game cannot know;
+        # trusted only when the list shows unplayed songs too, or every chart they never played would read as locked
+        self.listed_charts = listed if unplayed else None
 
         if region == "intl":
             try:
@@ -94,6 +114,9 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
                 hidden_songs = self._parse_hidden_official_songs(hidden_html, all_songs_data)
                 for hidden_song in hidden_songs:
                     all_songs_data.setdefault(hidden_song["difficultyNumber"], []).append(hidden_song["song"])
+                    song = hidden_song["song"]
+                    if self.listed_charts is not None:
+                        self.listed_charts.add((analysis.loose_title(song.name), (song.chart_type or "std").lower(), (song.difficulty_type or "").lower()))
             except Exception as error:
                 logger.warning(f"Failed to fetch hidden songs data: {error}")
 

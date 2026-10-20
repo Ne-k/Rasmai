@@ -269,3 +269,69 @@ def _untitled_song():
     if index.get(("", "dx", "expert")) is not None:
         problems.append("an empty title matched a difficulty the untitled song does not have")
     return problems
+
+
+@check("a chart the player's own song list on maimai DX NET leaves out is never offered to them, only when the list shows unplayed songs too, and only for them")
+def _unlisted_charts():
+    import copy
+    from rasmai.engine.analysis import build_chart_index
+    from rasmai.scraping import dxdata
+    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+    problems = []
+
+    def row(title, score, kind="dx"):
+        blocks = (f'<div class="music_score_block">{score}</div><div class="music_score_block">1,000 / 1,920</div>' if score else "")
+        return (f'<div><img class="music_kind_icon" src="/img/music_{kind}.png"><div class="music_expert_score_back">'
+                f'<div class="music_lv_block">12</div><div class="music_name_block">{title}</div>{blocks}</div></div>')
+    page = row("Played Song", "99.5000%") + row("Open Song", "") + row("雲外蒼電 -Dreaming Voltage-", "", "dx")
+    analyzer = MaimaiRatingAnalyzer()
+    listed, unplayed = analyzer._listed_official_charts(page, 2)
+    if ("opensong", "dx", "expert") not in listed or ("playedsong", "dx", "expert") not in listed or unplayed != 2:
+        problems.append(f"the song list read as {sorted(listed)} with {unplayed} unplayed")
+    only_played, none_unplayed = analyzer._listed_official_charts(row("Played Song", "99.5000%"), 2)
+    if none_unplayed != 0:
+        problems.append("a list of played songs only was counted as showing unplayed ones")
+
+    kept = dxdata.cached
+    dxdata.cached = lambda: None
+    try:
+        held = build_chart_index({
+            title.casefold(): {"title": title, "artist": "x", "dx_lev_exp_i": "12.2", "dx_lev_exp": "12"}
+            for title in ("Played Song", "Open Song", "Locked Song")
+        }, region="intl")
+    finally:
+        dxdata.cached = kept
+    by_title = {chart.title: chart for chart in held.values()}
+
+    def offered(player):
+        index = player.chart_index
+        return sorted(title for title, chart in by_title.items() if index.playable(chart))
+    mine = MaimaiRatingAnalyzer()
+    mine._chart_index = copy.copy(held)
+    mine.listed_charts = listed
+    if offered(mine) != ["Open Song", "Played Song"]:
+        problems.append(f"with Locked Song missing from the player's list, {offered(mine)} were offered")
+    other = MaimaiRatingAnalyzer()
+    other._chart_index = copy.copy(held)
+    if offered(other) != ["Locked Song", "Open Song", "Played Song"]:
+        problems.append(f"another player's list hid charts from someone without one: {offered(other)}")
+    stored = MaimaiRatingAnalyzer()
+    stored._chart_index = copy.copy(held)
+    stored.stored_unlisted = frozenset(tuple(key.split("|")) for key in mine.chart_index.unlisted_keys())
+    if offered(stored) != ["Open Song", "Played Song"]:
+        problems.append(f"an analysis rebuilt from the stored copy offered {offered(stored)}")
+    # a chart of the version the player is on that Japan's database has not marked as abroad yet: `playable` lets it
+    # through for them, so the list has to keep it out too, and the stored copy has to hold it
+    import dataclasses
+    lagging = dataclasses.replace(by_title["Open Song"], title="Lagging Song", intl=False, listed_intl=False, version=26)
+    late = MaimaiRatingAnalyzer()
+    late._chart_index = copy.copy(held)
+    late._chart_index.add(lagging)
+    late._chart_index.current_version = 26
+    late.listed_charts = listed
+    if late.chart_index.playable(lagging) or "laggingsong|dx|expert" not in late.chart_index.unlisted_keys():
+        problems.append("a current-version chart Japan's database lags on was offered, or left out of the stored copy, though the player's list leaves it out")
+    source = (ROOT / "rasmai" / "bot" / "state" / "snapshots.py").read_text(encoding="utf-8")
+    if '"unlisted"' not in source or "stored_unlisted" not in source:
+        problems.append("the locked charts are not kept with the stored copy, so a restart would offer them again")
+    return problems

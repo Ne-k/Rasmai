@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup, NavigableString
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Set, Tuple
 import re
 import requests
 import unicodedata
@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from rasmai.config import get_maimai_base_url
 from rasmai.scraping.otoge.search import search_song
 from rasmai.scraping.scraper.session import SessionRejected
-from rasmai.engine.analysis import calculate_rating
+from rasmai.engine.analysis import calculate_rating, loose_title
 from rasmai.storage.models import SongInfo
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,32 @@ class ScorePages:
             suffix = f" -> {location}" if location else ""
             raise ValueError(f"Failed to fetch official page: HTTP {response.status_code}{suffix}")
         return response.text
+
+    def _listed_official_charts(self, html: str, difficulty_number: int) -> Tuple[Set[Tuple[str, str, str]], int]:
+        """Every chart a score list shows, played or not, as (loose title, type, difficulty), and how many of them are unplayed.
+
+        The list holds the songs this player can pick: one still behind an area, a ticket or an event is not on it yet. The
+        unplayed count is what says the list shows songs without a score at all, which is what makes a missing one mean locked.
+
+        :rtype: Tuple[Set[Tuple[str, str, str]], int]
+        """
+        difficulty = {0: "basic", 1: "advanced", 2: "expert", 3: "master", 4: "remaster"}.get(difficulty_number)
+        if difficulty is None:
+            return set(), 0
+        soup = BeautifulSoup(html, "html.parser")
+        listed: Set[Tuple[str, str, str]] = set()
+        unplayed = 0
+        for block in soup.select(f".music_{difficulty}_score_back"):
+            name_element = block.select_one(".music_name_block")
+            title = loose_title(name_element.get_text(" ", strip=True)) if name_element else ""
+            if not title:
+                continue
+            parent = block.parent if block.parent else block
+            icon_element = parent.select_one("img.music_kind_icon")
+            listed.add((title, self._music_type_from_icon(icon_element.get("src") if icon_element else None, difficulty_number), difficulty))
+            if not re.search(r"\d+\.?\d*%", " ".join(b.get_text(" ", strip=True) for b in block.select(".music_score_block"))):
+                unplayed += 1
+        return listed, unplayed
 
     def _parse_official_score_page(self, html: str, difficulty_number: int) -> List[SongInfo]:
         soup = BeautifulSoup(html, "html.parser")

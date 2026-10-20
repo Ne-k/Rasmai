@@ -58,6 +58,8 @@ def compact_snapshot(analyzer: Any) -> Dict[str, Any]:
         # the recent-plays list as last read: the site's play ids on it are what a judgement page is fetched by,
         # so an analysis rebuilt from the stored copy after a restart can still open one
         "recentPlays": _json_safe(getattr(analyzer, "recent_songs", None) or []),
+        # the charts the player's own song list left out, still locked for them, so a rebuilt analysis does not offer them either
+        "unlisted": analyzer.chart_index.unlisted_keys(),
     }
 
 
@@ -276,6 +278,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
     analyzer.judgements = load_judgements(user_id)
     analyzer.recent_songs = list(snapshot.get("recentPlays") or snapshot.get("recent") or [])     # "recent": rows stored before the two were one
     analyzer.events_data = snapshot.get("areas") or {"areaEvents": [], "eventAreaEvents": []}
+    analyzer.stored_unlisted = frozenset(tuple(key.split("|")) for key in snapshot.get("unlisted") or [] if key.count("|") == 2)
     try:
         analyzer.events_read_at = datetime.fromisoformat(str(snapshot.get("areasReadAt") or "")) if snapshot.get("areasReadAt") else None
     except ValueError:

@@ -4,7 +4,7 @@ import re
 import threading
 import unicodedata
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 from rasmai.engine.analysis.rating import parse_constant, version_major
 
@@ -79,8 +79,36 @@ class ChartIndex:
         self.region = region
         self.stamp = next(_stamps)      # tells one index from the next, where an address would be reused
         self.current_version = 0       # the version the player is on, once their scores reveal it
+        # The player's own song list on maimai DX NET, as (loose title, type, difficulty): a chart it leaves out is still behind
+        # an area, a ticket or an event for them, whatever the databases say about the song. `listed` is a fresh read's whole
+        # list, `unlisted` what an earlier read found missing, from the stored copy. The player's, set on their copy
+        self.listed: Optional[FrozenSet[Tuple[str, str, str]]] = None
+        self.unlisted: FrozenSet[Tuple[str, str, str]] = frozenset()
 
     def playable(self, chart: ChartRef) -> bool:
+        if not self.released_here(chart):
+            return False
+        if self.listed is not None or self.unlisted:
+            key = (loose_title(chart.title), chart.chart_type, chart.difficulty)
+            if (self.listed is not None and key not in self.listed) or key in self.unlisted:
+                return False
+        return True
+
+    def unlisted_keys(self) -> List[str]:
+        """The charts this player's list leaves out that would otherwise be offered, as "title|type|difficulty", to keep with the account.
+
+        Worked out once the version the player is on is known, since that decides which charts the region has.
+
+        :rtype: List[str]
+        """
+        if self.listed is None:
+            return sorted("|".join(key) for key in self.unlisted)
+        return sorted({"|".join(key) for key in ((loose_title(c.title), c.chart_type, c.difficulty) for c in self._charts()
+                                                 if c.difficulty != "utage" and self.released_here(c))
+                       if key not in self.listed})
+
+    def released_here(self, chart: ChartRef) -> bool:
+        """Whether a chart is in the game where the player plays, whatever the player has unlocked."""
         if chart.deleted:
             return False
         if self.region != "intl":
