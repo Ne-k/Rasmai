@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import urllib.parse
 import discord
 
+from rasmai.config import get_maimai_base_url
 from rasmai.engine.analysis import ChartRef
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_NAMES, _fit
@@ -65,6 +66,38 @@ def video_button(ref: ChartRef, videos: Dict[Tuple[str, str], str], both_types: 
     if video:
         return discord.ui.Button(label="Watch on YouTube", style=discord.ButtonStyle.link, row=row, url=wiki.video_url(video))
     return discord.ui.Button(label="Search YouTube", style=discord.ButtonStyle.link, row=row, url=youtube_search_url(ref, both_types))
+
+
+# DX NET's favorite songs page lists every song by genre, each genre under an anchor of its own. A song ticked there is one
+# press away at the cabinet, so a link that lands on the right genre is the closest thing to "add to favorites" the site allows
+FAVORITE_GENRES = {"POPS＆アニメ": 1, "niconico＆ボーカロイド": 2, "東方Project": 3, "ゲーム＆バラエティ": 4, "maimai": 5, "オンゲキ＆CHUNITHM": 6}
+
+
+def favorites_url(region: str, genre: str = "") -> str:
+    """DX NET's favorite songs settings, opened on this genre when it is one the page has.
+
+    :param region: ``"intl"`` or ``"jp"``.
+    :type region: str
+    :param genre: The song's genre, as the chart database names it.
+    :type genre: str
+    :rtype: str
+    """
+    point = FAVORITE_GENRES.get(genre)
+    return f"{get_maimai_base_url(region)}/maimai-mobile/home/userOption/favorite/updateMusic/" + (f"#scroll_point_{point}" if point else "")
+
+
+def favorites_button(region: str, genre: str = "", row: int = 4) -> discord.ui.Button:
+    """A link to DX NET's favorite songs page, on the song's genre when there is one.
+
+    :param region: ``"intl"`` or ``"jp"``.
+    :type region: str
+    :param genre: The song's genre, as the chart database names it; empty for a list of many songs.
+    :type genre: str
+    :param row: One row of the table.
+    :type row: int
+    :rtype: discord.ui.Button
+    """
+    return discord.ui.Button(label="Favorites on DX NET", style=discord.ButtonStyle.link, row=row, url=favorites_url(region, genre))
 
 
 def youtube_search_url(ref: ChartRef, both_types: bool = False) -> str:

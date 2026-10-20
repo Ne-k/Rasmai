@@ -9,7 +9,7 @@ from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.scraping import wiki
 from rasmai.bot.builders.charts.page import DIFFICULTY_STYLE
 from rasmai.bot.builders.charts.song import build_song, build_song_details
-from rasmai.bot.builders.charts.details import video_button
+from rasmai.bot.builders.charts.details import favorites_button, video_button
 # from rasmai.bot.builders.charts.preview import preview_button        # Preview is off until it is tested
 from rasmai.bot.builders.charts.song_history import build_song_history
 from rasmai.security import public_reason
@@ -21,7 +21,7 @@ class SongDetailsView(OwnerOnlyView):
     """One button per chart of the song; each opens that chart's /chart page in place."""
 
     def __init__(self, owner_id: int, title: str, refs: List[ChartRef], rows: List[Dict[str, Any]],
-                 official: Optional[str] = None, wiki_url: str = ""):
+                 official: Optional[str] = None, wiki_url: str = "", region: str = "intl"):
         super().__init__(owner_id, timeout=600)
         self.title = title
         if official:
@@ -29,6 +29,8 @@ class SongDetailsView(OwnerOnlyView):
                                             url=wiki.video_url(official)))
         if wiki_url:
             self.add_item(discord.ui.Button(label="Wiki page", style=discord.ButtonStyle.link, row=4, url=wiki_url))
+        # where the song is ticked as a favorite, so it is one press away at the cabinet
+        self.add_item(favorites_button(region, refs[0].genre if refs else ""))
         both_types = len({r.chart_type for r in refs}) > 1
         for index, (ref, row) in enumerate(zip(refs, rows)):
             label = f"{TIER_SHORT.get(ref.difficulty, ref.difficulty[:3].upper())} {level_text(ref.level, ref.constant)}"
@@ -67,7 +69,8 @@ class SongView(OwnerOnlyView):
     row-4 toggle flips between the chart page and its history."""
 
     def __init__(self, owner_id: int, title: str, refs: List[ChartRef], rows: List[Dict[str, Any]], page: int,
-                 history: bool = False, videos: Optional[Dict[Tuple[str, str], str]] = None, last_play: Optional[int] = None):
+                 history: bool = False, videos: Optional[Dict[Tuple[str, str], str]] = None, last_play: Optional[int] = None,
+                 region: str = "intl"):
         super().__init__(owner_id, timeout=600)
         self.title = title
         self.history = history
@@ -103,12 +106,14 @@ class SongView(OwnerOnlyView):
             recent = discord.ui.Button(label="Last play", row=4, style=discord.ButtonStyle.secondary)
             recent.callback = self._last_play(last_play)
             self.add_item(recent)
-        # Preview, a short looping picture of the chart's busiest stretch, is off until it is tested: its code is kept, and this puts the button back
+        # Preview, a short looping picture of the chart's busiest stretch, is off until it is tested: its code is kept, and this puts the button back.
+        # Row 4 is full with it and Last play, so the favorites link moves to row 3 when it returns
         # preview = preview_button(refs[page])
         # if preview is not None:
         #     self.add_item(preview)
-        # a link button needs no callback; it opens the chart's video, or a search for one
+        # link buttons need no callback: the chart's video, or a search for one, and where the song is ticked as a favorite
         self.add_item(video_button(refs[page], self.videos, both_types))
+        self.add_item(favorites_button(region, refs[page].genre))
 
     async def _overview(self, interaction: discord.Interaction) -> None:
         """The song page: artist, BPM, version, every chart with a button to open it."""

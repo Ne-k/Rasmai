@@ -464,8 +464,8 @@ class PlayProfile:
             style = "score grinder"
         elif self.accuracy_focus <= 0.35:
             style = "clear hunter"
-        favourite_type = max(self.chart_type_bias, key=self.chart_type_bias.get) if self.chart_type_bias else ""
-        favourite_genre = max(self.genre_bias, key=self.genre_bias.get) if self.genre_bias else ""
+        favorite_type = max(self.chart_type_bias, key=self.chart_type_bias.get) if self.chart_type_bias else ""
+        favorite_genre = max(self.genre_bias, key=self.genre_bias.get) if self.genre_bias else ""
         return {
             "style": style,
             "comfortConstant": round(self.comfort_constant, 1),
@@ -485,8 +485,8 @@ class PlayProfile:
             "fcRate": round(self.fc_rate, 3),
             "apRate": round(self.ap_rate, 3),
             "dxScoreRate": round(self.dx_score_rate, 3),
-            "favouriteChartType": favourite_type,
-            "favouriteGenre": favourite_genre,
+            "favoriteChartType": favorite_type,
+            "favoriteGenre": favorite_genre,
             "newVersionShare": round(self.new_version_share, 2),
             "habits": dict(self.habits),
             "activeDays": self.active_days,

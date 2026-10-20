@@ -129,5 +129,5 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
     embed.set_footer(text=f"chart {page + 1} of {len(refs)} · a point per play seen and per best that moved")
     newest = last_play(cached, ref)
     view = SongView(owner_id, title, refs, rows, page, history=True, videos=await song_videos(title, refs),
-                    last_play=newest["position"] if newest else None) if owner_id is not None else None
+                    last_play=newest["position"] if newest else None, region=getattr(cached, "region", "intl")) if owner_id is not None else None
     return embed, files, view

@@ -331,7 +331,34 @@ def _unlisted_charts():
     late.listed_charts = listed
     if late.chart_index.playable(lagging) or "laggingsong|dx|expert" not in late.chart_index.unlisted_keys():
         problems.append("a current-version chart Japan's database lags on was offered, or left out of the stored copy, though the player's list leaves it out")
+    # and the other way: a chart the region flags call Japan-only that the player's list shows is theirs to play
+    flagged = dataclasses.replace(by_title["Open Song"], title="Flagged Song", intl=False, listed_intl=False, intl_known=True, version=20)
+    shown = MaimaiRatingAnalyzer()
+    shown._chart_index = copy.copy(held)
+    shown._chart_index.add(flagged)
+    shown.listed_charts = set(listed) | {("flaggedsong", "dx", "expert")}
+    if not shown.chart_index.playable(flagged) or shown.chart_index.also_here_keys() != ["flaggedsong|dx|expert"]:
+        problems.append("a chart the player's list shows was kept out by the region flags, or left out of the stored copy")
+    unread = MaimaiRatingAnalyzer()
+    unread._chart_index = copy.copy(shown._chart_index)
+    if unread.chart_index.playable(flagged):
+        problems.append("without a list, a chart the region flags rule out was offered")
+    unread.stored_also_here = frozenset({("flaggedsong", "dx", "expert")})
+    if not unread.chart_index.playable(flagged):
+        problems.append("an analysis rebuilt from the stored copy forgot a chart the player's list showed")
+    # the saved differences answer every chart the way the whole list did, which is what lets the list go after a read
+    swapped = MaimaiRatingAnalyzer()
+    swapped._chart_index = copy.copy(shown._chart_index)
+    swapped.stored_unlisted = frozenset(tuple(key.split("|")) for key in shown.chart_index.unlisted_keys())
+    swapped.stored_also_here = frozenset(tuple(key.split("|")) for key in shown.chart_index.also_here_keys())
+    differs = [chart.title for chart in shown.chart_index.values() if swapped.chart_index.playable(chart) != shown.chart_index.playable(chart)]
+    if differs:
+        problems.append(f"after the list is let go, {differs} answered differently from the saved differences")
     source = (ROOT / "rasmai" / "bot" / "state" / "snapshots.py").read_text(encoding="utf-8")
+    if "analyzer.listed_charts = None" not in source:
+        problems.append("the whole song list is kept in memory for the cached hour after the differences were saved")
+    if '"alsoHere"' not in source or "stored_also_here" not in source:
+        problems.append("the charts the list showed beyond the region flags are not kept with the stored copy")
     if '"unlisted"' not in source or "stored_unlisted" not in source:
         problems.append("the locked charts are not kept with the stored copy, so a restart would offer them again")
     return problems

@@ -209,7 +209,7 @@ def add_profile_fields(embed: discord.Embed, summary: Dict[str, Any]) -> None:
             f"**{str(profile.get('style', 'unknown')).title()}**\n"
             f"{profile.get('fcRate', 0) * 100:.0f}% FC · {profile.get('apRate', 0) * 100:.0f}% AP\n"
             f"{profile.get('dxScoreRate', 0) * 100:.0f}% DX score\n"
-            f"leans {str(profile.get('favouriteChartType', '?')).upper()}"
+            f"leans {str(profile.get('favoriteChartType', '?')).upper()}"
         ),
         inline=True,
     )

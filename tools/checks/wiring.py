@@ -208,3 +208,40 @@ def _discord_drift():
     finally:
         tree.__dict__.pop("fetch_commands", None)
     return problems
+
+
+@check("every results and chart page offers the DX NET favorites page, on the song's genre and the player's site, and no row holds more than five buttons")
+def _favorites():
+    import discord
+    from rasmai.bot.builders.charts.details import favorites_url
+    from rasmai.bot.builders.charts.views import SongDetailsView, SongView
+    from rasmai.bot.builders.results import ResultsView
+    from rasmai.engine.analysis import ChartRef
+    problems = []
+    if favorites_url("intl", "maimai") != "https://maimaidx-eng.com/maimai-mobile/home/userOption/favorite/updateMusic/#scroll_point_5":
+        problems.append(f"the link for a maimai song on the international site was {favorites_url('intl', 'maimai')}")
+    if not favorites_url("jp", "東方Project").startswith("https://maimaidx.jp/") or not favorites_url("jp", "東方Project").endswith("#scroll_point_3"):
+        problems.append(f"the link for a Japan account was {favorites_url('jp', '東方Project')}")
+    if "#" in favorites_url("intl", "宴会場") or "#" in favorites_url("intl"):
+        problems.append("a genre the page has no anchor for, or no genre, still got one")
+
+    def rows(view):
+        counts = {}
+        for item in view.children:
+            counts[item.row] = counts.get(item.row, 0) + (5 if isinstance(item, discord.ui.Select) else 1)
+        return counts
+    refs = [ChartRef("Song", "dx", difficulty, 12.0, "12", 500, "maimai", "x", "c.png", 26) for difficulty in ("basic", "advanced", "expert", "master", "remaster")]
+    played = [{"played": False}] * 5
+    for name, view in (("the chart page with a last play", SongView(1, "Song", refs, played, 0, last_play=3, region="jp")),
+                       ("the song page with a video and a wiki page", SongDetailsView(1, "Song", refs, played, official="abc", wiki_url="https://w/x", region="intl")),
+                       *((f"the {mode} results", ResultsView(1, mode, region="intl")) for mode in ("analyze", "plan", "session", "new", "profile", "traits"))):
+        counts = rows(view)
+        if any(n > 5 for n in counts.values()):
+            problems.append(f"{name} has a row with more than five buttons: {counts}")
+        links = [item.url for item in view.children if isinstance(item, discord.ui.Button) and item.label == "Favorites on DX NET"]
+        wanted = "profile" not in name and "traits" not in name
+        if bool(links) != wanted:
+            problems.append(f"{name} {'has no' if wanted else 'has a'} favorites link")
+        if links and "chart page" in name and (not links[0].startswith("https://maimaidx.jp/") or not links[0].endswith("#scroll_point_5")):
+            problems.append(f"the chart page's link was {links[0]}, not the Japan site on the maimai genre")
+    return problems

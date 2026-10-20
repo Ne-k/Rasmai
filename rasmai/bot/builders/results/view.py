@@ -19,6 +19,7 @@ from rasmai.bot.builders.results.embeds import (
 from rasmai.bot.builders.results.loading import ensure_target_play_counts, load_analysis
 from rasmai.bot.builders.results.stored import note_read_age
 from rasmai.bot.builders.traits import build_traits
+from rasmai.bot.builders.charts.details import favorites_button
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class ResultsView(OwnerOnlyView):
     def __init__(self, owner_id: int, mode: str, *, target: Optional[int] = None, stretch: bool = False,
                  page: int = 0, difficulty: Optional[str] = None, output: str = "both", challenge: str = "balanced",
                  min_level: Optional[str] = None, credits: int = SESSION_DEFAULT, focus: Optional[str] = None,
-                 level: Optional[str] = None):
+                 level: Optional[str] = None, region: str = "intl"):
         super().__init__(owner_id, timeout=VIEW_TIMEOUT)
         self.min_level = min_level
         self.level = level
@@ -111,6 +112,9 @@ class ResultsView(OwnerOnlyView):
         refresh = discord.ui.Button(label="Refresh", row=4, style=discord.ButtonStyle.success)
         refresh.callback = self._refresh
         self.add_item(refresh)
+        if mode in ("analyze", "plan", "session", "new"):
+            # the picks are played at the cabinet, where a favorite is one press away: the DX NET page that sets them
+            self.add_item(favorites_button(region))
         if mode == "session":
             fewer = discord.ui.Button(label="- 1 credit", row=1, style=discord.ButtonStyle.secondary, disabled=self.credits <= 1)
             fewer.callback = self._credits(-1)
@@ -318,7 +322,7 @@ async def show_results(interaction: discord.Interaction, cached: CachedAnalysis,
         output = "both"          # nothing rendered, so text is all there is
     view = ResultsView(interaction.user.id, mode, target=target, stretch=stretch, page=page,
                        difficulty=difficulty, output=output, challenge=challenge, min_level=min_level,
-                       credits=credits, focus=focus, level=level)
+                       credits=credits, focus=focus, level=level, region=cached.region)
     if output == "image":
         # the picture stands alone: buttons only travel with the text
         await interaction.edit_original_response(content=None, embed=None, attachments=image_files, view=None)

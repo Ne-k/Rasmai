@@ -79,33 +79,47 @@ class ChartIndex:
         self.region = region
         self.stamp = next(_stamps)      # tells one index from the next, where an address would be reused
         self.current_version = 0       # the version the player is on, once their scores reveal it
-        # The player's own song list on maimai DX NET, as (loose title, type, difficulty): a chart it leaves out is still behind
-        # an area, a ticket or an event for them, whatever the databases say about the song. `listed` is a fresh read's whole
-        # list, `unlisted` what an earlier read found missing, from the stored copy. The player's, set on their copy
+        # The player's own song list on maimai DX NET, as (loose title, type, difficulty), is the last word on what they can pick:
+        # a chart it leaves out is still behind an area, a ticket or an event for them, and one it shows is in their game whatever
+        # the databases' region flags say. `listed` is a fresh read's whole list; from the stored copy, `unlisted` is what an earlier
+        # read found missing and `also_here` what it showed that the region flags rule out. The player's, set on their copy
         self.listed: Optional[FrozenSet[Tuple[str, str, str]]] = None
         self.unlisted: FrozenSet[Tuple[str, str, str]] = frozenset()
+        self.also_here: FrozenSet[Tuple[str, str, str]] = frozenset()
 
     def playable(self, chart: ChartRef) -> bool:
-        if not self.released_here(chart):
+        if chart.deleted:
             return False
-        if self.listed is not None or self.unlisted:
+        if self.listed is not None or self.unlisted or self.also_here:
             key = (loose_title(chart.title), chart.chart_type, chart.difficulty)
-            if (self.listed is not None and key not in self.listed) or key in self.unlisted:
+            if self.listed is not None:
+                return key in self.listed
+            if key in self.unlisted:
                 return False
-        return True
+            if key in self.also_here:
+                return True
+        return self.released_here(chart)
 
-    def unlisted_keys(self) -> List[str]:
-        """The charts this player's list leaves out that would otherwise be offered, as "title|type|difficulty", to keep with the account.
+    def _list_diff(self, released: bool) -> List[str]:
+        """Where the player's list and the region flags disagree, as "title|type|difficulty", to keep with the account.
 
-        Worked out once the version the player is on is known, since that decides which charts the region has.
+        With ``released``, the charts the flags allow that the list leaves out: still locked for them. Without, the charts the
+        flags rule out that the list shows: theirs to play. Worked out once the version the player is on is known, since
+        that decides what the flags allow.
 
         :rtype: List[str]
         """
         if self.listed is None:
-            return sorted("|".join(key) for key in self.unlisted)
+            return sorted("|".join(key) for key in (self.unlisted if released else self.also_here))
         return sorted({"|".join(key) for key in ((loose_title(c.title), c.chart_type, c.difficulty) for c in self._charts()
-                                                 if c.difficulty != "utage" and self.released_here(c))
-                       if key not in self.listed})
+                                                 if c.difficulty != "utage" and not c.deleted and self.released_here(c) == released)
+                       if (key not in self.listed) == released})
+
+    def unlisted_keys(self) -> List[str]:
+        return self._list_diff(True)
+
+    def also_here_keys(self) -> List[str]:
+        return self._list_diff(False)
 
     def released_here(self, chart: ChartRef) -> bool:
         """Whether a chart is in the game where the player plays, whatever the player has unlocked."""

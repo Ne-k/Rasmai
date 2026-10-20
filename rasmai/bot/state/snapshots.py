@@ -60,6 +60,7 @@ def compact_snapshot(analyzer: Any) -> Dict[str, Any]:
         "recentPlays": _json_safe(getattr(analyzer, "recent_songs", None) or []),
         # the charts the player's own song list left out, still locked for them, so a rebuilt analysis does not offer them either
         "unlisted": analyzer.chart_index.unlisted_keys(),
+        "alsoHere": analyzer.chart_index.also_here_keys(),
     }
 
 
@@ -279,6 +280,7 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
     analyzer.recent_songs = list(snapshot.get("recentPlays") or snapshot.get("recent") or [])     # "recent": rows stored before the two were one
     analyzer.events_data = snapshot.get("areas") or {"areaEvents": [], "eventAreaEvents": []}
     analyzer.stored_unlisted = frozenset(tuple(key.split("|")) for key in snapshot.get("unlisted") or [] if key.count("|") == 2)
+    analyzer.stored_also_here = frozenset(tuple(key.split("|")) for key in snapshot.get("alsoHere") or [] if key.count("|") == 2)
     try:
         analyzer.events_read_at = datetime.fromisoformat(str(snapshot.get("areasReadAt") or "")) if snapshot.get("areasReadAt") else None
     except ValueError:
@@ -318,6 +320,13 @@ def persist_progress(user_id: str, analyzer: Any) -> None:
             "nameplate_url": getattr(player, "nameplate_url", "") or "",
             "updatedAt": datetime.now().isoformat(timespec="seconds"),
         }
-        update_account_snapshot(user_id, profile, compact_snapshot(analyzer))
+        snapshot = compact_snapshot(analyzer)
+        update_account_snapshot(user_id, profile, snapshot)
+        if getattr(analyzer, "listed_charts", None) is not None:
+            # the whole song list has done its work: the two short differences answer `playable` the same from here on, as a
+            # rebuilt analysis is answered, and weigh a few hundred keys against the list's several thousand for the cached hour
+            analyzer.stored_unlisted = frozenset(tuple(key.split("|")) for key in snapshot["unlisted"])
+            analyzer.stored_also_here = frozenset(tuple(key.split("|")) for key in snapshot["alsoHere"])
+            analyzer.listed_charts = None
     except Exception:
         logger.exception("Could not persist progress")

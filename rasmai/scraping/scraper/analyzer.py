@@ -31,6 +31,7 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         # list showed no unplayed song, so a missing chart cannot be told apart from one the list never shows
         self.listed_charts: Optional[Set[Tuple[str, str, str]]] = None
         self.stored_unlisted: FrozenSet[Tuple[str, str, str]] = frozenset()     # what an earlier read found locked, from the stored copy
+        self.stored_also_here: FrozenSet[Tuple[str, str, str]] = frozenset()    # and what it showed that the region flags rule out
         self.recent_songs: List[Dict[str, Any]] = []
         self.play_profile: Optional[PlayProfile] = None
         self.best50 = None
@@ -54,10 +55,11 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         index = self._chart_index
         # a fresh read's whole list, or else what the last one found missing; kept in step however late either is set,
         # and rebuilt only when one of them is replaced, since this is read in every loop over the charts
-        source = (id(self.listed_charts), id(self.stored_unlisted))
+        source = (id(self.listed_charts), id(self.stored_unlisted), id(self.stored_also_here))
         if getattr(index, "_listed_from", None) != source:
             index.listed = frozenset(self.listed_charts) if self.listed_charts is not None else None
             index.unlisted = self.stored_unlisted if self.listed_charts is None else frozenset()
+            index.also_here = self.stored_also_here if self.listed_charts is None else frozenset()
             index._listed_from = source
         return index
 
@@ -104,10 +106,6 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
             shown, empty = self._listed_official_charts(songs_html, difficulty)
             listed |= shown
             unplayed += empty
-        # a song this player cannot pick yet is missing from their list, which databases of the whole game cannot know;
-        # trusted only when the list shows unplayed songs too, or every chart they never played would read as locked
-        self.listed_charts = listed if unplayed else None
-
         if region == "intl":
             try:
                 hidden_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/home/ratingTargetMusic/", referer)
@@ -115,10 +113,14 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
                 for hidden_song in hidden_songs:
                     all_songs_data.setdefault(hidden_song["difficultyNumber"], []).append(hidden_song["song"])
                     song = hidden_song["song"]
-                    if self.listed_charts is not None:
-                        self.listed_charts.add((analysis.loose_title(song.name), (song.chart_type or "std").lower(), (song.difficulty_type or "").lower()))
+                    listed.add((analysis.loose_title(song.name), (song.chart_type or "std").lower(), (song.difficulty_type or "").lower()))
             except Exception as error:
                 logger.warning(f"Failed to fetch hidden songs data: {error}")
+
+        # a song this player cannot pick yet is missing from their list, which databases of the whole game cannot know;
+        # trusted only when the list shows unplayed songs too, or every chart they never played would read as locked.
+        # Set once, complete: the index copies it the first time it is read
+        self.listed_charts = listed if unplayed else None
 
         tell("recent", 0, 1)
         recent_html = self._fetch_official_html(session, f"{base_url}/maimai-mobile/record/", referer)

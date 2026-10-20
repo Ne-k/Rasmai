@@ -140,7 +140,8 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
     if (ref.chart_type, ref.difficulty) in videos:
         footer += " · video via SilentBlue RemyWiki"
     embed.set_footer(text=footer)
-    view = SongView(owner_id, title, refs, rows, page, videos=videos, last_play=play["position"] if play else None) if owner_id is not None else None
+    view = SongView(owner_id, title, refs, rows, page, videos=videos, last_play=play["position"] if play else None,
+                    region=getattr(cached, "region", "intl")) if owner_id is not None else None
     return embed, files, view
 
 
@@ -257,7 +258,8 @@ async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner
     page_info = await song_page(title, refs)
     videos = page_info["videos"]
     unlock_field(embed, page_info, cached)
-    view = SongDetailsView(owner_id, title, refs, rows, official=videos.get(("", "official")), wiki_url=wiki_url) if owner_id is not None else None
+    view = SongDetailsView(owner_id, title, refs, rows, official=videos.get(("", "official")), wiki_url=wiki_url,
+                           region=getattr(cached, "region", "intl")) if owner_id is not None else None
     if videos.get(("", "official")) or page_info.get("unlock"):
         embed.set_footer(text=footer + " · video and unlock notes via SilentBlue RemyWiki")
     return embed, files, view
