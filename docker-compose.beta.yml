@@ -18,6 +18,7 @@ services:
     build:
       context: .
       target: bot
+      pull: true          # always build on the newest base image, so a Node, Python or Debian security fix is never left in the cache
       args:
         BOT_UID: ${BOT_UID:-1000}
         BOT_GID: ${BOT_GID:-1000}

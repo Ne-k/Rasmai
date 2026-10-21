@@ -5,6 +5,7 @@ services:
     build:
       context: .
       target: bot
+      pull: true          # always build on the newest base image, so a Node, Python or Debian security fix is never left in the cache
       args:
         # the bot runs as this user; see the volumes note below
         BOT_UID: ${BOT_UID:-1000}
@@ -52,6 +53,7 @@ services:
     build:
       context: .
       target: web
+      pull: true          # always build on the newest base image, so a Node, Python or Debian security fix is never left in the cache
     container_name: rasmai-web
     env_file: .env
     environment:
