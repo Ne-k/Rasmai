@@ -967,3 +967,21 @@ def _late_reply():
     finally:
         logging.getLogger().removeHandler(grab)
     return problems
+
+
+@check("a command used where the app is only installed to the person's account answers in public unless the server turned off external apps")
+def _external_apps():
+    import types
+    import discord
+    from rasmai.bot.core import private_only
+    problems = []
+
+    def asked(guild, installed, allowed):
+        return types.SimpleNamespace(guild=object() if guild else None, is_guild_integration=lambda: installed,
+                                     permissions=discord.Permissions(use_external_apps=allowed))
+    for guild, installed, allowed, private in ((False, False, False, False), (True, True, False, False),
+                                               (True, False, True, False), (True, False, False, True)):
+        if private_only(asked(guild, installed, allowed)) != private:
+            problems.append(f"in a {'server' if guild else 'DM'}, {'added' if installed else 'not added'} to it, external apps "
+                            f"{'allowed' if allowed else 'off'}: the reply was {'private' if not private else 'public'}")
+    return problems

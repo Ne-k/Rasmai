@@ -92,14 +92,15 @@ def light_cooldown(command):
 def private_only(interaction: discord.Interaction) -> bool:
     """Whether Discord will only accept an ephemeral reply here.
 
-    A user-installed app used in a server it was never added to may answer the
-    person who ran the command and nobody else.
+    An app installed to someone's account answers in public in a server it was never added to, as long as
+    the server lets its members use external apps. Only where that permission is off is the reply theirs alone.
 
     :param interaction: The Discord interaction the command arrived on.
     :type interaction: discord.Interaction
     :rtype: bool
     """
-    return interaction.guild is not None and not interaction.is_guild_integration()
+    return (interaction.guild is not None and not interaction.is_guild_integration()
+            and not interaction.permissions.use_external_apps)
 
 
 async def fetch_snapshot_limited(analyzer: "MaimaiRatingAnalyzer", token: str, region: str, on_progress=None) -> Dict[str, Any]:
