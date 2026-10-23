@@ -9,7 +9,9 @@ const CSP = [
   `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com https://static.cloudflareinsights.com`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: https://cdn.discordapp.com",
+  // blob: is the chart player's own jackets and songs, read from the visitor's device
+  "img-src 'self' data: blob: https://cdn.discordapp.com",
+  "media-src 'self' blob:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com",
   "frame-src https://challenges.cloudflare.com",
   "worker-src 'self'",

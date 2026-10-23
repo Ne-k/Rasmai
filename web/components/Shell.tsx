@@ -12,6 +12,7 @@ const NAV = [
   ["home", "/"],
   ["link", "/link/"],
   ["commands", "/commands/"],
+  ["play", "/play/"],
   ["dashboard", "/me/"],
   ["invite", "/invite"],
   ["support", "/support"],
