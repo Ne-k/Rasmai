@@ -15,6 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import aiohttp
+import requests
 
 from rasmai.config import TRANSLATE_KEEP_ALIVE, TRANSLATE_MODEL, TRANSLATE_URL
 
@@ -612,6 +613,17 @@ async def _translate_local(session: aiohttp.ClientSession, clean: str) -> Option
     return result
 
 
+def _google_get(clean: str) -> Tuple[int, Any]:
+    """One ask of Google's free endpoint: (status, the answer's JSON or None).
+
+    Asked through requests on a worker thread, not the news session: the endpoint answers every aiohttp request with
+    429 whatever its headers, while the same request through requests is answered, so it must be the client it tells apart.
+    """
+    response = requests.get("https://translate.googleapis.com/translate_a/single",
+                            params={"client": "gtx", "sl": "ja", "tl": "en", "dt": "t", "q": clean}, timeout=10)
+    return response.status_code, (response.json() if response.status_code == 200 else None)
+
+
 async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optional[str]:
     """Google's free endpoint; None when it fails. A refusal for going too fast pauses it for a few minutes rather than asking again on every post."""
     global _translate_paused_until
@@ -619,17 +631,14 @@ async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optio
         return None
     for attempt in range(2):
         try:
-            async with session.get("https://translate.googleapis.com/translate_a/single",
-                                   params={"client": "gtx", "sl": "ja", "tl": "en", "dt": "t", "q": clean},
-                                   timeout=aiohttp.ClientTimeout(total=10)) as response:
-                if response.status == 429:
-                    _translate_paused_until = time.monotonic() + TRANSLATE_PAUSE
-                    logger.info("news: translation is throttled, so posts go out untranslated for %d minutes", TRANSLATE_PAUSE // 60)
-                    return None
-                if response.status == 200:
-                    data = await response.json(content_type=None)
-                    return "".join(segment[0] for segment in data[0] if segment and segment[0]) or None
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, IndexError):
+            status, data = await asyncio.to_thread(_google_get, clean)
+            if status == 429:
+                _translate_paused_until = time.monotonic() + TRANSLATE_PAUSE
+                logger.info("news: translation is throttled, so posts go out untranslated for %d minutes", TRANSLATE_PAUSE // 60)
+                return None
+            if status == 200:
+                return "".join(segment[0] for segment in data[0] if segment and segment[0]) or None
+        except (requests.RequestException, ValueError, TypeError, IndexError):
             pass
         if attempt == 0:
             await asyncio.sleep(1)
@@ -641,7 +650,9 @@ async def translate(session: aiohttp.ClientSession, text: str) -> str:
 
     Links are left out of what is translated. A translation is kept for a while, so the same post is not translated twice.
     """
-    clean = re.sub(r"https?://\S+", "", text or "").strip()
+    clean = re.sub(r"https?://[^\s)）]+", "", text or "")
+    # a link taken out of brackets leaves them empty; and "でらっくす" is the game's own name, which Google renders as "Lux"
+    clean = re.sub(r"[(（]\s*[)）]", "", clean).replace("でらっくす", " DX ").strip()
     if not clean:
         return text
     if clean in _translated:

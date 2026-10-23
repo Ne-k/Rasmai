@@ -5,7 +5,7 @@ import pathlib
 import tempfile
 import time
 
-from tools.checks import check
+from tools.checks import ROOT, check
 
 URL = "https://discord.com/api/webhooks/123456789012345678/SECRETTOKEN-abcdefghijklmnopqrstuvwxyz"
 
@@ -240,26 +240,26 @@ def _followups():
     # Google's free endpoint throttles: one refusal pauses it, and the post goes out as written
     calls = []
 
-    class Throttled:
-        def get(self, url, **kwargs):
-            calls.append(url)
-
-            class Response:
-                status = 429
-
-                async def __aenter__(inner):
-                    return inner
-
-                async def __aexit__(inner, *exc):
-                    return False
-            return Response()
-    kept_pause, kept_url = news._translate_paused_until, news.TRANSLATE_URL
-    news._translate_paused_until, news.TRANSLATE_URL = 0.0, ""
+    def throttled(clean):
+        calls.append(clean)
+        return 429, None
+    kept_pause, kept_url, kept_get = news._translate_paused_until, news.TRANSLATE_URL, news._google_get
+    news._translate_paused_until, news.TRANSLATE_URL, news._google_get = 0.0, "", throttled
     try:
-        if asyncio.run(news.translate(Throttled(), "新曲です")) != "新曲です" or asyncio.run(news.translate(Throttled(), "新曲です")) != "新曲です" or len(calls) != 1:
+        if asyncio.run(news.translate(None, "新曲です")) != "新曲です" or asyncio.run(news.translate(None, "新曲です")) != "新曲です" or len(calls) != 1:
             problems.append(f"a throttled translation asked {len(calls)} times, not once and then paused")
+        # and an answer is read off the shape Google sends: a list of [english, japanese, ...] segments
+        calls.clear()
+        news._translate_paused_until, news._google_get = 0.0, lambda clean: (200, [[["The new song ", "新曲", None], ["is here!", "です", None]]])
+        news._translated.clear()
+        if asyncio.run(news.translate(None, "新曲です")) != "The new song is here!":
+            problems.append("Google's answer was not read into a translation")
+        # the endpoint turns away aiohttp whatever its headers, so the ask has to go through requests
+        source = (ROOT / "rasmai" / "scraping" / "news.py").read_text(encoding="utf-8")
+        if "requests.get(\"https://translate.googleapis.com" not in source:
+            problems.append("Google's endpoint is asked through aiohttp again, which it answers with 429 every time")
     finally:
-        news._translate_paused_until, news.TRANSLATE_URL = kept_pause, kept_url
+        news._translate_paused_until, news.TRANSLATE_URL, news._google_get = kept_pause, kept_url, kept_get
         news._translated.clear()
     return problems
 
