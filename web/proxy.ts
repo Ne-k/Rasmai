@@ -8,7 +8,7 @@ const TITLE = "Predicting Rating Gains in maimai DX";
 const DESCRIPTION = "How Rasmai works out which charts will raise your rating, based on how you play. 19 pages.";
 
 /** A PDF cannot carry an embed, so a previewer asking for the whitepaper gets the tags for one instead. People still get the PDF. */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   if (!PREVIEWERS.test(request.headers.get("user-agent") ?? "")) return NextResponse.next();
   const site = (process.env.MAIMAI_PUBLIC_URL ?? "https://rasmai.lol").trim().replace(/\/+$/, "");
   const pdf = `${site}/whitepaper.pdf`;
