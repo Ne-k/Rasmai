@@ -437,6 +437,15 @@ def _hsts():
     return problems
 
 
+@check("signing in to the site with Discord never revokes the token, which would uninstall Rasmai from the person's account")
+def _discord_sign_in_keeps_install():
+    source = (ROOT / "web" / "lib" / "discord.ts").read_text(encoding="utf-8")
+    code = "\n".join(line for line in source.splitlines() if not line.strip().startswith(("//", "*", "/*")))
+    if "revoke" in code:
+        return ["web/lib/discord.ts revokes the sign-in token, which ends the whole authorization and takes the account install's commands with it"]
+    return []
+
+
 @check("the key behind every login code is written for its owner and nobody else")
 def _secret_file():
     import os

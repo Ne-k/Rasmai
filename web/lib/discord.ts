@@ -1,5 +1,5 @@
 import { env } from "./env";
-import { oauthJson, revoke } from "./oauth";
+import { oauthJson } from "./oauth";
 import type { PendingIdentity } from "./pending";
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -44,7 +44,7 @@ export async function exchangeCode(code: string): Promise<PendingIdentity> {
     verified?: boolean;
   }>(`${DISCORD_API}/users/@me`, "identity read", { bearer: accessToken });
 
-  revoke(`${DISCORD_API}/oauth2/token/revoke`, { client_id: env.discordClientId(), client_secret: env.discordClientSecret(), token: accessToken });
+  // never revoked: that ends the person's whole authorization of the app, account install included, so its commands vanish. Unkept, it expires
 
   const id = String(user.id);
   const avatar = user.avatar
