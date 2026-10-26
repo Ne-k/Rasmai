@@ -232,6 +232,71 @@ def _expired_purge():
         store._database_ready = False
 
 
+@check("while maimai DX NET is down nobody is warned or deleted, and the hours it was down are added to the deadline of that region's accounts only; scheduled maintenance holds the sweep without moving any deadline, and a failed postpone does not stop the hourly sweep")
+def _deletion_waits_for_dxnet():
+    import asyncio, tempfile, pathlib, sqlite3
+    from datetime import datetime
+    from rasmai.bot import core
+    from rasmai.bot.tasks.presence import JST
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    from rasmai import storage
+    from rasmai.bot.tasks.presence import Maintenance
+    kept = core._regions_down, core._warn_expiring_accounts, core._purge_expired_accounts, core.maintenance_at
+    kept_postpone = storage.db.postpone_account_deletions
+    problems = []
+    try:
+        from rasmai.storage.db import get_connected_account, mark_session_expired, upsert_connected_account
+        for user_id, region in (("intl-due", "intl"), ("jp-due", "jp"), ("fine", "intl")):
+            upsert_connected_account(user_id, region, f"cookie://{user_id}")
+        mark_session_expired("intl-due", "2026-09-01T10:00:00")
+        mark_session_expired("jp-due", "2026-09-01T10:00:00")
+        ran = []
+
+        async def warn():
+            ran.append("warn")
+        core._warn_expiring_accounts = warn
+        core._purge_expired_accounts = lambda: ran.append("purge")
+        # Japan's three hours of daily maintenance: nothing runs, and no deadline moves, even with a site that is not answering
+        core.maintenance_at = lambda now=None, region="intl": Maintenance(region == "jp", datetime.now(JST))
+        core._regions_down = lambda: ["intl", "jp"]
+        asyncio.run(core._expired_account_sweep.coro())
+        if ran or {get_connected_account(u)["sessionExpired"] for u in ("intl-due", "jp-due")} != {"2026-09-01T10:00:00"}:
+            problems.append(f"during scheduled maintenance the sweep ran {ran} or moved a deadline")
+        core.maintenance_at = lambda now=None, region="intl": Maintenance(False, datetime.now(JST))
+        core._regions_down = lambda: ["intl"]
+        asyncio.run(core._expired_account_sweep.coro())
+        if ran:
+            problems.append(f"with the site down the sweep still ran {ran}")
+        if get_connected_account("intl-due")["sessionExpired"] != "2026-09-01T11:00:00":
+            problems.append(f"the international deadline did not move an hour: {get_connected_account('intl-due')['sessionExpired']}")
+        if get_connected_account("jp-due")["sessionExpired"] != "2026-09-01T10:00:00":
+            problems.append("a region whose site is up had its deadline moved")
+        if get_connected_account("fine")["sessionExpired"]:
+            problems.append("an account that is not expired was given an expiry")
+        def locked(*args):
+            raise sqlite3.OperationalError("database is locked")
+        storage.db.postpone_account_deletions = locked
+        try:
+            asyncio.run(core._expired_account_sweep.coro())
+        except Exception as error:
+            problems.append(f"a failed postpone escaped the sweep, which stops the hourly loop: {error!r}")
+        storage.db.postpone_account_deletions = kept_postpone
+        if ran:
+            problems.append(f"a failed postpone went on to {ran}")
+        core._regions_down = lambda: []
+        asyncio.run(core._expired_account_sweep.coro())
+        if ran != ["warn", "purge"]:
+            problems.append(f"with the site back the sweep ran {ran}, not the warning then the deletion")
+        return problems
+    finally:
+        core._regions_down, core._warn_expiring_accounts, core._purge_expired_accounts, core.maintenance_at = kept
+        storage.db.postpone_account_deletions = kept_postpone
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+
 @check("a play-count refresh drops every poster built for that level and nothing else")
 def _forget():
     from rasmai.bot.state.cache import CachedAnalysis

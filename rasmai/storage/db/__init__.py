@@ -4,7 +4,7 @@ from rasmai.storage.db.accounts import (
     login_code_verified, consume_login_code, login_code_expiry, upsert_connected_account, get_connected_account,
     delete_connected_account, update_account_snapshot, mark_session_expired, touch_account,
     set_share_slug, account_by_share_slug, session_deletes_at, expired_accounts_due, purge_expired_accounts,
-    accounts_to_warn, mark_deletion_warned,
+    accounts_to_warn, mark_deletion_warned, postpone_account_deletions,
 )
 from rasmai.storage.db.news import (
     add_news_subscription, replace_channel_webhook, news_webhook, news_subscribers, channel_sources, news_subscription_count,

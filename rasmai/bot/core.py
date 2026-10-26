@@ -2,7 +2,7 @@ from discord import app_commands
 from discord.app_commands.installs import AppCommandContext, AppInstallationType
 from discord.ext import commands, tasks
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, Tuple
 import asyncio
 import discord
@@ -15,10 +15,10 @@ from rasmai.bot.ui.emoji import sync_application_emojis
 from rasmai.bot.tasks.history_watch import HistoryWatch
 from rasmai.bot.tasks.news import NewsWatch
 from rasmai.bot.tasks.lag import LagWatch
-from rasmai.bot.tasks.presence import ServerWatch
+from rasmai.bot.tasks.presence import ServerWatch, _probe_once, maintenance_at
 from rasmai.storage.db.status import SAMPLE_MINUTES
 from rasmai.config import (
-    CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, WIKI_VIDEOS,
+    CONTROL_GUILD_ID, DATABASE_PATH, EXPIRED_ACCOUNT_DAYS, GUILD_ID, MAX_CONCURRENT_RENDERS, MAX_CONCURRENT_SCRAPES, SCRAPE_WORKERS, SHARD_COUNT, SUPPORTED_REGIONS, WIKI_VIDEOS,
     support_line,
 )
 from rasmai.images.render import render_html_to_image
@@ -512,8 +512,26 @@ async def _warn_expiring_accounts() -> None:
         logger.info("Deletion warnings: %d of %d delivered by DM", sent, len(due))
 
 
+def _regions_down() -> list:
+    """The regions whose maimai DX NET is not answering, where nobody can link again until it is back."""
+    return [region for region in SUPPORTED_REGIONS if not _probe_once(region)]
+
+
 @tasks.loop(hours=1)
 async def _expired_account_sweep() -> None:
+    from rasmai.storage.db import postpone_account_deletions
+    # scheduled maintenance is a few hours every day and already inside the allowance: the sweep waits, deadlines stay put
+    if any(maintenance_at(region=region).active for region in SUPPORTED_REGIONS):
+        return
+    down = await asyncio.to_thread(_regions_down)
+    if down:
+        # an hour down is an hour added to their deadline, and nothing is warned about or deleted until the site is back
+        try:
+            moved = await asyncio.to_thread(postpone_account_deletions, down, timedelta(hours=1))
+            logger.info("maimai DX NET is down in %s: %d expired account(s) get an hour more, and no deletion runs", ", ".join(down), moved)
+        except Exception:
+            logger.exception("postponing the deletions while maimai DX NET is down failed")
+        return
     await _warn_expiring_accounts()
     await asyncio.get_running_loop().run_in_executor(None, _purge_expired_accounts)
 

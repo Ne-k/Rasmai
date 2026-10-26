@@ -554,6 +554,37 @@ def mark_deletion_warned(user_id: str, when: str = "") -> None:
         connection.close()
 
 
+def postpone_account_deletions(regions: List[str], by: timedelta) -> int:
+    """Move the deletion of every expired account in `regions` back by `by`, while their maimai DX NET is down.
+
+    Nobody can link again while the site is down, so that time does not count against them: the moment
+    the sign-in was refused moves forward, and with it the warning, the deletion and the date the site shows.
+
+    :param regions: The regions whose site is down.
+    :type regions: List[str]
+    :param by: How long it was down for.
+    :type by: timedelta
+    :returns: How many accounts were moved.
+    :rtype: int
+    """
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            "SELECT user_id, region, session_expired FROM connected_accounts WHERE session_expired <> ''").fetchall()
+        moved = 0
+        with connection:
+            for row in rows:
+                when = _expired_moment(row["session_expired"])
+                if when is None or str(row["region"] or "intl") not in regions:
+                    continue
+                connection.execute("UPDATE connected_accounts SET session_expired = ? WHERE user_id = ? AND session_expired = ?",
+                                   ((when + by).isoformat(timespec="seconds"), row["user_id"], row["session_expired"]))
+                moved += 1
+    finally:
+        connection.close()
+    return moved
+
+
 def update_account_snapshot(user_id: str, official_profile: Optional[Dict[str, Any]], snapshot: Optional[Dict[str, Any]]) -> None:
     """Refresh the stored profile and compact score snapshot after an analysis.
 
