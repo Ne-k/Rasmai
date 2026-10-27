@@ -18,7 +18,7 @@ from rasmai.web.dashboard.areas import areas_payload
 from rasmai.web.dashboard.auth import start_link
 from rasmai.web.dashboard.lookup import chart_payload, patterns_payload, search_payload, video_payload
 from rasmai.web.dashboard.overview import overview_payload
-from rasmai.web.dashboard.picks import new_charts_payload, picks_payload
+from rasmai.web.dashboard.picks import new_charts_payload, picks_payload, practice_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
 from rasmai.web.dashboard.imports import import_kamaitachi, import_payload
@@ -114,6 +114,12 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
         handler._send_json(200, new_charts_payload(cached, (query.get("challenge") or ["balanced"])[0][:12],
                                                    (query.get("difficulty") or ["any"])[0], (query.get("level") or [""])[0][:4],
                                                    (query.get("focus") or [""])[0][:6]))
+        return True
+    if path == "/internal/me/practice":
+        if cached is None:
+            handler._send_json(404, {"ok": False, "error": "no_snapshot"})
+            return True
+        handler._send_json(200, practice_payload(cached, (query.get("trait") or [""])[0][:80]))
         return True
     if path == "/internal/me/recent":
         handler._send_json(200, {"plays": recent_payload(user["id"], cached)})

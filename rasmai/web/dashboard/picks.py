@@ -56,6 +56,18 @@ def new_charts_payload(cached: CachedAnalysis, challenge: str, difficulty: str, 
     })
 
 
+PICKED_CHARTS = 6         # charts named for a pattern the player chose themselves: a list to work through, not a nudge
+
+
+def _practice_entry(cached: CachedAnalysis, trait: Dict[str, Any], limit: int = 3) -> Optional[Dict[str, Any]]:
+    a = cached.analyzer
+    rows = insights.practice_for(trait, a.chart_index, a.play_profile, a.songs, limit)
+    if not rows:
+        return None
+    return _json_safe({"label": trait["label"], "english": mainotes_english(str(trait["label"])), "tag": str(trait["label"]).split(" (")[0],
+                       "verified": bool(trait.get("verified")), "offset": trait["offset"], "count": trait["count"], "charts": rows})
+
+
 def trait_practice(cached: CachedAnalysis, traits: int = 3) -> List[Dict[str, Any]]:
     """For each pattern the player scores below their curve on, confirmed or leaning, a few charts in their band to practise it on.
 
@@ -65,20 +77,27 @@ def trait_practice(cached: CachedAnalysis, traits: int = 3) -> List[Dict[str, An
     :type traits: int
     :rtype: List[Dict[str, Any]]
     """
-    a = cached.analyzer
-    profile = a.play_profile
+    profile = cached.analyzer.play_profile
     if profile is None:
         return []
     axes = profile.trait_axes or []
     weak = sorted([t for t in insights.notable(axes) + insights.leaning(axes) if float(t["offset"]) < 0 and t["dimension"] == "pattern"],
                   key=lambda t: float(t["offset"]))
-    out = []
-    for trait in weak[:traits]:
-        rows = insights.practice_for(trait, a.chart_index, profile, a.songs)
-        if rows:
-            out.append({"label": trait["label"], "english": mainotes_english(str(trait["label"])), "tag": str(trait["label"]).split(" (")[0],
-                        "verified": bool(trait.get("verified")), "offset": trait["offset"], "count": trait["count"], "charts": rows})
-    return _json_safe(out)
+    return [entry for entry in (_practice_entry(cached, trait) for trait in weak[:traits]) if entry]
+
+
+def practice_payload(cached: CachedAnalysis, label: str) -> Dict[str, Any]:
+    """Charts to practise one trait the player picked, by its stored label; None when it is not one of theirs or names no chart.
+
+    :param cached: The player's analysis, held in memory.
+    :type cached: CachedAnalysis
+    :param label: The trait's label as the profile stores it, such as ``"乱打 (streams)"``.
+    :type label: str
+    :rtype: Dict[str, Any]
+    """
+    profile = cached.analyzer.play_profile
+    trait = next((t for t in (profile.trait_axes if profile else None) or [] if str(t["label"]) == label), None)
+    return {"practice": _practice_entry(cached, trait, PICKED_CHARTS) if trait else None}
 
 
 def _englished(profile: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

@@ -222,7 +222,7 @@
 .spark.one p { margin: 8px 0 4px; color: var(--ink-2); font-size: 14.5px; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-.filters .search, .filters select {
+.filters .search, .filters select, .practice-pick {
   padding: 9px 12px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper); color: var(--ink);
   font: inherit; font-size: 14px; min-width: 0; max-width: 100%;
 }
@@ -317,7 +317,7 @@
 
 /* phones: each table row becomes a card, the jacket at the left, the title across the top, the numbers labelled below */
 @media (max-width: 720px) {
-  .filters .search, .filters select { font-size: 16px; padding: 10px 12px; }
+  .filters .search, .filters select, .practice-pick { font-size: 16px; padding: 10px 12px; }
   .filters .search { flex-basis: 100%; }
   .filters select { flex: 1 1 calc(50% - 4px); }
   .row-between .filters { width: 100%; }
@@ -608,6 +608,7 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .trait-lean { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--font-mono), monospace; font-size: 10px; color: var(--muted); vertical-align: 1px; }
 .traits li .trait-when { grid-column: 2 / -1; margin-top: -2px; font-size: 11.5px; color: var(--muted); }
 .practice { list-style: none; margin: 8px 0 0; padding: 0; }
+.practice-pick { margin-top: 8px; max-width: 100%; }
 .practice > li { padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
 .practice > li:last-child { border-bottom: 0; }
 .practice .practice-head { display: flex; align-items: baseline; gap: 10px; font-size: 13.5px; }

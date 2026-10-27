@@ -504,10 +504,9 @@ def _families():
     return problems
 
 
-@check("a trait read from the charts can name charts to practise it on")
-def _read_traits_practice():
+def _practice_fixture():
+    """Forty level-13 charts, half of them carrying one measured trait, and a profile built from scores on all of them; the caller restores simai.cached."""
     from rasmai.engine.analysis import ChartIndex, ChartRef, build_play_profile, calculate_rating
-    from rasmai.engine.insights.traits import practice_for
     from rasmai.scraping import simai
     from rasmai.storage.models import SongInfo
 
@@ -522,9 +521,17 @@ def _read_traits_practice():
                               is_new=False, level="13", difficulty=13.0, rating=calculate_rating(13.0, accuracy)))
     held = simai.cached
     simai.cached = lambda: (measured, {"circles": 0.01})
+    return index, songs, build_play_profile(songs, [], index, 26), held
+
+
+@check("a trait read from the charts can name charts to practise it on")
+def _read_traits_practice():
+    from rasmai.engine.insights.traits import practice_for
+    from rasmai.scraping import simai
+
+    index, songs, profile, held = _practice_fixture()
     problems = []
     try:
-        profile = build_play_profile(songs, [], index, 26)
         axis = next((a for a in profile.trait_axes if a["label"] == "spinning round the ring"), None)
         if axis is None:
             problems.append("the trait was not measured, so there was nothing to practise")
@@ -781,4 +788,44 @@ def _same_lists():
     page = (root / "rasmai" / "bot" / "builders" / "traits.py").read_text(encoding="utf-8")
     if "two_sides" not in page or "family_axes" not in page:
         problems.append("the traits picture is not picked with the dashboard's lists and families")
+    return problems
+
+
+@check("the practice route names charts for a trait the player picked, and nothing for one that is not theirs")
+def _picked_trait_practice():
+    from types import SimpleNamespace
+    from rasmai.bot.state.cache import CachedAnalysis
+    from rasmai.scraping import simai
+    from rasmai.web.dashboard import routes
+
+    index, songs, profile, held = _practice_fixture()
+    kept = routes.analysis_for_user, routes.get_connected_account
+    problems = []
+
+    class Fake:
+        def __init__(self):
+            self.sent = []
+
+        def _send_json(self, status, body):
+            self.sent.append((status, body))
+    try:
+        analyzer = SimpleNamespace(chart_index=index, play_profile=profile, songs=songs)
+        cached = CachedAnalysis(user_id="1", region="intl", analyzer=analyzer, recommendations=[], value_charts=[])   # type: ignore[arg-type]
+        routes.analysis_for_user, routes.get_connected_account = lambda *a, **k: cached, lambda *a, **k: {"id": "1"}
+        answers = {}
+        for label in ("spinning round the ring", "break notes", ""):
+            handler = Fake()
+            routes.handle_get(handler, "/internal/me/practice", {"trait": [label]}, {"id": "1"})
+            answers[label] = handler.sent
+        picked = answers["spinning round the ring"]
+        if len(picked) != 1 or picked[0][0] != 200 or not (picked[0][1].get("practice") or {}).get("charts"):
+            problems.append(f"the picked trait got {picked}")
+        elif len(picked[0][1]["practice"]["charts"]) <= 3:
+            problems.append("a picked trait gets no more charts than the nudge on the tab")
+        for label in ("break notes", ""):
+            if answers[label] != [(200, {"practice": None})]:
+                problems.append(f"a trait that is not the player's got {answers[label]}")
+    finally:
+        simai.cached = held
+        routes.analysis_for_user, routes.get_connected_account = kept
     return problems

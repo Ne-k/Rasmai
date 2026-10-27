@@ -8,7 +8,7 @@ import type { Trait, TraitFamily, TraitPractice } from "../api";
 import { Empty, Info, Label, type OpenChart } from "../bits";
 import { CONFIRM_CHARTS, LEAN_P, NOT_A_SKILL, RADAR_MIN, isEven, isLean, isWatch, radarAxes, twoSides, chance } from "./rules";
 import { Radar } from "./Radar";
-import { EvenLine, Families, List, Practice } from "./panels";
+import { EvenLine, Families, List, Practice, PracticePicker } from "./panels";
 import { JudgementProfile } from "./JudgementProfile";
 
 export { Radar, radarAxes, twoSides, JudgementProfile };
@@ -130,6 +130,7 @@ export function Traits({ traits, axes, charts, families, practice, onOpen }: { t
             <Practice items={practice} onOpen={onOpen} />
           </>
         ) : null}
+        <PracticePicker axes={all} listed={practice ?? []} onOpen={onOpen} />
         {even.length ? <EvenLine even={even} /> : null}
       </section>
     </>

@@ -1,13 +1,13 @@
 "use client";
 
-import type { Trait, TraitFamily, TraitPractice } from "../api";
-import { Jacket, TitleLink, type OpenChart } from "../bits";
-import { useState } from "react";
+import { getJSON, type Trait, type TraitFamily, type TraitPractice } from "../api";
+import { Jacket, Label, TitleLink, type OpenChart } from "../bits";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/I18n";
 import { traitName } from "@/lib/i18n/traits";
 import { activeTag } from "@/lib/i18n/active";
-import { LEAN, TIER, chance, isLean, isWatch, odds } from "./rules";
+import { CONFIRM_CHARTS, LEAN, TIER, chance, isLean, isWatch, odds } from "./rules";
 
 export function List({ items, tone, empty }: { items: Trait[]; tone: "down" | "up"; empty: string }) {
   const m = useTranslations("traitsTab");
@@ -76,6 +76,46 @@ export function Practice({ items, onOpen }: { items: TraitPractice[]; onOpen?: O
         </li>
       ))}
     </ul>
+  );
+}
+
+// the dimensions practice_for can name charts for; the rest are about the hands or the era, not any chart
+const PRACTISABLE = new Set(["pattern", "slide", "touch", "density", "tempo", "hold"]);
+
+/** Any measured pattern the player picks, with charts in their band to practise it on: the weak ones above are the model's
+ *  choice, this is theirs. */
+export function PracticePicker({ axes, listed, onOpen }: { axes: Trait[]; listed: TraitPractice[]; onOpen?: OpenChart }) {
+  const m = useTranslations("traitsTab");
+  const locale = useLocale();
+  const [label, setLabel] = useState("");
+  const [data, setData] = useState<Record<string, TraitPractice | null>>({});
+  const [error, setError] = useState("");
+  const shown = new Set(listed.map((p) => p.label));
+  // measured on enough charts to mean something, as the lists above require
+  const choices = axes.filter((a) => PRACTISABLE.has(a.dimension) && a.count >= CONFIRM_CHARTS && !shown.has(a.label)).sort((a, b) => a.offset - b.offset);
+  useEffect(() => {
+    if (!label || label in data) return;
+    getJSON<{ practice: TraitPractice | null }>(`/api/me/practice?trait=${encodeURIComponent(label)}`)
+      .then((d) => setData((prev) => ({ ...prev, [label]: d.practice })))
+      .catch((e: Error) => setError(e.message));
+  }, [label, data]);
+  if (!choices.length) return null;
+  const entry = label ? data[label] : undefined;
+  return (
+    <>
+      <div className="ledger-head">
+        <Label info={m("practiceAnyInfo")}>{m("practiceAny")}</Label>
+      </div>
+      <select className="practice-pick" value={label} onChange={(e) => { setError(""); setLabel(e.target.value); }} aria-label={m("practiceAny")}>
+        <option value="">{m("practicePick")}</option>
+        {choices.map((a) => (
+          <option key={`${a.dimension}:${a.label}`} value={a.label}>
+            {traitName(a.label, a.english, locale)} ({a.offset > 0 ? "+" : ""}{a.offset.toFixed(2)})
+          </option>
+        ))}
+      </select>
+      {error ? <p className="hint">{error}</p> : entry ? <Practice items={[entry]} onOpen={onOpen} /> : entry === null ? <p className="hint">{m("practiceNone")}</p> : null}
+    </>
   );
 }
 
