@@ -9,6 +9,7 @@ from rasmai.storage.db.sources import source_state_get, source_state_set
 logger = logging.getLogger(__name__)
 
 SEEN_KEPT = 600      # posts remembered per source; the feeds show a few dozen, so this is plenty
+SENT_KEPT = timedelta(days=2)      # how long a sent post can still follow an edit: X allows an hour, a Bluesky edit can come later
 JETSTREAM_STATE = "news:jetstream"
 
 
@@ -302,6 +303,75 @@ def news_mark_seen(source: str, post_ids: Iterable[str]) -> None:
             connection.execute(
                 "DELETE FROM news_seen WHERE source = ? AND rowid NOT IN "
                 "(SELECT rowid FROM news_seen WHERE source = ? ORDER BY rowid DESC LIMIT ?)", (source, source, SEEN_KEPT))
+    finally:
+        connection.close()
+
+
+def news_sent_save(source: str, root: str, post_ids: Iterable[str], body: str, messages: Iterable[Tuple[str, str, bool]]) -> None:
+    """Record a post just sent: every post it covers under ``root``, what it said, and ``(channel, message, unfurled)`` for each channel.
+
+    Rows older than ``SENT_KEPT`` go at the same time, so the tables hold a couple of days of posts and no more.
+    """
+    now = datetime.now()
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.executemany("INSERT OR REPLACE INTO news_posted (source, post_id, root, body, sent_at) VALUES (?, ?, ?, ?, ?)",
+                                   [(source, str(i), root, body, now.isoformat()) for i in post_ids if i])
+            connection.executemany("INSERT OR REPLACE INTO news_messages (source, root, channel_id, message_id, unfurl, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                   [(source, root, channel_id, message_id, int(unfurl), now.isoformat()) for channel_id, message_id, unfurl in messages])
+            since = (now - SENT_KEPT).isoformat()
+            connection.execute("DELETE FROM news_posted WHERE sent_at < ?", (since,))
+            connection.execute("DELETE FROM news_messages WHERE sent_at < ?", (since,))
+    finally:
+        connection.close()
+
+
+def news_sent_root(source: str, post_id: str) -> Optional[str]:
+    """The post a sent one was sent under: itself, or the start of the thread it went out in. None when it was not sent."""
+    connection = get_database_connection()
+    try:
+        row = connection.execute("SELECT root FROM news_posted WHERE source = ? AND post_id = ?", (source, post_id)).fetchone()
+    finally:
+        connection.close()
+    return row[0] if row else None
+
+
+def news_sent_recent(source: str) -> List[Tuple[str, str, str]]:
+    """Every post of a source still kept as sent, as ``(post, root, what it said)``."""
+    connection = get_database_connection()
+    try:
+        return [tuple(row) for row in connection.execute("SELECT post_id, root, body FROM news_posted WHERE source = ?", (source,))]
+    finally:
+        connection.close()
+
+
+def news_sent_moved(source: str, old_id: str, new_id: str, body: str) -> None:
+    """An X edit is a new post: it takes the place of the one it replaces, under the same root, so a second edit finds it."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute("UPDATE news_posted SET post_id = ?, body = ? WHERE source = ? AND post_id = ?", (new_id, body, source, old_id))
+    finally:
+        connection.close()
+
+
+def news_sent_messages(source: str, root: str) -> List[Tuple[str, str, bool]]:
+    """The messages a sent post became, as ``(channel, message, unfurled)``."""
+    connection = get_database_connection()
+    try:
+        return [(row[0], row[1], bool(row[2])) for row in connection.execute(
+            "SELECT channel_id, message_id, unfurl FROM news_messages WHERE source = ? AND root = ?", (source, root))]
+    finally:
+        connection.close()
+
+
+def news_message_gone(channel_id: str, message_id: str) -> None:
+    """Forget a message that was deleted, or whose webhook was, so it is not tried again."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute("DELETE FROM news_messages WHERE channel_id = ? AND message_id = ?", (channel_id, message_id))
     finally:
         connection.close()
 

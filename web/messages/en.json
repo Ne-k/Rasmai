@@ -714,7 +714,7 @@
     "practiceInfo": "A few charts at your level for each pattern you're weak on. Ones you've played come first so you can see if you improve.",
     "practice": "what to work on",
     "practiceAnyInfo": "Pick any pattern you want to get better at, weakest first, and get charts at your level that carry it.",
-    "practiceAny": "practise a pattern you choose",
+    "practiceAny": "practice a pattern you choose",
     "practicePick": "pick a pattern…",
     "practiceNone": "No charts at your level carry this pattern.",
     "measuredTitle": "measured from the chart's notes",
@@ -944,7 +944,7 @@
           "c03_charts": {
             "name": "/charts",
             "args": "[pattern] [level] [difficulty]",
-            "what": "Browse charts by pattern or level, with your scores next to each one. Good for practising something you're weak at."
+            "what": "Browse charts by pattern or level, with your scores next to each one. Good for practicing something you're weak at."
           },
           "c04_recent": {
             "name": "/recent",
@@ -1002,7 +1002,7 @@
           "c05_news": {
             "name": "/news",
             "args": "subscribe · unsubscribe",
-            "what": "For server managers. Posts new maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai and KING of Performai on X. A post on both sites only comes through once, from whichever had it first. Hit Maimai posts only to pick which of a channel's accounts send it just their posts about maimai; Preformai International starts that way. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there, and hit Save. Want news from somewhere else? Hit Add an account and type any Bluesky handle or X username, or paste a link to one, and pick one under Remove an added account to take it out of every channel here. Pick a channel that already gets news to turn accounts on or off, or pick an account under Send a test post and say how many of its latest posts to send there, up to 10. <code>previous</code> sends that many older posts from the accounts you just ticked (0 by default). If I'm missing Manage Webhooks, you get a link to add it. <code>/news manage</code> lists the channels that already get news: pick one to change its accounts, send a test post, or stop it. <code>/news unsubscribe</code> shows every channel here and what it gets, and stops the ones you pick. You need Manage Webhooks for all three."
+            "what": "For server managers. Posts new maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai, KING of Performai and ALL.Net on X. A post on both sites only comes through once, from whichever had it first. Hit Maimai posts only to pick which of a channel's accounts send it just their posts about maimai; Preformai International starts that way. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there, and hit Save. Want news from somewhere else? Hit Add an account and type any Bluesky handle or X username, or paste a link to one, and pick one under Remove an added account to take it out of every channel here. Pick a channel that already gets news to turn accounts on or off, or pick an account under Send a test post and say how many of its latest posts to send there, up to 10. <code>previous</code> sends that many older posts from the accounts you just ticked (0 by default). If I'm missing Manage Webhooks, you get a link to add it. <code>/news manage</code> lists the channels that already get news: pick one to change its accounts, send a test post, or stop it. <code>/news unsubscribe</code> shows every channel here and what it gets, and stops the ones you pick. You need Manage Webhooks for all three."
           }
         }
       },
@@ -1031,9 +1031,9 @@
         "u01": {
           "i01": "<b>Overview</b> shows your rating over time and your curve with every chart you've scored.",
           "i02": "<b>What to play</b> and <b>New charts</b> are <code>/analyze</code> and <code>/new</code>, with filters so you don't have to retype them.",
-          "i03": "<b>Traits</b> shows what you lose points on, what you're good at, how sure it is about each, and charts at your level to practise the weak ones.",
+          "i03": "<b>Traits</b> shows what you lose points on, what you're good at, how sure it is about each, and charts at your level to practice the weak ones.",
           "i04": "<b>Best 50</b>, <b>All charts</b> and <b>Recent</b> are your scores with filters, sorting and search in Japanese, romaji or English.",
-          "i05": "<b>Look up</b> is <code>/chart</code> with a pattern browser, so you can find every chart with a certain pattern and practise it.",
+          "i05": "<b>Look up</b> is <code>/chart</code> with a pattern browser, so you can find every chart with a certain pattern and practice it.",
           "i06": "<b>Areas</b> and <b>Account</b> cover area travel, your settings, importing an old export and deleting your account."
         }
       },
@@ -1731,7 +1731,7 @@
   },
   "play": {
     "metaTitle": "Chart player",
-    "metaDescription": "Watch, play and practise maimai charts from a folder on your device, and export a video with the music. Nothing leaves your browser.",
+    "metaDescription": "Watch, play and practice maimai charts from a folder on your device, and export a video with the music. Nothing leaves your browser.",
     "title": "Chart <em>player</em>",
     "intro": "Open a folder of charts from your device (maidata.txt, track.mp3, bg.jpg, the AstroDX layout). It stays on your device.",
     "open": "Open a folder",
@@ -1752,7 +1752,7 @@
     "noAudio": "no audio file: the chart plays silently",
     "modeWatch": "Watch",
     "modePlay": "Play",
-    "modePractice": "Practise",
+    "modePractice": "Practice",
     "playBtn": "Play",
     "pause": "Pause",
     "restart": "Restart",

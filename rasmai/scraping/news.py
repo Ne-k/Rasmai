@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field, replace
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import quote, unquote, urljoin, urlparse
 import asyncio
+import difflib
 import html
 import logging
 import os
@@ -40,6 +41,8 @@ SOURCES: Dict[str, Source] = {
     "laundromai": Source("laundromai", "Laundromai", "X", "laundromai"),
     # not filtered: the tournament covers all three games and tags every post with all of them, so the filter cannot tell them apart
     "kop": Source("kop", "KING of Performai", "X", "kop_sega"),
+    # SEGA's arcade network: maintenance and outages for every game, so not filtered either
+    "allnet": Source("allnet", "ALL.Net", "X", "allnet_info"),
 }
 
 JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post"
@@ -93,6 +96,7 @@ class Post:
     follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
     posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
     about_maimai: bool = True                        # whether it goes to a channel getting only the account's posts about maimai
+    covers: List[str] = field(default_factory=list)  # every post it carries, its thread on Bluesky, so an edit of any of them finds it
 
     def content(self, unfurl: bool = False) -> str:
         """The message: ``unfurl`` lets the link draw its preview, for when the post's media could not be attached."""
@@ -149,6 +153,34 @@ def copy_mark(text: str) -> str:
     letters = "".join(re.findall(r"\w", words))[:60]
     # shortcut: a post with next to no text (a picture alone) cannot be matched, so both its copies go out; match on time if that happens often
     return "copy:" + letters if len(letters) >= 12 else ""
+
+
+X_EDIT_WINDOW = 3600 + 600      # seconds: X lets a post be edited for an hour, and the new version's id is dated at the edit
+X_EDIT_LIKENESS = 0.6            # how much of the earlier post the new one must still say to be its edit
+
+
+def edit_of(post_id: str, text: str, sent: List[Tuple[str, str, str]], showing: Set[str]) -> Optional[Tuple[str, str]]:
+    """The sent X post this new one is an edit of, as ``(its id, the id it was first sent under)``, or None.
+
+    X gives an edited post a new id, and its feed then shows only the new version. So the earlier post must be one that was sent,
+    gone from the feed, made less than the edit window before, and say mostly the same thing; a post deleted and made again
+    within the hour counts as well, which is what it is to a reader.
+
+    :param post_id: The new post's id.
+    :param text: What it says.
+    :param sent: The account's sent posts, as ``(id, root, what it said)``.
+    :param showing: The ids the feed shows now.
+    :rtype: Optional[Tuple[str, str]]
+    """
+    made = tweet_time(post_id) or 0
+    best: Optional[Tuple[float, str, str]] = None
+    for earlier, root, body in sent:
+        if earlier in showing or not body.strip() or not text.strip() or not 0 < made - (tweet_time(root) or 0) <= X_EDIT_WINDOW:
+            continue
+        likeness = difflib.SequenceMatcher(None, body, text).ratio()
+        if likeness >= X_EDIT_LIKENESS and (best is None or likeness > best[0]):
+            best = (likeness, earlier, root)
+    return (best[1], best[2]) if best else None
 
 
 def first_line(text: str, limit: int = 140) -> str:
@@ -358,8 +390,9 @@ async def bluesky_avatar(session: aiohttp.ClientSession, handle: str) -> str:
     return _avatars[handle]
 
 
-async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, record: Dict[str, Any], uri: str) -> Tuple[Post, List[str]]:
-    """The post for a thread that started at ``uri``, and the URIs of every post in it."""
+async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, record: Dict[str, Any], uri: str,
+                             media: bool = True) -> Tuple[Post, List[str]]:
+    """The post for a thread that started at ``uri``, and the URIs of every post in it; without ``media``, its videos are not fetched."""
     thread, above = await bluesky_thread(session, uri, source.did)
     thread = thread or [{"uri": uri, "record": record, "author": {"did": source.did}}]
     parts: List[str] = []
@@ -376,7 +409,7 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
     images = list(dict.fromkeys(images))
     playlists = list(dict.fromkeys(playlists))
     # fetching and re-encoding a video takes minutes and holds up every post behind it, so only the built-in accounts' videos are attached
-    videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data] if source.key in SOURCES else []
+    videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data] if source.key in SOURCES and media else []
     follow_up = None
     if record.get("reply"):
         follow_up = ("", "")
@@ -388,7 +421,8 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
                 iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))),
                 # the account correcting or continuing a maimai post is about maimai too, whatever the correction says
                 is_maimai("\n".join(parts)) or bool(above and is_maimai(str((above.get("record") or {}).get("text", "")))))
-    return post, [p["uri"] for p in thread]
+    post.covers = [p["uri"] for p in thread]
+    return post, post.covers
 
 
 # ---------------------------------------------------------------- X, through Nitter's RSS
@@ -717,12 +751,12 @@ async def syndication_video(session: aiohttp.ClientSession, post_id: str) -> Lis
     return []
 
 
-async def build_x_post(session: aiohttp.ClientSession, source: Source, item: FeedItem, avatar: str) -> Post:
-    """A Nitter post as one to send: its text with a translation, its pictures, and its video when it has one."""
+async def build_x_post(session: aiohttp.ClientSession, source: Source, item: FeedItem, avatar: str, media: bool = True) -> Post:
+    """A Nitter post as one to send: its text with a translation, its pictures, and its video when it has one and ``media`` is asked for."""
     images = [url for url in media_urls(item.description) if trusted(url)]
     videos: List[bytes] = []
     wanted_video = any("amplify_video_thumb" in url or "/tweet_video_thumb/" in url for url in images)
-    if wanted_video:
+    if wanted_video and media:
         mp4 = await syndication_video(session, item.id)
         data = await video_bytes(mp4[0]) if mp4 else None
         if data:

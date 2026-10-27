@@ -220,6 +220,32 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute(
                     """
+                    CREATE TABLE IF NOT EXISTS news_posted (   -- what a sent post said, by every post it covers, so an edit of it can be told apart: nobody's data
+                        source  TEXT NOT NULL,
+                        post_id TEXT NOT NULL,
+                        root    TEXT NOT NULL,
+                        body    TEXT NOT NULL DEFAULT '',
+                        sent_at TEXT NOT NULL,
+                        PRIMARY KEY (source, post_id)
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS news_messages (   -- the Discord message a sent post became in each channel, so it can be edited with it
+                        source     TEXT NOT NULL,
+                        root       TEXT NOT NULL,
+                        channel_id TEXT NOT NULL,
+                        message_id TEXT NOT NULL,
+                        unfurl     INTEGER NOT NULL DEFAULT 0,
+                        sent_at    TEXT NOT NULL,
+                        PRIMARY KEY (channel_id, message_id)
+                    )
+                    """
+                )
+                setup.execute("CREATE INDEX IF NOT EXISTS news_messages_root ON news_messages (source, root)")
+                setup.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS status_samples (   -- the bot's own heartbeat, for the status page: nobody's data
                         at         TEXT PRIMARY KEY,
                         states     TEXT NOT NULL,

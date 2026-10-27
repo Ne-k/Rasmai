@@ -444,8 +444,17 @@ def _maimai_and_time():
 class _Webhook:
     """Stands in for a Discord webhook: records what is sent, or fails the way a given scenario says."""
 
+    edits: list = []        # (url, message id, options) of every edit, across all of them
+    made = 1000
+
     def __init__(self, url, sent, behave):
         self.url, self.sent, self.behave = url, sent, behave
+
+    async def edit_message(self, message_id, **options):
+        import discord
+        if self.behave(self.url, {"edit": message_id}) == "deleted":
+            raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
+        _Webhook.edits.append((self.url, message_id, options))
 
     async def send(self, **options):
         import discord
@@ -466,6 +475,8 @@ class _Webhook:
         if outcome == "slow":
             await asyncio.sleep(1)
         self.sent.append((self.url, options))
+        _Webhook.made += 1          # message ids are unique across every send, as Discord's are
+        return type("Message", (), {"id": _Webhook.made})()
 
 
 @contextmanager
@@ -1198,8 +1209,8 @@ def _command():
         problems.append(f"subscribe takes {sorted(options)}: only the earlier posts, optional, 0 by default within 0 to {command.MAX_HISTORY}; the channel and accounts are picked in its menu")
     if [p.name for p in unsubscribe.parameters]:
         problems.append("unsubscribe takes options; it shows what is followed and the channels are picked there")
-    if {s.handle for s in SOURCES.values()} != {"performaien.bsky.social", "maimai_official", "laundromai", "kop_sega"}:
-        problems.append("the accounts are not Preformai International, Maimai Official, Laundromai and KING of Performai")
+    if {s.handle for s in SOURCES.values()} != {"performaien.bsky.social", "maimai_official", "laundromai", "kop_sega", "allnet_info"}:
+        problems.append("the accounts are not Preformai International, Maimai Official, Laundromai, KING of Performai and ALL.Net")
 
     from rasmai.bot import core
     kept_application = core.bot._connection.application_id
@@ -2343,7 +2354,7 @@ def _maimai_choice():
             problems.append(f"setting a channel's filter gave {db.news_channel_filters('maimai')}")
         reached = []
 
-        async def deliver(channel_id, url, post, files, unfurl=False):
+        async def deliver(channel_id, url, post, files, unfurl=False, kept=None):
             reached.append((post.id, channel_id))
             return True
         watch = tasks.NewsWatch()
@@ -2670,4 +2681,128 @@ def _invite_buttons():
                 problems.append(f"the server link from {guild_id or 'a DM'} was {link}")
     finally:
         core.bot._connection.application_id, account.DISCORD_BOT_INVITE = kept
+    return problems
+
+
+@check("a sent post keeps the message it became in each channel, and an edit on Bluesky or X edits those messages instead of posting again")
+def _edits():
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping import news
+    from rasmai.storage import db
+
+    problems = []
+
+    def made(seconds_ago, n=0):
+        return str(((int((time.time() - seconds_ago) * 1000) - news.TWITTER_EPOCH_MS) << 22) + n)
+    first, edited, again, other = made(600), made(300), made(120), made(60)
+    said = "maimai DX NET will be down for maintenance on Wednesday from 2:00 to 6:00 JST."
+
+    # the matcher alone: gone from the feed, inside the hour, saying mostly the same thing
+    sent = [(first, first, said)]
+    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited}) != (first, first):
+        problems.append("a post replaced by a corrected one inside the hour was not taken for its edit")
+    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited, first}) is not None:
+        problems.append("a post still in the feed was taken for edited")
+    if news.edit_of(edited, "The KING of Performai finals start at noon today, see you there!", sent, {edited}) is not None:
+        problems.append("a different post was taken for an edit of the earlier one")
+    if news.edit_of(made(-5000), said, [(made(10), made(10), said)], set()) is not None:
+        problems.append("a post more than an hour after another was taken for its edit")
+    if news.edit_of(edited, "", [(first, first, "")], {edited}) is not None:
+        problems.append("two posts with no words were taken for an edit")
+
+    source = news.SOURCES["maimai"]
+
+    def item(n, text):
+        return news.FeedItem(n, text, f"https://n/{source.handle}/status/{n}", f"<p>{text}</p>", False, source.handle)
+    feed = {"items": [item(first, said)]}
+
+    async def fake_feed(session, username, tries=0):
+        return feed["items"], "https://av/a.png"
+
+    async def fake_x(session, src, entry, avatar, media=True):
+        return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.text], posted_at=news.tweet_time(entry.id))
+
+    async def fake_thread(session, uri, did):
+        return [{"uri": "at://p/post/1", "record": {"text": "fixed words"}}, {"uri": "at://p/post/2", "record": {"text": "more"}}], None
+
+    async def fake_build(session, src, record, uri, media=True):
+        post = news.Post(src.key, uri, "https://bsky.app/profile/p/post/1", src.label, "", [record.get("text", "")])
+        post.covers = ["at://p/post/1", "at://p/post/2"]
+        return post, post.covers
+    kept = news.fetch_feed, news.build_x_post, news.bluesky_thread, news.build_bluesky_post
+    news.fetch_feed, news.build_x_post, news.bluesky_thread, news.build_bluesky_post = fake_feed, fake_x, fake_thread, fake_build
+    _Webhook.edits = []
+    try:
+        with _scratch(), _no_session():
+            db.add_news_subscription("g1", "c1", "maimai", URL + "1")
+            db.add_news_subscription("g2", "c2", "maimai", URL + "2")
+            watch = tasks.NewsWatch()
+            asyncio.run(watch.poll(source))                 # the first look only learns
+            # send the first post for real, as a later look would have
+            with _webhooks() as sent_now:
+                asyncio.run(watch.publish(asyncio.run(fake_x(None, source, item(first, said), ""))))
+            ids = sorted(message for _channel, message, _unfurl in db.news_sent_messages("maimai", first))
+            if len(sent_now) != 2 or len(ids) != 2:
+                problems.append(f"sending to two channels kept {ids}, not one message each")
+
+            # X: the post is edited, so the feed shows a new id in its place
+            fixed = said.replace("6:00", "7:00")
+            feed["items"] = [item(edited, fixed)]
+            with _webhooks() as sent_now:
+                if asyncio.run(watch.poll(source)) != 0 or sent_now:
+                    problems.append("an edited X post was posted again instead of editing what was sent")
+            done = sorted((url[-1], str(message)) for url, message, _ in _Webhook.edits)
+            if done != [("1", ids[0]), ("2", ids[1])] and done != [("1", ids[1]), ("2", ids[0])]:
+                problems.append(f"the X edit changed {done}, not both channels' messages")
+            if _Webhook.edits and ("7:00" not in _Webhook.edits[0][2]["content"] or f"<t:{news.tweet_time(first)}:F>" not in _Webhook.edits[0][2]["content"]):
+                problems.append("the edited message does not say the new words, or is no longer dated when the post was first made")
+            if _Webhook.edits and _Webhook.edits[0][2]["allowed_mentions"].to_dict() != {"parse": []}:
+                problems.append("an edit could ping somebody")
+
+            # edited a second time: the chain is followed from the new id
+            _Webhook.edits.clear()
+            feed["items"] = [item(again, fixed + " Sorry!")]
+            with _webhooks() as sent_now:
+                asyncio.run(watch.poll(source))
+            if sent_now or len(_Webhook.edits) != 2:
+                problems.append("a second edit of the same X post was not followed")
+
+            # a new post that only looks like it, with the earlier still in the feed, is sent as a post of its own
+            _Webhook.edits.clear()
+            feed["items"] = [item(other, fixed + " Sorry!!"), item(again, fixed + " Sorry!")]
+            with _webhooks() as sent_now:
+                asyncio.run(watch.poll(source))
+            if len(sent_now) != 2 or _Webhook.edits:
+                problems.append("a new post was taken for an edit while the earlier one is still up")
+
+            # a message somebody deleted is forgotten, the other channel's is still edited
+            _Webhook.edits.clear()
+            with _webhooks(lambda url, options: "deleted" if "edit" in options and url.endswith("1") else None):
+                asyncio.run(watch.revise("maimai", first, asyncio.run(fake_x(None, source, item(again, "x"), ""))))
+            if len(_Webhook.edits) != 1 or len(db.news_sent_messages("maimai", first)) != 1:
+                problems.append("a deleted message was not forgotten, or stopped the other channel's edit")
+
+            # Bluesky: a thread sent as one message, then a reply in it edited
+            db.add_news_subscription("g1", "c1", "preformai", URL + "1")
+            bluesky = news.SOURCES["preformai"]
+            post, _uris = asyncio.run(fake_build(None, bluesky, {"text": "words"}, "at://p/post/1"))
+            with _webhooks():
+                asyncio.run(watch.publish(post))
+            _Webhook.edits.clear()
+            with _webhooks() as sent_now:
+                if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/2", wait=False)) != 1 or sent_now:
+                    problems.append("an edit of a reply in a sent Bluesky thread did not edit the message it went out in")
+            if _Webhook.edits and "fixed words" not in _Webhook.edits[0][2]["content"]:
+                problems.append("the Bluesky edit did not rebuild the thread as it reads now")
+            with _webhooks() as sent_now:
+                if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/9", wait=False)) != 0 or sent_now:
+                    problems.append("an edit of a Bluesky post that was never sent did something")
+            # history sends to one channel are old posts being shown, not ones to follow
+            with _webhooks():
+                asyncio.run(watch._deliver("c1", URL + "1", news.Post("maimai", "h1", "https://x.com/a/status/1", "n", parts=["old"]), []))
+            if db.news_sent_messages("maimai", "h1"):
+                problems.append("a post shown from history was kept as one to edit")
+    finally:
+        news.fetch_feed, news.build_x_post, news.bluesky_thread, news.build_bluesky_post = kept
+        _Webhook.edits = []
     return problems

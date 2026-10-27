@@ -12,7 +12,8 @@ from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
     followed_news_keys, jetstream_alive, news_channel_filters, news_copy_seen, news_copy_sent, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
-    remove_unknown_news_sources, save_jetstream_alive,
+    remove_unknown_news_sources, save_jetstream_alive, news_message_gone, news_sent_messages, news_sent_moved, news_sent_recent, news_sent_root, news_sent_save,
+    news_webhook,
 )
 
 logger = logging.getLogger(__name__)
@@ -192,7 +193,8 @@ class NewsWatch:
     async def _event(self, data: Dict[str, Any], accounts: Dict[str, Source]) -> None:
         try:
             commit = data.get("commit") or {}
-            if data.get("kind") != "commit" or commit.get("operation") != "create":
+            operation = commit.get("operation")
+            if data.get("kind") != "commit" or operation not in ("create", "update"):
                 return
             did, rkey, record = commit.get("repo"), commit.get("rkey"), commit.get("record")
             source = accounts.get(did)
@@ -200,7 +202,11 @@ class NewsWatch:
                 return
             # a replayed post is old enough that its thread is complete; a live one is given a moment to finish
             settled = _now_us() - int(data.get("time_us") or _now_us()) > SETTLED
-            await self.bluesky_post(source, record, f"at://{did}/app.bsky.feed.post/{rkey}", wait=not settled)
+            uri = f"at://{did}/app.bsky.feed.post/{rkey}"
+            if operation == "update":
+                await self.bluesky_edit(source, uri, wait=not settled)
+            else:
+                await self.bluesky_post(source, record, uri, wait=not settled)
         except Exception:
             logger.exception("news: a Bluesky event could not be handled")
 
@@ -261,6 +267,19 @@ class NewsWatch:
             await asyncio.to_thread(news_mark_seen, source.key, uris)
             return await self.publish(post)
 
+    async def bluesky_edit(self, source: Source, uri: str, wait: bool = True) -> int:
+        """Edit what a sent Bluesky post became, after the account edited it or a post in its thread; returns how many were edited."""
+        root = await asyncio.to_thread(news_sent_root, source.key, uri)
+        if root is None:
+            return 0            # never sent, or sent too long ago to follow
+        if wait:
+            await asyncio.sleep(news.THREAD_WAIT_SECONDS)       # the stream has the edit a moment before the public API serves it
+        thread, _above = await news.bluesky_thread(self.session, root, source.did)
+        if not thread:
+            return 0
+        post, _uris = await news.build_bluesky_post(self.session, source, thread[0].get("record") or {}, root, media=False)
+        return await self.revise(source.key, root, post)
+
     # ------------------------------------------------------------ X
 
     async def _x_loop(self) -> None:
@@ -310,6 +329,7 @@ class NewsWatch:
         """
         # an added account gone private or suspended is empty on every instance, so it is not worth trying all of them each round
         items, avatar = await news.fetch_feed(self.session, source.handle, len(news.RSS_INSTANCES) if source.key in SOURCES else news.LOOKUP_TRIES)
+        showing = {item.id for item in items}
         only = await self._only_maimai(source)
         items = [item for item in news.own_posts(items, source) if not only or news.is_maimai(item.text)]
         if not items:
@@ -331,12 +351,24 @@ class NewsWatch:
         if older:
             await asyncio.to_thread(news_mark_seen, source.key, [item.id for item in older])
         sent = 0
+        earlier = await asyncio.to_thread(news_sent_recent, source.key) if pending else []
         for item in pending:
-            if await self._first_copy(source, item.text):
+            edit = news.edit_of(item.id, item.text, earlier, showing)
+            if edit is not None:
+                await self.x_edit(source, item, avatar, *edit)
+                earlier = [row for row in earlier if row[0] != edit[0]]
+            elif await self._first_copy(source, item.text):
                 await self.publish(await news.build_x_post(self.session, source, item, avatar))
                 sent += 1
             await asyncio.to_thread(news_mark_seen, source.key, [item.id])
         return sent
+
+    async def x_edit(self, source: Source, item: news.FeedItem, avatar: str, earlier: str, root: str) -> int:
+        """Edit what a sent X post became into its edited version, which X gave a new id; returns how many were edited."""
+        await asyncio.to_thread(news_sent_moved, source.key, earlier, item.id, item.text)
+        post = await news.build_x_post(self.session, source, item, avatar, media=False)
+        post.posted_at = news.tweet_time(root) or post.posted_at       # still dated when it was first posted, as X shows it
+        return await self.revise(source.key, root, post)
 
     async def _only_maimai(self, source: Source) -> bool:
         """Whether every channel following an account gets only its posts about maimai, so nothing else of it is worth reading."""
@@ -372,7 +404,10 @@ class NewsWatch:
         return files[:10]
 
     async def publish(self, post: Post) -> int:
-        """Send a post to every channel following its source; returns how many it reached. A post older than MAX_AGE is not sent."""
+        """Send a post to every channel following its source; returns how many it reached. A post older than MAX_AGE is not sent.
+
+        Each message is kept under the post and every post it covers (its thread), so an edit of any of them can follow.
+        """
         if post.posted_at and post.posted_at < time.time() - MAX_AGE:
             return 0
         subscribers: List[Tuple[str, str]] = await asyncio.to_thread(news_subscribers, post.source)
@@ -386,10 +421,11 @@ class NewsWatch:
         if unfurl:
             files = []          # an 8 MB video to hundreds of channels is gigabytes uploaded for one post
         gate = asyncio.Semaphore(SEND_AT_ONCE)
+        kept: List[Tuple[str, str, bool]] = []
 
         async def one(channel_id: str, url: str) -> Optional[bool]:
             async with gate:
-                return await self._deliver(channel_id, url, post, files, unfurl)
+                return await self._deliver(channel_id, url, post, files, unfurl, kept)
 
         async def every(channels: List[Tuple[str, str]]) -> List[Any]:
             # one send going wrong in a way nobody foresaw must not stop the rest, or the post would be sent to them all again
@@ -403,6 +439,39 @@ class NewsWatch:
         again = [channel for channel, result in zip(subscribers, results) if result is None]
         if again:
             results += await every(again)
+        if kept:
+            try:
+                await asyncio.to_thread(news_sent_save, post.source, post.id, post.covers or [post.id], post.parts[-1] if post.parts else "", kept)
+            except Exception:
+                logger.exception("news: the messages a post became could not be kept, so its edits will not follow")
+        return sum(result is True for result in results)
+
+    async def revise(self, source: str, root: str, post: Post) -> int:
+        """Edit every message a sent post became to say what it says now; returns how many were edited.
+
+        shortcut: only the words change, its pictures and video stay as sent; re-upload them if edits that swap media turn up.
+        """
+        messages = await asyncio.to_thread(news_sent_messages, source, root)
+        post.wanted_video = False       # whether the link draws its preview was settled when it was sent, and is kept with each message
+        gate = asyncio.Semaphore(SEND_AT_ONCE)
+
+        async def one(channel_id: str, message_id: str, unfurl: bool) -> bool:
+            url = await asyncio.to_thread(news_webhook, channel_id)
+            if not url:
+                return False
+            async with gate:
+                try:
+                    webhook = discord.Webhook.from_url(url, session=self.session)
+                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=post.content(unfurl=unfurl), allowed_mentions=NO_MENTIONS),
+                                           SEND_TIMEOUT)
+                    return True
+                except (discord.NotFound, ValueError):
+                    # the message was deleted, or the channel's webhook replaced since: there is nothing there to edit any more
+                    await asyncio.to_thread(news_message_gone, channel_id, message_id)
+                except (discord.HTTPException, aiohttp.ClientError, asyncio.TimeoutError) as error:
+                    logger.warning("news: an edit failed with %s", type(error).__name__)
+                return False
+        results = await asyncio.gather(*(one(*message) for message in messages), return_exceptions=True)
         return sum(result is True for result in results)
 
     async def history(self, channel_id: str, url: str, keys: List[str], count: int) -> int:
@@ -428,8 +497,12 @@ class NewsWatch:
                     sent += 1
             return sent
 
-    async def _deliver(self, channel_id: str, url: str, post: Post, files: List[Tuple[str, bytes]], unfurl: bool = False) -> Optional[bool]:
-        """Send a post to one channel: True when it arrived, None when it failed in a way that may pass, False when it will not."""
+    async def _deliver(self, channel_id: str, url: str, post: Post, files: List[Tuple[str, bytes]], unfurl: bool = False,
+                       kept: Optional[List[Tuple[str, str, bool]]] = None) -> Optional[bool]:
+        """Send a post to one channel: True when it arrived, None when it failed in a way that may pass, False when it will not.
+
+        What arrived is added to ``kept`` as ``(channel, message, whether its link draws the preview)``.
+        """
         try:
             webhook = discord.Webhook.from_url(url, session=self.session)
         except ValueError:
@@ -437,15 +510,17 @@ class NewsWatch:
             return False
         for attach in ([True, False] if files else [False]):
             # without its pictures or video the post would show no media at all, so then the link is left to draw its preview
-            options: Dict[str, Any] = {"content": post.content(unfurl=unfurl or (bool(files) and not attach)), "username": post.username,
-                                       "allowed_mentions": NO_MENTIONS}
+            unfurled = unfurl or (bool(files) and not attach)
+            options: Dict[str, Any] = {"content": post.content(unfurl=unfurled), "username": post.username, "allowed_mentions": NO_MENTIONS}
             if post.avatar:
                 options["avatar_url"] = post.avatar
             buffers = [io.BytesIO(data) for _name, data in files] if attach else []
             if attach:
                 options["files"] = [discord.File(buffer, filename=name) for buffer, (name, _data) in zip(buffers, files)]
             try:
-                await asyncio.wait_for(webhook.send(**options), SEND_TIMEOUT)
+                message = await asyncio.wait_for(webhook.send(**options, wait=True), SEND_TIMEOUT)
+                if kept is not None and message is not None:
+                    kept.append((channel_id, str(message.id), unfurled or (post.wanted_video and not post.videos)))
                 return True
             except discord.HTTPException as error:
                 if error.code in GONE_CODES or (error.status == 403 and error.code):
