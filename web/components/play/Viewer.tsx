@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import slideData from "@/lib/chart/slides.json";
 import { buildChart } from "@/lib/chart/build.mjs";
+import { parseMaidata } from "@/lib/chart/chart.mjs";
 import type { Chart } from "@/lib/chart/types";
 import { Field } from "./field";
 import { SongClock } from "./audio";
@@ -110,7 +111,7 @@ export function useScreen(chart: Chart, audio: Blob | string | null, opts: { cur
 /** A chart played by auto play with its song and note sounds, at the given speeds (NOTE_SPEED / TOUCH_SPEED values). */
 export function Viewer({ maidata, slot, audio, noteSpeed, touchSpeed, label }: { maidata: string; slot: number; audio: string | null; noteSpeed: number; touchSpeed: number; label: string }) {
   const t = useTranslations("play");
-  const chart = useMemo(() => buildChart(maidata, slot), [maidata, slot]);
+  const chart = useMemo(() => buildChart(parseMaidata(maidata), slot), [maidata, slot]);
   const opts = useRef<View>({ noteSpeed, touchSpeed, showSensors: false, dispJudge: 1, offset: 0, rate: 1, center: "combo", useSkin: true, outline: 17, starPink: false });
   opts.current = { ...opts.current, noteSpeed, touchSpeed };
   const hooks = useRef<ScreenHooks>({});
