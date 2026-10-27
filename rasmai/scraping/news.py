@@ -173,9 +173,12 @@ def edit_of(post_id: str, text: str, sent: List[Tuple[str, str, str]], showing: 
     :rtype: Optional[Tuple[str, str]]
     """
     made = tweet_time(post_id) or 0
+    # a post older than everything the feed shows has only scrolled off its end, which a busy account's burst of posts does
+    oldest = min((int(i) for i in showing if i.isdigit()), default=0)
     best: Optional[Tuple[float, str, str]] = None
     for earlier, root, body in sent:
-        if earlier in showing or not body.strip() or not text.strip() or not 0 < made - (tweet_time(root) or 0) <= X_EDIT_WINDOW:
+        if earlier in showing or not earlier.isdigit() or int(earlier) <= oldest or not body.strip() or not text.strip() \
+                or not 0 < made - (tweet_time(root) or 0) <= X_EDIT_WINDOW:
             continue
         likeness = difflib.SequenceMatcher(None, body, text).ratio()
         if likeness >= X_EDIT_LIKENESS and (best is None or likeness > best[0]):

@@ -2694,27 +2694,31 @@ def _edits():
 
     def made(seconds_ago, n=0):
         return str(((int((time.time() - seconds_ago) * 1000) - news.TWITTER_EPOCH_MS) << 22) + n)
-    first, edited, again, other = made(600), made(300), made(120), made(60)
+    base, first, edited, again, other = made(3000), made(600), made(300), made(120), made(60)
     said = "maimai DX NET will be down for maintenance on Wednesday from 2:00 to 6:00 JST."
 
     # the matcher alone: gone from the feed, inside the hour, saying mostly the same thing
     sent = [(first, first, said)]
-    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited}) != (first, first):
+    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited, base}) != (first, first):
         problems.append("a post replaced by a corrected one inside the hour was not taken for its edit")
-    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited, first}) is not None:
+    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited, first, base}) is not None:
         problems.append("a post still in the feed was taken for edited")
-    if news.edit_of(edited, "The KING of Performai finals start at noon today, see you there!", sent, {edited}) is not None:
+    if news.edit_of(edited, "The KING of Performai finals start at noon today, see you there!", sent, {edited, base}) is not None:
         problems.append("a different post was taken for an edit of the earlier one")
     if news.edit_of(made(-5000), said, [(made(10), made(10), said)], set()) is not None:
         problems.append("a post more than an hour after another was taken for its edit")
-    if news.edit_of(edited, "", [(first, first, "")], {edited}) is not None:
+    if news.edit_of(edited, "", [(first, first, "")], {edited, base}) is not None:
         problems.append("two posts with no words were taken for an edit")
+    # twenty newer posts push it off the bottom of the feed: gone, but not edited, so a look-alike burst post is its own
+    if news.edit_of(edited, said.replace("6:00", "7:00"), sent, {edited, made(400)}) is not None:
+        problems.append("a post that only scrolled off the end of the feed was taken for edited")
 
     source = news.SOURCES["maimai"]
 
     def item(n, text):
         return news.FeedItem(n, text, f"https://n/{source.handle}/status/{n}", f"<p>{text}</p>", False, source.handle)
-    feed = {"items": [item(first, said)]}
+    older = item(base, "An older post about something else entirely.")
+    feed = {"items": [item(first, said), older]}
 
     async def fake_feed(session, username, tries=0):
         return feed["items"], "https://av/a.png"
@@ -2747,7 +2751,7 @@ def _edits():
 
             # X: the post is edited, so the feed shows a new id in its place
             fixed = said.replace("6:00", "7:00")
-            feed["items"] = [item(edited, fixed)]
+            feed["items"] = [item(edited, fixed), older]
             with _webhooks() as sent_now:
                 if asyncio.run(watch.poll(source)) != 0 or sent_now:
                     problems.append("an edited X post was posted again instead of editing what was sent")
@@ -2761,7 +2765,7 @@ def _edits():
 
             # edited a second time: the chain is followed from the new id
             _Webhook.edits.clear()
-            feed["items"] = [item(again, fixed + " Sorry!")]
+            feed["items"] = [item(again, fixed + " Sorry!"), older]
             with _webhooks() as sent_now:
                 asyncio.run(watch.poll(source))
             if sent_now or len(_Webhook.edits) != 2:
@@ -2769,7 +2773,7 @@ def _edits():
 
             # a new post that only looks like it, with the earlier still in the feed, is sent as a post of its own
             _Webhook.edits.clear()
-            feed["items"] = [item(other, fixed + " Sorry!!"), item(again, fixed + " Sorry!")]
+            feed["items"] = [item(other, fixed + " Sorry!!"), item(again, fixed + " Sorry!"), older]
             with _webhooks() as sent_now:
                 asyncio.run(watch.poll(source))
             if len(sent_now) != 2 or _Webhook.edits:
