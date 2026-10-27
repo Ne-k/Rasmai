@@ -6,7 +6,7 @@ from discord import app_commands
 
 from rasmai.bot.builders.charts import LEVEL_PATTERN, LEVEL_SORTS
 from rasmai.engine.analysis import constant_span
-from rasmai.bot.state.prefs import get_prefs
+from rasmai.bot.state.prefs import SPEED_LABELS, get_prefs
 from rasmai.bot.builders.results import OUTPUT_LABELS
 from rasmai.config import REGION_NAMES, SUPPORTED_REGIONS
 
@@ -79,6 +79,13 @@ async def level_autocomplete(_interaction: discord.Interaction, current: str) ->
         return [app_commands.Choice(name=f"constant {needle}", value=needle)]
     levels = [lv for lv in LEVEL_PATTERN if lv.startswith(needle)] if needle else list(LEVEL_PATTERN[-10:])
     return [app_commands.Choice(name=lv, value=lv) for lv in levels[:25]]
+
+
+async def speed_autocomplete(_interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """The game's speeds, which are more than Discord's 25 fixed choices: the whole numbers and Sonic until something is typed."""
+    needle = (current or "").strip().casefold()
+    labels = [label for label in SPEED_LABELS if label.casefold().startswith(needle)] if needle else [label for label in SPEED_LABELS if label.endswith(".00") or label == "Sonic"]
+    return [app_commands.Choice(name=label, value=label) for label in labels[:25]]
 
 
 FOCUS_CHOICES = [

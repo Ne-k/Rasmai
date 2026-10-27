@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import re
 
 from rasmai.storage.db import get_user_settings, set_user_settings
@@ -28,6 +28,8 @@ DEFAULTS: Dict[str, Any] = {
     "embed_charts": True,        # the chart count beside the rating
     "card_colour": "#ff3d8f",    # the stripe down the card, and the figures on the picture
     "card_visual": "curve",      # what the picture is a picture of
+    "note_speed": 550,           # chart videos and the site's viewer: an OptionNotespeedID, 550 is the game's default 4.50
+    "touch_speed": 350,          # and an OptionTouchspeedID, 350 is the game's default 4.50
 }
 
 # what a public profile may carry, beyond the name and rating that are the point of having one
@@ -52,6 +54,13 @@ LAYOUTS = ("both", "embed", "image")
 NEW_DIFFICULTIES = ("any", "master", "remaster", "expert", "advanced", "basic")
 CHALLENGES = ("easy", "balanced", "hard")
 
+# the game's option IDs (web/lib/chart/rules.mjs NOTE_SPEED / TOUCH_SPEED, which both renderers index), shown
+# in the game as 1.00 to 10.00 in quarter steps and then Sonic
+NOTE_SPEEDS = tuple(range(200, 1101, 25)) + (5000,)
+TOUCH_SPEEDS = (175, 183, 200, 212, 225, 237, 250, 262, 275, 283, 300, 312, 325, 337, 350, 375, 400, 425, 450, 475, 500,
+                525, 550, 575, 600, 625, 650, 675, 700, 725, 750, 775, 800, 825, 850, 875, 900, 5000)
+SPEED_LABELS = tuple(f"{1 + i * 0.25:.2f}" for i in range(len(NOTE_SPEEDS) - 1)) + ("Sonic",)
+
 
 def get_prefs(user_id: str) -> Dict[str, Any]:
     prefs = dict(DEFAULTS)
@@ -64,7 +73,52 @@ def get_prefs(user_id: str) -> Dict[str, Any]:
         prefs["new_difficulty"] = "any"
     if prefs["challenge"] not in CHALLENGES:
         prefs["challenge"] = "balanced"
+    for key, table in (("note_speed", NOTE_SPEEDS), ("touch_speed", TOUCH_SPEEDS)):
+        if prefs[key] not in table:
+            prefs[key] = DEFAULTS[key]
     return prefs
+
+
+def speed_label(value: int, table: tuple) -> str:
+    return SPEED_LABELS[table.index(value)]
+
+
+def clean_speed(value: Any, table: tuple) -> Optional[int]:
+    """The option ID for a speed: an ID from the table as a number, or what the game shows as text ("7", "7.00", "Sonic").
+
+    :param value: What Discord or the browser sent.
+    :type value: Any
+    :param table: ``NOTE_SPEEDS`` or ``TOUCH_SPEEDS``.
+    :type table: tuple
+    :rtype: Optional[int]
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value if value in table else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    try:
+        text = f"{float(text):.2f}"
+    except ValueError:
+        pass
+    labels = [label.casefold() for label in SPEED_LABELS]
+    return table[labels.index(text.casefold())] if text.casefold() in labels else None
+
+
+def set_speeds(user_id: str, note_speed: Any = None, touch_speed: Any = None) -> Optional[Dict[str, Any]]:
+    """Save the chart speeds from the site, or ``None`` when either one given is not the game's.
+
+    :param user_id: Whose settings.
+    :type user_id: str
+    :rtype: Optional[Dict[str, Any]]
+    """
+    changes = {}
+    for key, value, table in (("note_speed", note_speed, NOTE_SPEEDS), ("touch_speed", touch_speed, TOUCH_SPEEDS)):
+        if value is not None:
+            changes[key] = clean_speed(value, table)
+            if changes[key] is None:
+                return None
+    return update_prefs(user_id, **changes)
 
 
 def clean_colour(value: Any, fallback: str = "#ff3d8f") -> str:

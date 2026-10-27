@@ -1,7 +1,7 @@
 import slideData from "@/lib/chart/slides.json";
 import { buildChart } from "@/lib/chart/build.mjs";
 import { Field, type FieldOptions, type Sprite } from "./field";
-import { advance, sessionAt, NOTE_CLOCK_MS, type View } from "./run";
+import { advance, sessionAt, NOTE_CLOCK_MS, SIM_FPS, type View } from "./run";
 import type { Maidata } from "@/lib/chart/types";
 
 // One of the video export's drawing threads.  Every worker plays the whole chart (cheap) but only draws frames
@@ -42,10 +42,14 @@ async function render(job: RenderJob) {
   fld.setChart(chart); fld.resize(job.size);
   await fld.loadSkin(job.skin);
   const L = sessionAt(chart, 0), yuv = new Uint8Array(job.size * job.size * 1.5);   // reused: a VideoFrame copies its data
-  for (let i = 0; i < job.frames; i++) {
-    const now = (i * 1000) / job.fps + NOTE_CLOCK_MS + job.view.offset, mine = i % job.workers === job.worker;
-    L.bot.step(now, L.input);
-    advance(L, fld, null, now, job.view, job.colors, mine);
+  const per = SIM_FPS / job.fps;   // game frames to each video frame: 1 at 60 fps, 2 at 30
+  for (let i = 0, k = 0; i < job.frames; i++) {
+    const mine = i % job.workers === job.worker;
+    for (; k <= i * per; k++) {
+      const now = (k * 1000) / SIM_FPS + NOTE_CLOCK_MS + job.view.offset;
+      L.bot.step(now, L.input);
+      advance(L, fld, null, now, job.view, job.colors, mine && k === i * per);
+    }
     if (!mine) continue;
     while (credit <= 0) await new Promise<void>((r) => { wake = r; });
     credit--;

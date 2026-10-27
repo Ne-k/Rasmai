@@ -16,6 +16,7 @@ services:
       MAIMAI_WEBSERVER_HOST: 0.0.0.0
       MAIMAI_DATABASE_PATH: /app/data/maimai.sqlite3
       MAIMAI_TUNNEL_ORIGIN: http://web:3000
+      MAIMAI_ASTRODX_DIR: /app/astrodx
       # the bot's internal API trusts the identity header only from a caller holding this, so an
       # empty one would make it open to anything on the network: compose refuses to start without it
       RASMAI_INTERNAL_SECRET: ${RASMAI_INTERNAL_SECRET:?set RASMAI_INTERNAL_SECRET in .env (openssl rand -hex 32)}
@@ -28,6 +29,7 @@ services:
       - ./otoge_cache:/app/otoge_cache
       - ./simai_cache:/app/simai_cache   # the charts themselves, packed, so a restart re-reads rather than re-downloads
       - ./debug:/app/debug            # the raw page exports MAIMAI_DEBUG writes, so they survive the container
+      - ./astrodx:/app/astrodx:ro     # an AstroDX songs folder copied onto the server, for the music in chart videos; read only
     init: true
     # lets the bot reach an Ollama server on the host (MAIMAI_TRANSLATE_URL=http://host.docker.internal:11434). Docker Desktop on a Mac
     # already defines the name; this makes a Linux host do the same

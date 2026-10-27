@@ -80,7 +80,7 @@ export type Overview = {
   profile?: { name: string; rating: number; dan: string; title: string; totalPlayCount: number; updatedAt: string; nameplate?: string };
   snapshot?: { recordedAt: string; best50: number; newTotal: number; oldTotal: number; charts: number };
   history?: HistoryPoint[];
-  settings?: Record<string, string | boolean>;
+  settings?: Record<string, string | boolean | number>;
   refresh?: RefreshStatus;
   sessionExpired?: string;
   sessionDeletesAt?: string;
@@ -389,6 +389,7 @@ export type ChartDetail = {
   released: string;
   patterns: ChartPattern[];
   observed?: Observed | null;   // only when enough players have played it
+  viewer?: boolean;             // the server holds the chart, so the page can play it
 };
 
 type ChartPattern = { key: string; label: string; dimension: string; community: boolean; offset: number | null };

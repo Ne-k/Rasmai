@@ -176,6 +176,15 @@ def _ref():
     return ChartRef("Check Song", "dx", "master", 13.0, "13", 8, "g", "a", "c.png", 26)
 
 
+def _astrodx(found=None, held=False):
+    """A stand-in for the chart folder reader, started and stopped by the check, so no check looks at real folders."""
+    from unittest import mock
+    fake = types.ModuleType("rasmai.scraping.astrodx")
+    fake.find = lambda ref: found
+    fake.held = lambda ref: held
+    return mock.patch.dict("sys.modules", {"rasmai.scraping.astrodx": fake})
+
+
 class _Reply:
     def __init__(self):
         self.said = []
@@ -216,6 +225,8 @@ def _button():
     was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
     store._database_ready = False
     kept = module.COOLDOWN
+    folders = _astrodx()
+    folders.start()
     try:
         ref = _ref()
         if module.preview_button(ref) is not None:
@@ -257,6 +268,7 @@ def _button():
     finally:
         store.DATABASE_PATH = was
         store._database_ready = False
+        folders.stop()
         module.COOLDOWN = kept
         module._last.clear()
         module._made.clear()
@@ -280,6 +292,8 @@ def _button_failures():
     grab = Grab()
     logging.getLogger().addHandler(grab)
     kept_draw = module._draw
+    folders = _astrodx()
+    folders.start()
     try:
         ref = _ref()
         module._last.clear()
@@ -323,6 +337,7 @@ def _button_failures():
             problems.append(f"the upload limit was not taken from the server, or the DM default: {seen}")
     finally:
         module._draw = kept_draw
+        folders.stop()
         logging.getLogger().removeHandler(grab)
         store.DATABASE_PATH = was
         store._database_ready = False
@@ -331,27 +346,36 @@ def _button_failures():
     return problems
 
 
-@check("notes move as MajdataView moves them at 7.0 and 7.5: first seen small about 0.76s out, a quarter of the way along, full size by 0.51s, then out to the button")
+@check("notes move as the site's player moves them (web/lib/chart/rules.mjs) at the game's option IDs: grown over four beats at speed / 60 BPM, "
+       "then four more out to the button; 4.50 is the default")
 def _speed():
     from rasmai.images import preview as pv
     problems = []
-    if pv.NOTE_SPEED != 7.0 or pv.TOUCH_SPEED != 7.5:
-        problems.append(f"the speeds are {pv.NOTE_SPEED} and {pv.TOUCH_SPEED}, not 7.0 and 7.5")
-    if not 0.755 < pv.APPROACH < 0.765 or not 0.705 < pv.TOUCH_APPROACH < 0.715:
-        problems.append(f"a note is first seen {pv.APPROACH:.3f}s out and a touch {pv.TOUCH_APPROACH:.3f}s, not about 0.76 and 0.71")
-    if pv.place(1.0 - pv.APPROACH - 0.01, 1.0) is not None:
+    if (pv.NOTE_SPEED, pv.TOUCH_SPEED) != (550, 350):
+        problems.append(f"the default speeds are {pv.NOTE_SPEED} and {pv.TOUCH_SPEED}, not the game's 550 and 350 (both 4.50)")
+    # rules.mjs: a note shows 2 * 240000 / speed ms + NoteBase.GetMaiBugAdjustMSec before it is struck, a touch 1.25 * 240000 / speed
+    for speed, seen in ((200, 2.3967), (550, 0.8630), (1100, 0.4248)):
+        if abs(pv.approach(speed) - seen) > 0.0005:
+            problems.append(f"at note speed {speed} a note shows {pv.approach(speed):.4f}s before it is struck, not {seen}")
+    for speed, seen in ((175, 1.7143), (350, 0.8571), (900, 0.3333)):
+        if abs(pv.touch_approach(speed) - seen) > 0.0005:
+            problems.append(f"at touch speed {speed} a touch shows {pv.touch_approach(speed):.4f}s before it is struck, not {seen}")
+    if pv.approach(5000) > 0.1:
+        problems.append("Sonic is not near instant")
+    out = 1.0 - pv.approach(550)
+    if pv.place(out - 0.01, 1.0) is not None:
         problems.append("a note was shown before it should first appear")
-    seen = pv.place(1.0 - pv.APPROACH + 0.002, 1.0)
-    if seen is None or abs(seen[0] - 1.225 / 4.8) > 1e-6 or seen[1] > 0.32:
-        problems.append(f"a note first seen should be small and a quarter of the way out: {seen}")
-    grown = pv.place(1.0 - 0.50, 1.0)
-    if grown is None or grown[1] != 1.0 or not 0.25 < grown[0] < 0.4:
-        problems.append(f"half a second out the note should be full size and still near the start of its travel: {grown}")
-    half = pv.place(1.0 - 0.25, 1.0)
-    if half is None or not 0.55 < half[0] < 0.7:
-        problems.append(f"a quarter second out the note should be well over half way: {half}")
-    if pv.place(1.0, 1.0) != (1.0, 1.0) or pv.place(1.1, 1.0) != (1.0, 1.0):
-        problems.append("a struck note should wait on its button at full size")
+    seen = pv.place(out + 0.002, 1.0)
+    if seen is None or seen[0] != 0.25 or seen[1] > 0.05:
+        problems.append(f"a note first seen should be tiny and a quarter of the way out: {seen}")
+    grown = pv.place(1.0 - pv.span(550) + 0.01, 1.0)
+    if grown is None or grown[1] != 1.0 or not 0.2 < grown[0] < 0.3:
+        problems.append(f"once grown the note should be full size and just setting off: {grown}")
+    half = pv.place(1.0 - pv.span(550) / 2, 1.0)
+    if half is None or not 0.55 < half[0] < 0.65:
+        problems.append(f"half its travel out the note should be about half way along: {half}")
+    if pv.place(1.1, 1.0) != (1.0, 1.0) or pv.place(1.0, 1.0)[0] < 0.97:
+        problems.append("a struck note should be at its button and wait there at full size")
     return problems
 
 
@@ -414,4 +438,129 @@ def _shapes():
     heading = math.degrees(path.at(0.5)[1])
     if not turns or any(abs(((t - (heading + 180) + 180) % 360) - 180) > 1.0 for t in turns):
         problems.append(f"a chevron was turned {turns[:2]} for a track heading {heading:.0f} degrees, when the pack's point left")
+    return problems
+
+
+def _wav(seconds):
+    """A quiet tone, stereo at 44.1 kHz, so the soundtrack is resampled as a real song's would be."""
+    import wave
+    import numpy as np
+    path = pathlib.Path(tempfile.mkdtemp()) / "song.wav"
+    tone = (np.sin(2 * np.pi * 330 * np.arange(int(44100 * seconds)) / 44100) * 8000).astype("<i2")
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(2)
+        out.setsampwidth(2)
+        out.setframerate(44100)
+        out.writeframes(np.repeat(tone, 2).tobytes())
+    return path
+
+
+@check("a chart's Video is the whole of it as an H.264 MP4 with the song and a tap a note in AAC, as long as the chart and under the limit")
+def _video():
+    import json
+    import shutil
+    import subprocess
+    import numpy as np
+    from unittest import mock
+    from rasmai.images import preview as pv
+    problems = []
+    chart = _chart("(120){4}1,2h[8:1],3-7[8:1],C,4b,")
+    track = _wav(3.0)
+    with mock.patch.object(pv.shutil, "which", return_value=None):
+        if pv.render_video(chart, track) is not None:
+            problems.append("a video was made with no ffmpeg to encode it")
+    tap = np.ones(10, np.float32)
+    mixed = pv.soundtrack(chart.notes, None, 0.0, 3.0, tap)
+    plain, brk = (mixed[int(round(n.time * 48000)), 0] for n in (chart.notes[0], chart.notes[-1]))
+    if mixed.shape != (144000, 2) or not 0 < plain < brk or abs(mixed).max() > 1.0:
+        problems.append(f"the taps are not one a note with breaks louder: {mixed.shape} {plain} {brk}")
+    if abs(pv.soundtrack(chart.notes, np.full((144000, 2), 2.0, np.float32), 0.0, 3.0, tap)).max() > 1.0:
+        problems.append("a loud song with the taps on it clips")
+    if not shutil.which("ffmpeg"):
+        return problems
+    limit = 2 * 1024 * 1024
+    made = pv.render_video(chart, track, limit, speed=800, touch_speed=500)
+    path = pathlib.Path(tempfile.mkdtemp()) / "video.mp4"
+    path.write_bytes(made.data)
+    found = json.loads(subprocess.run([shutil.which("ffprobe") or "ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,duration",
+                                       "-of", "json", str(path)], capture_output=True, text=True).stdout)["streams"]
+    streams = {s["codec_type"]: (s["codec_name"], float(s["duration"])) for s in found}
+    last = max(n.time + n.wait + n.duration for n in chart.notes)
+    if made.start != 0.0 or abs(made.end - (last + 1.5)) > 1e-6:
+        problems.append(f"the video runs {made.start:.2f}s to {made.end:.2f}s, not from the start to 1.5s past the last note at {last:.2f}s")
+    for kind, codec in (("video", "h264"), ("audio", "aac")):
+        if streams.get(kind, ("", 0))[0] != codec or abs(streams[kind][1] - (made.end - made.start)) > 0.15:
+            problems.append(f"no {codec} {kind} as long as the video: {streams}")
+    if len(made.data) > limit or made.data[4:8] != b"ftyp":
+        problems.append(f"the video is {len(made.data)} bytes against a limit of {limit}, or not an MP4")
+    return problems
+
+
+@check("the Video button is offered only for a chart whose folder is held, and a press posts the whole chart at the presser's saved speeds")
+def _video_button():
+    import shutil
+    from rasmai.bot.builders.charts import preview as module
+    from rasmai.bot.state.prefs import update_prefs
+    from rasmai.storage.db import connection as store
+    problems = []
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    ref = _ref()
+    held = types.SimpleNamespace(chart=_chart("(120){4}1,2,3,4,"), track=_wav(3.0), maidata="", slot=5, art=None, folder=pathlib.Path("."))
+    folders = _astrodx()
+    folders.start()
+    try:
+        if module.full_video_button(ref) is not None:
+            problems.append("a chart with no folder held was offered a Video button")
+        folders.stop()
+        folders = _astrodx(held, True)
+        folders.start()
+        button = module.full_video_button(ref)
+        if button is None or button.label != "Video" or button.row != 3:
+            problems.append("a chart with its folder held was not offered a Video button on row 3")
+        module._made.clear()
+        if module.preview_button(ref) is None or asyncio.run(module.build_preview(ref, 10 * 1024 * 1024)) is None:
+            problems.append("a chart with no stored notation but its folder held was not given a Preview drawn from the folder")
+        from rasmai.bot.builders.charts.views import SongView
+
+        async def built():
+            return SongView(1, ref.title, [ref], [{"played": False}], 0, last_play=3)
+        rows = [(getattr(item, "label", ""), item.row) for item in asyncio.run(built()).children]
+        if ("Video", 3) not in rows or sum(1 for _, row in rows if row == 4) > 5:
+            problems.append(f"the chart page does not offer Video on row 3, or its last row is over five places: {rows}")
+        if not shutil.which("ffmpeg"):
+            return problems
+        update_prefs("1234", note_speed=800, touch_speed=500)
+        module._video_last.clear()
+        module._videos.clear()
+        first = _interaction()
+        asyncio.run(module.send_video(first, ref))
+        sent = first.followup.sent
+        if len(sent) != 1 or sent[0][1].get("file") is None or sent[0][1]["file"].filename != "dx-master-video.mp4":
+            problems.append(f"one MP4 named for the chart was not posted: {[(t, list(k)) for t, k in sent]}")
+        elif "note speed 7.00, touch speed 6.00" not in sent[0][0] or "whole chart" not in sent[0][0]:
+            problems.append(f"the message does not say what is shown at which speeds: {sent[0][0]}")
+        if [key[1:3] for key in module._videos] != [(800, 500)]:
+            problems.append(f"the video was not made at the saved speeds: {list(module._videos)}")
+        again = _interaction()
+        asyncio.run(module.send_video(again, ref))
+        if again.followup.sent or not again.response.said or "120 seconds" not in again.response.said[0][0]:
+            problems.append("a second press straight away was not turned away for two minutes")
+        folders.stop()
+        folders = _astrodx()
+        folders.start()
+        module._video_last.clear()
+        module._videos.clear()
+        gone = _interaction(user=999)
+        asyncio.run(module.send_video(gone, ref))
+        text = gone.followup.sent[0][0] if gone.followup.sent else ""
+        if "don't have that chart's files" not in text or module._video_last:
+            problems.append(f"a chart whose folder went was not told so and left free to try again: {text!r}")
+    finally:
+        folders.stop()
+        store.DATABASE_PATH = was
+        store._database_ready = False
+        module._video_last.clear()
+        module._videos.clear()
+        module._made.clear()
     return problems

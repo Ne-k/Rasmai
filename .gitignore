@@ -17,6 +17,7 @@ debug/
 # caches
 otoge_cache/
 simai_cache/
+astrodx/
 __pycache__/
 *.pyc
 

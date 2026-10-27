@@ -95,6 +95,9 @@ DATABASE_PATH = Path(os.getenv("MAIMAI_DATABASE_PATH", "data/maimai.sqlite3"))
 # the folder the chart preview reads its note pictures from; any it lacks are drawn instead. Beside the database, so a pack dropped on
 # the server survives a rebuild and stays out of git
 CHART_SKIN_DIR = Path(os.getenv("MAIMAI_CHART_SKIN_DIR", "") or DATABASE_PATH.parent / "chart_skin")
+# an AstroDX songs folder (each song a maidata.txt beside its track.mp3) the owner copies onto the server, so a chart video can carry
+# the song's music; nothing there just means no music
+ASTRODX_DIR = Path(os.getenv("MAIMAI_ASTRODX_DIR", "") or DATABASE_PATH.parent / "astrodx")
 
 
 # an account whose maimai sign-in has been refused this many days, and not linked again since, is deleted

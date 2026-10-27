@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 import json
 import logging
+import mimetypes
 import re
 
 from rasmai.bot.builders.charts.index import search_titles
@@ -9,6 +10,7 @@ from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id
 from rasmai.bot.state import cohort
+from rasmai.bot.state.prefs import set_speeds
 from rasmai.bot.state.cache import cache_get, forget_analysis
 from rasmai.bot.state.forget import forget_user
 from rasmai.web.dashboard.admin import (account_detail, accounts_payload, admin_payload, guilds_payload,
@@ -30,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
-ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles", "/internal/me/session")
+ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles", "/internal/me/session",
+                             "/internal/me/viewer", "/internal/me/track")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -38,7 +41,7 @@ READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
           "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/admin/delete-feedback",
-          "/internal/me/kamaitachi/import")
+          "/internal/me/kamaitachi/import", "/internal/me/settings")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -183,6 +186,25 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
             return True
         handler._send_json(200, detail)
         return True
+    if path in ("/internal/me/viewer", "/internal/me/track"):
+        # the chart viewer's chart text and song, from the server's AstroDX folder: the query names a chart, never a file
+        from rasmai.scraping.astrodx import find
+        from rasmai.web.dashboard.files import _send_file
+        from rasmai.web.dashboard.lookup import chart_ref
+        ref = chart_ref((query.get("title") or [""])[0][:200].strip(), (query.get("type") or [""])[0][:8].lower(),
+                        (query.get("difficulty") or [""])[0][:12].lower())
+        found = find(ref) if ref else None
+        if path == "/internal/me/viewer":
+            if found is None:
+                handler._send_json(404, {"ok": False, "error": "no_chart"})
+            else:
+                handler._send_json(200, {"maidata": found.maidata, "slot": found.slot})
+            return True
+        if found is None or found.track is None or not found.track.is_file():
+            handler._send_json(404, {"ok": False, "error": "no_track"})
+            return True
+        _send_file(handler, found.track, mimetypes.guess_type(found.track.name)[0] or "application/octet-stream", "private, max-age=86400")
+        return True
     if path == "/internal/me/image":
         # the same picture the matching command attaches, drawn by the same builder
         from rasmai.web.dashboard.files import image_export
@@ -283,6 +305,14 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
             handler._send_json(400, {"ok": False, "error": "no_such_verdict", "allowed": list(VERDICTS)})
             return True
         handler._send_json(200, beta_state(user["id"]))
+        return True
+    if path == "/internal/me/settings":
+        body = payload or {}
+        prefs = set_speeds(user["id"], body.get("note_speed"), body.get("touch_speed"))
+        if prefs is None:
+            handler._send_json(400, {"ok": False, "error": "no_such_speed"})
+            return True
+        handler._send_json(200, prefs)
         return True
     if path == "/internal/me/sharing":
         body = payload or {}

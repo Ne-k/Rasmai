@@ -5,12 +5,12 @@ import discord
 from discord import app_commands
 
 from rasmai.bot.core import bot, heavy_cooldown, light_cooldown
-from rasmai.bot.state.prefs import get_prefs, update_prefs
+from rasmai.bot.state.prefs import NOTE_SPEEDS, TOUCH_SPEEDS, clean_speed, get_prefs, update_prefs
 from rasmai.bot.builders.results import run_simple_command
 from rasmai.bot.builders.social import build_compare, build_export, build_kamaitachi_export, build_leaderboard, settings_embed
 from rasmai.security import public_reason
 from rasmai.storage.db import get_guild_settings, set_guild_settings
-from rasmai.bot.commands.choices import CHALLENGE_CHOICES, DIFFICULTY_CHOICES, EXPORT_CHOICES, LAYOUT_CHOICES
+from rasmai.bot.commands.choices import CHALLENGE_CHOICES, DIFFICULTY_CHOICES, EXPORT_CHOICES, LAYOUT_CHOICES, speed_autocomplete
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +62,23 @@ async def leaderboard(interaction: discord.Interaction):
     leaderboard="Show up on /leaderboard in servers you share with the bot",
     history="Read your recent plays once a day so none fall off the list (needs your account linked)",
     notify="DM you when the daily read finds new bests or your rating moved",
+    note_speed="Note speed for chart videos and the site's viewer, as the game shows it: 1.00 to 10.00 or Sonic",
+    touch_speed="Touch speed for chart videos and the site's viewer, as the game shows it: 1.00 to 10.00 or Sonic",
 )
 @app_commands.choices(layout=LAYOUT_CHOICES, challenge=CHALLENGE_CHOICES, new_difficulty=DIFFICULTY_CHOICES)
+@app_commands.autocomplete(note_speed=speed_autocomplete, touch_speed=speed_autocomplete)
 async def settings(interaction: discord.Interaction, layout: Optional[app_commands.Choice[str]] = None,
                    challenge: Optional[app_commands.Choice[str]] = None,
                    new_difficulty: Optional[app_commands.Choice[str]] = None,
                    compare: Optional[bool] = None, leaderboard: Optional[bool] = None, history: Optional[bool] = None,
-                   notify: Optional[bool] = None):
+                   notify: Optional[bool] = None, note_speed: Optional[str] = None, touch_speed: Optional[str] = None):
     user_id = str(interaction.user.id)
+    # autocomplete only suggests, so whatever was typed is checked against the game's list before anything is saved
+    speeds = {"note_speed": clean_speed(note_speed, NOTE_SPEEDS) if note_speed else None,
+              "touch_speed": clean_speed(touch_speed, TOUCH_SPEEDS) if touch_speed else None}
+    if (note_speed and speeds["note_speed"] is None) or (touch_speed and speeds["touch_speed"] is None):
+        await interaction.response.send_message("Speeds are the game's: 1.00 to 10.00 in steps of 0.25, or Sonic. Nothing was changed.", ephemeral=True)
+        return
     changes = {
         "layout": layout.value if layout else None,
         "challenge": challenge.value if challenge else None,
@@ -78,6 +87,7 @@ async def settings(interaction: discord.Interaction, layout: Optional[app_comman
         "leaderboard": leaderboard,
         "history": history,
         "notify": notify,
+        **speeds,
     }
     changed = any(value is not None for value in changes.values())
     prefs = update_prefs(user_id, **changes) if changed else get_prefs(user_id)

@@ -12,7 +12,7 @@ from rasmai.engine.analysis import rank_for
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, level_text, message_files, chart_link, today
-from rasmai.bot.state.prefs import get_prefs
+from rasmai.bot.state.prefs import NOTE_SPEEDS, TOUCH_SPEEDS, get_prefs, speed_label
 from rasmai.bot.state.snapshots import compact_snapshot, snapshot_charts
 from rasmai.bot.core import try_render
 from rasmai.images.cards import compare_image_html, leaderboard_image_html
@@ -223,6 +223,7 @@ def settings_embed(prefs: Dict[str, Any], changed: bool, user_id: str = "") -> d
                         ("" if prefs.get("history") else "\n-# needs the daily history read on to have anything to say"), inline=False)
     else:
         embed.add_field(name="Daily note", value="**Off** - the daily read stays silent", inline=False)
+    embed.add_field(name="Chart speeds", value=f"**Note {speed_label(prefs['note_speed'], NOTE_SPEEDS)} · Touch {speed_label(prefs['touch_speed'], TOUCH_SPEEDS)}**\n-# what chart videos and the site's chart viewer play at", inline=False)
     embed.set_footer(text="change any of these with the command's options · the social ones are off by default")
     return embed
 

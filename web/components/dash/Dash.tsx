@@ -338,7 +338,7 @@ export function Dash() {
         )}
         {visited.has("chart") && (
           <div hidden={tab !== "chart"}>
-            <Lookup target={lookup} />
+            <Lookup target={lookup} settings={me.settings} />
           </div>
         )}
         {visited.has("recent") && (

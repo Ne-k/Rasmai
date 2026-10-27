@@ -1,0 +1,8 @@
+.viewer { display: grid; gap: 14px; max-width: 520px; margin: 22px auto 0; }
+.viewer .screen { display: block; width: 100%; aspect-ratio: 1; touch-action: none; border-radius: 50%; background: var(--ring-screen); box-shadow: 0 0 0 4px var(--edge), 0 0 0 8px var(--paper); }
+.viewer .transport { display: grid; gap: 8px; }
+.viewer .times { display: flex; justify-content: space-between; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--muted); }
+.viewer input[type=range] { width: 100%; margin: 0; accent-color: var(--pink); }
+.viewer .row { display: flex; gap: 8px; }
+.viewer .row .button { flex: 1; justify-content: center; }
+.viewer .row .button.narrow { flex: 0 0 48px; padding: 0; }

@@ -1,12 +1,38 @@
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { ApiError, getJSON, type LookupTarget, type SearchHit, type SongLookup } from "./api";
+import { ApiError, getJSON, type ChartDetail, type LookupTarget, type Overview, type SearchHit, type SongLookup } from "./api";
 import { Chip, Empty, Jacket, chartHref, openInPlace, pct } from "./bits";
 import { Detail } from "./Detail";
 import { PatternBrowser } from "./PatternBrowser";
 
+// the player's code is only fetched once someone asks to watch a chart
+const Viewer = dynamic(() => import("@/components/play/Viewer").then((m) => m.Viewer), { ssr: false });
+
+/** The chart played in the page with its song, at the speeds saved in the player's settings (the game's 4.50 when none are). */
+function Watch({ song, chart, settings }: { song: SongLookup; chart: ChartDetail; settings?: Overview["settings"] }) {
+  const t = useTranslations("lookupTab");
+  const [held, setHeld] = useState<{ maidata: string; slot: number } | null>(null);
+  const [state, setState] = useState("");      // "loading", or why it failed
+  const params = new URLSearchParams({ title: song.title, type: chart.chart_type, difficulty: chart.difficulty });
+  const load = () => {
+    setState("loading");
+    getJSON<{ maidata: string; slot: number }>(`/api/me/viewer?${params}`)
+      .then((d) => { setHeld(d); setState(""); })
+      .catch((e: Error) => setState(t("watchFailed", { why: e.message })));
+  };
+  if (held) return <Viewer maidata={held.maidata} slot={held.slot} audio={`/api/me/track?${params}`} label={`${song.title} ${chart.difficulty}`}
+    noteSpeed={Number(settings?.note_speed) || 550} touchSpeed={Number(settings?.touch_speed) || 350} />;
+  return (
+    <div className="btn-row" style={{ marginTop: 18 }}>
+      <button type="button" className="button pink" onClick={load} disabled={state === "loading"}>{state === "loading" ? t("watchLoading") : t("watch")}</button>
+      {state && state !== "loading" && <span className="hint">{state}</span>}
+    </div>
+  );
+}
+
 /** The Look up tab: find any song, then one chart the way /chart shows it. */
-export function Lookup({ target }: { target: LookupTarget | null }) {
+export function Lookup({ target, settings }: { target: LookupTarget | null; settings?: Overview["settings"] }) {
   const t = useTranslations("lookupTab");
   const list = useTranslations("list");
   const [query, setQuery] = useState(target?.title ?? "");
@@ -181,6 +207,7 @@ export function Lookup({ target }: { target: LookupTarget | null }) {
         />
       )}
       {song && chart && !busy && <Detail song={song} chart={chart} selected={selected} onSelect={setSelected} onTrait={browseTrait} />}
+      {song && chart && !busy && chart.viewer && <Watch key={`${song.title}|${chart.chart_type}|${chart.difficulty}`} song={song} chart={chart} settings={settings} />}
     </div>
   );
 }

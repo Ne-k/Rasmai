@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 JACKET_DIR = Path("otoge_cache/jackets")
 
 
-def _send_file(handler: BaseHTTPRequestHandler, path: Path, content_type: str) -> None:
+def _send_file(handler: BaseHTTPRequestHandler, path: Path, content_type: str, cache: str = "public, max-age=2592000, immutable") -> None:
     body = path.read_bytes()
     handler.send_response(200)
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(body)))
-    handler.send_header("Cache-Control", "public, max-age=2592000, immutable")
+    handler.send_header("Cache-Control", cache)
     handler.end_headers()
     handler.wfile.write(body)
 

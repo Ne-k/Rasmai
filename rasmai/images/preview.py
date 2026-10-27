@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import threading
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from rasmai.config import CHART_SKIN_DIR
@@ -21,28 +22,42 @@ BG = (14, 13, 24)
 PINK, GOLD, ORANGE, BLUE, CYAN, WHITE = (255, 95, 168), (255, 210, 63), (255, 138, 61), (74, 168, 255), (70, 217, 255), (245, 242, 250)
 RING, INK = (44, 42, 66), (170, 166, 196)
 
-# How fast things come in follows MajdataView, the open simai viewer, so the preview moves as that does at the game's usual settings:
-# a note is `speed` units a second, the buttons are 4.8 units from the middle, and a note first shows small, grows to full size where
-# it is 1.225 out, then travels the rest of the way. Taps, holds and slides run at 7.0; touch notes at 7.5, a half step above.
-NOTE_SPEED = 7.0
-TOUCH_SPEED = 7.5
-RING_UNITS = 4.8
-PINNED = 1.225
-APPEAR = 0.3            # the size a note is when it first shows, as a share of full size
-FIRST_SEEN = (APPEAR - 0.51) / 0.4      # how far out it is then: just under the middle, so it takes RING_UNITS - FIRST_SEEN to cross
+# How fast things come in is the game's, as the site's player has it (web/lib/chart/rules.mjs), so a video and the site agree at one
+# setting. Speeds are the game's option IDs (550 is note speed 4.50, 5000 Sonic): a note takes `span` seconds to grow where it starts,
+# 120 of the 480 out to its button, then `span` more to travel out; a touch's plates fade in for a quarter span and close in over one.
+NOTE_SPEED = 550        # the game's defaults, both shown as 4.50
+TOUCH_SPEED = 350
+START_POS, END_POS = 120, 480
+
+
+def span(speed: float) -> float:
+    """Seconds a note grows, and then travels, at a speed: four beats at speed / 60 BPM (GameManager.GetNoteSpeedForBeat)."""
+    return 240.0 / speed
+
+
+def _bug(speed: float) -> float:
+    s = speed / 150         # NoteBase.GetMaiBugAdjustMSec, in seconds
+    return (s - 1) * (-0.5 / s) * 1.6 / 60
 
 
 def approach(speed: float) -> float:
     """Seconds from a note first showing to its being struck at a speed."""
-    return (RING_UNITS - FIRST_SEEN) / speed
+    return 2 * span(speed) + _bug(speed)
 
 
-APPROACH = approach(NOTE_SPEED)           # about 0.76 seconds at 7.0
-TOUCH_APPROACH = approach(TOUCH_SPEED)    # about 0.71 at 7.5
+def touch_approach(speed: float) -> float:
+    """Seconds from a touch first showing to its being struck at a touch speed."""
+    return 1.25 * span(speed)
+
+
+APPROACH = approach(NOTE_SPEED)                 # about 0.86 seconds at 4.50
+TOUCH_APPROACH = touch_approach(TOUCH_SPEED)    # about 0.86 at 4.50
 SECONDS = 9.0           # one clip: 600 px at 30 fps is about five seconds of drawing, which is what a press can cost
 # the sizes tried in turn until the clip fits what the server lets be uploaded: (pixels across, frames a second); all even, as yuv420p needs
 ATTEMPTS: Tuple[Tuple[int, int], ...] = ((600, 30), (440, 20), (360, 15))
 GIF_ATTEMPTS: Tuple[Tuple[int, int], ...] = ((440, 20), (360, 15), (300, 12))
+RATE = 48000            # a video's soundtrack, samples a second
+AUDIO_BITS = 128_000    # and its AAC
 MAX_SKIN_PIXELS = 4_000_000      # one picture in a pack; anything bigger is not a note
 BUNDLED_SKIN = Path(__file__).parent / "chart_skin"
 
@@ -261,18 +276,23 @@ def busiest_start(chart: Chart, seconds: float = SECONDS) -> float:
 def place(t: float, hit: float, speed: float = NOTE_SPEED) -> Optional[Tuple[float, float]]:
     """Where a note is at a moment, as (how far out along its lane as a share of the way to the button, its size as a share of full).
 
-    None before it first shows. It grows where it is 1.225 out, then travels, then waits on the button once it has been struck.
+    None before it first shows. It grows where it starts, then travels, then waits on the button once it has been struck: rules.mjs tapMotion.
     """
-    distance = (t - hit) * speed + RING_UNITS
-    size = distance * 0.4 + 0.51
-    if size <= APPEAR:
+    grow = span(speed)
+    start = hit - approach(speed)
+    if t < start:
         return None
-    return min(max(distance, PINNED), RING_UNITS) / RING_UNITS, min(1.0, size)
+    if t <= start + grow:
+        return START_POS / END_POS, (t - start) / grow
+    k = -(1 / 120) * (speed / 150 - 1)
+    return min(1.0, (START_POS + (END_POS - START_POS) * (1 - (hit - t) / grow + k)) / END_POS), 1.0
 
 
 class _Painter:
-    def __init__(self, notes: Sequence[Note], field: Field, skin: Skin):
+    def __init__(self, notes: Sequence[Note], field: Field, skin: Skin, speed: float = NOTE_SPEED, touch_speed: float = TOUCH_SPEED):
         self.notes, self.f, self.skin = notes, field, skin
+        self.speed, self.touch_speed = speed, touch_speed
+        self.look = max(approach(speed), touch_approach(touch_speed)) + 0.05
         self.paths = {id(n): [Track(path) for path in slide_paths(field, n)] for n in notes if n.kind == "slide"}
         self.label = ImageFont.load_default(size=max(10, field.size // 34))
 
@@ -337,11 +357,11 @@ class _Painter:
 
     def hold(self, img: Image.Image, d: ImageDraw.ImageDraw, note: Note, t: float) -> None:
         f, hit = self.f, note.time
-        head = place(t, hit)
+        head = place(t, hit, self.speed)
         if head is None or t > hit + note.duration + 0.05:
             return
-        tail = place(t, hit + note.duration)
-        a = f.pt(note.position, f.r * (tail[0] if tail else PINNED / RING_UNITS))
+        tail = place(t, hit + note.duration, self.speed)
+        a = f.pt(note.position, f.r * (tail[0] if tail else START_POS / END_POS))
         b = f.pt(note.position, f.r * head[0])
         shape = self.skin.pick("hold", self.variant(note))
         if shape:
@@ -361,10 +381,14 @@ class _Painter:
     def touch(self, img: Image.Image, d: ImageDraw.ImageDraw, note: Note, t: float) -> None:
         f, hit = self.f, note.time
         x, y = f.touch(note.position)
-        far = (hit - t) / TOUCH_APPROACH
-        held = note.kind == "touch_hold" and far < 0 and t < hit + note.duration
-        if not (-0.02 <= far <= 1.0 or held):
+        grow = span(self.touch_speed)
+        since = t - (hit - touch_approach(self.touch_speed))
+        held = note.kind == "touch_hold" and hit <= t < hit + note.duration
+        if since <= 0 or (t > hit + 0.02 and not held):
             return
+        # plates still for the quarter span they fade in, then close in with the game's quartic (rules.mjs touchMotion)
+        g = max(0.0, since - grow / 4) / grow
+        far = 1 - min(1.0, 3.5 * g ** 4 - 3.75 * g ** 3 + 1.45 * g ** 2 - 0.05 * g + 0.0005)
         step = f.nr * (1.15 + 2.6 * max(0.0, min(1.0, far)))
         variant = self.variant(note)
         triangle = self.skin.pick("touch", variant)
@@ -414,22 +438,23 @@ class _Painter:
                 self.put(img, button, (x, y), f.nr * 1.9)
             elif not field_art:
                 d.ellipse([x - f.nr * .87, y - f.nr * .87, x + f.nr * .87, y + f.nr * .87], outline=(60, 58, 88), width=2 * f.ss)
-        look = max(APPROACH, TOUCH_APPROACH) + 0.05
-        live = [n for n in self.notes if n.time - look <= t <= n.time + n.duration + 0.5]
+        live = [n for n in self.notes if n.time - self.look <= t <= n.time + n.duration + 0.5]
+        # a slide's arrows show from 11/21 of two spans out at the default slide speed (rules.mjs slideArrowAlpha)
+        arrows = 2 * span(self.speed) * 11 / 21
         for note in live:
-            if note.kind == "slide" and id(note) in self.paths and t >= note.time - APPROACH * 0.8:
+            if note.kind == "slide" and id(note) in self.paths and t >= note.time - arrows:
                 self.track(img, d, note, t)
         for note in live:
             hit = note.time
             if note.kind == "hold" and note.position.isdigit():
                 self.hold(img, d, note, t)
             elif note.kind == "tap" and note.position.isdigit():
-                placed = place(t, hit)
+                placed = place(t, hit, self.speed)
                 if placed is not None and t <= hit + 0.02:
                     self.circle(img, d, note, f.pt(note.position, f.r * placed[0]), f.nr * placed[1], PINK)
             elif note.kind == "slide" and note.position.isdigit():
                 if t < hit:
-                    placed = place(t, hit)
+                    placed = place(t, hit, self.speed)
                     if placed is not None:
                         self.star(img, d, note, f.pt(note.position, f.r * placed[0]), t * 3.0, placed[1])
                 elif id(note) in self.paths:
@@ -477,12 +502,16 @@ def _gif(frames: List[Image.Image], fps: int) -> bytes:
     return out.getvalue()
 
 
-def _mp4(frames: Iterator[Image.Image], size: int, fps: int) -> bytes:
+def _mp4(frames: Iterator[Image.Image], size: int, fps: int, audio: Optional[Path] = None, bitrate: int = 0) -> bytes:
+    """Frames, and a raw 48 kHz stereo float soundtrack when given, as an H.264 MP4; `bitrate` caps the picture's bits a second."""
     with tempfile.TemporaryDirectory() as folder:
         out = Path(folder) / "clip.mp4"         # faststart moves the index to the front, which needs a file it can seek in
-        command = ["ffmpeg", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{size}x{size}", "-r", str(fps), "-i", "-",
-                   "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "23", "-movflags", "+faststart", "-an",
-                   "-f", "mp4", str(out)]
+        command = ["ffmpeg", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{size}x{size}", "-r", str(fps), "-i", "-"]
+        command += ["-f", "f32le", "-ar", str(RATE), "-ac", "2", "-i", str(audio)] if audio else []
+        command += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "23"]
+        command += ["-maxrate", str(bitrate), "-bufsize", str(bitrate * 2)] if bitrate else []
+        command += ["-c:a", "aac", "-b:a", str(AUDIO_BITS)] if audio else ["-an"]
+        command += ["-movflags", "+faststart", "-f", "mp4", str(out)]
         with subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE) as process:
             try:
                 for frame in frames:            # one at a time: a whole clip of raw frames is hundreds of megabytes
@@ -497,7 +526,7 @@ def _mp4(frames: Iterator[Image.Image], size: int, fps: int) -> bytes:
 
 
 def render_preview(chart: Chart, limit: int = 10 * 1024 * 1024, start: Optional[float] = None, seconds: float = SECONDS,
-                   skin: Optional[Skin] = None) -> Optional[Preview]:
+                   skin: Optional[Skin] = None, speed: float = NOTE_SPEED, touch_speed: float = TOUCH_SPEED) -> Optional[Preview]:
     """A clip of part of a chart: the notes coming in, slides running their tracks, as they would be played.
 
     An MP4 made with ffmpeg, or a looping GIF where ffmpeg is not installed. Smaller and slower versions are tried until one fits
@@ -513,6 +542,10 @@ def render_preview(chart: Chart, limit: int = 10 * 1024 * 1024, start: Optional[
     :type seconds: float
     :param skin: The note pictures to use; the bundled ones and the folder in the settings when left out.
     :type skin: Optional[Skin]
+    :param speed: The note speed, as the game's option ID.
+    :type speed: float
+    :param touch_speed: The touch speed, as the game's option ID.
+    :type touch_speed: float
     :rtype: Optional[Preview]
     """
     if not chart.notes:
@@ -523,12 +556,103 @@ def render_preview(chart: Chart, limit: int = 10 * 1024 * 1024, start: Optional[
     seconds = max(2.0, min(seconds, chart.seconds or seconds))
     begin = busiest_start(chart, seconds) if start is None else max(0.0, start)
     finish = begin + seconds
-    window = [n for n in chart.notes if begin - 1 <= n.time <= finish + 1]
+    window = [n for n in chart.notes if begin - 3 <= n.time <= finish + 1]      # 3 s: a note's whole way in at the slowest speed
     result = None
     for size, fps in ATTEMPTS if kind == "mp4" else GIF_ATTEMPTS:
-        painter = _Painter(window, Field(size), skin)
+        painter = _Painter(window, Field(size), skin, speed, touch_speed)
         frames = (painter.frame(begin + i / fps, begin, finish) for i in range(int(seconds * fps)))
         result = Preview(_mp4(frames, size, fps) if kind == "mp4" else _gif(list(frames), fps), kind, begin, finish, size, fps)
         if len(result.data) <= limit:
             break
+    return result
+
+
+def _decode(path: Path, channels: int) -> np.ndarray:
+    """A sound file as 48 kHz float samples, one column a channel, as ffmpeg reads it."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-f", "f32le", "-ac", str(channels), "-ar", str(RATE), "-"],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(raw, dtype=np.float32).reshape(-1, channels)
+
+
+def _tap_sound(skin: Skin) -> np.ndarray:
+    """The pack's answer or tap sound, the settings folder's first; a short click made here when neither has one."""
+    for folder in reversed(skin.folders):
+        for name in ("answer", "tap"):
+            for suffix in (".wav", ".ogg", ".mp3"):
+                path = folder / f"{name}{suffix}"
+                if path.is_file():
+                    try:
+                        return _decode(path, 1)[:RATE, 0]          # a second at most: it is a click
+                    except (OSError, subprocess.SubprocessError) as error:
+                        logger.warning("chart skin: %s could not be read (%s), left out", path.name, type(error).__name__)
+    t = np.arange(int(RATE * 0.05)) / RATE
+    noise = np.random.default_rng(0).standard_normal(len(t))
+    return ((np.sin(2 * np.pi * 1600 * t) * 0.6 + noise * np.exp(-t * 400) * 0.4) * np.exp(-t * 80)).astype(np.float32)
+
+
+def soundtrack(notes: Sequence[Note], music: Optional[np.ndarray], begin: float, seconds: float, tap: np.ndarray) -> np.ndarray:
+    """The music from `begin` with a tap at every note struck, breaks louder, as 48 kHz stereo that never clips."""
+    length = int(round(seconds * RATE))
+    out = np.zeros((length, 2), np.float32)
+    if music is not None:
+        part = music[int(begin * RATE):][:length]
+        out[:len(part)] = part * 0.8
+    moments: Dict[int, bool] = {}
+    for note in notes:          # one tap a moment, however many notes are struck in it, as the game plays one
+        at = int(round((note.time - begin) * RATE))
+        moments[at] = moments.get(at, False) or note.brk
+    for at, brk in moments.items():
+        if 0 <= at < length:
+            piece = tap[:length - at] * (0.75 if brk else 0.45)
+            out[at:at + len(piece)] += piece[:, None]
+    peak = float(np.abs(out).max(initial=0.0))
+    return out / peak if peak > 1.0 else out        # one gain for the whole song, so it neither clips nor pumps
+
+
+def render_video(chart: Chart, track: Optional[Path], limit: int = 10 * 1024 * 1024, speed: float = NOTE_SPEED,
+                 touch_speed: float = TOUCH_SPEED, skin: Optional[Skin] = None) -> Optional[Preview]:
+    """The whole chart as an MP4 with the song and a tap at every note, from just before the first note to just after the last.
+
+    The picture gets what `limit` leaves after the sound; a stretch of the busiest part is drawn first at each size to find the largest
+    that fits in that, and the whole is then drawn at it, capped to the rate. If even the smallest is over, that one is returned and the
+    caller sees it is over. None when the chart has no notes or there is no ffmpeg.
+
+    :param chart: The parsed chart, its times on the track's clock.
+    :type chart: Chart
+    :param track: The song's audio file; the taps alone when None.
+    :type track: Optional[Path]
+    :param limit: The most bytes the video may take.
+    :type limit: int
+    :param speed: The note speed, as the game's option ID.
+    :type speed: float
+    :param touch_speed: The touch speed, as the game's option ID.
+    :type touch_speed: float
+    :param skin: The note pictures and tap sound; the bundled ones and the folder in the settings when left out.
+    :type skin: Optional[Skin]
+    :rtype: Optional[Preview]
+    """
+    if not chart.notes or not shutil.which("ffmpeg"):
+        return None
+    skin = skin or _skin
+    skin.refresh()
+    begin = max(0.0, min(n.time for n in chart.notes) - max(approach(speed), touch_approach(touch_speed)) - 1.0)
+    finish = max(n.time + n.wait + n.duration for n in chart.notes) + 1.5
+    music = _decode(track, 2) if track else None
+    if music is not None and finish < len(music) / RATE <= finish + 6:
+        finish = len(music) / RATE            # a few seconds of the song left: let it finish
+    seconds = finish - begin
+    # shortcut: a song so long the floor is all the picture gets comes out over the limit and is refused, upgrade to a lower AAC rate then
+    bitrate = max(64_000, int(limit * 8 * 0.94 / seconds) - AUDIO_BITS)
+    sample = render_preview(chart, bitrate * SECONDS // 8, seconds=SECONDS, skin=skin, speed=speed, touch_speed=touch_speed)
+    first = ATTEMPTS.index((sample.size, sample.fps)) if sample and sample.kind == "mp4" else 0
+    result = None
+    with tempfile.TemporaryDirectory() as folder:
+        audio = Path(folder) / "sound.f32"
+        soundtrack(chart.notes, music, begin, seconds, _tap_sound(skin)).tofile(audio)
+        for size, fps in ATTEMPTS[first:]:
+            painter = _Painter(chart.notes, Field(size), skin, speed, touch_speed)
+            frames = (painter.frame(begin + i / fps, begin, finish) for i in range(int(seconds * fps)))
+            result = Preview(_mp4(frames, size, fps, audio, bitrate), "mp4", begin, finish, size, fps)
+            if len(result.data) <= limit:
+                break
     return result

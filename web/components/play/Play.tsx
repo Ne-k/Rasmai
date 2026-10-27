@@ -8,19 +8,19 @@ import { Ring } from "@/components/Ring";
 import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
 import { STATUS_URL } from "@/components/Contact";
-import slideData from "@/lib/chart/slides.json";
 import { buildChart } from "@/lib/chart/build.mjs";
 import { K, BOX, convertJudge } from "@/lib/chart/engine/timing.mjs";
 import { COMBO_NAMES } from "@/lib/chart/engine/score.mjs";
 import { NOTE_SPEED, TOUCH_SPEED, achieveText, playResult } from "@/lib/chart/rules.mjs";
 import type { PlayResult } from "@/lib/chart/types";
 import { songsFromFiles, filesFromDrop, filesFromInput, levelValue, type Song } from "@/lib/chart/library";
-import { Field, preloadSkin } from "./field";
-import { SongClock, limiter } from "./audio";
+import { preloadSkin } from "./field";
+import { limiter } from "./audio";
 import { InputController, DEFAULT_KEYS } from "./input";
-import { encodeVideo, canExport, VIDEO_FPS, AUDIO_RATE } from "./export";
-import { Sfx, GameSe, type SeTable } from "./sfx";
-import { advance, lostSoFar, sessionAt, NOTE_CLOCK_MS, TICK_MS, type Center, type Live, type View } from "./run";
+import { encodeVideo, canEncodeMode, canExport, VIDEO_MODES, AUDIO_RATE, type VideoMode } from "./export";
+import { GameSe } from "./sfx";
+import { advance, sessionAt, NOTE_CLOCK_MS, SIM_FPS, TICK_MS, type Center, type View } from "./run";
+import { useScreen, themeColors, fmt, type ScreenHooks } from "./Viewer";
 
 type Mode = "watch" | "play" | "practice";
 const CENTERS: Center[] = ["off", "combo", "achievement", "achievementDown", "dx"];
@@ -31,17 +31,6 @@ type Pick = { song: Song; slot: number };
 
 const LEVELS = ["all", "10", "10+", "11", "11+", "12", "12+", "13", "13+", "14", "14+", "15"];
 const diffClass = (name: string) => "diff d-" + name.toLowerCase().replace(/[^a-z]/g, "");
-const fmt = (ms: number) => { const s = Math.max(0, ms) / 1000; return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}.${Math.floor((s % 1) * 10)}`; };
-
-/** A silent WAV of the chart's length, so a song folder without audio still plays on the same clock. */
-function silence(ms: number): Blob {
-  const rate = 8000, n = Math.ceil((ms / 1000) * rate), buf = new ArrayBuffer(44 + n), v = new DataView(buf);
-  const str = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE"); str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true);
-  new Uint8Array(buf, 44).fill(128);
-  return new Blob([buf], { type: "audio/wav" });
-}
 
 export function Play() {
   const t = useTranslations("play");
@@ -153,26 +142,14 @@ function Library({ songs, reading, url, onImport, onPick }: { songs: Song[]; rea
 }
 
 // ---------------------------------------------------------------- player ----------------------------------------------------------------
-const themeColors = () => { const cs = getComputedStyle(document.documentElement); return { screen: cs.getPropertyValue("--ring-screen").trim() || "#1d1a2f", ring: "#6a6a7c", button: "#8f8fa3" }; };
-
 function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boolean }; url: (f: File | null) => string | null; onResult: (r: PlayResult) => void; onLibrary: () => void }) {
   const t = useTranslations("play");
   const { song, slot } = pick;
   const chart = useMemo(() => buildChart(song.maidata, slot), [song, slot]);
   const chartInfo = song.charts.find((c) => c.slot === slot)!;
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const field = useRef<Field | null>(null);
-  const clock = useRef<SongClock | null>(null);
   const control = useRef<InputController | null>(null);
-  const live = useRef<Live | null>(null);
-  const gameSe = useRef<GameSe | null>(null);
-  const sfx = useRef<Sfx | null>(null);
-  const seTable = useRef<SeTable | null>(null);
   const [mode, setMode] = useState<Mode>(pick.watch === false ? "play" : "watch");
   const modeRef = useRef(mode); modeRef.current = mode;
-  const [ready, setReady] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [pos, setPos] = useState(0);
   const [stats, setStats] = useState({ ach: "  0.0000%", dx: 0, combo: 0 });
   const [speed, setSpeed] = useState(14);       // NOTE_SPEED index: 4.5
   const [touchSpeed, setTouchSpeed] = useState(14);
@@ -181,6 +158,8 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
   const [fastLate, setFastLate] = useState(true);
   const [center, setCenter] = useState<Center>("combo");
   const [useSkin, setUseSkin] = useState(true);
+  const [videoMode, setVideoMode] = useState<VideoMode>("full");
+  useEffect(() => { if (typeof VideoEncoder !== "undefined") canEncodeMode(videoMode).catch(() => {}); }, [videoMode]);
   const [outline, setOutline] = useState(17);
   const [starPink, setStarPink] = useState(false);
   const [rate, setRate] = useState(1);
@@ -191,84 +170,33 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
   useEffect(() => () => cancelExport.current?.abort(), []);
   const opts = useRef<View>({ noteSpeed: NOTE_SPEED[speed], touchSpeed: TOUCH_SPEED[touchSpeed], showSensors: sensors, dispJudge: fastLate ? 1 : 0, offset, rate, center, useSkin, outline, starPink });
   opts.current = { noteSpeed: NOTE_SPEED[speed], touchSpeed: TOUCH_SPEED[touchSpeed], showSensors: sensors, dispJudge: fastLate ? 1 : 0, offset, rate, center, useSkin, outline, starPink };
-  const finished = useRef(false);
-  const duration = clock.current?.durationMs ?? chart.endMs;
+  const hooks = useRef<ScreenHooks>({});
+  hooks.current = {
+    // watch mode leaves the frame to auto play; play and practice judge what was pressed since the last one
+    step: (L, now) => {
+      const ctl = control.current;
+      if (modeRef.current === "watch" || !ctl) { ctl?.drain(); L.bot.step(now, L.input); return; }
+      const perf = performance.now(), o = opts.current;
+      for (const ev of ctl.drain()) {
+        const at = now - (perf - ev.perf) * o.rate;
+        if (ev.kind === "area") L.input.setArea(ev.idx, ev.on); else { L.input.setButton(ev.idx, ev.on); if (ev.on) field.current?.flash(ev.idx, at); }
+        L.session.tick(at, L.input.snapshot());
+      }
+    },
+    ui: (L) => { const sc = L.session.score; setStats({ ach: achieveText(sc.achievement), dx: sc.dxScore, combo: sc.combo }); },
+  };
+  const { canvas, field, clock, live, sfx, seTable, ready, playing, setPlaying, pos, duration, rebuild, seek, togglePlay } = useScreen(chart, song.audio, opts, hooks);
 
-  const rebuild = useCallback((audioMs: number) => { live.current = sessionAt(chart, audioMs); field.current?.reset(); gameSe.current?.setNotes(live.current.session.notes, audioMs + NOTE_CLOCK_MS); finished.current = false; }, [chart]);
-
-  // set up: audio, the field, input, the frame loop
+  // the keys and touches, on the field the screen set up
   useEffect(() => {
-    const cv = canvas.current!;
-    const fld = new Field(cv, slideData);
-    fld.setChart(chart);
-    field.current = fld;
-    const ck = new SongClock();
-    clock.current = ck;
-    const ctl = new InputController(cv, (x, y) => fld.clientToField(x, y));
+    const fld = field.current!, ck = clock.current!;
+    const ctl = new InputController(canvas.current!, (x, y) => fld.clientToField(x, y));
     ctl.setKeys(DEFAULT_KEYS);
     ctl.onEscape = () => { ck.pause(); sfx.current?.stopAll(); setPlaying(false); };
     ctl.attach();
     control.current = ctl;
-    rebuild(0);
-    let alive = true;
-    // the song and the game's sprites (web/scripts/play-assets.mjs; plain shapes without them) must both be in before Play is offered
-    Promise.all([ck.load(song.audio ?? silence(chart.endMs + 3000)), fld.loadSkin("/play/skin")]).then(() => { if (alive) setReady(true); });
-    // the game's own sound effects, when the site has them; silence otherwise
-    fetch("/play/se/seoptions.json").then(async (r) => {
-      if (!r.ok || !alive) return;
-      const table = (await r.json()) as SeTable, fx = new Sfx(ck), se = new GameSe(fx, table);
-      await fx.preload(se.names);
-      if (!alive) return;
-      sfx.current = fx; gameSe.current = se; seTable.current = table;
-      if (live.current) se.setNotes(live.current.session.notes, ck.nowMs() + NOTE_CLOCK_MS);
-    }).catch(() => {});
-    const offEnded = ck.on("ended", () => { setPlaying(false); finished.current = true; setStats((s) => ({ ...s })); });
-    const offLoop = ck.on("loop", () => { const a = ck.nowMs(); rebuild(a); });
-    const ro = new ResizeObserver(() => fld.resize());
-    ro.observe(cv);
-    fld.resize();
-    let theme = themeColors();
-    const mo = new MutationObserver(() => { theme = themeColors(); });
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    let lastUi = 0, raf = 0;
-    const frame = () => {
-      if (!alive) return;
-      raf = requestAnimationFrame(frame);
-      const L = live.current;
-      if (!L) return;
-      const o = opts.current;
-      const audio = ck.nowMs();
-      const now = audio + NOTE_CLOCK_MS + o.offset;
-      if (modeRef.current === "watch") { ctl.drain(); L.bot.step(now, L.input); }
-      else {
-        const perf = performance.now();
-        for (const ev of ctl.drain()) {
-          const at = now - (perf - ev.perf) * o.rate;
-          if (ev.kind === "area") L.input.setArea(ev.idx, ev.on); else { L.input.setButton(ev.idx, ev.on); if (ev.on) fld.flash(ev.idx, at); }
-          L.session.tick(at, L.input.snapshot());
-        }
-      }
-      advance(L, fld, ck.playing ? gameSe.current : null, now, o, theme);
-      if (perfNow() - lastUi > 100) {
-        lastUi = perfNow();
-        const sc = L.session.score;
-        setPos(audio);
-        setStats({ ach: achieveText(sc.achievement), dx: sc.dxScore, combo: sc.combo });
-      }
-    };
-    const perfNow = () => performance.now();
-    raf = requestAnimationFrame(frame);
-    return () => { alive = false; cancelAnimationFrame(raf); ro.disconnect(); mo.disconnect(); offEnded(); offLoop(); ctl.detach(); ck.close(); };
-  }, [chart, song.audio, rebuild]);
-
-  const seek = useCallback((ms: number) => { const ck = clock.current!; ms = Math.max(0, Math.min(duration, ms)); ck.seek(ms); sfx.current?.stopAll(); rebuild(ms); setPos(ms); }, [duration, rebuild]);
-  const togglePlay = useCallback(async () => {
-    const ck = clock.current!;
-    if (ck.playing) { ck.pause(); sfx.current?.stopAll(); setPlaying(false); return; }
-    if (finished.current || ck.nowMs() >= duration - 1) seek(0);
-    await ck.play();
-    setPlaying(true);
-  }, [duration, seek]);
+    return () => { ctl.detach(); control.current = null; };
+  }, [chart, song.audio, canvas, field, clock, sfx, setPlaying]);
   useEffect(() => { clock.current?.setRate(rate); }, [rate]);
   useEffect(() => { clock.current?.setLoop(loop.a, loop.b); }, [loop]);
   useEffect(() => {
@@ -288,21 +216,21 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
   // the whole chart drawn offscreen and encoded faster than real time, in watch mode at full speed, with the song and the note sounds
   const exportVideo = async () => {
     const ck = clock.current!;
-    if (!(await canExport())) { setExporting("unsupported"); return; }
+    if (!(await canExport(videoMode))) { setExporting("unsupported"); return; }
     ck.pause(); sfx.current?.stopAll(); setPlaying(false);
     const abort = new AbortController();
     cancelExport.current = abort;
     setExporting(0);
     try {
-      const o = opts.current, colors = themeColors(), sec = ck.durationMs / 1000, frames = Math.ceil(sec * VIDEO_FPS);
+      const o = opts.current, colors = themeColors(), sec = ck.durationMs / 1000, frames = Math.ceil(sec * VIDEO_MODES[videoMode].fps);
       // play the chart through once without drawing, writing down every note sound at the frame that sets it off, as live
       const fx = sfx.current?.recorder(), se = fx && seTable.current ? new GameSe(fx, seTable.current) : null;
       if (fx && se) {
         const L = sessionAt(chart, 0);
         se.setNotes(L.session.notes, NOTE_CLOCK_MS);
-        for (let i = 0; i < frames; i++) {
-          const now = (i * 1000) / VIDEO_FPS + NOTE_CLOCK_MS + o.offset;
-          fx.at = i / VIDEO_FPS;
+        for (let i = 0; i < Math.ceil(sec * SIM_FPS); i++) {
+          const now = (i * 1000) / SIM_FPS + NOTE_CLOCK_MS + o.offset;
+          fx.at = i / SIM_FPS;
           L.bot.step(now, L.input);
           advance(L, null, se, now, o, colors);
         }
@@ -314,7 +242,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
         const src = mix.createBufferSource();
         src.buffer = buf; src.connect(out); src.start();
       }
-      const blob = await encodeVideo({ maidata: song.maidata, slot, view: o, colors, frames }, mix.startRendering(), setExporting, abort.signal);
+      const blob = await encodeVideo({ maidata: song.maidata, slot, view: o, colors, frames }, videoMode, mix.startRendering(), setExporting, abort.signal);
       if (!blob) { setExporting(null); return; }
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -391,6 +319,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
             <p className="hint" style={{ marginTop: 6 }}>{t("keysHint")}</p>
           </div>
           <div className="export-row">
+            <label><span>{t("videoQuality")}</span><select value={videoMode} onChange={(e) => setVideoMode(e.target.value as VideoMode)} disabled={busy}><option value="full">{t("videoFull")}</option><option value="fast">{t("videoFast")}</option></select></label>
             {busy ? (
               <button type="button" className="button ghost" onClick={() => cancelExport.current?.abort()}>{t("exportCancel")}</button>
             ) : <button type="button" className="button" onClick={exportVideo} disabled={!ready}>{t("exportVideo")}</button>}

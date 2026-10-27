@@ -11,6 +11,7 @@ from rasmai.bot.builders.charts.page import DIFFICULTY_STYLE
 from rasmai.bot.builders.charts.song import build_song, build_song_details
 from rasmai.bot.builders.charts.details import favorites_button, video_button
 # from rasmai.bot.builders.charts.preview import preview_button        # Preview is off until it is tested
+from rasmai.bot.builders.charts.preview import full_video_button
 from rasmai.bot.builders.charts.song_history import build_song_history
 from rasmai.security import public_reason
 
@@ -111,6 +112,10 @@ class SongView(OwnerOnlyView):
         # preview = preview_button(refs[page])
         # if preview is not None:
         #     self.add_item(preview)
+        # the whole chart played with its song, on row 3 as row 4 is full
+        full_video = full_video_button(refs[page])
+        if full_video is not None:
+            self.add_item(full_video)
         # link buttons need no callback: the chart's video, or a search for one, and where the song is ticked as a favorite
         self.add_item(video_button(refs[page], self.videos, both_types))
         self.add_item(favorites_button(region, refs[page].genre))

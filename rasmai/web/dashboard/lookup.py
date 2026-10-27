@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import logging
 
 from rasmai.bot.state import cohort
@@ -128,6 +128,43 @@ def title_for_cover(index: Any, stem: str) -> str:
     return table.get(stem, "")
 
 
+def _song_refs(index: Any, title: str, cover: str = "") -> Tuple[str, List[Any]]:
+    """The song a title (or, with no title, a jacket id) names, as the database spells it, and every chart it has; none when nothing matches.
+
+    :param index: The chart database to look charts up in.
+    :type index: Any
+    :rtype: Tuple[str, List[Any]]
+    """
+    from rasmai.bot.builders.charts import charts_for, resolve_title
+    if cover and not title:
+        title = title_for_cover(index, cover)
+        if not title:
+            return title, []
+    refs = charts_for(title, index)
+    if not refs:
+        resolved = resolve_title(title, index)
+        refs = charts_for(resolved, index) if resolved else []
+        title = resolved or title
+    return title, refs
+
+
+def chart_ref(title: str, chart_type: str, difficulty: str) -> Optional[Any]:
+    """The one chart of a song with this type and tier, or None.
+
+    :param title: The song title.
+    :type title: str
+    :param chart_type: ``"std"`` or ``"dx"``.
+    :type chart_type: str
+    :param difficulty: The difficulty tier, such as ``"master"``.
+    :type difficulty: str
+    :rtype: Optional[Any]
+    """
+    from rasmai.bot.builders.charts import page_index
+    _title, refs = _song_refs(_lookup_index(None), title)
+    at = page_index(refs, chart_type, difficulty)
+    return refs[at] if at is not None else None
+
+
 def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str = "", difficulty: str = "",
                   cover: str = "") -> Optional[Dict[str, Any]]:
     """Everything /chart shows for one song: each chart with the player's score, the prediction, the rank ladder and the score history.
@@ -147,19 +184,12 @@ def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str 
     :rtype: Optional[Dict[str, Any]]
     """
     from rasmai.bot.builders.charts import (
-        _chart_rows, _default_page, _history_points, chart_designer, chart_ladder, charts_for, difficulty_page, page_index,
-        prediction_for, resolve_title, song_alias, song_record, version_name, youtube_search_url,
+        _chart_rows, _default_page, _history_points, chart_designer, chart_ladder, difficulty_page, page_index,
+        prediction_for, song_alias, song_record, version_name, youtube_search_url,
     )
+    from rasmai.scraping.astrodx import held
     index = _lookup_index(cached)
-    if cover and not title:
-        title = title_for_cover(index, cover)
-        if not title:
-            return None
-    refs = charts_for(title, index)
-    if not refs:
-        resolved = resolve_title(title, index)
-        refs = charts_for(resolved, index) if resolved else []
-        title = resolved or title
+    title, refs = _song_refs(index, title, cover)
     if not refs:
         return None
     record = song_record(title)
@@ -210,6 +240,7 @@ def chart_payload(cached: Optional[CachedAnalysis], title: str, chart_type: str 
         item["observed"] = cohort.difficulty(ref.key)      # how often the people who play it reach an SS, once enough have
         item["video"] = None            # filled in by /internal/me/video, which may wait on the wiki
         item["youtube"] = youtube_search_url(ref, both_types)
+        item["viewer"] = held(ref)      # the site can play this chart, from the server's AstroDX folder
         charts.append(item)
     reading = str(record.get("alt_title", "") or "").strip()
     return _json_safe({

@@ -79,7 +79,7 @@
 .tile .k { font-family: var(--font-mono), monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .tile .v { font-family: var(--font-mono), monospace; font-size: 20px; font-weight: 700; margin-top: 1px; }
 .opts { display: grid; gap: 10px; }
-.opts label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; min-height: 26px; }
+.opts label, .export-row label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; min-height: 26px; }
 .opts label > span:last-child { display: flex; align-items: center; gap: 8px; }
 .opts input[type=range] { width: 110px; margin: 0; accent-color: var(--pink); }
 .opts input[type=checkbox] { width: 18px; height: 18px; margin: 0; accent-color: var(--pink); }

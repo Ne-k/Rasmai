@@ -31,6 +31,7 @@ services:
       # secret and cannot be reached from anywhere else, and no port is published
       MAIMAI_WEBSERVER_HOST: 127.0.0.1
       MAIMAI_TUNNEL: ""
+      MAIMAI_ASTRODX_DIR: /app/astrodx
       # nobody can open the developer page or run /notice on the beta
       MAIMAI_ADMIN_ID: ""
     # as in production: the bot runs as the image's non-root user, so these must be writable by it. Docker Desktop on macOS maps that
@@ -40,6 +41,7 @@ services:
       - ./beta/otoge_cache:/app/otoge_cache
       - ./beta/simai_cache:/app/simai_cache
       - ./beta/debug:/app/debug
+      - ./beta/astrodx:/app/astrodx:ro
     init: true
     # reaches an Ollama server on the host, for MAIMAI_TRANSLATE_URL=http://host.docker.internal:11434
     extra_hosts:

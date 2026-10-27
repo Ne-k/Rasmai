@@ -68,6 +68,43 @@ def _public_profile():
         store._database_ready = False
 
 
+@check("the chart speeds save only as the game's option IDs, the same table the site's player reads")
+def _speeds():
+    import re, tempfile, pathlib
+    from rasmai.storage.db import connection as store
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    try:
+        from rasmai.bot.state.prefs import DEFAULTS, NOTE_SPEEDS, TOUCH_SPEEDS, clean_speed, get_prefs, set_speeds, update_prefs
+        problems = []
+        rules = (ROOT / "web" / "lib" / "chart" / "rules.mjs").read_text(encoding="utf-8")
+        touch = [int(n) for n in re.findall(r"\d+", re.search(r"TOUCH_SPEED = \[([^\]]*)\]", rules).group(1))]
+        if tuple(touch) != TOUCH_SPEEDS or len(NOTE_SPEEDS) != 38 or NOTE_SPEEDS[14] != 550 or NOTE_SPEEDS[-1] != 5000:
+            problems.append("the bot's speed tables no longer match web/lib/chart/rules.mjs")
+        if DEFAULTS.get("note_speed") != 550 or DEFAULTS.get("touch_speed") != 350:
+            problems.append(f"the speed defaults are not the player's 4.50: {DEFAULTS.get('note_speed')}, {DEFAULTS.get('touch_speed')}")
+        if get_prefs("u1")["note_speed"] != 550:
+            problems.append("a fresh account has no note speed")
+        if (set_speeds("u1", note_speed=700, touch_speed=5000) or {}).get("note_speed") != 700 or get_prefs("u1")["touch_speed"] != 5000:
+            problems.append("a valid speed from the site did not save")
+        for bad in (701, 0, True, "700", 7.0, [700]):
+            if set_speeds("u1", note_speed=bad) is not None:
+                problems.append(f"the site saved a note speed that is not the game's: {bad!r}")
+        if set_speeds("u1", note_speed=900, touch_speed=901) is not None or get_prefs("u1")["note_speed"] != 700:
+            problems.append("one bad speed in a save let the other one through")
+        if clean_speed("7", NOTE_SPEEDS) != 800 or clean_speed("sonic", TOUCH_SPEEDS) != 5000 or clean_speed("4.50", TOUCH_SPEEDS) != 350:
+            problems.append("what Discord sends (the game's numbers) does not map onto the option IDs")
+        if clean_speed("7.10", NOTE_SPEEDS) is not None or clean_speed("nan", NOTE_SPEEDS) is not None or clean_speed("11", NOTE_SPEEDS) is not None:
+            problems.append("Discord can type a speed the game does not have")
+        update_prefs("u1", note_speed=12345)
+        if get_prefs("u1")["note_speed"] != 550:
+            problems.append("a stored speed outside the table is handed to the renderers")
+        return problems
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
+
+
 @check("the linking walkthroughs are web sized and small enough for Discord")
 def _walkthrough():
     from rasmai.config import WALKTHROUGH_DIR

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { InstallHint } from "@/components/Pwa";
 import { Support } from "@/components/Support";
+import { NOTE_SPEED, TOUCH_SPEED } from "@/lib/chart/rules.mjs";
 import { isWebId } from "@/lib/ids";
 import { useTranslations } from "next-intl";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
@@ -60,6 +61,23 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
       });
   };
   const s = me.settings ?? {};
+  // the option IDs the bot stores and both chart renderers index, shown the way the game shows them
+  const [speeds, setSpeeds] = useState({ note_speed: Number(s.note_speed ?? 550), touch_speed: Number(s.touch_speed ?? 350) });
+  const saveSpeed = (key: keyof typeof speeds, value: number) => {
+    const before = speeds;
+    setSpeeds({ ...speeds, [key]: value });
+    postJSON("/api/me/settings", { [key]: value }).catch((e: Error) => {
+      setSpeeds(before);
+      setNote(e.message);
+    });
+  };
+  const speedSelect = (key: keyof typeof speeds, table: number[]) => (
+    <select value={speeds[key]} onChange={(e) => saveSpeed(key, Number(e.target.value))} aria-label={t(key === "note_speed" ? "noteSpeed" : "touchSpeed")}>
+      {table.map((id, i) => (
+        <option key={id} value={id}>{i === table.length - 1 ? "Sonic" : (1 + i * 0.25).toFixed(2)}</option>
+      ))}
+    </select>
+  );
   const label = (v: unknown, map: "layouts" | "challenges" | "any") => (t.has(`${map}.${String(v)}` as never) ? t(`${map}.${String(v)}` as never) : String(v));
   return (
     <div className="two-up">
@@ -129,6 +147,18 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
           <p className="hint">{t.rich("change", { code: (c) => <code>{c}</code> })}</p>
         </section>
       )}
+
+      <section className="ledger">
+        <div className="ledger-head">
+          <Label info={t("speedsInfo")}>{t("speeds")}</Label>
+        </div>
+        <dl className="facts">
+          <dt>{t("noteSpeed")}</dt>
+          <dd>{speedSelect("note_speed", NOTE_SPEED)}</dd>
+          <dt>{t("touchSpeed")}</dt>
+          <dd>{speedSelect("touch_speed", TOUCH_SPEED)}</dd>
+        </dl>
+      </section>
 
       <SignIns me={me} />
 

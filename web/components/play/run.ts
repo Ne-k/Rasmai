@@ -14,6 +14,7 @@ export type View = Omit<FieldOptions, "colors" | "center"> & { center: Center; o
 // judgement windows are centred after the note (maimai-dx docs/game.md); the engine's Session adds the 60 itself.
 export const NOTE_CLOCK_MS = 110;
 export const TICK_MS = 8;          // fast-forward step when a session is rebuilt at a position
+export const SIM_FPS = 60;         // the game's own rate: a video exported at fewer frames still plays the chart at this, so auto play and its sounds land as live
 
 /** Points lost so far against an all-Critical play: base points and break bonus, as the game's counting-down achievement needs. */
 export function lostSoFar(events: { kind: number; timing: number }[]) {
