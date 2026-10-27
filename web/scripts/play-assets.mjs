@@ -1,6 +1,6 @@
 // Copies the chart player's optional game assets (note sprites and sound effects) into web/public/play from a maimai-dx
 // extraction (its public/ folder: skin/ from extract-skin.mjs, se/ from extract-voices.mjs, data/seoptions.json).
-// They are SEGA's, so public/play is git-ignored; without them the player draws plain shapes and plays no effects.
+// Without them the player draws plain shapes and plays no effects.
 //   node scripts/play-assets.mjs <maimai-dx/public>
 import fs from "node:fs";
 import path from "node:path";
