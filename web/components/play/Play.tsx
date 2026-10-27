@@ -1,6 +1,6 @@
 "use client";
 
-// The chart player: a library of chart folders from the visitor's device, the play screen (watch with auto play, play, or practise
+// The chart player: a library of chart folders from the visitor's device, the play screen (watch with auto play, play, or practice
 // a loop at a slower speed), video export with the music, and the result.  The rules are the game's own (lib/chart).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -67,7 +67,8 @@ export function Play() {
   }, []);
 
   return (
-    <div className="frame play-frame">
+    // a folder dropped anywhere but the drop box is otherwise opened by the browser as a file:/// link, which Firefox refuses with a security error
+    <div className="frame play-frame" onDragOver={(e) => { if (!e.defaultPrevented) { e.preventDefault(); e.dataTransfer.dropEffect = "none"; } }} onDrop={(e) => e.preventDefault()}>
       <header className="masthead">
         <a className="home" href="/"><Ring lit={0} size={34} /></a>
         <div className="wordmark">Ras<span>mai</span></div>

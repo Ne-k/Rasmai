@@ -1,4 +1,5 @@
 import { AudioBufferSource, BufferTarget, Mp4OutputFormat, Output, Quality, VideoSample, VideoSampleSource, canEncodeAudio, canEncodeVideo, type EncodedPacket } from "mediabunny";
+import { preloadSkin, type Sprite } from "./field";
 import type { RenderJob } from "./render.worker";
 
 export const VIDEO_SIZE = 1080;   // the field's own square
@@ -46,7 +47,7 @@ function repairAvcC(packet: EncodedPacket, meta?: EncodedVideoChunkMetadata) {
 }
 
 /** Draw the chart's frames on a few worker threads, encode them in order with the mixed `audio`, and return the MP4; null when aborted. */
-export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker" | "workers">, audio: Promise<AudioBuffer>, progress: (done: number) => void, signal: AbortSignal): Promise<Blob | null> {
+export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker" | "workers" | "skin">, audio: Promise<AudioBuffer>, progress: (done: number) => void, signal: AbortSignal): Promise<Blob | null> {
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
   const video = new VideoSampleSource({ codec: "avc", quality: videoQuality(job.frames / VIDEO_FPS), onEncodedPacket: repairAvcC });
   const sound = new AudioBufferSource({ codec: "aac", quality: AUDIO });
@@ -54,6 +55,10 @@ export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker"
   output.addAudioTrack(sound);
   // drawing a frame on the CPU takes a few times longer than encoding it, so a few threads keep the encoder busy
   const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 2));
+  // copies of the page's decoded sprites, moved to each thread: decoding its own took each one seconds before the first frame
+  const skin = await preloadSkin();
+  const copy = async ([name, s]: [string, Sprite]): Promise<[string, Sprite]> => [name, { ...s, img: await createImageBitmap(s.img) }];
+  const skins = await Promise.all(Array.from({ length: n }, async () => skin && new Map(await Promise.all([...skin].map(copy)))));
   const drawn = new Map<number, VideoFrame>();
   let wake: (() => void) | null = null, failed: Error | null = null;
   const onAbort = () => wake?.();
@@ -62,11 +67,15 @@ export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker"
     const w = new Worker(new URL("./render.worker.ts", import.meta.url), { type: "module" });
     w.onmessage = (e: MessageEvent<{ i: number; frame: VideoFrame }>) => { drawn.set(e.data.i, e.data.frame); wake?.(); };
     w.onerror = (e) => { failed = new Error(e.message || "a drawing thread failed"); wake?.(); };
-    w.postMessage({ ...job, size: VIDEO_SIZE, fps: VIDEO_FPS, worker: k, workers: n } satisfies RenderJob);
+    const own = skins[k];
+    w.postMessage({ ...job, size: VIDEO_SIZE, fps: VIDEO_FPS, worker: k, workers: n, skin: own } satisfies RenderJob, own ? [...own.values()].map((s) => s.img as ImageBitmap) : []);
     return w;
   });
   try {
     await output.start();
+    // encoded alongside the frames: Firefox's WebAssembly AAC encoder takes about a third of the song's length on its own
+    const sounded = audio.then((buf) => sound.add(buf));
+    sounded.catch(() => {});   // awaited below; this only keeps an abort from leaving it unhandled
     for (let i = 0; i < job.frames; i++) {
       while (!drawn.has(i) && !failed && !signal.aborted) await new Promise<void>((r) => { wake = r; });
       if (failed) throw failed;
@@ -78,7 +87,7 @@ export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker"
       sample.close();
       if (i % 15 === 0) progress(i / job.frames);
     }
-    await sound.add(await audio);
+    await sounded;
     await output.finalize();
   } catch (e) {
     if (output.state === "pending" || output.state === "started") await output.cancel();

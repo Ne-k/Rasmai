@@ -53,7 +53,7 @@ type Label =
   | { kind: "slide"; x: number; y: number; rot: number; side: "L" | "R"; timing: number; brk: boolean; born: number };
 type Effect = { x: number; y: number; color: string; born: number };
 type SlideData = { types?: Record<number, { paths?: Record<number, number[][]> }> } | null | undefined;
-type Sprite = { img: CanvasImageSource; w: number; h: number; px: number; py: number; border?: number[] };
+export type Sprite = { img: CanvasImageSource; w: number; h: number; px: number; py: number; border?: number[] };
 type Manifest = Record<string, { w: number; h: number; px: number; py: number; border?: number[] }>;
 
 const rot2 = (x: number, y: number, deg: number): [number, number] => { const a = deg * DEG, c = Math.cos(a), s = Math.sin(a); return [x * c - y * s, x * s + y * c]; };
@@ -104,9 +104,9 @@ export class Field {
     this.resize();
   }
 
-  // the game's sprites from public/play/skin: false = keep drawing vectors
-  async loadSkin(base = "/play/skin"): Promise<boolean> {
-    const skin = await preloadSkin(base);
+  // the game's sprites from public/play/skin, or ones already decoded (the video export's threads get copies): false = keep drawing vectors
+  async loadSkin(from: string | Map<string, Sprite> | null = "/play/skin"): Promise<boolean> {
+    const skin = typeof from === "string" ? await preloadSkin(from) : from;
     this.loaded = skin; this.tints.clear();
     return skin !== null;
   }

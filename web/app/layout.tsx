@@ -36,6 +36,8 @@ const mono = localFont({
   ],
   variable: "--font-mono",
   display: "swap",
+  // only small labels use mono, so it loads when first drawn rather than racing the body and display faces
+  preload: false,
 });
 
 const SITE = env.publicUrl();
