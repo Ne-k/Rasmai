@@ -51,6 +51,8 @@ class _Song:
 
 _lock = threading.Lock()
 _memo: Tuple[Optional[Path], float, Tuple[int, float], Dict[str, List[_Song]]] = (None, 0.0, (0, 0.0), {})
+_scanning = False
+_sure: Dict[Tuple[Tuple[str, str, str], int], bool] = {}      # held() for unmarked folders, which needs the notes read; forgotten on a rescan
 
 
 def _read(path: Path) -> str:
@@ -130,26 +132,42 @@ def _build(base: Path, found: List[Tuple[Path, Dict[str, str]]]) -> Dict[str, Li
     return index
 
 
-def _index() -> Dict[str, List[_Song]]:
-    """The songs under ASTRODX_DIR by folded title, walked again at most once a minute and read again only when it changed."""
-    global _memo
-    root = ASTRODX_DIR
-    with _lock:
-        held_root, checked, stamp, index = _memo
-        if held_root == root and time.monotonic() - checked < CHECK_EVERY:
-            return index
+def _scan(root: Path) -> None:
+    """Walk the tree and read it again if it changed since the last walk."""
+    global _memo, _scanning
+    try:
         try:
             base = root.resolve()
             found = _walk(base) if base.is_dir() else []
         except OSError:
             base, found = root, []
         fresh = _stamp(found)
+        held_root, _, stamp, index = _memo
         if held_root != root or fresh != stamp:
             index = _build(base, found)
+            _sure.clear()
             if found:
                 logger.info("astrodx: %d song folders under %s", len(found), base)
         _memo = (root, time.monotonic(), fresh, index)
-        return index
+    except Exception:
+        logger.exception("astrodx: could not read the songs folder")
+    finally:
+        _scanning = False
+
+
+def _index() -> Dict[str, List[_Song]]:
+    """The songs under ASTRODX_DIR by folded title, as last read; walked again at most once a minute, read again only when it changed."""
+    global _scanning
+    root = ASTRODX_DIR
+    with _lock:
+        held_root, checked, _, index = _memo
+        index = index if held_root == root else {}
+        if (held_root == root and time.monotonic() - checked < CHECK_EVERY) or _scanning:
+            return index
+        _scanning = True
+    # a big pack on a shared folder takes seconds to walk, and the bot's event loop asks this, so the walk runs beside it
+    threading.Thread(target=_scan, args=(root,), name="astrodx-scan", daemon=True).start()
+    return index
 
 
 def _candidates(ref: ChartRef) -> List[Tuple[_Song, bool]]:
@@ -226,11 +244,22 @@ def find(ref: ChartRef) -> Optional[Found]:
 def held(ref: ChartRef) -> bool:
     """Whether the AstroDX folder has a song folder with this difficulty in it, without reading its notes.
 
-    An unmarked folder counts for either type, so this can say yes where find, which checks the note count, says no.
+    An unmarked folder alone could be either type, so for one of those its notes are read once to say what find would.
 
     :param ref: The chart.
     :type ref: ChartRef
     :rtype: bool
     """
     slot = SLOTS.get(ref.difficulty)
-    return slot is not None and any(slot in song.slots for song, _ in _candidates(ref))
+    if slot is None:
+        return False
+    candidates = [(song, certain) for song, certain in _candidates(ref) if slot in song.slots]
+    if any(certain for _, certain in candidates):
+        return True
+    if not candidates:
+        return False
+    # an unmarked folder alone could be either type, and only its note count says which, as find decides
+    key = (ref.key, int(ref.notes or 0))
+    if key not in _sure:
+        _sure[key] = find(ref) is not None
+    return _sure[key]

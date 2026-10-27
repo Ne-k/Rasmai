@@ -22,12 +22,15 @@ UPLOAD_LIMIT = 10 * 1024 * 1024  # what a DM or a user install may upload; a ser
 MARGIN = 128 * 1024              # left under the limit for the rest of the request
 KEPT = 8                         # finished previews held, so the same chart asked twice is drawn once
 VIDEOS_KEPT = 3                  # and videos, which are up to the upload limit each
+# videos waiting their turn: each is a minute or two, and a press not answered within Discord's 15 minutes can no longer be
+VIDEOS_QUEUED = 4
 
 _last: Dict[int, float] = {}
 _made: "OrderedDict[Tuple[str, int], Preview]" = OrderedDict()
 _video_last: Dict[int, float] = {}
 _videos: "OrderedDict[Tuple[str, int, int, int], Preview]" = OrderedDict()
 _one_video = asyncio.Semaphore(1)       # a video holds a render slot for minutes, so only one of them takes a slot at a time
+_videos_waiting = 0
 
 
 def sheet_key(ref: ChartRef) -> str:
@@ -94,6 +97,7 @@ async def build_preview(ref: ChartRef, limit: int) -> Optional[Preview]:
 
 async def build_video(ref: ChartRef, limit: int, speed: int, touch_speed: int) -> Optional[Preview]:
     """The whole chart with its song at a pair of speeds, or None when its folder is not held; made off the loop in a render slot."""
+    global _videos_waiting
     from rasmai.bot.core import RENDER_SEMAPHORE
     key = (sheet_key(ref), speed, touch_speed, limit)
     if key in _videos:
@@ -102,8 +106,12 @@ async def build_video(ref: ChartRef, limit: int, speed: int, touch_speed: int) -
     found = await asyncio.to_thread(_found, ref)
     if found is None:
         return None
-    async with _one_video, RENDER_SEMAPHORE:
-        made = await asyncio.to_thread(render_video, found.chart, found.track, limit, speed, touch_speed)
+    _videos_waiting += 1
+    try:
+        async with _one_video, RENDER_SEMAPHORE:
+            made = await asyncio.to_thread(render_video, found.chart, found.track, limit, speed, touch_speed)
+    finally:
+        _videos_waiting -= 1
     _keep(_videos, key, made, VIDEOS_KEPT)
     return made
 
@@ -204,6 +212,10 @@ async def send_video(interaction: discord.Interaction, ref: ChartRef) -> None:
     if not shutil.which("ffmpeg"):
         _video_last.pop(person, None)
         await _refuse(interaction, "I can't make videos right now - the tool that encodes them isn't installed here.")
+        return
+    if _videos_waiting >= VIDEOS_QUEUED:
+        _video_last.pop(person, None)
+        await _refuse(interaction, f"I'm making {_videos_waiting} other videos right now. Try again in a few minutes.")
         return
     prefs = await asyncio.to_thread(get_prefs, str(person))
     speed, touch_speed = prefs.get("note_speed", NOTE_SPEED), prefs.get("touch_speed", TOUCH_SPEED)

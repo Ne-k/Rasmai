@@ -546,6 +546,14 @@ def _video_button():
         asyncio.run(module.send_video(again, ref))
         if again.followup.sent or not again.response.said or "120 seconds" not in again.response.said[0][0]:
             problems.append("a second press straight away was not turned away for two minutes")
+        module._video_last.clear()
+        module._videos_waiting = module.VIDEOS_QUEUED
+        busy = _interaction(user=998)
+        asyncio.run(module.send_video(busy, ref))
+        module._videos_waiting = 0
+        text = busy.followup.sent[0][0] if busy.followup.sent else ""
+        if "other videos right now" not in text or module._video_last:
+            problems.append(f"a press with the queue full was not turned away and left free to try again: {text!r}")
         folders.stop()
         folders = _astrodx()
         folders.start()

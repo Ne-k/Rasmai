@@ -1,4 +1,4 @@
-import { AudioBufferSource, BufferTarget, EncodedAudioPacketSource, Mp4OutputFormat, NullTarget, Output, Quality, VideoSample, VideoSampleSource, canEncodeAudio, canEncodeVideo, type EncodedPacket } from "mediabunny";
+import { AudioBufferSource, BufferTarget, Mp4OutputFormat, Output, Quality, VideoSample, VideoSampleSource, canEncodeAudio, canEncodeVideo, type EncodedPacket } from "mediabunny";
 import { preloadSkin, type Sprite } from "./field";
 import type { RenderJob } from "./render.worker";
 
@@ -7,7 +7,6 @@ export const VIDEO_MODES = { full: { size: 1080, fps: 60, maxBitrate: 16_000_000
 export type VideoMode = keyof typeof VIDEO_MODES;
 export const AUDIO_RATE = 48000;
 const AUDIO = new Quality({ bitrate: 128_000 });
-let audioPieces = 1;
 // under Discord's 50 MB upload limit (Nitro Basic) with room for the MP4's index: both browsers' encoders land within a few
 // per cent of the bitrate they are given.  Short charts are capped where more bits stop showing
 const FILE_BYTES = 47_000_000;
@@ -22,7 +21,6 @@ export async function canExport(mode: VideoMode): Promise<boolean> {
   const aac = () => canEncodeAudio("aac", { numberOfChannels: 2, sampleRate: AUDIO_RATE, quality: AUDIO });
   if (await aac()) return true;
   (await import("@mediabunny/aac-encoder")).registerAacEncoder();
-  audioPieces = 4;
   return aac();
 }
 
@@ -59,40 +57,12 @@ function repairAvcC(packet: EncodedPacket, meta?: EncodedVideoChunkMetadata) {
   config.description = new Uint8Array(out);
 }
 
-const AAC_FRAME = 1024, AAC_LEAD = 4 * AAC_FRAME;
-// FFmpeg's encoder takes about a quarter of the song's length on one thread, and each encoder gets a thread of its own.  Each piece
-// starts and ends a few frames past the samples it keeps, so the encoder has settled by its seam, and is cut on a frame
-async function encodeAudioPieces(buf: AudioBuffer, track: EncodedAudioPacketSource, pieces: number): Promise<void> {
-  const step = Math.ceil(buf.length / pieces / AAC_FRAME) * AAC_FRAME, rate = buf.sampleRate;
-  const parts = await Promise.all(Array.from({ length: pieces }, async (_, k) => {
-    const lo = k * step, hi = Math.min(buf.length, lo + step);
-    const kept: [EncodedPacket, EncodedAudioChunkMetadata | undefined][] = [];
-    if (lo >= hi) return kept;
-    const from = Math.max(0, lo - AAC_LEAD), to = Math.min(buf.length, hi + AAC_LEAD);
-    const piece = new AudioBuffer({ length: to - from, numberOfChannels: buf.numberOfChannels, sampleRate: rate });
-    for (let c = 0; c < buf.numberOfChannels; c++) piece.copyToChannel(buf.getChannelData(c).subarray(from, to), c);
-    const output = new Output({ format: new Mp4OutputFormat(), target: new NullTarget() });
-    const source = new AudioBufferSource({ codec: "aac", quality: AUDIO, onEncodedPacket: (p, meta) => {
-      const at = from + Math.round(p.timestamp * rate);
-      if (at >= lo && (at < hi || hi === buf.length)) kept.push([p.clone({ timestamp: at / rate }), meta]);
-    } });
-    output.addAudioTrack(source);
-    await output.start();
-    await source.add(piece);
-    await output.finalize();
-    return kept;
-  }));
-  const packets = parts.flat();
-  for (const [i, [p]] of packets.entries()) await track.add(p, i === 0 ? packets[0][1] : undefined);
-}
-
 /** Draw the chart's frames on a few worker threads, encode them in order with the mixed `audio`, and return the MP4; null when aborted. */
 export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker" | "workers" | "skin">, mode: VideoMode, audio: Promise<AudioBuffer>, progress: (done: number) => void, signal: AbortSignal): Promise<Blob | null> {
   const { size, fps } = VIDEO_MODES[mode];
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
   const video = new VideoSampleSource({ codec: "avc", quality: videoQuality(job.frames / fps, mode), onEncodedPacket: repairAvcC });
-  const pieces = audioPieces;
-  const sound = pieces > 1 ? new EncodedAudioPacketSource("aac") : new AudioBufferSource({ codec: "aac", quality: AUDIO });
+  const sound = new AudioBufferSource({ codec: "aac", quality: AUDIO });
   output.addVideoTrack(video, { frameRate: fps });
   output.addAudioTrack(sound);
   // drawing a frame on the CPU takes a few times longer than encoding it, so a few threads keep the encoder busy
@@ -116,7 +86,7 @@ export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker"
   try {
     await output.start();
     // encoded alongside the frames: Firefox's WebAssembly AAC encoder takes about a third of the song's length on its own
-    const sounded = audio.then((buf) => sound instanceof AudioBufferSource ? sound.add(buf) : encodeAudioPieces(buf, sound, pieces));
+    const sounded = audio.then((buf) => sound.add(buf));
     sounded.catch(() => {});   // awaited below; this only keeps an abort from leaving it unhandled
     for (let i = 0; i < job.frames; i++) {
       while (!drawn.has(i) && !failed && !signal.aborted) await new Promise<void>((r) => { wake = r; });

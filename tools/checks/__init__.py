@@ -24,7 +24,7 @@ except (AttributeError, OSError):
 
 # The order the sweep reads in. Each of these runs its checks as it is imported, so this list is
 # what decides the order they are reported in, and a new file only counts once it is named here.
-TOPICS = ["wiring", "rating", "session", "lookup", "habits", "traits", "simai", "web", "load", "storage", "identity", "kamaitachi", "cohort", "news", "envfile", "otoge", "preview", "feedback"]
+TOPICS = ["wiring", "rating", "session", "lookup", "habits", "traits", "simai", "web", "load", "storage", "identity", "kamaitachi", "cohort", "news", "envfile", "otoge", "preview", "astrodx", "feedback"]
 
 
 def check(name):
