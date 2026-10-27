@@ -488,7 +488,7 @@ def _families():
 
     # what a chart is is never a skill, so it never reaches a family
     if family_axes([{"dimension": "genre", "label": "POPS＆アニメ", "offset": -1.0, "count": 200, "plays": 9}]):
-        problems.append("a genre was rolled into a family, which is not a thing to practise")
+        problems.append("a genre was rolled into a family, which is not a thing to practice")
 
     # what a note type costs is measured against the player's own rate, so the five of them sum to
     # zero: averaged into a family they say nothing at all, and they are counted in plays where the
@@ -524,7 +524,7 @@ def _practice_fixture():
     return index, songs, build_play_profile(songs, [], index, 26), held
 
 
-@check("a trait read from the charts can name charts to practise it on")
+@check("a trait read from the charts can name charts to practice it on")
 def _read_traits_practice():
     from rasmai.engine.insights.traits import practice_for
     from rasmai.scraping import simai
@@ -534,11 +534,11 @@ def _read_traits_practice():
     try:
         axis = next((a for a in profile.trait_axes if a["label"] == "spinning round the ring"), None)
         if axis is None:
-            problems.append("the trait was not measured, so there was nothing to practise")
+            problems.append("the trait was not measured, so there was nothing to practice")
         else:
             picks = practice_for(axis, index, profile, songs, limit=3)
             if not picks:
-                problems.append("a trait read from the charts named no charts to practise it on")
+                problems.append("a trait read from the charts named no charts to practice it on")
             elif not all("spin" in "".join(str(v) for v in p.values()) or p["title"].startswith("chart") for p in picks):
                 problems.append(f"the charts named do not carry the trait: {picks}")
         # a note type measured off the judgement pages is not a property of any chart, so it names none

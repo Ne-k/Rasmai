@@ -82,7 +82,7 @@ export function Practice({ items, onOpen }: { items: TraitPractice[]; onOpen?: O
 // the dimensions practice_for can name charts for; the rest are about the hands or the era, not any chart
 const PRACTISABLE = new Set(["pattern", "slide", "touch", "density", "tempo", "hold"]);
 
-/** Any measured pattern the player picks, with charts in their band to practise it on: the weak ones above are the model's
+/** Any measured pattern the player picks, with charts in their band to practice it on: the weak ones above are the model's
  *  choice, this is theirs. */
 export function PracticePicker({ axes, listed, onOpen }: { axes: Trait[]; listed: TraitPractice[]; onOpen?: OpenChart }) {
   const m = useTranslations("traitsTab");

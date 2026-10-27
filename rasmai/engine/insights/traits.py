@@ -418,7 +418,7 @@ def even(axes: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def practice_for(axis: Dict[str, Any], chart_index: ChartIndex, profile: PlayProfile, scored: Sequence[Any],
                  limit: int = 3) -> List[Dict[str, Any]]:
-    """Charts to practise a pattern trait on, inside the player's own working band.
+    """Charts to practice a pattern trait on, inside the player's own working band.
 
     Charts the player already holds a score on come first, so a rerun shows the change; the
     rest fill in from the hardest down.
@@ -456,7 +456,7 @@ def practice_for(axis: Dict[str, Any], chart_index: ChartIndex, profile: PlayPro
     out = []
     for _played, _constant, _title, chart, song in rows[:limit]:
         accuracy = float(song.accuracy or 0) if song is not None else None
-        # a chart worth practising is often one they last played badly a long time ago. Saying so
+        # a chart worth practicing is often one they last played badly a long time ago. Saying so
         # beats printing an old number beside today's, which reads as if the model believes it.
         old = bool(song is not None and accuracy
                    and stale_best(profile, chart.key, chart.constant, chart.difficulty, accuracy))

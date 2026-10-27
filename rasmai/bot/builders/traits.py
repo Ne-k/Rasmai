@@ -38,7 +38,7 @@ def _practice_lines(axis: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[st
 
 
 async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[discord.File], None]:
-    """Where the player loses points and where they shine, what to practise, and what they play like everything else.
+    """Where the player loses points and where they shine, what to practice, and what they play like everything else.
 
     Three tiers of trait are shown. Confirmed traits beat shuffled tags and keep their sign in
     both halves of the player's charts, and are the only ones the model acts on. Leaning traits

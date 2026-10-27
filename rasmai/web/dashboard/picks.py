@@ -69,7 +69,7 @@ def _practice_entry(cached: CachedAnalysis, trait: Dict[str, Any], limit: int = 
 
 
 def trait_practice(cached: CachedAnalysis, traits: int = 3) -> List[Dict[str, Any]]:
-    """For each pattern the player scores below their curve on, confirmed or leaning, a few charts in their band to practise it on.
+    """For each pattern the player scores below their curve on, confirmed or leaning, a few charts in their band to practice it on.
 
     :param cached: The player's analysis, held in memory.
     :type cached: CachedAnalysis
@@ -87,7 +87,7 @@ def trait_practice(cached: CachedAnalysis, traits: int = 3) -> List[Dict[str, An
 
 
 def practice_payload(cached: CachedAnalysis, label: str) -> Dict[str, Any]:
-    """Charts to practise one trait the player picked, by its stored label; None when it is not one of theirs or names no chart.
+    """Charts to practice one trait the player picked, by its stored label; None when it is not one of theirs or names no chart.
 
     :param cached: The player's analysis, held in memory.
     :type cached: CachedAnalysis
