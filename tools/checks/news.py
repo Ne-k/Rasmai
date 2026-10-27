@@ -2810,3 +2810,119 @@ def _edits():
         news.fetch_feed, news.build_x_post, news.bluesky_thread, news.build_bluesky_post = kept
         _Webhook.edits = []
     return problems
+
+
+@check("the account answering its own sent post, on X or Bluesky, is added to the message that post became, unless it no longer fits or the feed has lost the post")
+def _folds():
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping import news
+    from rasmai.storage import db
+
+    problems = []
+
+    def made(seconds_ago, n=0):
+        return str(((int((time.time() - seconds_ago) * 1000) - news.TWITTER_EPOCH_MS) << 22) + n)
+    base, first, answer, again, long_one = made(3000), made(900), made(600), made(300), made(60)
+    source = news.SOURCES["maimai"]
+
+    def item(n, text, reply=False):
+        return news.FeedItem(n, text, f"https://n/{source.handle}/status/{n}", f"<p>{text}</p>", False, source.handle, source.handle if reply else "")
+    older = item(base, "An older post about something else entirely.")
+    root = item(first, "New charts arrive on Thursday.")
+    feed = {"items": [root, older]}
+    parents = {answer: first, again: answer, long_one: first}
+
+    async def fake_feed(session, username, tries=0):
+        return feed["items"], "https://av/a.png"
+
+    async def fake_x(session, src, entry, avatar, media=True):
+        return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.text], posted_at=news.tweet_time(entry.id))
+
+    async def fake_parent(session, post_id, handle):
+        return (f"https://x.com/{handle}/status/{parents[post_id]}", "line") if post_id in parents else None
+    did = news.SOURCES["preformai"].did
+
+    def uri(n):
+        return f"at://{did}/app.bsky.feed.post/{n}"
+    thread = {"posts": [{"uri": uri(1), "record": {"text": "Preformai night this Saturday."}}]}
+
+    async def fake_thread(session, at, author):
+        return list(thread["posts"]), None
+
+    async def fake_build(session, src, record, at, media=True):
+        post = news.Post(src.key, at, f"https://bsky.app/profile/p/post/{at.split('/')[-1]}", src.label, "",
+                         [str((p.get("record") or {}).get("text", "")) for p in thread["posts"]])
+        post.covers = [p["uri"] for p in thread["posts"]]
+        return post, post.covers
+    kept = news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post
+    news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post = \
+        fake_feed, fake_x, fake_parent, fake_thread, fake_build
+    _Webhook.edits = []
+    try:
+        with _scratch(), _no_session():
+            db.add_news_subscription("g1", "c1", "maimai", URL + "1")
+            db.add_news_subscription("g2", "c2", "maimai", URL + "2")
+            watch = tasks.NewsWatch()
+            asyncio.run(watch.poll(source))                 # the first look only learns
+            with _webhooks():
+                asyncio.run(watch.publish(asyncio.run(fake_x(None, source, root, ""))))
+
+            # X: the account answers itself, and the answer joins the message it answers
+            feed["items"] = [item(answer, "Correction: on Friday, not Thursday.", reply=True), root, older]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if sent or len(_Webhook.edits) != 2:
+                problems.append(f"an X answer to a sent post made {len(sent)} posts and {len(_Webhook.edits)} edits, not two edits")
+            elif not all("Thursday" in o["content"] and "Correction" in o["content"] for _u, _m, o in _Webhook.edits):
+                problems.append("the message does not carry both the post and the answer")
+            elif _Webhook.edits[0][2]["content"].index("Thursday") > _Webhook.edits[0][2]["content"].index("Correction"):
+                problems.append("the answer came before the post it answers")
+
+            # an answer to that answer joins the same message
+            _Webhook.edits.clear()
+            feed["items"] = [item(again, "And the Re:MASTER charts come a week later.", reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if sent or len(_Webhook.edits) != 2 or "Re:MASTER" not in _Webhook.edits[0][2]["content"] or "Correction" not in _Webhook.edits[0][2]["content"]:
+                problems.append("an answer to the answer did not join the same message with everything before it")
+
+            # too long to fit: it is a post of its own
+            _Webhook.edits.clear()
+            feed["items"] = [item(long_one, "Details. " * 200, reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if len(sent) != 2 or _Webhook.edits:
+                problems.append("an answer too long for the message was not sent as a post of its own")
+
+            # the post it answers has left the feed, so the message cannot be built again: a post of its own
+            _Webhook.edits.clear()
+            late = made(30)
+            parents[late] = first
+            feed["items"] = [item(late, "One more thing.", reply=True), older]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if len(sent) != 2 or _Webhook.edits:
+                problems.append("an answer to a post no longer in the feed was not sent as a post of its own")
+
+            # Bluesky: a reply to a sent post, after it went out
+            db.add_news_subscription("g1", "c1", "preformai", URL + "1")
+            bluesky = news.SOURCES["preformai"]
+            with _webhooks():
+                post, _covers = asyncio.run(fake_build(None, bluesky, {}, uri(1)))
+                asyncio.run(watch.publish(post))
+            db.news_mark_seen("preformai", [uri(1)])
+            _Webhook.edits.clear()
+            thread["posts"].append({"uri": uri(2), "record": {"text": "Doors open at 18:00."}})
+            record = {"text": "Doors open at 18:00.", "reply": {"root": {"uri": uri(1)}, "parent": {"uri": uri(1)}}}
+            with _webhooks() as sent:
+                asyncio.run(watch.bluesky_post(bluesky, record, uri(2), wait=False))
+            if sent or len(_Webhook.edits) != 1 or "Doors open" not in _Webhook.edits[0][2]["content"] or "Preformai night" not in _Webhook.edits[0][2]["content"]:
+                problems.append("a Bluesky reply to a sent post did not join its message")
+            if db.news_unseen("preformai", [uri(2)]):
+                problems.append("the Bluesky reply added to a message was not marked seen, so it would be sent later too")
+            if db.news_sent_root("preformai", uri(2)) != uri(1):
+                problems.append("the reply added to a message is not kept under it, so its own edits would be lost")
+    finally:
+        news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post = kept
+        _Webhook.edits = []
+    return problems

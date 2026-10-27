@@ -30,6 +30,7 @@ SEND_TIMEOUT = 30                   # seconds a send may take, Discord's own ret
 UPLOAD_BUDGET = 1 << 30             # bytes a post may upload across all its channels; above it, the link draws the media instead of every channel getting a copy
 GONE_CODES = (10003, 10015, 50027)  # Discord's Unknown Channel, Unknown Webhook and Invalid Webhook Token
 NO_MENTIONS = discord.AllowedMentions.none()      # on every send: whatever a post says, it cannot ping a user, a role, @everyone or @here
+FOLD_ROOM = 1400                    # characters a message may hold once the account's answer to itself is added; past it the answer is a post of its own, or it would be cut off
 
 ALIVE_EVERY = 60                    # seconds between noting that the Jetstream connection is still up
 ALIVE_LAG = 60 * 1_000_000          # the moment noted is this far in the past, so a post still being processed when the bot dies is asked for again
@@ -260,6 +261,11 @@ class NewsWatch:
         # every post waits the same, so they reach the lock in the order they arrived, and it lets them through in that order;
         # the build is held too, since that is the slow part: a video post fetches its video, and a text post after it would overtake
         async with self._bluesky_turn:
+            # the account answering a post that was sent: the answer is added to that message instead of sent on its own
+            root = await asyncio.to_thread(news_sent_root, source.key, str((reply.get("parent") or {}).get("uri", ""))) if reply else None
+            if root is not None and await self._bluesky_rebuild(source, root, uri) is not None:
+                await asyncio.to_thread(news_mark_seen, source.key, [uri])
+                return 0
             if not await self._first_copy(source, str(record.get("text", ""))):
                 await asyncio.to_thread(news_mark_seen, source.key, [uri])
                 return 0
@@ -274,10 +280,20 @@ class NewsWatch:
             return 0            # never sent, or sent too long ago to follow
         if wait:
             await asyncio.sleep(news.THREAD_WAIT_SECONDS)       # the stream has the edit a moment before the public API serves it
+        return await self._bluesky_rebuild(source, root) or 0
+
+    async def _bluesky_rebuild(self, source: Source, root: str, carrying: str = "") -> Optional[int]:
+        """Build a sent thread again as it reads now and edit its messages to match; returns how many were edited.
+
+        None when the thread does not show ``carrying`` yet, or would no longer fit the message with it.
+        """
         thread, _above = await news.bluesky_thread(self.session, root, source.did)
-        if not thread:
-            return 0
-        post, _uris = await news.build_bluesky_post(self.session, source, thread[0].get("record") or {}, root, media=False)
+        if not thread or (carrying and carrying not in {p.get("uri") for p in thread}):
+            return None
+        post, covers = await news.build_bluesky_post(self.session, source, thread[0].get("record") or {}, root, media=False)
+        if carrying and len("\n\n".join(post.parts)) > FOLD_ROOM:
+            return None
+        await asyncio.to_thread(news_sent_save, source.key, root, covers, "", [])       # a later edit or answer of any of them finds it
         return await self.revise(source.key, root, post)
 
     # ------------------------------------------------------------ X
@@ -355,20 +371,56 @@ class NewsWatch:
         for item in pending:
             edit = news.edit_of(item.id, item.text, earlier, showing)
             if edit is not None:
-                await self.x_edit(source, item, avatar, *edit)
+                await self.x_edit(source, item, avatar, *edit, items)
                 earlier = [row for row in earlier if row[0] != edit[0]]
+            elif item.reply_to and await self.x_fold(source, item, avatar, items):
+                pass
             elif await self._first_copy(source, item.text):
                 await self.publish(await news.build_x_post(self.session, source, item, avatar))
                 sent += 1
             await asyncio.to_thread(news_mark_seen, source.key, [item.id])
         return sent
 
-    async def x_edit(self, source: Source, item: news.FeedItem, avatar: str, earlier: str, root: str) -> int:
+    async def x_edit(self, source: Source, item: news.FeedItem, avatar: str, earlier: str, root: str, items: List[news.FeedItem]) -> int:
         """Edit what a sent X post became into its edited version, which X gave a new id; returns how many were edited."""
         await asyncio.to_thread(news_sent_moved, source.key, earlier, item.id, item.text)
-        post = await news.build_x_post(self.session, source, item, avatar, media=False)
-        post.posted_at = news.tweet_time(root) or post.posted_at       # still dated when it was first posted, as X shows it
+        # with the answers already added to it, while the feed still shows them all; otherwise the edited post alone
+        post = await self._x_whole(source, root, items, avatar)
+        if post is None:
+            post = await news.build_x_post(self.session, source, item, avatar, media=False)
+            post.posted_at = news.tweet_time(root) or post.posted_at       # still dated when it was first posted, as X shows it
         return await self.revise(source.key, root, post)
+
+    async def x_fold(self, source: Source, item: news.FeedItem, avatar: str, items: List[news.FeedItem]) -> bool:
+        """Add the account's answer to its own sent post to the message that post became; False when it goes out as a post of its own."""
+        parent = await news.syndication_parent(self.session, item.id, source.handle)
+        root = await asyncio.to_thread(news_sent_root, source.key, news.tweet_id(parent[0])) if parent else None
+        if root is None:
+            return False
+        post = await self._x_whole(source, root, items, avatar, item.id)
+        if post is None:
+            return False
+        await asyncio.to_thread(news_sent_save, source.key, root, [item.id], item.text, [])
+        await self.revise(source.key, root, post)
+        return True
+
+    async def _x_whole(self, source: Source, root: str, items: List[news.FeedItem], avatar: str, adding: str = "") -> Optional[Post]:
+        """A sent X post and the account's answers to it as one message, built from the feed, oldest first.
+
+        None when one of them is no longer in the feed to build from, or ``adding`` would no longer fit the message.
+        """
+        covered = [post_id for post_id, under, _body in await asyncio.to_thread(news_sent_recent, source.key) if under == root]
+        found = {item.id: item for item in items}
+        ids = sorted({*covered, *([adding] if adding else [])}, key=int)
+        if not ids or any(i not in found for i in ids):
+            return None
+        posts = [await news.build_x_post(self.session, source, found[i], avatar, media=False) for i in ids]
+        whole = posts[0]
+        whole.parts = [part for post in posts for part in post.parts]
+        whole.posted_at = news.tweet_time(root) or whole.posted_at       # still dated when it was first posted, as X shows it
+        if adding and len("\n\n".join(whole.parts)) > FOLD_ROOM:
+            return None
+        return whole
 
     async def _only_maimai(self, source: Source) -> bool:
         """Whether every channel following an account gets only its posts about maimai, so nothing else of it is worth reading."""
