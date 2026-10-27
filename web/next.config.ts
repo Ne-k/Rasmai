@@ -6,7 +6,8 @@ const dev = process.env.NODE_ENV !== "production";
 
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com https://static.cloudflareinsights.com`,
+  // wasm-unsafe-eval compiles WebAssembly only (not JS): the chart player's AAC encoder for browsers without one (Firefox)
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com https://static.cloudflareinsights.com`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   // blob: is the chart player's own jackets and songs, read from the visitor's device
@@ -14,7 +15,8 @@ const CSP = [
   "media-src 'self' blob:",
   "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com",
   "frame-src https://challenges.cloudflare.com",
-  "worker-src 'self'",
+  // blob: is that AAC encoder's worker, which it builds from its own bundled script
+  "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'none'",

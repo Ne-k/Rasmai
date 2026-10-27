@@ -4,13 +4,34 @@ import type { LiveNote, ScoreEvent } from "@/lib/chart/types";
 import { convertJudge } from "@/lib/chart/engine/timing.mjs";   // NoteJudge.ConvertJudge: Miss 0, Good 1, Great 2, Perfect 3, Critical 4
 import type { SongClock } from "./audio";
 
-export class Sfx {
-  private bufs = new Map<string, AudioBuffer>();
-  private missing = new Set<string>();
-  private loops = new Map<string, AudioBufferSourceNode>();
-  master = 1;
+type Hit = { buf: AudioBuffer; at: number; vol: number; until: number };
 
-  constructor(private clock: SongClock) {}
+export class Sfx {
+  private loops = new Map<string, { stop(): void }>();
+  master = 1;
+  // the video export's copy writes down what it would play, at `at` seconds, and mixes it in one go: thousands of nodes
+  // scheduled on an OfflineAudioContext render slower than real time
+  private hits: Hit[] | null = null;
+  at = 0;
+
+  constructor(private clock: SongClock, private bufs = new Map<string, AudioBuffer>(), private missing = new Set<string>()) {}
+
+  recorder(): Sfx { const s = new Sfx(this.clock, this.bufs, this.missing); s.master = this.master; s.hits = []; return s; }
+
+  // everything a recorder heard, summed into one stereo buffer at the sounds' own rate
+  mixdown(seconds: number): AudioBuffer | null {
+    const rate = this.hits?.[0]?.buf.sampleRate;
+    if (!rate) return null;
+    const out = new AudioBuffer({ numberOfChannels: 2, length: Math.ceil(seconds * rate), sampleRate: rate });
+    for (const h of this.hits!) {
+      const from = Math.round(h.at * rate), to = Math.min(out.length, Math.round(h.until * rate)), n = h.buf.length;
+      for (let c = 0; c < 2; c++) {
+        const src = h.buf.getChannelData(Math.min(c, h.buf.numberOfChannels - 1)), dst = out.getChannelData(c);
+        for (let i = from; i < to; i++) dst[i] += src[(i - from) % n] * h.vol;   // % n: a touch-hold loop repeats until stopped
+      }
+    }
+    return out;
+  }
 
   private url(name: string): string { return `/play/se/Mai2Cue/${name}.mp3`; }
 
@@ -29,17 +50,23 @@ export class Sfx {
 
   async preload(names: string[]): Promise<void> { await Promise.all(names.map((n) => this.load(n))); }
 
-  // fire and forget; returns the node so a caller can stop it
-  private playUrl(url: string, vol: number, loop = false): AudioBufferSourceNode | null {
+  // fire and forget; returns something a caller can stop
+  private playUrl(url: string, vol: number, loop = false): { stop(): void } | null {
     const buf = this.bufs.get(url), ctx = this.clock.context, out = this.clock.output;
-    if (!buf || !ctx || !out || vol <= 0) return null;
+    if (!buf || vol <= 0) return null;
+    if (this.hits) {
+      const h = { buf, at: this.at, vol: vol * this.master, until: loop ? Infinity : this.at + buf.duration };
+      this.hits.push(h);
+      return { stop: () => { h.until = this.at; } };
+    }
+    if (!ctx || !out) return null;
     const src = ctx.createBufferSource(), g = ctx.createGain();
     src.buffer = buf; src.loop = loop; g.gain.value = vol * this.master;
     src.connect(g).connect(out); src.start();
     return src;
   }
 
-  play(name: string, vol = 1): AudioBufferSourceNode | null { return this.playUrl(this.url(name), vol); }
+  play(name: string, vol = 1): { stop(): void } | null { return this.playUrl(this.url(name), vol); }
 
   playLoop(key: string, name: string, vol = 1): void {
     this.stopLoop(key);

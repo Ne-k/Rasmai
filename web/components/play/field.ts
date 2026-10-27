@@ -64,7 +64,8 @@ const breakPulse = (now: number) => Math.max(0, Math.sin((now / FRAME) * 0.2) * 
 const noteColor = (n: LiveNote) => (n.b ? C.brk : n.each ? C.each : n.k === "slide" || n.s ? C.star : n.k === "touch" || n.k === "thold" ? C.touch : C.tap);
 const exColor = (n: LiveNote) => (n.b ? C.exBrk : n.each ? C.exEach : n.s ? C.exStar : C.exTap);
 const exTint = (n: LiveNote) => (n.b ? EX_TINT.brk : n.each ? EX_TINT.each : n.s ? EX_TINT.star : EX_TINT.tap);
-const loadImage = (src: string) => new Promise<HTMLImageElement>((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => err(new Error(src)); i.src = src; });
+// fetch + createImageBitmap rather than Image, which the video export's workers do not have
+const loadImage = async (src: string) => { const r = await fetch(src); if (!r.ok) throw new Error(src); return createImageBitmap(await r.blob()); };
 
 // One load per page: every chart's Field shares the sprites, so no chart starts on vectors while 254 images reload.
 // A sprite that fails to load is left out rather than failing the whole skin.
@@ -92,17 +93,18 @@ export class Field {
   private eachAngle: number[] = []; private double: boolean[] = []; private spin: number[] = []; private slides = new Map<number, Branch[]>();
   private labels: Label[] = []; private effects: Effect[] = []; private flashes: number[] = Array(8).fill(-1e9);
   private session: Session | null = null; private from = 0;
-  private loaded: Map<string, Sprite> | null = null; private skin: Map<string, Sprite> | null = null; private tints = new Map<string, HTMLCanvasElement>();
+  private loaded: Map<string, Sprite> | null = null; private skin: Map<string, Sprite> | null = null; private tints = new Map<Sprite, Map<string, OffscreenCanvas>>();
   private outline = 17; private starPink = false;
 
-  constructor(private canvas: HTMLCanvasElement, private slideData: unknown) {
-    const ctx = canvas.getContext("2d");
+  // an OffscreenCanvas is the video export's; its 2D context has the same drawing calls
+  constructor(private canvas: HTMLCanvasElement | OffscreenCanvas, private slideData: unknown) {
+    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | null;
     if (!ctx) throw new Error("canvas 2d context unavailable");
     this.ctx = ctx;
     this.resize();
   }
 
-  // the game's sprites from public/play/skin (not in the public repository): false = keep drawing vectors
+  // the game's sprites from public/play/skin: false = keep drawing vectors
   async loadSkin(base = "/play/skin"): Promise<boolean> {
     const skin = await preloadSkin(base);
     this.loaded = skin; this.tints.clear();
@@ -148,15 +150,16 @@ export class Field {
     return [branchOf(raw)];
   }
 
-  resize(): void {
-    const c = this.canvas, dpr = (this.dpr = window.devicePixelRatio || 1);
-    const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
+  // size: a fixed square in px (the video export) instead of the element's own size; an OffscreenCanvas has no layout size, so it keeps its own
+  resize(size?: number): void {
+    const c = this.canvas, dpr = (this.dpr = globalThis.devicePixelRatio || 1);
+    const [w, h] = size ? [size, size] : "clientWidth" in c ? [Math.max(1, Math.round(c.clientWidth * dpr)), Math.max(1, Math.round(c.clientHeight * dpr))] : [c.width, c.height];
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     this.cx = w / 2; this.cy = h / 2; this.k = Math.min(w, h) / FIELD;
   }
 
   clientToField(clientX: number, clientY: number): [number, number] {
-    const r = this.canvas.getBoundingClientRect();
+    const r = (this.canvas as HTMLCanvasElement).getBoundingClientRect();
     const px = ((clientX - r.left) / Math.max(1, r.width)) * this.canvas.width, py = ((clientY - r.top) / Math.max(1, r.height)) * this.canvas.height;
     return [(px - this.cx) / this.k, -(py - this.cy) / this.k];
   }
@@ -236,15 +239,16 @@ export class Field {
     ctx.restore();
     return true;
   }
-  private tinted(sp: Sprite, color: string): HTMLCanvasElement {
-    const key = `${sp.w}x${sp.h}:${(sp.img as HTMLImageElement).src ?? ""}:${color}`;
-    let c = this.tints.get(key);
+  private tinted(sp: Sprite, color: string): OffscreenCanvas {
+    let byColor = this.tints.get(sp), c = byColor?.get(color);
     if (!c) {
-      c = document.createElement("canvas"); c.width = sp.w; c.height = sp.h;
-      const g = c.getContext("2d")!;
+      c = new OffscreenCanvas(sp.w, sp.h);
+      // on the field's own kind of canvas, so a CPU-drawn export frame does not read a GPU texture back for every tinted note
+      const g = c.getContext("2d", { willReadFrequently: this.ctx.getContextAttributes?.().willReadFrequently ?? false })!;
       g.drawImage(sp.img, 0, 0); g.globalCompositeOperation = "multiply"; g.fillStyle = color; g.fillRect(0, 0, sp.w, sp.h);
       g.globalCompositeOperation = "destination-in"; g.drawImage(sp.img, 0, 0);
-      this.tints.set(key, c);
+      if (!byColor) this.tints.set(sp, (byColor = new Map()));
+      byColor.set(color, c);
     }
     return c;
   }

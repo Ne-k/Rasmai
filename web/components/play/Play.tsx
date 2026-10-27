@@ -10,31 +10,25 @@ import { ThemeToggle } from "@/components/Theme";
 import { STATUS_URL } from "@/components/Contact";
 import slideData from "@/lib/chart/slides.json";
 import { buildChart } from "@/lib/chart/build.mjs";
-import { Session, InputState } from "@/lib/chart/engine/play.mjs";
-import { AutoPlayer } from "@/lib/chart/engine/bot.mjs";
-import { K, T, BOX, SCORE, convertJudge } from "@/lib/chart/engine/timing.mjs";
+import { K, BOX, convertJudge } from "@/lib/chart/engine/timing.mjs";
 import { COMBO_NAMES } from "@/lib/chart/engine/score.mjs";
 import { NOTE_SPEED, TOUCH_SPEED, achieveText, playResult } from "@/lib/chart/rules.mjs";
-import type { Chart, PlayResult } from "@/lib/chart/types";
+import type { PlayResult } from "@/lib/chart/types";
 import { songsFromFiles, filesFromDrop, filesFromInput, levelValue, type Song } from "@/lib/chart/library";
 import { Field, preloadSkin } from "./field";
-import { SongClock } from "./audio";
+import { SongClock, limiter } from "./audio";
 import { InputController, DEFAULT_KEYS } from "./input";
-import { recordVideo, supportedVideoType } from "./export";
+import { encodeVideo, canExport, VIDEO_FPS, AUDIO_RATE } from "./export";
 import { Sfx, GameSe, type SeTable } from "./sfx";
+import { advance, lostSoFar, sessionAt, NOTE_CLOCK_MS, TICK_MS, type Center, type Live, type View } from "./run";
 
 type Mode = "watch" | "play" | "practice";
-type Center = "off" | "combo" | "achievement" | "achievementDown" | "dx";
 const CENTERS: Center[] = ["off", "combo", "achievement", "achievementDown", "dx"];
 // the game's ring (judgement line) designs, OptionGameoutline 0..17, in its own names
 const OUTLINES = ["Blind", "No line", "Simple", "Sensor", "maimai", "GreeN", "ORANGE", "PiNK", "MURASAKi", "MiLK", "FiNALE", "DX", "Splash", "UNiVERSE", "FESTiVAL", "BUDDiES", "PRiSM", "CiRCLE"];
 type Sort = "title" | "level" | "bpm" | "recent";
 type Pick = { song: Song; slot: number };
 
-// The note clock runs 110 ms ahead of the audio: the game's Normal timing adjust (+60 ms on every note) plus the 50 ms its
-// judgement windows are centred after the note (maimai-dx docs/game.md); the engine's Session adds the 60 itself.
-const NOTE_CLOCK_MS = 110;
-const TICK_MS = 8;          // fast-forward step when a session is rebuilt at a position
 const LEVELS = ["all", "10", "10+", "11", "11+", "12", "12+", "13", "13+", "14", "14+", "15"];
 const diffClass = (name: string) => "diff d-" + name.toLowerCase().replace(/[^a-z]/g, "");
 const fmt = (ms: number) => { const s = Math.max(0, ms) / 1000; return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}.${Math.floor((s % 1) * 10)}`; };
@@ -47,23 +41,6 @@ function silence(ms: number): Blob {
   v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true);
   new Uint8Array(buf, 44).fill(128);
   return new Blob([buf], { type: "audio/wav" });
-}
-
-/** Points lost so far against an all-Critical play: base points and break bonus, as the game's counting-down achievement needs. */
-function lostSoFar(events: { kind: number; timing: number }[]) {
-  let score = 0, bonus = 0;
-  for (const e of events) { score += SCORE[e.kind][T.Critical] - SCORE[e.kind][e.timing]; if (e.kind === K.Break) bonus += SCORE[K.BreakBonus][T.Critical] - SCORE[K.BreakBonus][e.timing]; }
-  return { score, bonus };
-}
-
-/** A fresh session with everything before `audioMs` already played by the perfect player. */
-function sessionAt(chart: Chart, audioMs: number) {
-  const session = new Session(chart, slideData, { judgeFrames: 0, adjustMs: 60 });
-  const input = new InputState();
-  const bot = new AutoPlayer(session);
-  const until = audioMs + NOTE_CLOCK_MS;
-  for (let t = -600; t < until; t += TICK_MS) { bot.step(t, input); session.tick(t, input.snapshot()); }
-  return { session, input, bot, eventCursor: session.events.length, headCursor: session.heads.length, lost: lostSoFar(session.events) };
 }
 
 export function Play() {
@@ -175,7 +152,7 @@ function Library({ songs, reading, url, onImport, onPick }: { songs: Song[]; rea
 }
 
 // ---------------------------------------------------------------- player ----------------------------------------------------------------
-type Live = ReturnType<typeof sessionAt>;
+const themeColors = () => { const cs = getComputedStyle(document.documentElement); return { screen: cs.getPropertyValue("--ring-screen").trim() || "#1d1a2f", ring: "#6a6a7c", button: "#8f8fa3" }; };
 
 function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boolean }; url: (f: File | null) => string | null; onResult: (r: PlayResult) => void; onLibrary: () => void }) {
   const t = useTranslations("play");
@@ -189,6 +166,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
   const live = useRef<Live | null>(null);
   const gameSe = useRef<GameSe | null>(null);
   const sfx = useRef<Sfx | null>(null);
+  const seTable = useRef<SeTable | null>(null);
   const [mode, setMode] = useState<Mode>(pick.watch === false ? "play" : "watch");
   const modeRef = useRef(mode); modeRef.current = mode;
   const [ready, setReady] = useState(false);
@@ -206,8 +184,11 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
   const [starPink, setStarPink] = useState(false);
   const [rate, setRate] = useState(1);
   const [loop, setLoop] = useState<{ a: number | null; b: number | null }>({ a: null, b: null });
-  const [exporting, setExporting] = useState<null | "recording" | "done">(null);
-  const opts = useRef({ noteSpeed: NOTE_SPEED[speed], touchSpeed: TOUCH_SPEED[touchSpeed], showSensors: sensors, dispJudge: fastLate ? 1 : 0, offset, rate, center, useSkin, outline, starPink });
+  const [exporting, setExporting] = useState<null | number | "done" | "unsupported" | "failed">(null);   // a number: the share encoded so far
+  const busy = typeof exporting === "number";
+  const cancelExport = useRef<AbortController | null>(null);
+  useEffect(() => () => cancelExport.current?.abort(), []);
+  const opts = useRef<View>({ noteSpeed: NOTE_SPEED[speed], touchSpeed: TOUCH_SPEED[touchSpeed], showSensors: sensors, dispJudge: fastLate ? 1 : 0, offset, rate, center, useSkin, outline, starPink });
   opts.current = { noteSpeed: NOTE_SPEED[speed], touchSpeed: TOUCH_SPEED[touchSpeed], showSensors: sensors, dispJudge: fastLate ? 1 : 0, offset, rate, center, useSkin, outline, starPink };
   const finished = useRef(false);
   const duration = clock.current?.durationMs ?? chart.endMs;
@@ -234,10 +215,10 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
     // the game's own sound effects, when the site has them; silence otherwise
     fetch("/play/se/seoptions.json").then(async (r) => {
       if (!r.ok || !alive) return;
-      const fx = new Sfx(ck), se = new GameSe(fx, (await r.json()) as SeTable);
+      const table = (await r.json()) as SeTable, fx = new Sfx(ck), se = new GameSe(fx, table);
       await fx.preload(se.names);
       if (!alive) return;
-      sfx.current = fx; gameSe.current = se;
+      sfx.current = fx; gameSe.current = se; seTable.current = table;
       if (live.current) se.setNotes(live.current.session.notes, ck.nowMs() + NOTE_CLOCK_MS);
     }).catch(() => {});
     const offEnded = ck.on("ended", () => { setPlaying(false); finished.current = true; setStats((s) => ({ ...s })); });
@@ -245,9 +226,8 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
     const ro = new ResizeObserver(() => fld.resize());
     ro.observe(cv);
     fld.resize();
-    const colors = () => { const cs = getComputedStyle(document.documentElement); return { screen: cs.getPropertyValue("--ring-screen").trim() || "#1d1a2f", ring: "#6a6a7c", button: "#8f8fa3" }; };
-    let theme = colors();
-    const mo = new MutationObserver(() => { theme = colors(); });
+    let theme = themeColors();
+    const mo = new MutationObserver(() => { theme = themeColors(); });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     let lastUi = 0, raf = 0;
     const frame = () => {
@@ -267,14 +247,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
           L.session.tick(at, L.input.snapshot());
         }
       }
-      L.session.tick(now, L.input.snapshot());
-      const newEvents = L.session.events.slice(L.eventCursor), newHeads = L.session.heads.slice(L.headCursor);
-      for (const ev of newEvents) fld.judged(ev, now);
-      for (const h of newHeads) fld.headJudged(h, now);
-      L.eventCursor = L.session.events.length; L.headCursor = L.session.heads.length;
-      if (ck.playing) gameSe.current?.frame(newEvents, newHeads, now);
-      if (newEvents.length) { const more = lostSoFar(newEvents); L.lost.score += more.score; L.lost.bonus += more.bonus; }
-      fld.draw(now, L.session, { noteSpeed: o.noteSpeed, touchSpeed: o.touchSpeed, showSensors: o.showSensors, dispJudge: o.dispJudge, colors: theme, center: centerText(o.center, L), useSkin: o.useSkin, outline: o.outline, starPink: o.starPink });
+      advance(L, fld, ck.playing ? gameSe.current : null, now, o, theme);
       if (perfNow() - lastUi > 100) {
         lastUi = perfNow();
         const sc = L.session.score;
@@ -283,19 +256,6 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
       }
     };
     const perfNow = () => performance.now();
-    // the game's centre readout: combo, achievement counting up from 0 or down from the theoretical maximum, or the DX score
-    const centerText = (mode: Center, L: Live) => {
-      const sc = L.session.score;
-      if (mode === "combo") return sc.combo > 0 ? { text: String(sc.combo), label: "COMBO" } : null;
-      if (mode === "achievement") return { text: achieveText(sc.achievement).trim(), label: "ACHIEVEMENT" };
-      if (mode === "achievementDown") {
-        const top = sc.breakBonusTotal ? 101 : 100;
-        const down = top - (sc.allPerfect ? (L.lost.score / sc.allPerfect) * 100 : 0) - (sc.breakBonusTotal ? L.lost.bonus / sc.breakBonusTotal : 0);
-        return { text: achieveText(Math.max(0, down)).trim(), label: "ACHIEVEMENT" };
-      }
-      if (mode === "dx") return { text: String(sc.dxScore), label: "DX SCORE" };
-      return null;
-    };
     raf = requestAnimationFrame(frame);
     return () => { alive = false; cancelAnimationFrame(raf); ro.disconnect(); mo.disconnect(); offEnded(); offLoop(); ctl.detach(); ck.close(); };
   }, [chart, song.audio, rebuild]);
@@ -324,26 +284,46 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
     onResult(playResult(L.session.score, { song: song.id, slot, title: song.title, level: chartInfo.level, autoplay: mode === "watch" }));
   };
 
+  // the whole chart drawn offscreen and encoded faster than real time, in watch mode at full speed, with the song and the note sounds
   const exportVideo = async () => {
-    const ck = clock.current!, cv = canvas.current!;
-    if (!supportedVideoType()) return;
-    setMode("watch"); modeRef.current = "watch";
-    setLoop({ a: null, b: null }); setRate(1);
-    seek(0);
-    const rec = recordVideo(cv, ck.stream(), 60);
-    setExporting("recording");
-    const off = ck.on("ended", async () => {
-      off();
-      const blob = await rec.stop();
+    const ck = clock.current!;
+    if (!(await canExport())) { setExporting("unsupported"); return; }
+    ck.pause(); sfx.current?.stopAll(); setPlaying(false);
+    const abort = new AbortController();
+    cancelExport.current = abort;
+    setExporting(0);
+    try {
+      const o = opts.current, colors = themeColors(), sec = ck.durationMs / 1000, frames = Math.ceil(sec * VIDEO_FPS);
+      // play the chart through once without drawing, writing down every note sound at the frame that sets it off, as live
+      const fx = sfx.current?.recorder(), se = fx && seTable.current ? new GameSe(fx, seTable.current) : null;
+      if (fx && se) {
+        const L = sessionAt(chart, 0);
+        se.setNotes(L.session.notes, NOTE_CLOCK_MS);
+        for (let i = 0; i < frames; i++) {
+          const now = (i * 1000) / VIDEO_FPS + NOTE_CLOCK_MS + o.offset;
+          fx.at = i / VIDEO_FPS;
+          L.bot.step(now, L.input);
+          advance(L, null, se, now, o, colors);
+        }
+      }
+      const mix = new OfflineAudioContext(2, Math.ceil(sec * AUDIO_RATE), AUDIO_RATE), out = limiter(mix);
+      out.connect(mix.destination);
+      for (const buf of [ck.song, fx?.mixdown(sec)]) {
+        if (!buf) continue;
+        const src = mix.createBufferSource();
+        src.buffer = buf; src.connect(out); src.start();
+      }
+      const blob = await encodeVideo({ maidata: song.maidata, slot, view: o, colors, frames }, mix.startRendering(), setExporting, abort.signal);
+      if (!blob) { setExporting(null); return; }
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${song.title} ${chartInfo.name}.${rec.mimeType.includes("mp4") ? "mp4" : "webm"}`;
+      a.download = `${song.title} ${chartInfo.name}.mp4`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
       setExporting("done");
-    });
-    await ck.play(0);
-    setPlaying(true);
+    } catch {
+      setExporting(abort.signal.aborted ? null : "failed");
+    }
   };
 
   const keys = DEFAULT_KEYS;
@@ -368,15 +348,15 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
             </div>
           </div>
           <div className="modes" role="tablist">
-            {(["watch", "play", "practice"] as Mode[]).map((m) => <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "on" : ""} onClick={() => changeMode(m)} disabled={exporting === "recording"}>{t(m === "watch" ? "modeWatch" : m === "play" ? "modePlay" : "modePractice")}</button>)}
+            {(["watch", "play", "practice"] as Mode[]).map((m) => <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "on" : ""} onClick={() => changeMode(m)} disabled={busy}>{t(m === "watch" ? "modeWatch" : m === "play" ? "modePlay" : "modePractice")}</button>)}
           </div>
           <div className="transport">
             <div className="times"><span>{fmt(pos)}</span><span>{fmt(duration)}</span></div>
-            <input type="range" min={0} max={Math.ceil(duration)} value={Math.floor(pos)} onChange={(e) => seek(Number(e.target.value))} disabled={exporting === "recording"} aria-label={t("playBtn")} />
+            <input type="range" min={0} max={Math.ceil(duration)} value={Math.floor(pos)} onChange={(e) => seek(Number(e.target.value))} disabled={busy} aria-label={t("playBtn")} />
             <div className="row">
-              <button type="button" className="button ghost narrow" onClick={() => seek(pos - 5000)} aria-label={t("back5")} disabled={exporting === "recording"}>‹‹</button>
-              <button type="button" className="button pink" onClick={togglePlay} disabled={!ready || exporting === "recording"}>{playing ? t("pause") : t("playBtn")}</button>
-              <button type="button" className="button ghost narrow" onClick={() => seek(pos + 5000)} aria-label={t("fwd5")} disabled={exporting === "recording"}>››</button>
+              <button type="button" className="button ghost narrow" onClick={() => seek(pos - 5000)} aria-label={t("back5")} disabled={busy}>‹‹</button>
+              <button type="button" className="button pink" onClick={togglePlay} disabled={!ready || busy}>{playing ? t("pause") : t("playBtn")}</button>
+              <button type="button" className="button ghost narrow" onClick={() => seek(pos + 5000)} aria-label={t("fwd5")} disabled={busy}>››</button>
             </div>
           </div>
           <div className="tiles">
@@ -410,13 +390,15 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
             <p className="hint" style={{ marginTop: 6 }}>{t("keysHint")}</p>
           </div>
           <div className="export-row">
-            {supportedVideoType() ? (
-              <button type="button" className="button" onClick={exportVideo} disabled={!ready || exporting === "recording"}>{t("exportVideo")}</button>
-            ) : <p className="hint">{t("exportUnsupported")}</p>}
-            {exporting === "recording" && <><progress value={pos} max={duration} /><p className="hint">{t("exporting")}</p></>}
+            {busy ? (
+              <button type="button" className="button ghost" onClick={() => cancelExport.current?.abort()}>{t("exportCancel")}</button>
+            ) : <button type="button" className="button" onClick={exportVideo} disabled={!ready}>{t("exportVideo")}</button>}
+            {busy && <><progress value={exporting} max={1} /><p className="hint">{t("exporting", { pct: Math.floor(exporting * 100) })}</p></>}
             {exporting === "done" && <p className="hint ok">{t("exportDone")}</p>}
+            {exporting === "unsupported" && <p className="hint">{t("exportUnsupported")}</p>}
+            {exporting === "failed" && <p className="hint">{t("exportFailed")}</p>}
           </div>
-          <button type="button" className="button pink" onClick={toResult} disabled={exporting === "recording"}>{t("toResult")}</button>
+          <button type="button" className="button pink" onClick={toResult} disabled={busy}>{t("toResult")}</button>
         </aside>
       </div>
     </>

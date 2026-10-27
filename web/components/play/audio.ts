@@ -4,11 +4,18 @@
 
 type Ev = "ended" | "loop";
 
+// one limiter for song + sound effects so a pile of SE cannot clip (port audio.js makeOut); the video export mixes through one too
+export function limiter(ctx: BaseAudioContext): DynamicsCompressorNode {
+  const out = ctx.createDynamicsCompressor();
+  out.threshold.value = -3; out.knee.value = 0; out.ratio.value = 20;
+  out.attack.value = 0.002; out.release.value = 0.1;
+  return out;
+}
+
 export class SongClock {
   private ctx: AudioContext | null = null;
   private gain: GainNode | null = null;
-  private out: DynamicsCompressorNode | null = null;   // one limiter for song + sound effects so a pile of SE cannot clip (port audio.js makeOut)
-  private dest: MediaStreamAudioDestinationNode | null = null;
+  private out: DynamicsCompressorNode | null = null;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
   private offsetMs = 0;       // song position at startCtx
@@ -27,9 +34,7 @@ export class SongClock {
   private graph(): { ctx: AudioContext; gain: GainNode; out: DynamicsCompressorNode } {
     if (!this.ctx || !this.gain || !this.out) {
       this.ctx = new AudioContext({ latencyHint: "interactive" });
-      this.out = this.ctx.createDynamicsCompressor();
-      this.out.threshold.value = -3; this.out.knee.value = 0; this.out.ratio.value = 20;
-      this.out.attack.value = 0.002; this.out.release.value = 0.1;
+      this.out = limiter(this.ctx);
       this.out.connect(this.ctx.destination);
       this.gain = this.ctx.createGain();
       this.gain.gain.value = this.volume;
@@ -40,8 +45,10 @@ export class SongClock {
 
   // built on first access (synchronously; a user gesture is only needed for resume) so effects can decode before a song loads
   get context(): AudioContext | null { return this.graph().ctx; }
-  // the node everything audible goes through before the speakers and the export stream; sound effects connect here
+  // the node everything audible goes through before the speakers; sound effects connect here
   get output(): AudioNode | null { return this.graph().out; }
+  // the decoded song, which the video export mixes again offline
+  get song(): AudioBuffer | null { return this.buffer; }
 
   private async ensure(): Promise<AudioContext> {
     const { ctx } = this.graph();
@@ -147,15 +154,6 @@ export class SongClock {
     for (const fn of this.listeners[event]) fn();
   }
 
-  stream(): MediaStream {
-    const { ctx, out } = this.graph();
-    if (!this.dest) {
-      this.dest = ctx.createMediaStreamDestination();
-      out.connect(this.dest);
-    }
-    return this.dest.stream;
-  }
-
   private stopSource(): void {
     const src = this.source;
     this.source = null;
@@ -166,6 +164,6 @@ export class SongClock {
     this.stopSource();
     this.playing = false;
     void this.ctx?.close();
-    this.ctx = this.gain = this.out = this.dest = this.buffer = null;
+    this.ctx = this.gain = this.out = this.buffer = null;
   }
 }
