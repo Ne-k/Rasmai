@@ -15,7 +15,7 @@ from rasmai.images.preview import Preview, render_preview
 
 logger = logging.getLogger(__name__)
 
-COOLDOWN = 20.0                  # seconds between one person's previews: each is a second or two of CPU
+COOLDOWN = 20.0                  # seconds between one person's previews: each is several seconds of CPU
 UPLOAD_LIMIT = 10 * 1024 * 1024  # what a DM or a user install may upload; a server's own limit is read off the server
 MARGIN = 128 * 1024              # left under the limit for the rest of the request
 KEPT = 8                         # finished previews held, so the same chart asked twice is drawn once
@@ -40,7 +40,7 @@ def _draw(text: str, published: int, limit: int) -> Optional[Preview]:
 
 
 async def build_preview(ref: ChartRef, limit: int) -> Optional[Preview]:
-    """The picture for a chart, or None when its notation has not been read yet; drawn off the loop and inside the render slots."""
+    """The clip for a chart, or None when its notation has not been read yet; drawn off the loop and inside the render slots."""
     from rasmai.bot.core import RENDER_SEMAPHORE
     from rasmai.storage.db import sheet_get
     key = (sheet_key(ref), limit)
@@ -114,11 +114,11 @@ async def send_preview(interaction: discord.Interaction, ref: ChartRef) -> None:
         _last.pop(person, None)
         await _refuse(interaction, "I haven't read that chart's notes yet, so there's nothing to draw. They come in a few at a time, so check back later.")
         return
-    if len(made.gif) > limit:
+    if len(made.data) > limit:
         await _refuse(interaction, "That one came out too big to upload here, even at the smallest size.")
         return
-    name = f"{ref.chart_type}-{ref.difficulty}-preview.gif"
+    name = f"{ref.chart_type}-{ref.difficulty}-preview.{made.kind}"
     await interaction.followup.send(
         f"**{ref.title}** · {ref.difficulty.upper()} {ref.chart_type.upper()} · the busiest part, {_clock(made.start)} - {_clock(made.end)}\n"
         "-# Drawn from the chart's notes, so the timing is right but the speed and look aren't exactly the game's.",
-        file=discord.File(io.BytesIO(made.gif), filename=name))
+        file=discord.File(io.BytesIO(made.data), filename=name))

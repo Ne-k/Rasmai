@@ -70,28 +70,61 @@ def _busiest():
     return problems
 
 
-@check("a preview is a looping GIF of the right size, shows the notes, and tries smaller until it fits what may be uploaded")
-def _gif():
+def _probe(data):
+    """An MP4's codec, width, height and frame count, and one frame from its middle, as ffprobe and ffmpeg read them."""
+    import shutil
+    import subprocess
     from PIL import Image
-    from rasmai.images.preview import ATTEMPTS, Skin, render_preview
+    path = pathlib.Path(tempfile.mkdtemp()) / "clip.mp4"
+    path.write_bytes(data)
+    found = subprocess.run([shutil.which("ffprobe") or "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                            "stream=codec_name,width,height,nb_read_frames", "-of", "csv=p=0", str(path)], capture_output=True, text=True).stdout
+    codec, width, height, frames = found.strip().split(",")
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", "2", "-i", str(path), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                         capture_output=True).stdout
+    return codec, int(width), int(height), int(frames), Image.frombytes("RGB", (int(width), int(height)), raw)
+
+
+@check("a preview is an H.264 MP4 that starts playing before it has all loaded where ffmpeg is installed and a looping GIF where it is not; "
+       "either is the right size and length, shows the notes, and tries smaller until it fits what may be uploaded")
+def _clip():
+    import shutil
+    from unittest import mock
+    from PIL import Image
+    from rasmai.images import preview as pv
     problems = []
     taps = "(150){8}" + ",".join(["1", "3/6", "5", "2/7", "8-4[8:3]", "4h[4:1]", "C", "A3"] * 30) + ","
     chart = _chart(taps)
-    empty = Skin(pathlib.Path(tempfile.mkdtemp()))
-    made = render_preview(chart, skin=empty)
-    image = Image.open(io.BytesIO(made.gif))
-    if image.format != "GIF" or image.n_frames != int(9.0 * made.fps) or image.size != (made.size, made.size) or image.info.get("loop") != 0:
-        problems.append(f"not a looping GIF of {int(9.0 * made.fps)} frames at {made.size}px: {image.format} {image.n_frames} {image.size} {image.info.get('loop')}")
-    middle = Image.open(io.BytesIO(made.gif))
-    middle.seek(60)
-    if len(set(middle.convert("RGB").getdata())) < 8:
-        problems.append("a frame from the middle shows nothing but the background")
-    if (made.size, made.fps) != ATTEMPTS[0]:
-        problems.append(f"with room to spare it should be drawn at the largest size, not {made.size}px")
-    tight = render_preview(chart, limit=len(made.gif) // 3, skin=empty)
-    if (tight.size, tight.fps) == ATTEMPTS[0] or len(tight.gif) >= len(made.gif):
-        problems.append("a tight limit did not make a smaller picture")
-    if render_preview(_chart("(120){4},,,,"), skin=empty) is not None:
+    empty = pv.Skin(pathlib.Path(tempfile.mkdtemp()))
+    if shutil.which("ffmpeg"):
+        made = pv.render_preview(chart, seconds=4.0, skin=empty)
+        codec, width, height, frames, middle = _probe(made.data)
+        if made.kind != "mp4" or codec != "h264" or (width, height) != (made.size, made.size) or frames != int(4.0 * made.fps):
+            problems.append(f"not an H.264 MP4 of {int(4.0 * made.fps)} frames at {made.size}px: {made.kind} {codec} {width}x{height} {frames}")
+        if made.data[4:8] != b"ftyp" or not 0 < made.data.find(b"moov") < made.data.find(b"mdat"):
+            problems.append("the MP4's index is not at the front, so it cannot start playing before it has all loaded")
+        if len(set(middle.getdata())) < 8:
+            problems.append("a frame from the middle of the MP4 shows nothing but the background")
+        if (made.size, made.fps) != pv.ATTEMPTS[0]:
+            problems.append(f"with room to spare the MP4 should be drawn at the largest size, not {made.size}px")
+        tight = pv.render_preview(chart, limit=len(made.data) // 3, seconds=4.0, skin=empty)
+        if (tight.size, tight.fps) == pv.ATTEMPTS[0] or len(tight.data) >= len(made.data):
+            problems.append("a tight limit did not make a smaller MP4")
+    with mock.patch.object(pv.shutil, "which", return_value=None):
+        made = pv.render_preview(chart, skin=empty)
+        image = Image.open(io.BytesIO(made.data))
+        frames = int(pv.SECONDS * made.fps)
+        if made.kind != "gif" or image.format != "GIF" or image.n_frames != frames or image.size != (made.size, made.size) or image.info.get("loop") != 0:
+            problems.append(f"without ffmpeg, not a looping GIF of {frames} frames at {made.size}px: {made.kind} {image.format} {image.n_frames} {image.size}")
+        image.seek(60)
+        if len(set(image.convert("RGB").getdata())) < 8:
+            problems.append("a frame from the middle of the GIF shows nothing but the background")
+        if (made.size, made.fps) != pv.GIF_ATTEMPTS[0]:
+            problems.append(f"with room to spare the GIF should be drawn at the largest size, not {made.size}px")
+        tight = pv.render_preview(chart, limit=len(made.data) // 3, skin=empty)
+        if (tight.size, tight.fps) == pv.GIF_ATTEMPTS[0] or len(tight.data) >= len(made.data):
+            problems.append("a tight limit did not make a smaller GIF")
+    if pv.render_preview(_chart("(120){4},,,,"), skin=empty) is not None:
         problems.append("a chart with no notes was given a preview")
     return problems
 
@@ -174,8 +207,9 @@ def _interaction(guild=None, ephemeral=False, user=1234):
         message=types.SimpleNamespace(flags=types.SimpleNamespace(ephemeral=ephemeral)), response=_Reply(), followup=_Followup())
 
 
-@check("the Preview button is offered only for a chart whose notation is stored, and pressing it posts one GIF with the stretch it shows")
+@check("the Preview button is offered only for a chart whose notation is stored, and pressing it posts one clip with the stretch it shows, an MP4 where ffmpeg is installed")
 def _button():
+    import shutil
     from rasmai.bot.builders.charts import preview as module
     from rasmai.storage.db import connection as store, sheet_put
     problems = []
@@ -207,8 +241,9 @@ def _button():
         sent = first.followup.sent
         if first.response.deferred != {"ephemeral": True, "thinking": True}:
             problems.append(f"the press was not deferred as a thinking reply that matches the page: {first.response.deferred}")
-        if len(sent) != 1 or sent[0][1].get("file") is None or sent[0][1]["file"].filename != "dx-master-preview.gif":
-            problems.append(f"one GIF named for the chart was not posted: {[(t, list(k)) for t, k in sent]}")
+        kind = "mp4" if shutil.which("ffmpeg") else "gif"
+        if len(sent) != 1 or sent[0][1].get("file") is None or sent[0][1]["file"].filename != f"dx-master-preview.{kind}":
+            problems.append(f"one {kind} named for the chart was not posted: {[(t, list(k)) for t, k in sent]}")
         elif "busiest part" not in sent[0][0] or "Check Song" not in sent[0][0]:
             problems.append(f"the message does not say what is shown: {sent[0][0]}")
         again = _interaction()

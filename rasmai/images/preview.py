@@ -1,10 +1,13 @@
 from bisect import bisect_left
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 import io
 import logging
 import math
+import shutil
+import subprocess
+import tempfile
 import threading
 
 from PIL import Image, ImageDraw, ImageFont
@@ -36,9 +39,10 @@ def approach(speed: float) -> float:
 
 APPROACH = approach(NOTE_SPEED)           # about 0.76 seconds at 7.0
 TOUCH_APPROACH = approach(TOUCH_SPEED)    # about 0.71 at 7.5
-SECONDS = 9.0
-# the sizes tried in turn until the picture fits what the server lets be uploaded: (pixels across, frames a second)
-ATTEMPTS: Tuple[Tuple[int, int], ...] = ((440, 20), (360, 15), (300, 12))
+SECONDS = 9.0           # one clip: 600 px at 30 fps is about five seconds of drawing, which is what a press can cost
+# the sizes tried in turn until the clip fits what the server lets be uploaded: (pixels across, frames a second); all even, as yuv420p needs
+ATTEMPTS: Tuple[Tuple[int, int], ...] = ((600, 30), (440, 20), (360, 15))
+GIF_ATTEMPTS: Tuple[Tuple[int, int], ...] = ((440, 20), (360, 15), (300, 12))
 MAX_SKIN_PIXELS = 4_000_000      # one picture in a pack; anything bigger is not a note
 BUNDLED_SKIN = Path(__file__).parent / "chart_skin"
 
@@ -448,14 +452,15 @@ class _Painter:
 
 @dataclass
 class Preview:
-    gif: bytes
+    data: bytes
+    kind: str             # the file's extension: mp4, or gif where there is no ffmpeg
     start: float          # seconds into the chart where the clip begins
     end: float
     size: int
     fps: int
 
 
-def _encode(frames: List[Image.Image], fps: int) -> bytes:
+def _gif(frames: List[Image.Image], fps: int) -> bytes:
     # a few frames from across the clip set the palette, with the plain colours added outright so a small note is never washed out
     width, height = frames[0].width, frames[0].height
     sheet = Image.new("RGB", (width * 6, height + 40))
@@ -472,16 +477,35 @@ def _encode(frames: List[Image.Image], fps: int) -> bytes:
     return out.getvalue()
 
 
+def _mp4(frames: Iterator[Image.Image], size: int, fps: int) -> bytes:
+    with tempfile.TemporaryDirectory() as folder:
+        out = Path(folder) / "clip.mp4"         # faststart moves the index to the front, which needs a file it can seek in
+        command = ["ffmpeg", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{size}x{size}", "-r", str(fps), "-i", "-",
+                   "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "23", "-movflags", "+faststart", "-an",
+                   "-f", "mp4", str(out)]
+        with subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                for frame in frames:            # one at a time: a whole clip of raw frames is hundreds of megabytes
+                    process.stdin.write(frame.tobytes())
+                process.stdin.close()
+            except OSError:
+                pass                            # ffmpeg stopped early; what it said is raised below
+            said = process.stderr.read().decode(errors="replace")
+        if process.returncode:
+            raise subprocess.SubprocessError(f"ffmpeg exited {process.returncode}: {said[-400:]}")
+        return out.read_bytes()
+
+
 def render_preview(chart: Chart, limit: int = 10 * 1024 * 1024, start: Optional[float] = None, seconds: float = SECONDS,
                    skin: Optional[Skin] = None) -> Optional[Preview]:
-    """A looping picture of part of a chart: the notes coming in, slides running their tracks, as they would be played.
+    """A clip of part of a chart: the notes coming in, slides running their tracks, as they would be played.
 
-    Smaller and slower versions are tried until one fits `limit`; if even the smallest does not, that one is returned and the
-    caller sees it is over. None when the chart has no notes to show.
+    An MP4 made with ffmpeg, or a looping GIF where ffmpeg is not installed. Smaller and slower versions are tried until one fits
+    `limit`; if even the smallest does not, that one is returned and the caller sees it is over. None when the chart has no notes.
 
     :param chart: The parsed chart.
     :type chart: Chart
-    :param limit: The most bytes the picture may take, which is what the server lets be uploaded.
+    :param limit: The most bytes the clip may take, which is what the server lets be uploaded.
     :type limit: int
     :param start: Where in the chart to begin, in seconds; the busiest stretch when left out.
     :type start: Optional[float]
@@ -495,15 +519,16 @@ def render_preview(chart: Chart, limit: int = 10 * 1024 * 1024, start: Optional[
         return None
     skin = skin or _skin
     skin.refresh()
+    kind = "mp4" if shutil.which("ffmpeg") else "gif"
     seconds = max(2.0, min(seconds, chart.seconds or seconds))
     begin = busiest_start(chart, seconds) if start is None else max(0.0, start)
     finish = begin + seconds
     window = [n for n in chart.notes if begin - 1 <= n.time <= finish + 1]
     result = None
-    for size, fps in ATTEMPTS:
+    for size, fps in ATTEMPTS if kind == "mp4" else GIF_ATTEMPTS:
         painter = _Painter(window, Field(size), skin)
-        frames = [painter.frame(begin + i / fps, begin, finish) for i in range(int(seconds * fps))]
-        result = Preview(_encode(frames, fps), begin, finish, size, fps)
-        if len(result.gif) <= limit:
+        frames = (painter.frame(begin + i / fps, begin, finish) for i in range(int(seconds * fps)))
+        result = Preview(_mp4(frames, size, fps) if kind == "mp4" else _gif(list(frames), fps), kind, begin, finish, size, fps)
+        if len(result.data) <= limit:
             break
     return result
