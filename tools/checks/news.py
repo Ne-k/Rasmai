@@ -33,6 +33,17 @@ def _scratch():
         store.DATABASE_PATH, store._database_ready = was, False
 
 
+def _card(options):
+    """What a sent or edited card holds, read off its view: ``(texts, separators, gallery addresses, (label, url) of each link button)``."""
+    import discord
+    container = options["view"].children[0]
+    texts = [text.content for item in container.children if isinstance(item, discord.ui.Section) for text in item.children]
+    separators = sum(isinstance(item, discord.ui.Separator) for item in container.children)
+    media = [entry.media.url for item in container.children if isinstance(item, discord.ui.MediaGallery) for entry in item.items]
+    buttons = [(item.accessory.label, item.accessory.url) for item in container.children if isinstance(item, discord.ui.Section)]
+    return texts, separators, media, buttons
+
+
 @check("a webhook URL is sealed in the database, opens only for its own channel, and a restart sends nothing twice")
 def _storage():
     from rasmai.storage import db
@@ -133,15 +144,53 @@ def _reading():
         problems.append("a file was fetched from an address that is not trusted")
 
     post = news.Post("maimai", "1", "https://x.com/maimai_official/status/1", "Maimai Official", parts=["a" * 5000])
-    embed = post.embeds()[0]
-    if len(embed.description) > news.EMBED_ROOM or not embed.description.endswith("-# [Open on X](https://x.com/maimai_official/status/1)") or post.link():
-        problems.append("a long post is over an embed's limit, its link is not inside the embed, or the message carries a link to unfurl")
-    post = news.Post("maimai", "1", "https://x.com/m/status/1", "n", parts=["t"], wanted_video=True)
-    if post.link() != "https://x.com/m/status/1":
-        problems.append("a post whose video could not be attached did not leave its link to unfurl")
-    post.videos.append(b"v")
-    if post.link():
-        problems.append("a post with its video attached left its link to unfurl")
+    texts, _separators, media, buttons = _card({"view": post.view()})
+    if len(texts) != 1 or len(texts[0]) > news.TEXT_ROOM or not texts[0].endswith("…") or media or buttons != [("Open on X", "https://x.com/maimai_official/status/1")]:
+        problems.append(f"a long post is over a card's text limit, uncut, or its link button is wrong: {len(texts[0]) if texts else None}, {buttons}")
+    return problems
+
+
+@check("a card's stripe is the average colour of the account's picture, and the platform's own when the picture cannot be read")
+def _colours():
+    import io
+    from PIL import Image
+    from rasmai.scraping import news
+
+    problems = []
+    picture = Image.new("RGBA", (8, 8), (0, 0, 255, 0))         # see-through blue, which must not count
+    for x in range(4):
+        for y in range(8):
+            picture.putpixel((x, y), (255, 0, 0, 255))          # the left half pure red
+    buffer = io.BytesIO()
+    picture.save(buffer, "PNG")
+    pictures = {"https://pbs.twimg.com/profile_images/1/red.png": buffer.getvalue(), "https://pbs.twimg.com/profile_images/1/broken.png": b"not a picture"}
+    fetched = []
+
+    async def fake_bytes(session, url, limit=0):
+        fetched.append(url)
+        return pictures.get(url)
+    kept = news.fetch_bytes
+    news.fetch_bytes = fake_bytes
+    news._colours.clear()
+    try:
+        red = asyncio.run(news.avatar_colour(None, "https://pbs.twimg.com/profile_images/1/red.png"))
+        if red != 0xFF0000:
+            problems.append(f"a half red, half see-through picture averaged to {red:#x}" if red is not None else "a readable picture gave no colour")
+        if asyncio.run(news.avatar_colour(None, "https://pbs.twimg.com/profile_images/1/red.png")) != 0xFF0000 or len(fetched) != 1:
+            problems.append("the same picture was fetched again")
+        if asyncio.run(news.avatar_colour(None, "https://pbs.twimg.com/profile_images/1/broken.png")) is not None \
+                or asyncio.run(news.avatar_colour(None, "https://pbs.twimg.com/profile_images/1/missing.png")) is not None \
+                or asyncio.run(news.avatar_colour(None, "https://evil.example/a.png")) is not None or len(fetched) != 3:
+            problems.append("a picture that is not one, one that cannot be fetched, or one on an untrusted host gave a colour, or the untrusted one was fetched")
+        post = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hi"], colour=0xFF0000)
+        if post.view().children[0].accent_colour != 0xFF0000:
+            problems.append("a post's colour did not become its card's stripe")
+        for url, platform in (("https://x.com/a/status/1", 0x14171A), ("https://bsky.app/profile/p/post/1", 0x1185FE)):
+            if news.Post("maimai", "1", url, "n", parts=["hi"]).view().children[0].accent_colour != platform:
+                problems.append(f"a post without a colour of its own was not given its platform's: {url}")
+    finally:
+        news.fetch_bytes = kept
+        news._colours.clear()
     return problems
 
 
@@ -203,12 +252,12 @@ def _followups():
             problems.append(f"a Japanese-only post came out as {only.parts}")
         if both.follow_up[0] != f"https://x.com/{me}/status/99" or not both.follow_up[1].startswith("first & line second line") or len(both.follow_up[1]) > 140 or "\n" in both.follow_up[1]:
             problems.append(f"the earlier post was quoted as {both.follow_up}")
-        shown = both.embeds()[0].description
+        shown = _card({"view": both.view()})[0][0]
         if not shown.startswith(news.FOLLOW_UP_MARK + f" **Follow-up to [their earlier post](https://x.com/{me}/status/99)**\n> first & line"):
             problems.append(f"the follow-up reads {shown!r}")
         parent_author["name"] = someone
         elsewhere = asyncio.run(build(item(43, f"R to @{me}: odd")))
-        shown = elsewhere.embeds()[0].description
+        shown = _card({"view": elsewhere.view()})[0][0]
         if elsewhere.follow_up != ("", "") or "their earlier post**\n" not in shown or "[" in shown.split("\n")[0]:
             problems.append("an answer whose parent could not be shown as the account's own was not given the plain header")
     finally:
@@ -407,17 +456,17 @@ def _maimai_and_time():
         problems.append("a post claiming to be from the future was believed")
 
     stamp = 1790000000
-    embed = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"], posted_at=stamp).embeds()[0]
-    if embed.description != f"hello\n\n-# [Open on X](https://x.com/a/status/1) · <t:{stamp}:R>" or int(embed.timestamp.timestamp()) != stamp \
-            or embed.footer.text != "X" or embed.colour.value != 0x14171A:
-        problems.append(f"an X post's embed does not end with its link and age, or is not timed and marked as X: {embed.to_dict()}")
-    plain = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"]).embeds()[0]
-    if "<t:" in plain.description or plain.timestamp is not None:
+    card = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"], posted_at=stamp).view()
+    texts, _s, _m, buttons = _card({"view": card})
+    if texts != [f"hello\n-# <t:{stamp}:F> · <t:{stamp}:R>"] or buttons != [("Open on X", "https://x.com/a/status/1")] or card.children[0].accent_colour != 0x14171A:
+        problems.append(f"an X post's card does not end with when it was made, or its button or stripe is not X's: {texts}, {buttons}")
+    plain = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"]).view()})[0][0]
+    if "<t:" in plain:
         problems.append("a post of unknown time was given a time")
-    embed = news.Post("preformai", "at://d/p/1", "https://bsky.app/profile/p/post/1", "n", parts=["hello"], posted_at=stamp).embeds()[0]
-    if "[Open on Bluesky](https://bsky.app/profile/p/post/1)" not in embed.description or embed.footer.text != "Bluesky" or embed.colour.value != 0x1185FE:
-        problems.append(f"a Bluesky post's embed is not marked as Bluesky: {embed.to_dict()}")
-    follow = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["fix"], follow_up=("https://x.com/a/status/0", "line"), posted_at=stamp).embeds()[0].description
+    card = news.Post("preformai", "at://d/p/1", "https://bsky.app/profile/p/post/1", "n", parts=["hello"], posted_at=stamp).view()
+    if _card({"view": card})[3] != [("Open on Bluesky", "https://bsky.app/profile/p/post/1")] or card.children[0].accent_colour != 0x1185FE:
+        problems.append(f"a Bluesky post's card is not marked as Bluesky: {_card({'view': card})[3]}")
+    follow = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["fix"], follow_up=("https://x.com/a/status/0", "line"), posted_at=stamp).view()})[0][0]
     if f"<t:{stamp}:R>" not in follow or not follow.startswith(news.FOLLOW_UP_MARK):
         problems.append("a follow-up lost its time, or its header")
 
@@ -451,19 +500,31 @@ class _Webhook:
     """Stands in for a Discord webhook: records what is sent, or fails the way a given scenario says."""
 
     edits: list = []        # (url, message id, options) of every edit, across all of them
+    files: dict = {}        # the attachments each message was sent with, by id, as fetch_message gives them back
     made = 1000
 
     def __init__(self, url, sent, behave):
         self.url, self.sent, self.behave = url, sent, behave
 
+    async def fetch_message(self, message_id):
+        import discord
+        if self.behave(self.url, {"edit": message_id}) == "deleted":
+            raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
+        return type("Message", (), {"attachments": _Webhook.files.get(message_id, [])})()
+
     async def edit_message(self, message_id, **options):
         import discord
+        # an edit clears the text and embeds a message had before cards, which discord.py needs stated to put a card on it
+        if options.get("content") is not None or options.get("embeds") or "view" not in options:
+            raise TypeError("an edit puts a card on the message with its content and embeds cleared")
         if self.behave(self.url, {"edit": message_id}) == "deleted":
             raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
         _Webhook.edits.append((self.url, message_id, options))
 
     async def send(self, **options):
         import discord
+        if "content" in options or "embeds" in options or "view" not in options:
+            raise TypeError("a card goes out as a view, without content or embeds")
         outcome = self.behave(self.url, options)
         answers = {"gone": (discord.NotFound, 404, {"code": 10015, "message": "Unknown Webhook"}), "denied": (discord.Forbidden, 403, {"code": 50013, "message": "Missing Permissions"}),
                    "edge403": (discord.Forbidden, 403, "<html>Cloudflare</html>"), "edge404": (discord.NotFound, 404, "<html>not here</html>"),
@@ -482,6 +543,7 @@ class _Webhook:
             await asyncio.sleep(1)
         self.sent.append((self.url, options))
         _Webhook.made += 1          # message ids are unique across every send, as Discord's are
+        _Webhook.files[_Webhook.made] = [type("Attachment", (), {"filename": file.filename})() for file in options.get("files", [])]
         return type("Message", (), {"id": _Webhook.made})()
 
 
@@ -539,16 +601,35 @@ def _delivery():
                     problems.append("the post was not sent under the source's name and picture")
                 if options["allowed_mentions"].to_dict() != {"parse": []}:
                     problems.append("a post could ping somebody")
-                if [file.filename for file in options["files"]] != ["image_1.png", "video_1.mp4"]:
+                if [file.filename for file in options["files"]] != ["1_image_1.png", "1_video_1.mp4"]:
                     problems.append(f"attachments were {[file.filename for file in options['files']]}")
+                texts, _s, media, _b = _card(options)
+                if media != ["attachment://1_image_1.png", "attachment://1_video_1.mp4"] or any("on Bluesky" in text or "did not fit" in text for text in texts):
+                    problems.append(f"the card does not show the attachments in its gallery, or says its media is elsewhere: {media}, {texts}")
+            # two pictures: one gallery of both, in the post's order; a thread of two posts with one each: a gallery under each, the files named apart
+            pair = news.Post("preformai", "at://x/y/3", "https://bsky.app/profile/p/post/3", "n", parts=["two"], images=[f"{news.IMG_CDN}/d/a", f"{news.IMG_CDN}/d/b"])
+            pair.thread = [news.Post("preformai", "at://x/y/4", "https://bsky.app/profile/p/post/4", "n", parts=["three"], images=[f"{news.IMG_CDN}/d/c"])]
+            with _webhooks() as sent:
+                asyncio.run(watch._deliver("c1", URL + "1", pair, asyncio.run(watch._files(pair))))
+                order = [type(item).__name__ for item in sent[0][1]["view"].children[0].children] if sent else []
+                galleries = [[entry.media.url for entry in item.items] for item in sent[0][1]["view"].children[0].children if type(item).__name__ == "MediaGallery"] if sent else []
+                if galleries != [["attachment://3_image_1.png", "attachment://3_image_2.png"], ["attachment://4_image_1.png"]] \
+                        or order != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery"]:
+                    problems.append(f"a thread's pictures did not come out as one gallery under each post, named apart: {galleries}, {order}")
             # a source nobody follows is sent nowhere
             with _webhooks() as sent:
                 if asyncio.run(run(news.Post("laundromai", "1", "https://x.com/l/status/1", "L", parts=["t"]))) != 0 or sent:
                     problems.append("a source nobody follows was sent somewhere")
-            # too big for the server: the text and link still go
+            # too big for the server: the text still goes, without a gallery, and says so
             with _webhooks(lambda url, options: "big" if "files" in options else None) as sent:
-                if asyncio.run(run(post)) != 2 or any("files" in options for _, options in sent) or len(sent) != 2:
-                    problems.append("a 413 did not fall back to sending without the attachments")
+                if asyncio.run(run(post)) != 2 or any("files" in options for _, options in sent) or len(sent) != 2 \
+                        or any(_card(options)[2] or "The pictures did not fit here" not in _card(options)[0][0] for _, options in sent):
+                    problems.append("a 413 did not fall back to sending without the attachments, or the card still shows a gallery or does not say so")
+            # a video that could not be attached: the card says where it is
+            with _webhooks() as sent:
+                asyncio.run(watch._deliver("c1", URL + "1", news.Post("preformai", "at://x/y/2", "https://bsky.app/profile/p/post/2", "n", parts=["t"], wanted_video=True), []))
+                if len(sent) != 1 or not _card(sent[0][1])[0][0].endswith("-# The video is on Bluesky"):
+                    problems.append("a post whose video could not be attached does not say where the video is")
             # one webhook deleted: only that channel loses its subscriptions, the other still gets the post
             with _webhooks(lambda url, options: "gone" if url.endswith("1") else None) as sent:
                 if asyncio.run(run(post)) != 1 or [url for url, _ in sent] != [URL + "2"]:
@@ -933,13 +1014,13 @@ def _mentions():
         problems.append(f"the mentions allowed on a send are {NO_MENTIONS.to_dict()}")
     attack = "@everyone @EVERYONE @here <@123> <@!456> <@&789> hi <#42>"
     for parts, video in (([attack], False), ([attack, attack], True)):
-        content = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=parts, wanted_video=video).embeds()[0].description
+        content = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=parts, wanted_video=video).view()})[0][0]
         if "@everyone" in content.lower() or "@here" in content.lower() or "<@" in content or "<#" in content:
             problems.append(f"a ping form survived in {content!r}")
         if content.replace(chr(0x200B), "").lower().count("@everyone") != 2 * len(parts) or "[user]" not in content or "[role]" not in content:
             problems.append(f"the post's own words were not kept readable: {content!r}")
 
-    quoted = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=["fix"], follow_up=("https://x.com/a/status/0", attack)).embeds()[0].description
+    quoted = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=["fix"], follow_up=("https://x.com/a/status/0", attack)).view()})[0][0]
     if "@everyone" in quoted.lower() or "@here" in quoted.lower() or "<@" in quoted:
         problems.append(f"a ping in the post being answered survived in the quote: {quoted!r}")
 
@@ -950,7 +1031,7 @@ def _mentions():
         asyncio.run(watch._deliver("c", URL, post, []))
     if len(sent) != 2 or any(o.get("allowed_mentions") is None or o["allowed_mentions"].to_dict() != {"parse": []} for _u, o in sent):
         problems.append("a webhook send, with or without attachments, did not forbid every mention")
-    if any("@everyone" in e.description.lower() or "<@" in e.description for _u, o in sent for e in o["embeds"]):
+    if any("@everyone" in text.lower() or "<@" in text for _u, o in sent for text in _card(o)[0]):
         problems.append("a webhook was sent a raw ping")
     return problems
 
@@ -1509,12 +1590,12 @@ def _review():
         if reached != 3 or len(sent) != 3 or len(db.news_subscribers("maimai")) != 4:
             problems.append(f"one channel's network failure reached {reached} of 4 and left {len(db.news_subscribers('maimai'))} subscribed")
 
-        # too big to attach: the text goes with its link free to draw the preview, as nothing else shows the media
+        # too big to attach: the text goes, saying its pictures did not fit, with its link button still there
         with _webhooks(lambda url, options: "big" if options.get("files") else None) as sent:
             post = news.Post("maimai", "p", "https://x.com/a/status/1", "n", parts=["hi"], images=["https://cdn.bsky.app/a.jpg"])
-            asyncio.run(tasks.NewsWatch()._deliver("c0", URL + "0", post, [("a.png", b"x")]))
-        if len(sent) != 1 or "<https://x.com/a/status/1>" in sent[0][1]["content"] or "https://x.com/a/status/1" not in sent[0][1]["content"]:
-            problems.append("a post sent without its too-big media still hid its link preview")
+            asyncio.run(tasks.NewsWatch()._deliver("c0", URL + "0", post, [("p_image_1.png", b"x")]))
+        if len(sent) != 1 or "files" in sent[0][1] or _card(sent[0][1])[2] or "did not fit" not in _card(sent[0][1])[0][0] or _card(sent[0][1])[3] != [("Open on X", "https://x.com/a/status/1")]:
+            problems.append("a post sent without its too-big media kept a gallery, did not say so, or lost its link button")
 
         # the webhook a send failed on is gone; a newer one the channel moved to in the meantime stays
         db.add_news_subscription("g", "m", "maimai", URL + "old")
@@ -1602,8 +1683,8 @@ def _disguises():
     problems = []
     disguised = "[x.com/maimai_official](https://evil.example)"
     post = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=[disguised], follow_up=("https://x.com/a/status/0", disguised))
-    shown = post.embeds()[0].description
-    if "](" in shown.replace("[their earlier post](https://x.com/a/status/0)", "").replace("[Open on X](https://x.com/a/status/1)", ""):
+    shown = _card({"view": post.view()})[0][0]
+    if "](" in shown.replace("[their earlier post](https://x.com/a/status/0)", ""):
         problems.append(f"a masked link in a post or in the post it answers still draws as a link: {shown!r}")
     if "[their earlier post](https://x.com/a/status/0)" not in shown or shown.replace(news.ZWSP, "").count(disguised) != 2:
         problems.append(f"the follow-up's own link or the post's words were lost: {shown!r}")
@@ -1686,8 +1767,8 @@ def _scale():
                 tasks.UPLOAD_BUDGET = 20
                 reached, sent, _a, _t = publish(post, lambda n, tries: None)
                 tasks.UPLOAD_BUDGET = kept[5]
-                if reached != 2 or any("files" in options or "<https://x.com/a/status/1>" in options["content"] for _u, options in sent):
-                    problems.append("media over the upload budget was still attached to every channel, or its link was not left to unfurl")
+                if reached != 2 or any("files" in options or "on X" not in _card(options)[0][0] or _card(options)[2] for _u, options in sent):
+                    problems.append("media over the upload budget was still attached to every channel, or the card does not say where it is")
 
             # one send failing in a way nobody foresaw does not stop the rest, and the post counts as sent where it arrived
             with _scratch():
@@ -2447,17 +2528,17 @@ def _maimai_choice():
     return problems
 
 
-@check("a post fits an embed's 4096 characters however many pings are made inert in it, a feed's pictures and a record's blobs can only point at the places trusted, and a dead webhook's token counts as gone")
+@check("a post fits a card's 4000 characters however many pings are made inert in it, a feed's pictures and a record's blobs can only point at the places trusted, and a dead webhook's token counts as gone")
 def _limits():
     from rasmai.bot.tasks import news as tasks
     from rasmai.scraping import news
     problems = []
     quote = "q" * 140
     post = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["@everyone " * 800], posted_at=1_800_000_000, follow_up=("https://x.com/a/status/0", quote))
-    text = post.embeds()[0].description
-    if len(text) > news.EMBED_ROOM or "@everyone" in text.replace("@" + news.ZWSP + "everyone", "") or "…" not in text or not text.endswith(":R>"):
-        problems.append(f"a long post of pings came out {len(text)} characters, with a live ping, uncut, or without its link: {text[-80:]!r}")
-    short = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).embeds()[0].description
+    text = _card({"view": post.view()})[0][0]
+    if len(text) > news.TEXT_ROOM or "@everyone" in text.replace("@" + news.ZWSP + "everyone", "") or "…" not in text or not text.endswith(":R>"):
+        problems.append(f"a long post of pings came out {len(text)} characters, with a live ping, uncut, or without its time: {text[-80:]!r}")
+    short = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).view()})[0][0]
     if "hello" not in short or "…" in short:
         problems.append(f"a short post was cut: {short!r}")
     for blob in ("../../x", "abc?d=1", "a/b", 5, None, ""):
@@ -2764,12 +2845,11 @@ def _edits():
             done = sorted((url[-1], str(message)) for url, message, _ in _Webhook.edits)
             if done != [("1", ids[0]), ("2", ids[1])] and done != [("1", ids[1]), ("2", ids[0])]:
                 problems.append(f"the X edit changed {done}, not both channels' messages")
-            if sent_now and (sent_now[0][1]["content"] != "" or len(sent_now[0][1]["embeds"]) != 1 or said not in sent_now[0][1]["embeds"][0].description):
-                problems.append("a post did not go out as one embed with nothing in the message itself")
-            edited_embeds = _Webhook.edits[0][2]["embeds"] if _Webhook.edits else []
-            if _Webhook.edits and (len(edited_embeds) != 1 or "7:00" not in edited_embeds[0].description or _Webhook.edits[0][2]["content"] != ""
-                                   or f"<t:{news.tweet_time(first)}:R>" not in edited_embeds[0].description):
-                problems.append("the edited message does not say the new words in one embed, or is no longer dated when the post was first made")
+            if sent_now and (len(_card(sent_now[0][1])[0]) != 1 or said not in _card(sent_now[0][1])[0][0]):
+                problems.append("a post did not go out as one card with one section")
+            edited = _card(_Webhook.edits[0][2])[0] if _Webhook.edits else []
+            if _Webhook.edits and (len(edited) != 1 or "7:00" not in edited[0] or f"<t:{news.tweet_time(first)}:R>" not in edited[0] or _Webhook.edits[0][2]["attachments"] != []):
+                problems.append("the edited message does not say the new words in one section, is no longer dated when the post was first made, or its attachments were not kept as they were")
             if _Webhook.edits and _Webhook.edits[0][2]["allowed_mentions"].to_dict() != {"parse": []}:
                 problems.append("an edit could ping somebody")
 
@@ -2806,8 +2886,60 @@ def _edits():
             with _webhooks() as sent_now:
                 if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/2", wait=False)) != 1 or sent_now:
                     problems.append("an edit of a reply in a sent Bluesky thread did not edit the message it went out in")
-            if _Webhook.edits and "fixed words" not in _Webhook.edits[0][2]["embeds"][0].description:
+            if _Webhook.edits and "fixed words" not in _card(_Webhook.edits[0][2])[0][0]:
                 problems.append("the Bluesky edit did not rebuild the thread as it reads now")
+            # a message sent with pictures keeps them through an edit: they are listed to keep, and the new card's gallery names them again
+            async def fake_bytes(session, url, limit=0):
+                return b"\x89PNG" + b"0" * 10
+            kept_bytes, news.fetch_bytes = news.fetch_bytes, fake_bytes
+            try:
+                with _webhooks():
+                    shot = news.Post("maimai", "s1", "https://x.com/a/status/9", "n", parts=["shot"], images=[f"{news.IMG_CDN}/d/a"])
+                    asyncio.run(watch.publish(shot))
+            finally:
+                news.fetch_bytes = kept_bytes
+            _Webhook.edits.clear()
+            with _webhooks():
+                asyncio.run(watch.revise("maimai", "s1", news.Post("maimai", "s1", "https://x.com/a/status/9", "n", parts=["shot, fixed"])))
+            kept_files = [[a.filename for a in options["attachments"]] for _u, _m, options in _Webhook.edits]
+            if len(_Webhook.edits) != 2 or any(names != ["s1_image_1.png"] for names in kept_files) \
+                    or any(_card(options)[2] != ["attachment://s1_image_1.png"] for _u, _m, options in _Webhook.edits):
+                problems.append(f"an edit did not keep the message's pictures and show them in the card again: {kept_files}")
+            # an answer in a thread, sent with a picture, is edited within the hour and gets a new id, larger than the post after it:
+            # it keeps its place and its picture stays under its own section, and so through a second edit
+            root_id, answer_id, last_id, fixed_id, again_id = (made(s, 7) for s in (400, 350, 300, 100, 50))
+            kept_bytes, news.fetch_bytes = news.fetch_bytes, fake_bytes
+            try:
+                with _webhooks():
+                    answer = news.Post("maimai", answer_id, f"https://x.com/a/status/{answer_id}", "n", parts=["answer"], images=[f"{news.IMG_CDN}/d/a"])
+                    last = news.Post("maimai", last_id, f"https://x.com/a/status/{last_id}", "n", parts=["last"])
+                    asyncio.run(watch.publish(news.Post("maimai", root_id, f"https://x.com/a/status/{root_id}", "n", parts=["root"],
+                                                        covers=[root_id, answer_id, last_id], thread=[answer, last])))
+            finally:
+                news.fetch_bytes = kept_bytes
+            for was, now, words in ((answer_id, fixed_id, "answer, fixed"), (fixed_id, again_id, "answer, fixed again")):
+                _Webhook.edits.clear()
+                feed_now = [item(now, words), item(root_id, "root"), item(last_id, "last"), older]
+                with _webhooks():
+                    asyncio.run(watch.x_edit(source, item(now, words), "", was, root_id, feed_now))
+                shapes = [[type(child).__name__ for child in options["view"].children[0].children] for _u, _m, options in _Webhook.edits]
+                texts = [_card(options)[0] for _u, _m, options in _Webhook.edits]
+                if len(_Webhook.edits) != 2 or any(shape != ["Section", "Separator", "Section", "MediaGallery", "Separator", "Section"] for shape in shapes)                         or any(not (t[0].startswith("root") and t[1].startswith(words) and t[2].startswith("last")) for t in texts)                         or any(_card(options)[2] != [f"attachment://{answer_id}_image_1.png"] for _u, _m, options in _Webhook.edits):
+                    problems.append(f"an answer edited under a new id ({words!r}) lost its place in the thread or its picture: {shapes}")
+            # a thread whose second post's video was not fetched says so, as a card has no link for Discord to preview
+            with _webhooks() as sent_now:
+                lost = news.Post("maimai", "v2", "https://x.com/a/status/2", "n", parts=["second"], wanted_video=True)
+                asyncio.run(watch._deliver("c1", URL + "1", news.Post("maimai", "v1", "https://x.com/a/status/1", "n", parts=["first"], thread=[lost]), []))
+            if not sent_now or "The video is on X" not in _card(sent_now[0][1])[0][0]:
+                problems.append("a thread whose later post's video was not fetched did not say where the video is")
+            # a message sent before cards named its files plainly: they are the first post's
+            for _channel, message, _unfurl in db.news_sent_messages("maimai", "s1"):
+                _Webhook.files[int(message)] = [type("Attachment", (), {"filename": "image_1.png"})()]
+            _Webhook.edits.clear()
+            with _webhooks():
+                asyncio.run(watch.revise("maimai", "s1", news.Post("maimai", "s1", "https://x.com/a/status/9", "n", parts=["shot, again"])))
+            if len(_Webhook.edits) != 2 or any(_card(options)[2] != ["attachment://image_1.png"] for _u, _m, options in _Webhook.edits):
+                problems.append("a plainly named picture from before cards was not given to the first post")
             with _webhooks() as sent_now:
                 if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/9", wait=False)) != 0 or sent_now:
                     problems.append("an edit of a Bluesky post that was never sent did something")
@@ -2887,10 +3019,11 @@ def _folds():
                 asyncio.run(watch.poll(source))
             if sent or len(_Webhook.edits) != 2:
                 problems.append(f"an X answer to a sent post made {len(sent)} posts and {len(_Webhook.edits)} edits, not two edits")
-            elif not all(len(o["embeds"]) == 2 and "Thursday" in o["embeds"][0].description and "Correction" in o["embeds"][1].description and o["content"] == ""
+            elif not all(len(_card(o)[0]) == 2 and "Thursday" in _card(o)[0][0] and "Correction" in _card(o)[0][1] and _card(o)[1] == 1
+                         and _card(o)[3] == [("Open on X", root.link), ("2", f"https://n/{source.handle}/status/{answer}")]
                          for _u, _m, o in _Webhook.edits):
-                problems.append("the message does not carry the post and then the answer as two embeds")
-            elif _Webhook.edits[0][2]["embeds"][1].description.startswith(news.FOLLOW_UP_MARK):
+                problems.append("the message does not carry the post and then the answer as two sections with a line between and a button each")
+            elif _card(_Webhook.edits[0][2])[0][1].startswith(news.FOLLOW_UP_MARK):
                 problems.append("an answer folded into its thread still carries the follow-up head")
 
             # an answer to that answer joins the same message
@@ -2898,21 +3031,21 @@ def _folds():
             feed["items"] = [item(again, "And the Re:MASTER charts come a week later.", reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            shown = [e.description for e in _Webhook.edits[0][2]["embeds"]] if _Webhook.edits else []
+            shown = _card(_Webhook.edits[0][2])[0] if _Webhook.edits else []
             if sent or len(_Webhook.edits) != 2 or len(shown) != 3 or "Re:MASTER" not in shown[2] or "Correction" not in shown[1]:
                 problems.append(f"an answer to the answer did not join the same message after everything before it: {shown}")
 
-            # a long answer still fits; the next would take the message past what its embeds may hold together, so it is a post of its own
+            # a long answer still fits; the next would take the message past what its texts may hold together, so it is a post of its own
             _Webhook.edits.clear()
-            feed["items"] = [item(long_one, "Details. " * 350, reply=True)] + feed["items"]
+            feed["items"] = [item(long_one, "Details. " * 250, reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            if sent or len(_Webhook.edits) != 2 or len(_Webhook.edits[0][2]["embeds"]) != 4:
+            if sent or len(_Webhook.edits) != 2 or len(_card(_Webhook.edits[0][2])[0]) != 4:
                 problems.append("a long answer that still fits the message did not join it")
             _Webhook.edits.clear()
             longer = made(45)
             parents[longer] = long_one
-            feed["items"] = [item(longer, "More details. " * 250, reply=True)] + feed["items"]
+            feed["items"] = [item(longer, "More details. " * 150, reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
             if len(sent) != 2 or _Webhook.edits:
@@ -2940,9 +3073,9 @@ def _folds():
             record = {"text": "Doors open at 18:00.", "reply": {"root": {"uri": uri(1)}, "parent": {"uri": uri(1)}}}
             with _webhooks() as sent:
                 asyncio.run(watch.bluesky_post(bluesky, record, uri(2), wait=False))
-            shown = [e.description for e in _Webhook.edits[0][2]["embeds"]] if _Webhook.edits else []
+            shown = _card(_Webhook.edits[0][2])[0] if _Webhook.edits else []
             if sent or len(_Webhook.edits) != 1 or len(shown) != 2 or "Preformai night" not in shown[0] or "Doors open" not in shown[1]:
-                problems.append(f"a Bluesky reply to a sent post did not join its message as a second embed: {shown}")
+                problems.append(f"a Bluesky reply to a sent post did not join its message as a second section: {shown}")
             if db.news_unseen("preformai", [uri(2)]):
                 problems.append("the Bluesky reply added to a message was not marked seen, so it would be sent later too")
             if db.news_sent_root("preformai", uri(2)) != uri(1):
@@ -3002,11 +3135,11 @@ def _gaps():
             feed["items"] = [item(four, "Good luck to everyone! (4/4)", reply=True), item(three, texts[three], reply=True), root, older]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            shown = [e.description for e in _Webhook.edits[-1][2]["embeds"]] if _Webhook.edits else []
+            shown, _s, _m, buttons = _card(_Webhook.edits[-1][2]) if _Webhook.edits else ([], 0, [], [])
             if sent or len(shown) != 4 or any(f"({n}/4)" not in shown[n - 1] for n in range(1, 5)):
-                problems.append(f"the thread was not rebuilt as four embeds in order: {len(sent)} sent, {shown}")
-            if len(shown) == 4 and (not shown[1].startswith("English: here are the qualifier songs (2/4)\n\nオンライン予選") or "[Open on X](https://x.com/kop_sega/status/" + two + ")" not in shown[1]):
-                problems.append(f"the hidden post was not built from the syndication text with its translation and link: {shown[1]!r}")
+                problems.append(f"the thread was not rebuilt as four sections in order: {len(sent)} sent, {shown}")
+            if len(shown) == 4 and (not shown[1].startswith("English: here are the qualifier songs (2/4)\n\nオンライン予選") or buttons[1] != ("2", "https://x.com/kop_sega/status/" + two)):
+                problems.append(f"the hidden post was not built from the syndication text with its translation and link: {shown[1]!r}, {buttons}")
             if db.news_sent_root("kop", two) != one or db.news_sent_root("kop", four) != one or db.news_unseen("kop", [two]):
                 problems.append("the hidden post is not recorded under the root as sent and seen, so it would be sent on its own if it turned up")
             # and when it does turn up, nothing is posted
@@ -3023,7 +3156,7 @@ def _gaps():
             feed["items"] = [item(nine, "Deep in a thread.", reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            if len(sent) != 1 or _Webhook.edits or not sent[0][1]["embeds"][0].description.startswith(news.FOLLOW_UP_MARK) or sent[0][1]["content"] != "":
+            if len(sent) != 1 or _Webhook.edits or not _card(sent[0][1])[0][0].startswith(news.FOLLOW_UP_MARK):
                 problems.append(f"an answer five posts below the sent one was not sent as a follow-up post of its own: {len(sent)} sent, {len(_Webhook.edits)} edits")
             if db.news_sent_root("kop", eight) is not None:
                 problems.append("a post on a chain that reached nothing sent was recorded as sent")
@@ -3032,28 +3165,67 @@ def _gaps():
             big, bigger = made(50), made(40)
             parents.update({big: four, bigger: big})
             _Webhook.edits.clear()
-            feed["items"] = [item(big, "Details. " * 300, reply=True)] + feed["items"]
+            feed["items"] = [item(big, "Details. " * 200, reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            if sent or len(_Webhook.edits) != 1 or len(_Webhook.edits[0][2]["embeds"]) != 5:
+            if sent or len(_Webhook.edits) != 1 or len(_card(_Webhook.edits[0][2])[0]) != 5:
                 problems.append("a long answer that still fits did not join the thread")
             _Webhook.edits.clear()
-            feed["items"] = [item(bigger, "More. " * 500, reply=True)] + feed["items"]
+            feed["items"] = [item(bigger, "More. " * 400, reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            if len(sent) != 1 or _Webhook.edits or not sent[0][1]["embeds"][0].description.startswith(news.FOLLOW_UP_MARK):
-                problems.append("an answer that would take the thread past 6000 characters was not sent as a follow-up post of its own")
+            if len(sent) != 1 or _Webhook.edits or not _card(sent[0][1])[0][0].startswith(news.FOLLOW_UP_MARK):
+                problems.append("an answer that would take the thread past 4000 characters was not sent as a follow-up post of its own")
     finally:
         news.fetch_feed, news.syndication_above, news.syndication_tweet, news.translate = kept
         _Webhook.edits = []
 
-    # the limits themselves: ten embeds, 6000 characters between them, each description within 4096
-    post = news.Post("kop", "1", "https://x.com/k/status/1", "n", parts=["p1"], thread=[news.Post("kop", str(n), f"https://x.com/k/status/{n}", "n", parts=[f"p{n}"]) for n in range(2, 14)])
-    embeds = post.embeds()
-    if len(embeds) != 10 or post.fits() or [e.description.split("\n")[0] for e in embeds] != [f"p{n}" for n in range(1, 11)]:
-        problems.append(f"a thread of thirteen posts gave {len(embeds)} embeds, or was said to fit")
+    # the limits themselves: eight posts, 4000 characters of text between them, 40 components in all with a gallery under every post
+    post = news.Post("kop", "1", "https://x.com/k/status/1", "n", parts=["p1"], images=["https://pbs.twimg.com/a.jpg"],
+                     thread=[news.Post("kop", str(n), f"https://x.com/k/status/{n}", "n", parts=[f"p{n}"], images=["https://pbs.twimg.com/a.jpg"]) for n in range(2, 14)])
+    view = post.view([f"{n}_image_1.jpg" for n in range(1, 14)])
+    texts, separators, media, buttons = _card({"view": view})
+    if len(texts) != 8 or post.fits() or [text.split("\n")[0] for text in texts] != [f"p{n}" for n in range(1, 9)] or separators != 7 or len(media) != 8 \
+            or [label for label, _url in buttons] != ["Open on X"] + [str(n) for n in range(2, 9)] or view._total_children > 40:
+        problems.append(f"a thread of thirteen posts gave {len(texts)} sections, {separators} lines, {len(media)} pictures and {view._total_children} components, or was said to fit")
     post.thread = [news.Post("kop", "2", "https://x.com/k/status/2", "n", parts=["x" * 3000])] * 2
-    embeds = post.embeds()
-    if post.fits() or sum(len(e) for e in embeds) > news.EMBEDS_ROOM or len(embeds) != 3 or not embeds[2].description.startswith("x"):
-        problems.append(f"a thread past 6000 characters gave {len(embeds)} embeds of {sum(len(e) for e in embeds)} characters, or was said to fit")
+    texts = _card({"view": post.view()})[0]
+    if post.fits() or sum(len(text) for text in texts) > news.TEXT_ROOM or len(texts) != 3 or not texts[2].startswith("x") or not texts[2].endswith("…"):
+        problems.append(f"a thread past 4000 characters gave {len(texts)} sections of {sum(len(text) for text in texts)} characters, or was said to fit")
+    return problems
+
+
+@check("a sent post keeps the id it was sent under through X edits, in a database from before that was kept as well")
+def _sent_as():
+    import pathlib
+    import sqlite3
+    import tempfile
+    from rasmai.storage import db
+    from rasmai.storage.db import connection as store
+
+    problems = []
+    path = pathlib.Path(tempfile.mkdtemp()) / "old.sqlite3"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE news_posted (source TEXT NOT NULL, post_id TEXT NOT NULL, root TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', "
+                "sent_at TEXT NOT NULL, PRIMARY KEY (source, post_id))")
+    old.execute("INSERT INTO news_posted VALUES ('maimai', '20', '10', 'b', '2999-01-01'), ('maimai', '10', '10', 'a', '2999-01-01')")
+    old.commit()
+    old.close()
+    was, store.DATABASE_PATH = store.DATABASE_PATH, path
+    store._database_ready = False
+    try:
+        if db.news_sent_thread("maimai", "10") != [("10", "10"), ("20", "20")]:
+            problems.append(f"rows from before the column read as {db.news_sent_thread('maimai', '10')}")
+        db.news_sent_moved("maimai", "10", "99", "a2")
+        db.news_sent_moved("maimai", "99", "150", "a3")
+        if db.news_sent_thread("maimai", "10") != [("150", "10"), ("20", "20")]:
+            problems.append(f"a post edited twice did not keep the id it was sent under, or its place: {db.news_sent_thread('maimai', '10')}")
+        db.news_sent_save("maimai", "30", ["30", "31"], "c", [])
+        if db.news_sent_thread("maimai", "30") != [("30", "30"), ("31", "31")]:
+            problems.append("a post saved now was not recorded under its own id")
+        store._database_ready = False
+        store.get_database_connection().close()      # a second start finds the column already there
+    finally:
+        store.DATABASE_PATH = was
+        store._database_ready = False
     return problems

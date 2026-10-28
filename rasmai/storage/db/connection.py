@@ -226,10 +226,16 @@ def get_database_connection() -> sqlite3.Connection:
                         root    TEXT NOT NULL,
                         body    TEXT NOT NULL DEFAULT '',
                         sent_at TEXT NOT NULL,
+                        sent_as TEXT NOT NULL DEFAULT '',      -- the id it was sent under, which an X edit's new id does not replace
                         PRIMARY KEY (source, post_id)
                     )
                     """
                 )
+                try:
+                    setup.execute("ALTER TABLE news_posted ADD COLUMN sent_as TEXT NOT NULL DEFAULT ''")
+                except sqlite3.OperationalError as error:
+                    if "duplicate column" not in str(error):
+                        raise
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS news_messages (   -- the Discord message a sent post became in each channel, so it can be edited with it

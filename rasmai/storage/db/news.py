@@ -316,8 +316,8 @@ def news_sent_save(source: str, root: str, post_ids: Iterable[str], body: str, m
     connection = get_database_connection()
     try:
         with connection:
-            connection.executemany("INSERT OR REPLACE INTO news_posted (source, post_id, root, body, sent_at) VALUES (?, ?, ?, ?, ?)",
-                                   [(source, str(i), root, body, now.isoformat()) for i in post_ids if i])
+            connection.executemany("INSERT OR REPLACE INTO news_posted (source, post_id, root, body, sent_at, sent_as) VALUES (?, ?, ?, ?, ?, ?)",
+                                   [(source, str(i), root, body, now.isoformat(), str(i)) for i in post_ids if i])
             connection.executemany("INSERT OR REPLACE INTO news_messages (source, root, channel_id, message_id, unfurl, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
                                    [(source, root, channel_id, message_id, int(unfurl), now.isoformat()) for channel_id, message_id, unfurl in messages])
             since = (now - SENT_KEPT).isoformat()
@@ -346,12 +346,26 @@ def news_sent_recent(source: str) -> List[Tuple[str, str, str]]:
         connection.close()
 
 
+def news_sent_thread(source: str, root: str) -> List[Tuple[str, str]]:
+    """The posts sent under a root as ``(post, the id it was sent under)``, in the order they were sent: an edit's new id keeps its place."""
+    connection = get_database_connection()
+    try:
+        rows = connection.execute("SELECT post_id, sent_as FROM news_posted WHERE source = ? AND root = ?", (source, root)).fetchall()
+    finally:
+        connection.close()
+    # a row from before the column was added says nothing, and its id is the one it was sent under, as it was never edited since
+    pairs = [(row[0], row[1] or row[0]) for row in rows]
+    return sorted(pairs, key=lambda pair: int(pair[1]) if pair[1].isdigit() else 0)
+
+
 def news_sent_moved(source: str, old_id: str, new_id: str, body: str) -> None:
     """An X edit is a new post: it takes the place of the one it replaces, under the same root, so a second edit finds it."""
     connection = get_database_connection()
     try:
         with connection:
-            connection.execute("UPDATE news_posted SET post_id = ?, body = ? WHERE source = ? AND post_id = ?", (new_id, body, source, old_id))
+            # the id it was sent under stays; a row saved before that was kept takes the id it had until now, which is the same thing
+            connection.execute("UPDATE news_posted SET post_id = ?, body = ?, sent_as = CASE WHEN sent_as = '' THEN post_id ELSE sent_as END "
+                               "WHERE source = ? AND post_id = ?", (new_id, body, source, old_id))
     finally:
         connection.close()
 

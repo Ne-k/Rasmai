@@ -9,7 +9,7 @@ from rasmai.storage.db.accounts import (
 from rasmai.storage.db.news import (
     add_news_subscription, replace_channel_webhook, news_webhook, news_subscribers, channel_sources, news_subscription_count,
     remove_news_subscription, remove_channel_webhook, remove_unknown_news_sources, remove_guild_news, guild_news, news_channel_filters, guild_maimai_only, set_channel_maimai_only, add_news_source, news_sources, followed_news_source_count, followed_news_keys, news_seen_any, news_unseen, news_copy_sent, news_copy_seen, news_mark_seen, jetstream_alive, save_jetstream_alive,
-    news_sent_save, news_sent_root, news_sent_recent, news_sent_moved, news_sent_messages, news_message_gone,
+    news_sent_save, news_sent_root, news_sent_recent, news_sent_thread, news_sent_moved, news_sent_messages, news_message_gone,
 )
 from rasmai.storage.db.areas import record_area_progress, stored_area_images, load_area_progress
 from rasmai.storage.db.scores import (

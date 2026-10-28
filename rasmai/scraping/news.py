@@ -6,6 +6,7 @@ from urllib.parse import quote, unquote, urljoin, urlparse
 import asyncio
 import difflib
 import html
+import io
 import logging
 import os
 import re
@@ -83,10 +84,13 @@ _translate_paused_until = 0.0        # Google's free endpoint throttles; after a
 FOLLOW_UP_MARK = chr(0x21A9) + chr(0xFE0F)      # the return arrow as an emoji, spelled out so no invisible character sits in the source
 
 
-EMBED_ROOM = 4096           # characters an embed's description may hold
-EMBEDS_ROOM = 6000          # and a message's embeds together, which Discord counts across all of them
-EMBEDS_MAX = 10             # embeds one message may carry
-COLORS = {"Bluesky": 0x1185FE, "X": 0x14171A}
+TEXT_ROOM = 4000            # characters a message's text displays may hold between them, which Discord counts across all of them
+POSTS_MAX = 8               # posts one message may carry: a message holds 40 components, and each post is a section, its text, its button, a gallery and a separator
+GALLERY_MAX = 10            # pictures and videos a gallery may hold
+PLATFORM_COLOURS = {"Bluesky": 0x1185FE, "X": 0x14171A}
+AVATAR_BYTES = 2 * 1024 * 1024
+COLOURS_KEPT = 64
+_colours: "OrderedDict[str, Optional[int]]" = OrderedDict()      # the average colour of each account picture read, by address; None for one that could not be read
 
 
 @dataclass
@@ -99,35 +103,35 @@ class Post:
     parts: List[str] = field(default_factory=list)
     images: List[str] = field(default_factory=list)
     videos: List[bytes] = field(default_factory=list)
-    wanted_video: bool = False       # it has a video; if none could be attached the link is left to unfurl
+    wanted_video: bool = False       # it has a video; if none could be attached the card says where it is
     follow_up: Optional[Tuple[str, str]] = None      # the account answering its own earlier post: that post's address and its first line
     posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
     about_maimai: bool = True                        # whether it goes to a channel getting only the account's posts about maimai
     covers: List[str] = field(default_factory=list)  # every post it carries, its thread on Bluesky, so an edit of any of them finds it
-    thread: List["Post"] = field(default_factory=list)   # the account's answers to it that go out in the same message, oldest first, each an embed
+    thread: List["Post"] = field(default_factory=list)   # the account's answers to it that go out in the same message, oldest first, each a section
+    colour: int = 0                                  # the card's stripe, the average of the account's picture; 0 for the platform's own
+    # what its attachments are named after, so a thread's files stay apart: its X id or Bluesky record key, or for an X post edited
+    # within the hour, which gets a new id, the id its pictures were sent under
+    tag: str = ""
+
+    def __post_init__(self) -> None:
+        self.tag = self.tag or self.id.rsplit("/", 1)[-1]
 
     @property
     def platform(self) -> str:
         return "Bluesky" if self.url.startswith("https://bsky.app/") else "X"
 
-    def link(self, unfurl: bool = False) -> str:
-        """What the message itself says: nothing, or the bare address when the post's video could not be attached, so Discord draws its preview."""
-        return self.url if unfurl or (self.wanted_video and not self.videos) else ""
+    def text(self, room: int = TEXT_ROOM, head: str = "", note: str = "") -> str:
+        """This one post's text within ``room`` characters: the translation, a blank line, the original, then when it was made, and ``note`` under that.
 
-    def embed(self, room: int = EMBED_ROOM, head: str = "") -> discord.Embed:
-        """This one post as an embed within ``room`` characters: the translation, a blank line, the original, then a line with its link and age.
-
-        Links in an embed draw no preview, which is why the post goes out as one: SEGA's pages drew one each, twice for the same page.
+        Links in a card draw no preview, which is why the post goes out as one: SEGA's pages drew one each, twice for the same page.
         """
-        tail = f"\n\n-# [Open on {self.platform}]({self.url})" + (f" · <t:{self.posted_at}:R>" if self.posted_at else "")
+        tail = (f"\n-# <t:{self.posted_at}:F> · <t:{self.posted_at}:R>" if self.posted_at else "") + (f"\n-# {note}" if note else "")
         body = sanitize(unmask("\n\n".join(p for p in self.parts if p).strip()))
-        room = min(room, EMBED_ROOM) - len(head) - len(tail)
+        room = min(room, TEXT_ROOM) - len(head) - len(tail)
         if len(body) > room:
             body = body[:room - 10].rstrip() + "…"
-        embed = discord.Embed(description=f"{head}{body}{tail}", colour=COLORS[self.platform],
-                              timestamp=datetime.fromtimestamp(self.posted_at, timezone.utc) if self.posted_at else None)
-        embed.set_footer(text=self.platform)
-        return embed
+        return f"{head}{body}{tail}"
 
     def head(self) -> str:
         """The follow-up line a post answering an earlier one starts with, quoting it; "" for any other."""
@@ -136,21 +140,42 @@ class Post:
         earlier, line = self.follow_up[0], sanitize(unmask(self.follow_up[1]))
         return FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post]({earlier})" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
 
-    def embeds(self) -> List[discord.Embed]:
-        """The post and its thread as a message's embeds, one each in order, cut to what one message may carry."""
-        out: List[discord.Embed] = []
-        room = EMBEDS_ROOM
-        for post in [self, *self.thread][:EMBEDS_MAX]:
+    def texts(self, note: str = "") -> List[str]:
+        """The post and its thread as a message's texts, one each in order, cut to what one message may carry; ``note`` goes under the first."""
+        out: List[str] = []
+        room = TEXT_ROOM
+        for post in [self, *self.thread][:POSTS_MAX]:
             if out and room < 200:
                 break       # shortcut: the end of a thread too long for one message is dropped; fits() keeps folds from making one, a whole Bluesky thread could
-            out.append(post.embed(room, self.head() if post is self else ""))
+            out.append(post.text(room, self.head(), note) if post is self else post.text(room))
             room -= len(out[-1])
         return out
 
     def fits(self) -> bool:
-        """Whether the post and its thread go out whole in one message: ten embeds, 6000 characters between them."""
+        """Whether the post and its thread go out whole in one message: eight posts, 4000 characters of text between them."""
         posts = [self, *self.thread]
-        return len(posts) <= EMBEDS_MAX and sum(len(post.embed(head=self.head() if post is self else "")) for post in posts) <= EMBEDS_ROOM
+        return len(posts) <= POSTS_MAX and sum(len(post.text(head=self.head() if post is self else "")) for post in posts) <= TEXT_ROOM
+
+    def view(self, names: List[str] = (), note: str = "") -> discord.ui.LayoutView:
+        """The post and its thread as one card, the look of a status card: a stripe in the account's colour, each post a section with its
+        text and a link button beside it, its own attachments among ``names`` in a gallery under it, and a line between posts.
+        """
+        posts = [self, *self.thread]
+        # a message sent before cards named its files plainly, image_1.png: those are the first post's
+        loose = [name for name in names if not any(name.startswith(post.tag + "_") for post in posts)]
+        card = discord.ui.Container(accent_colour=self.colour or PLATFORM_COLOURS[self.platform])
+        for number, text in enumerate(self.texts(note)):
+            if number:
+                card.add_item(discord.ui.Separator())
+            button = discord.ui.Button(style=discord.ButtonStyle.link, url=posts[number].url,
+                                       **({"label": f"Open on {self.platform}"} if not number else {"emoji": FOLLOW_UP_MARK, "label": str(number + 1)}))
+            card.add_item(discord.ui.Section(discord.ui.TextDisplay(text), accessory=button))
+            mine = [name for name in names if name.startswith(posts[number].tag + "_")] + (loose if not number else [])
+            if mine:
+                card.add_item(discord.ui.MediaGallery(*(discord.MediaGalleryItem(f"attachment://{name}") for name in mine[:GALLERY_MAX])))
+        view = discord.ui.LayoutView(timeout=None)
+        view.add_item(card)
+        return view
 
 
 TWITTER_EPOCH_MS = 1288834974657
@@ -301,6 +326,34 @@ async def fetch_bytes(session: aiohttp.ClientSession, url: str, limit: int = MAX
     return None
 
 
+def _average_colour(data: bytes) -> Optional[int]:
+    """A picture's average colour over its opaque pixels as 0xRRGGBB; None when it is not a picture or all of it is see-through."""
+    from PIL import Image
+    try:
+        with Image.open(io.BytesIO(data)) as picture:
+            pixels = list(picture.convert("RGBA").resize((32, 32)).getdata())
+    except Exception:       # Pillow raises its own kinds, OSError and ValueError over a broken file
+        return None
+    opaque = [(r, g, b) for r, g, b, a in pixels if a > 0]
+    if not opaque:
+        return None
+    r, g, b = (sum(channel) // len(opaque) for channel in zip(*opaque))
+    return (r << 16) | (g << 8) | b
+
+
+async def avatar_colour(session: aiohttp.ClientSession, url: str) -> Optional[int]:
+    """The average colour of an account's picture, for its cards' stripe; None when it cannot be fetched or read. Kept by address."""
+    if not url or not trusted(url):
+        return None
+    if url not in _colours:
+        data = await fetch_bytes(session, url, AVATAR_BYTES)
+        _colours[url] = await asyncio.to_thread(_average_colour, data) if data else None
+        while len(_colours) > COLOURS_KEPT:
+            _colours.popitem(last=False)
+    _colours.move_to_end(url)
+    return _colours[url]
+
+
 async def _get_json(session: aiohttp.ClientSession, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
     try:
         async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as response:
@@ -436,34 +489,38 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
     parts: List[str] = []
     answers: List[Post] = []
     images: List[str] = []
-    playlists: List[str] = []
+    videos: List[bytes] = []
+    wanted_video = False
+    room = 5                # videos fetched for the whole thread: each takes minutes, and a message carries ten files at most
     for post in thread:
         body = post.get("record") or {}
         text = str(body.get("text", "")).strip()
+        more_images, playlists = bluesky_media(body, source.did)
+        # fetching and re-encoding a video takes minutes and holds up every post behind it, so only the built-in accounts' videos are attached
+        more_videos = [data for data in [await video_bytes(url) for url in playlists[:room]] if data] if source.key in SOURCES and media else []
+        room -= len(more_videos)
         if post is not thread[0]:
+            # each post keeps its own pictures, which its card shows under its own text
             answers.append(Post(source.key, str(post.get("uri", "")), f"https://bsky.app/profile/{source.handle}/post/{str(post.get('uri', '')).split('/')[-1]}",
-                                source.label, parts=[text], posted_at=iso_time(str(body.get("createdAt", "")))))
-        elif text:
+                                source.label, parts=[text], images=more_images, videos=more_videos, wanted_video=bool(playlists),
+                                posted_at=iso_time(str(body.get("createdAt", "")))))
+            continue
+        if text:
             parts.append(text)
-        more_images, more_videos = bluesky_media(body, source.did)
-        images += more_images
-        playlists += more_videos
-    images = list(dict.fromkeys(images))
-    playlists = list(dict.fromkeys(playlists))
-    # fetching and re-encoding a video takes minutes and holds up every post behind it, so only the built-in accounts' videos are attached
-    videos = [data for data in [await video_bytes(url) for url in playlists[:5]] if data] if source.key in SOURCES and media else []
+        images, videos, wanted_video = more_images, more_videos, bool(playlists)
     follow_up = None
     if record.get("reply"):
         follow_up = ("", "")
         if above:
             follow_up = (f"https://bsky.app/profile/{source.handle}/post/{str(above.get('uri', '')).split('/')[-1]}",
                          first_line(str((above.get("record") or {}).get("text", ""))))
+    avatar = await bluesky_avatar(session, source.handle)
     post = Post(source.key, uri, f"https://bsky.app/profile/{source.handle}/post/{uri.split('/')[-1]}", source.label,
-                await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up,
+                avatar, parts, images, videos, wanted_video, follow_up,
                 iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))),
                 # the account correcting or continuing a maimai post is about maimai too, whatever the correction says
                 is_maimai("\n".join(parts + [a.parts[0] for a in answers])) or bool(above and is_maimai(str((above.get("record") or {}).get("text", "")))),
-                [p["uri"] for p in thread], answers)
+                [p["uri"] for p in thread], answers, await avatar_colour(session, avatar) or 0)
     return post, post.covers
 
 
@@ -834,7 +891,7 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
     return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
-                tweet_time(item.id), is_maimai(written) or bool(follow_up and is_maimai(follow_up[1])))
+                tweet_time(item.id), is_maimai(written) or bool(follow_up and is_maimai(follow_up[1])), colour=await avatar_colour(session, avatar) or 0)
 
 
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int, maimai_only: Optional[bool] = None) -> List[Post]:

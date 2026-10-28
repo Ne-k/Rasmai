@@ -12,7 +12,7 @@ from rasmai.scraping import news
 from rasmai.scraping.news import Post, SOURCES, Source
 from rasmai.storage.db import (
     followed_news_keys, jetstream_alive, news_channel_filters, news_copy_seen, news_copy_sent, news_mark_seen, news_seen_any, news_sources, news_subscribers, news_unseen, remove_channel_webhook,
-    remove_unknown_news_sources, save_jetstream_alive, news_message_gone, news_sent_messages, news_sent_moved, news_sent_recent, news_sent_root, news_sent_save,
+    remove_unknown_news_sources, save_jetstream_alive, news_message_gone, news_sent_messages, news_sent_moved, news_sent_recent, news_sent_root, news_sent_save, news_sent_thread,
     news_webhook,
 )
 
@@ -388,6 +388,7 @@ class NewsWatch:
         post = await self._x_whole(source, root, items, avatar)
         if post is None:
             post = await news.build_x_post(self.session, source, item, avatar, media=False)
+            post.tag = dict(await asyncio.to_thread(news_sent_thread, source.key, root)).get(item.id, earlier)     # its pictures' name
             post.posted_at = news.tweet_time(root) or post.posted_at       # still dated when it was first posted, as X shows it
         return await self.revise(source.key, root, post)
 
@@ -422,12 +423,13 @@ class NewsWatch:
         """A sent X post and the account's answers to it as one message, oldest first, each an embed: from the feed, or for a post
         the feed no longer shows, from ``texts`` or the syndication endpoint, without its media.
 
-        None when one of them cannot be read from anywhere, or ``adding`` would no longer fit the message.
+        None when one of them cannot be read from anywhere, or ``adding`` would no longer fit the message. A post X edited, which
+        has a new id, keeps its place in the thread and its pictures' names, both by the id it was sent under.
         """
-        covered = [post_id for post_id, under, _body in await asyncio.to_thread(news_sent_recent, source.key) if under == root]
+        sent = dict(await asyncio.to_thread(news_sent_thread, source.key, root))
         found = {item.id: item for item in items}
         texts = texts or {}
-        ids = sorted({*covered, *texts, *([adding] if adding else [])}, key=int)
+        ids = sorted({*sent, *texts, *([adding] if adding else [])}, key=lambda i: int(sent.get(i, i)))
         if not ids:
             return None
         posts = []
@@ -441,6 +443,7 @@ class NewsWatch:
                     words = news.syndication_text(tweet)
                 found[i] = news.FeedItem(i, words, f"https://x.com/{source.handle}/status/{i}", "", False, source.handle)
             posts.append(await news.build_x_post(self.session, source, found[i], avatar, media=False))
+            posts[-1].tag = sent.get(i, i)
         whole = posts[0]
         whole.thread = posts[1:]
         whole.posted_at = news.tweet_time(root) or whole.posted_at       # still dated when it was first posted, as X shows it
@@ -472,13 +475,16 @@ class NewsWatch:
     # ------------------------------------------------------------ sending
 
     async def _files(self, post: Post) -> List[Tuple[str, bytes]]:
-        """The post's pictures, fetched, and its videos, as ``(file name, bytes)``; at most ten, which is all a message may carry."""
+        """The pictures, fetched, and the videos of the post and its thread as ``(file name, bytes)``, each post's in its order and named
+        after it, so the card can show them under the right post; at most ten, which is all a message may carry.
+        """
         files: List[Tuple[str, bytes]] = []
-        for number, url in enumerate(post.images[:10], 1):
-            data = await news.fetch_bytes(self.session, url)
-            if data:
-                files.append((f"image_{number}.{_extension(data)}", data))
-        files += [(f"video_{number}.mp4", data) for number, data in enumerate(post.videos[:5], 1)]
+        for each in [post, *post.thread]:
+            for number, url in enumerate(dict.fromkeys(each.images[:10]), 1):
+                data = await news.fetch_bytes(self.session, url)
+                if data:
+                    files.append((f"{each.tag}_image_{number}.{_extension(data)}", data))
+            files += [(f"{each.tag}_video_{number}.mp4", data) for number, data in enumerate(each.videos[:5], 1)]
         return files[:10]
 
     async def publish(self, post: Post) -> int:
@@ -527,22 +533,23 @@ class NewsWatch:
     async def revise(self, source: str, root: str, post: Post) -> int:
         """Edit every message a sent post became to say what it says now; returns how many were edited.
 
-        shortcut: only the embeds change, its pictures and video stay the message's attachments as sent, outside the embeds, which is
-        what lets an edit leave them be; re-upload them if edits that swap media turn up.
+        The message's pictures and video stay as sent: the edit lists its attachments to keep them, and the new card's gallery names them again.
+        The text and embeds are cleared too, which a message sent as plain text before cards needs before it may take one.
+        shortcut: the note a card carried about its media is not rebuilt on an edit, upgrade if a post's video arrives late
         """
         messages = await asyncio.to_thread(news_sent_messages, source, root)
-        post.wanted_video = False       # whether the link draws its preview was settled when it was sent, and is kept with each message
         gate = asyncio.Semaphore(SEND_AT_ONCE)
 
-        async def one(channel_id: str, message_id: str, unfurl: bool) -> bool:
+        async def one(channel_id: str, message_id: str, _unfurl: bool) -> bool:
             url = await asyncio.to_thread(news_webhook, channel_id)
             if not url:
                 return False
             async with gate:
                 try:
                     webhook = discord.Webhook.from_url(url, session=self.session)
-                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=post.link(unfurl), embeds=post.embeds(), allowed_mentions=NO_MENTIONS),
-                                           SEND_TIMEOUT)
+                    message = await asyncio.wait_for(webhook.fetch_message(int(message_id)), SEND_TIMEOUT)
+                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view([a.filename for a in message.attachments]),
+                                                                attachments=message.attachments, allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
                     return True
                 except (discord.NotFound, ValueError):
                     # the message was deleted, or the channel's webhook replaced since: there is nothing there to edit any more
@@ -588,9 +595,15 @@ class NewsWatch:
             await asyncio.to_thread(remove_channel_webhook, channel_id, url)
             return False
         for attach in ([True, False] if files else [False]):
-            # without its pictures or video the post would show no media at all, so then the link is left to draw its preview
-            unfurled = unfurl or (bool(files) and not attach)
-            options: Dict[str, Any] = {"content": post.link(unfurled), "embeds": post.embeds(), "username": post.username, "allowed_mentions": NO_MENTIONS}
+            # a card carries no link for Discord to preview, so without its media it says where that is
+            if files and not attach:
+                note = "The pictures did not fit here"
+            # any post of the thread: one past the thread's five fetched videos says so too, or it would vanish without a word
+            elif unfurl or any(each.wanted_video and not each.videos for each in [post, *post.thread]):
+                note = f"The {'video is' if any(each.wanted_video for each in [post, *post.thread]) else 'pictures are'} on {post.platform}"
+            else:
+                note = ""
+            options: Dict[str, Any] = {"view": post.view([name for name, _data in files] if attach else [], note), "username": post.username, "allowed_mentions": NO_MENTIONS}
             if post.avatar:
                 options["avatar_url"] = post.avatar
             buffers = [io.BytesIO(data) for _name, data in files] if attach else []
@@ -599,7 +612,7 @@ class NewsWatch:
             try:
                 message = await asyncio.wait_for(webhook.send(**options, wait=True), SEND_TIMEOUT)
                 if kept is not None and message is not None:
-                    kept.append((channel_id, str(message.id), unfurled or (post.wanted_video and not post.videos)))
+                    kept.append((channel_id, str(message.id), False))     # nothing unfurls under a card; the column stays for the messages sent before cards
                 return True
             except discord.HTTPException as error:
                 if error.code in GONE_CODES or (error.status == 403 and error.code):
