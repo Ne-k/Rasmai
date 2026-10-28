@@ -112,7 +112,8 @@ export function useScreen(chart: Chart, audio: Blob | string | null, opts: { cur
 export function Viewer({ maidata, slot, audio, noteSpeed, touchSpeed, label }: { maidata: string; slot: number; audio: string | null; noteSpeed: number; touchSpeed: number; label: string }) {
   const t = useTranslations("play");
   const chart = useMemo(() => buildChart(parseMaidata(maidata), slot), [maidata, slot]);
-  const opts = useRef<View>({ noteSpeed, touchSpeed, showSensors: false, dispJudge: 1, offset: 0, rate: 1, center: "combo", useSkin: true, outline: 17, starPink: false });
+  // the plain circles, not the game's sprites: a chart lookup is a quick look, and the shapes read at any size
+  const opts = useRef<View>({ noteSpeed, touchSpeed, showSensors: false, dispJudge: 1, offset: 0, rate: 1, center: "combo", useSkin: false, outline: 17, starPink: false });
   opts.current = { ...opts.current, noteSpeed, touchSpeed };
   const hooks = useRef<ScreenHooks>({});
   const { canvas, ready, playing, pos, duration, seek, togglePlay } = useScreen(chart, audio, opts, hooks);

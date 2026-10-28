@@ -132,15 +132,15 @@ def _reading():
     if asyncio.run(untrusted()) != (None, None):
         problems.append("a file was fetched from an address that is not trusted")
 
-    post = news.Post("maimai", "1", "https://x.com/maimai_official/status/1", "Maimai Official", parts=["a" * 3000])
-    text = post.content()
-    if len(text) > 2000 or not text.endswith("<https://x.com/maimai_official/status/1>\n\n---"):
-        problems.append("a long post is over Discord's limit or its link is not held back from unfurling")
+    post = news.Post("maimai", "1", "https://x.com/maimai_official/status/1", "Maimai Official", parts=["a" * 5000])
+    embed = post.embeds()[0]
+    if len(embed.description) > news.EMBED_ROOM or not embed.description.endswith("-# [Open on X](https://x.com/maimai_official/status/1)") or post.link():
+        problems.append("a long post is over an embed's limit, its link is not inside the embed, or the message carries a link to unfurl")
     post = news.Post("maimai", "1", "https://x.com/m/status/1", "n", parts=["t"], wanted_video=True)
-    if "<https" in post.content():
-        problems.append("a post whose video could not be attached still hid its link")
+    if post.link() != "https://x.com/m/status/1":
+        problems.append("a post whose video could not be attached did not leave its link to unfurl")
     post.videos.append(b"v")
-    if "<https" not in post.content():
+    if post.link():
         problems.append("a post with its video attached left its link to unfurl")
     return problems
 
@@ -188,7 +188,7 @@ def _followups():
 
     async def fake_json(session, url, params=None):
         parent = {"id_str": "99", "text": "first &amp; line\nsecond line " + "x" * 200, "user": {"screen_name": parent_author["name"]}}
-        return {"parent": parent}
+        return {"id_str": params["id"], "user": {"screen_name": me}, "parent": parent}
     parent_author = {"name": me}
     kept = news.translate, news._get_json
     news.translate, news._get_json = fake_translate, fake_json
@@ -203,12 +203,13 @@ def _followups():
             problems.append(f"a Japanese-only post came out as {only.parts}")
         if both.follow_up[0] != f"https://x.com/{me}/status/99" or not both.follow_up[1].startswith("first & line second line") or len(both.follow_up[1]) > 140 or "\n" in both.follow_up[1]:
             problems.append(f"the earlier post was quoted as {both.follow_up}")
-        shown = both.content()
-        if not shown.startswith(news.FOLLOW_UP_MARK + f" **Follow-up to [their earlier post](<https://x.com/{me}/status/99>)**\n> first & line"):
+        shown = both.embeds()[0].description
+        if not shown.startswith(news.FOLLOW_UP_MARK + f" **Follow-up to [their earlier post](https://x.com/{me}/status/99)**\n> first & line"):
             problems.append(f"the follow-up reads {shown!r}")
         parent_author["name"] = someone
         elsewhere = asyncio.run(build(item(43, f"R to @{me}: odd")))
-        if elsewhere.follow_up != ("", "") or "their earlier post**\n" not in elsewhere.content() or "[" in elsewhere.content().split("\n")[0]:
+        shown = elsewhere.embeds()[0].description
+        if elsewhere.follow_up != ("", "") or "their earlier post**\n" not in shown or "[" in shown.split("\n")[0]:
             problems.append("an answer whose parent could not be shown as the account's own was not given the plain header")
     finally:
         news.translate, news._get_json = kept
@@ -406,12 +407,17 @@ def _maimai_and_time():
         problems.append("a post claiming to be from the future was believed")
 
     stamp = 1790000000
-    shown = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"], posted_at=stamp).content()
-    if f"-# Posted <t:{stamp}:F> · <t:{stamp}:R>\n" not in shown or shown.index("Posted") > shown.index("<https://x.com"):
-        problems.append(f"the time is not shown as a full date and a relative one before the link: {shown!r}")
-    if "Posted" in news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"]).content():
+    embed = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"], posted_at=stamp).embeds()[0]
+    if embed.description != f"hello\n\n-# [Open on X](https://x.com/a/status/1) · <t:{stamp}:R>" or int(embed.timestamp.timestamp()) != stamp \
+            or embed.footer.text != "X" or embed.colour.value != 0x14171A:
+        problems.append(f"an X post's embed does not end with its link and age, or is not timed and marked as X: {embed.to_dict()}")
+    plain = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["hello"]).embeds()[0]
+    if "<t:" in plain.description or plain.timestamp is not None:
         problems.append("a post of unknown time was given a time")
-    follow = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["fix"], follow_up=("https://x.com/a/status/0", "line"), posted_at=stamp).content()
+    embed = news.Post("preformai", "at://d/p/1", "https://bsky.app/profile/p/post/1", "n", parts=["hello"], posted_at=stamp).embeds()[0]
+    if "[Open on Bluesky](https://bsky.app/profile/p/post/1)" not in embed.description or embed.footer.text != "Bluesky" or embed.colour.value != 0x1185FE:
+        problems.append(f"a Bluesky post's embed is not marked as Bluesky: {embed.to_dict()}")
+    follow = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=["fix"], follow_up=("https://x.com/a/status/0", "line"), posted_at=stamp).embeds()[0].description
     if f"<t:{stamp}:R>" not in follow or not follow.startswith(news.FOLLOW_UP_MARK):
         problems.append("a follow-up lost its time, or its header")
 
@@ -927,13 +933,13 @@ def _mentions():
         problems.append(f"the mentions allowed on a send are {NO_MENTIONS.to_dict()}")
     attack = "@everyone @EVERYONE @here <@123> <@!456> <@&789> hi <#42>"
     for parts, video in (([attack], False), ([attack, attack], True)):
-        content = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=parts, wanted_video=video).content()
+        content = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=parts, wanted_video=video).embeds()[0].description
         if "@everyone" in content.lower() or "@here" in content.lower() or "<@" in content or "<#" in content:
             problems.append(f"a ping form survived in {content!r}")
         if content.replace(chr(0x200B), "").lower().count("@everyone") != 2 * len(parts) or "[user]" not in content or "[role]" not in content:
             problems.append(f"the post's own words were not kept readable: {content!r}")
 
-    quoted = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=["fix"], follow_up=("https://x.com/a/status/0", attack)).content()
+    quoted = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai Official", parts=["fix"], follow_up=("https://x.com/a/status/0", attack)).embeds()[0].description
     if "@everyone" in quoted.lower() or "@here" in quoted.lower() or "<@" in quoted:
         problems.append(f"a ping in the post being answered survived in the quote: {quoted!r}")
 
@@ -944,7 +950,7 @@ def _mentions():
         asyncio.run(watch._deliver("c", URL, post, []))
     if len(sent) != 2 or any(o.get("allowed_mentions") is None or o["allowed_mentions"].to_dict() != {"parse": []} for _u, o in sent):
         problems.append("a webhook send, with or without attachments, did not forbid every mention")
-    if any("@everyone" in o["content"].lower() or "<@" in o["content"] for _u, o in sent):
+    if any("@everyone" in e.description.lower() or "<@" in e.description for _u, o in sent for e in o["embeds"]):
         problems.append("a webhook was sent a raw ping")
     return problems
 
@@ -1596,10 +1602,10 @@ def _disguises():
     problems = []
     disguised = "[x.com/maimai_official](https://evil.example)"
     post = news.Post("maimai", "1", "https://x.com/a/status/1", "n", parts=[disguised], follow_up=("https://x.com/a/status/0", disguised))
-    shown = post.content()
-    if "](" in shown.replace("[their earlier post](<https://x.com/a/status/0>)", ""):
+    shown = post.embeds()[0].description
+    if "](" in shown.replace("[their earlier post](https://x.com/a/status/0)", "").replace("[Open on X](https://x.com/a/status/1)", ""):
         problems.append(f"a masked link in a post or in the post it answers still draws as a link: {shown!r}")
-    if "[their earlier post](<https://x.com/a/status/0>)" not in shown or shown.replace(news.ZWSP, "").count(disguised) != 2:
+    if "[their earlier post](https://x.com/a/status/0)" not in shown or shown.replace(news.ZWSP, "").count(disguised) != 2:
         problems.append(f"the follow-up's own link or the post's words were lost: {shown!r}")
 
     args = news._playlist_args("https://video.bsky.app/a/playlist.m3u8", "out.mp4")
@@ -2441,17 +2447,17 @@ def _maimai_choice():
     return problems
 
 
-@check("a post fits Discord's 2000 characters however many pings are made inert in it, a feed's pictures and a record's blobs can only point at the places trusted, and a dead webhook's token counts as gone")
+@check("a post fits an embed's 4096 characters however many pings are made inert in it, a feed's pictures and a record's blobs can only point at the places trusted, and a dead webhook's token counts as gone")
 def _limits():
     from rasmai.bot.tasks import news as tasks
     from rasmai.scraping import news
     problems = []
     quote = "q" * 140
-    post = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["@everyone " * 400], posted_at=1_800_000_000, follow_up=("https://x.com/a/status/0", quote))
-    text = post.content()
-    if len(text) > 2000 or "@everyone" in text.replace("@" + news.ZWSP + "everyone", ""):
-        problems.append(f"a long post of pings came out {len(text)} characters, or with a live ping")
-    short = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).content()
+    post = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["@everyone " * 800], posted_at=1_800_000_000, follow_up=("https://x.com/a/status/0", quote))
+    text = post.embeds()[0].description
+    if len(text) > news.EMBED_ROOM or "@everyone" in text.replace("@" + news.ZWSP + "everyone", "") or "…" not in text or not text.endswith(":R>"):
+        problems.append(f"a long post of pings came out {len(text)} characters, with a live ping, uncut, or without its link: {text[-80:]!r}")
+    short = news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).embeds()[0].description
     if "hello" not in short or "…" in short:
         problems.append(f"a short post was cut: {short!r}")
     for blob in ("../../x", "abc?d=1", "a/b", 5, None, ""):
@@ -2758,8 +2764,12 @@ def _edits():
             done = sorted((url[-1], str(message)) for url, message, _ in _Webhook.edits)
             if done != [("1", ids[0]), ("2", ids[1])] and done != [("1", ids[1]), ("2", ids[0])]:
                 problems.append(f"the X edit changed {done}, not both channels' messages")
-            if _Webhook.edits and ("7:00" not in _Webhook.edits[0][2]["content"] or f"<t:{news.tweet_time(first)}:F>" not in _Webhook.edits[0][2]["content"]):
-                problems.append("the edited message does not say the new words, or is no longer dated when the post was first made")
+            if sent_now and (sent_now[0][1]["content"] != "" or len(sent_now[0][1]["embeds"]) != 1 or said not in sent_now[0][1]["embeds"][0].description):
+                problems.append("a post did not go out as one embed with nothing in the message itself")
+            edited_embeds = _Webhook.edits[0][2]["embeds"] if _Webhook.edits else []
+            if _Webhook.edits and (len(edited_embeds) != 1 or "7:00" not in edited_embeds[0].description or _Webhook.edits[0][2]["content"] != ""
+                                   or f"<t:{news.tweet_time(first)}:R>" not in edited_embeds[0].description):
+                problems.append("the edited message does not say the new words in one embed, or is no longer dated when the post was first made")
             if _Webhook.edits and _Webhook.edits[0][2]["allowed_mentions"].to_dict() != {"parse": []}:
                 problems.append("an edit could ping somebody")
 
@@ -2796,7 +2806,7 @@ def _edits():
             with _webhooks() as sent_now:
                 if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/2", wait=False)) != 1 or sent_now:
                     problems.append("an edit of a reply in a sent Bluesky thread did not edit the message it went out in")
-            if _Webhook.edits and "fixed words" not in _Webhook.edits[0][2]["content"]:
+            if _Webhook.edits and "fixed words" not in _Webhook.edits[0][2]["embeds"][0].description:
                 problems.append("the Bluesky edit did not rebuild the thread as it reads now")
             with _webhooks() as sent_now:
                 if asyncio.run(watch.bluesky_edit(bluesky, "at://p/post/9", wait=False)) != 0 or sent_now:
@@ -2838,8 +2848,11 @@ def _folds():
     async def fake_x(session, src, entry, avatar, media=True):
         return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.text], posted_at=news.tweet_time(entry.id))
 
-    async def fake_parent(session, post_id, handle):
-        return (f"https://x.com/{handle}/status/{parents[post_id]}", "line") if post_id in parents else None
+    async def fake_above(session, post_id, handle):
+        return (parents[post_id], "line") if post_id in parents else None
+
+    async def fake_tweet(session, post_id, handle):
+        return None             # the syndication endpoint cannot give a post the feed has lost either
     did = news.SOURCES["preformai"].did
 
     def uri(n):
@@ -2850,13 +2863,14 @@ def _folds():
         return list(thread["posts"]), None
 
     async def fake_build(session, src, record, at, media=True):
-        post = news.Post(src.key, at, f"https://bsky.app/profile/p/post/{at.split('/')[-1]}", src.label, "",
-                         [str((p.get("record") or {}).get("text", "")) for p in thread["posts"]])
-        post.covers = [p["uri"] for p in thread["posts"]]
+        posts = [news.Post(src.key, p["uri"], f"https://bsky.app/profile/p/post/{p['uri'].split('/')[-1]}", src.label, "", [str((p.get("record") or {}).get("text", ""))])
+                 for p in thread["posts"]]
+        post = posts[0]
+        post.covers, post.thread = [p["uri"] for p in thread["posts"]], posts[1:]
         return post, post.covers
-    kept = news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post
-    news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post = \
-        fake_feed, fake_x, fake_parent, fake_thread, fake_build
+    kept = news.fetch_feed, news.build_x_post, news.syndication_above, news.syndication_tweet, news.bluesky_thread, news.build_bluesky_post
+    news.fetch_feed, news.build_x_post, news.syndication_above, news.syndication_tweet, news.bluesky_thread, news.build_bluesky_post = \
+        fake_feed, fake_x, fake_above, fake_tweet, fake_thread, fake_build
     _Webhook.edits = []
     try:
         with _scratch(), _no_session():
@@ -2873,28 +2887,38 @@ def _folds():
                 asyncio.run(watch.poll(source))
             if sent or len(_Webhook.edits) != 2:
                 problems.append(f"an X answer to a sent post made {len(sent)} posts and {len(_Webhook.edits)} edits, not two edits")
-            elif not all("Thursday" in o["content"] and "Correction" in o["content"] for _u, _m, o in _Webhook.edits):
-                problems.append("the message does not carry both the post and the answer")
-            elif _Webhook.edits[0][2]["content"].index("Thursday") > _Webhook.edits[0][2]["content"].index("Correction"):
-                problems.append("the answer came before the post it answers")
+            elif not all(len(o["embeds"]) == 2 and "Thursday" in o["embeds"][0].description and "Correction" in o["embeds"][1].description and o["content"] == ""
+                         for _u, _m, o in _Webhook.edits):
+                problems.append("the message does not carry the post and then the answer as two embeds")
+            elif _Webhook.edits[0][2]["embeds"][1].description.startswith(news.FOLLOW_UP_MARK):
+                problems.append("an answer folded into its thread still carries the follow-up head")
 
             # an answer to that answer joins the same message
             _Webhook.edits.clear()
             feed["items"] = [item(again, "And the Re:MASTER charts come a week later.", reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
-            if sent or len(_Webhook.edits) != 2 or "Re:MASTER" not in _Webhook.edits[0][2]["content"] or "Correction" not in _Webhook.edits[0][2]["content"]:
-                problems.append("an answer to the answer did not join the same message with everything before it")
+            shown = [e.description for e in _Webhook.edits[0][2]["embeds"]] if _Webhook.edits else []
+            if sent or len(_Webhook.edits) != 2 or len(shown) != 3 or "Re:MASTER" not in shown[2] or "Correction" not in shown[1]:
+                problems.append(f"an answer to the answer did not join the same message after everything before it: {shown}")
 
-            # too long to fit: it is a post of its own
+            # a long answer still fits; the next would take the message past what its embeds may hold together, so it is a post of its own
             _Webhook.edits.clear()
-            feed["items"] = [item(long_one, "Details. " * 200, reply=True)] + feed["items"]
+            feed["items"] = [item(long_one, "Details. " * 350, reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if sent or len(_Webhook.edits) != 2 or len(_Webhook.edits[0][2]["embeds"]) != 4:
+                problems.append("a long answer that still fits the message did not join it")
+            _Webhook.edits.clear()
+            longer = made(45)
+            parents[longer] = long_one
+            feed["items"] = [item(longer, "More details. " * 250, reply=True)] + feed["items"]
             with _webhooks() as sent:
                 asyncio.run(watch.poll(source))
             if len(sent) != 2 or _Webhook.edits:
                 problems.append("an answer too long for the message was not sent as a post of its own")
 
-            # the post it answers has left the feed, so the message cannot be built again: a post of its own
+            # the post it answers has left the feed and syndication cannot give it either: a post of its own
             _Webhook.edits.clear()
             late = made(30)
             parents[late] = first
@@ -2916,13 +2940,120 @@ def _folds():
             record = {"text": "Doors open at 18:00.", "reply": {"root": {"uri": uri(1)}, "parent": {"uri": uri(1)}}}
             with _webhooks() as sent:
                 asyncio.run(watch.bluesky_post(bluesky, record, uri(2), wait=False))
-            if sent or len(_Webhook.edits) != 1 or "Doors open" not in _Webhook.edits[0][2]["content"] or "Preformai night" not in _Webhook.edits[0][2]["content"]:
-                problems.append("a Bluesky reply to a sent post did not join its message")
+            shown = [e.description for e in _Webhook.edits[0][2]["embeds"]] if _Webhook.edits else []
+            if sent or len(_Webhook.edits) != 1 or len(shown) != 2 or "Preformai night" not in shown[0] or "Doors open" not in shown[1]:
+                problems.append(f"a Bluesky reply to a sent post did not join its message as a second embed: {shown}")
             if db.news_unseen("preformai", [uri(2)]):
                 problems.append("the Bluesky reply added to a message was not marked seen, so it would be sent later too")
             if db.news_sent_root("preformai", uri(2)) != uri(1):
                 problems.append("the reply added to a message is not kept under it, so its own edits would be lost")
     finally:
-        news.fetch_feed, news.build_x_post, news.syndication_parent, news.bluesky_thread, news.build_bluesky_post = kept
+        news.fetch_feed, news.build_x_post, news.syndication_above, news.syndication_tweet, news.bluesky_thread, news.build_bluesky_post = kept
         _Webhook.edits = []
+    return problems
+
+
+@check("a thread whose middle the feed hides is followed up to the post that was sent and rebuilt whole with the hidden posts, which are never sent on their own, while a chain too long to reach one, or a thread too big for one message, goes out as a follow-up post")
+def _gaps():
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping import news
+    from rasmai.storage import db
+
+    problems = []
+
+    def made(seconds_ago, n=0):
+        return str(((int((time.time() - seconds_ago) * 1000) - news.TWITTER_EPOCH_MS) << 22) + n)
+    base, one, two, three, four = made(3000), made(900), made(800), made(700), made(600)
+    source = news.SOURCES["kop"]
+
+    def item(n, text, reply=False):
+        return news.FeedItem(n, text, f"https://n/{source.handle}/status/{n}", f"<p>{text}</p>", False, source.handle, source.handle if reply else "")
+    older = item(base, "An older post about something else entirely.")
+    root = item(one, "KOP8th online qualifiers open today. (1/4)")
+    feed = {"items": [root, older]}
+    # what the syndication endpoint says each post answers, and what the hidden one said
+    parents = {four: three, three: two, two: one}
+    texts = {two: "オンライン予選の課題曲はコチラ！ https://maimai.sega.jp/kop8th/ (2/4)", three: "Entries close on the 20th. (3/4)"}
+
+    async def fake_feed(session, username, tries=0):
+        return feed["items"], ""
+
+    async def fake_above(session, post_id, handle):
+        return (parents[post_id], texts.get(parents[post_id], "line")) if post_id in parents else None
+
+    async def fake_tweet(session, post_id, handle):
+        # a post the feed has lost, asked for by itself: the hidden 2/4 once a later answer rebuilds the thread
+        return {"id_str": post_id, "text": texts[post_id], "user": {"screen_name": handle}} if post_id in texts else None
+
+    async def fake_translate(session, written):
+        return "English: here are the qualifier songs (2/4)"
+    kept = news.fetch_feed, news.syndication_above, news.syndication_tweet, news.translate
+    news.fetch_feed, news.syndication_above, news.syndication_tweet, news.translate = fake_feed, fake_above, fake_tweet, fake_translate
+    _Webhook.edits = []
+    try:
+        with _scratch(), _no_session():
+            db.add_news_subscription("g1", "c1", "kop", URL + "1")
+            watch = tasks.NewsWatch()
+            asyncio.run(watch.poll(source))                 # the first look only learns
+            with _webhooks():
+                asyncio.run(watch.publish(asyncio.run(news.build_x_post(None, source, root, ""))))
+
+            # the feed shows 1/4, 3/4 and 4/4: 2/4 is found above 3/4, and the thread goes out whole in id order
+            feed["items"] = [item(four, "Good luck to everyone! (4/4)", reply=True), item(three, texts[three], reply=True), root, older]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            shown = [e.description for e in _Webhook.edits[-1][2]["embeds"]] if _Webhook.edits else []
+            if sent or len(shown) != 4 or any(f"({n}/4)" not in shown[n - 1] for n in range(1, 5)):
+                problems.append(f"the thread was not rebuilt as four embeds in order: {len(sent)} sent, {shown}")
+            if len(shown) == 4 and (not shown[1].startswith("English: here are the qualifier songs (2/4)\n\nオンライン予選") or "[Open on X](https://x.com/kop_sega/status/" + two + ")" not in shown[1]):
+                problems.append(f"the hidden post was not built from the syndication text with its translation and link: {shown[1]!r}")
+            if db.news_sent_root("kop", two) != one or db.news_sent_root("kop", four) != one or db.news_unseen("kop", [two]):
+                problems.append("the hidden post is not recorded under the root as sent and seen, so it would be sent on its own if it turned up")
+            # and when it does turn up, nothing is posted
+            feed["items"] = [item(two, texts[two], reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if sent:
+                problems.append("the hidden post turning up in the feed was sent on its own")
+
+            # five posts up to a sent one is too far: the answer is a post of its own, headed as a follow-up
+            five, six, seven, eight, nine = made(500), made(400), made(300), made(200), made(100)
+            parents.update({nine: eight, eight: seven, seven: six, six: five, five: one})
+            _Webhook.edits.clear()
+            feed["items"] = [item(nine, "Deep in a thread.", reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if len(sent) != 1 or _Webhook.edits or not sent[0][1]["embeds"][0].description.startswith(news.FOLLOW_UP_MARK) or sent[0][1]["content"] != "":
+                problems.append(f"an answer five posts below the sent one was not sent as a follow-up post of its own: {len(sent)} sent, {len(_Webhook.edits)} edits")
+            if db.news_sent_root("kop", eight) is not None:
+                problems.append("a post on a chain that reached nothing sent was recorded as sent")
+
+            # more than the message holds: the thread is not swollen past it, and the answer is a follow-up post of its own
+            big, bigger = made(50), made(40)
+            parents.update({big: four, bigger: big})
+            _Webhook.edits.clear()
+            feed["items"] = [item(big, "Details. " * 300, reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if sent or len(_Webhook.edits) != 1 or len(_Webhook.edits[0][2]["embeds"]) != 5:
+                problems.append("a long answer that still fits did not join the thread")
+            _Webhook.edits.clear()
+            feed["items"] = [item(bigger, "More. " * 500, reply=True)] + feed["items"]
+            with _webhooks() as sent:
+                asyncio.run(watch.poll(source))
+            if len(sent) != 1 or _Webhook.edits or not sent[0][1]["embeds"][0].description.startswith(news.FOLLOW_UP_MARK):
+                problems.append("an answer that would take the thread past 6000 characters was not sent as a follow-up post of its own")
+    finally:
+        news.fetch_feed, news.syndication_above, news.syndication_tweet, news.translate = kept
+        _Webhook.edits = []
+
+    # the limits themselves: ten embeds, 6000 characters between them, each description within 4096
+    post = news.Post("kop", "1", "https://x.com/k/status/1", "n", parts=["p1"], thread=[news.Post("kop", str(n), f"https://x.com/k/status/{n}", "n", parts=[f"p{n}"]) for n in range(2, 14)])
+    embeds = post.embeds()
+    if len(embeds) != 10 or post.fits() or [e.description.split("\n")[0] for e in embeds] != [f"p{n}" for n in range(1, 11)]:
+        problems.append(f"a thread of thirteen posts gave {len(embeds)} embeds, or was said to fit")
+    post.thread = [news.Post("kop", "2", "https://x.com/k/status/2", "n", parts=["x" * 3000])] * 2
+    embeds = post.embeds()
+    if post.fits() or sum(len(e) for e in embeds) > news.EMBEDS_ROOM or len(embeds) != 3 or not embeds[2].description.startswith("x"):
+        problems.append(f"a thread past 6000 characters gave {len(embeds)} embeds of {sum(len(e) for e in embeds)} characters, or was said to fit")
     return problems

@@ -16,6 +16,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import aiohttp
+import discord
 import requests
 
 from rasmai.config import TRANSLATE_KEEP_ALIVE, TRANSLATE_MODEL, TRANSLATE_URL
@@ -82,6 +83,12 @@ _translate_paused_until = 0.0        # Google's free endpoint throttles; after a
 FOLLOW_UP_MARK = chr(0x21A9) + chr(0xFE0F)      # the return arrow as an emoji, spelled out so no invisible character sits in the source
 
 
+EMBED_ROOM = 4096           # characters an embed's description may hold
+EMBEDS_ROOM = 6000          # and a message's embeds together, which Discord counts across all of them
+EMBEDS_MAX = 10             # embeds one message may carry
+COLORS = {"Bluesky": 0x1185FE, "X": 0x14171A}
+
+
 @dataclass
 class Post:
     source: str
@@ -97,25 +104,53 @@ class Post:
     posted_at: Optional[int] = None                  # when it was made, in seconds since 1970
     about_maimai: bool = True                        # whether it goes to a channel getting only the account's posts about maimai
     covers: List[str] = field(default_factory=list)  # every post it carries, its thread on Bluesky, so an edit of any of them finds it
+    thread: List["Post"] = field(default_factory=list)   # the account's answers to it that go out in the same message, oldest first, each an embed
 
-    def content(self, unfurl: bool = False) -> str:
-        """The message: ``unfurl`` lets the link draw its preview, for when the post's media could not be attached."""
-        whole = unmask("\n\n".join(p for p in self.parts if p).strip())
-        link = self.url if unfurl or (self.wanted_video and not self.videos) else f"<{self.url}>"
-        # Discord draws these in each reader's own time zone: the full date and time, then how long ago, which keeps counting
-        when = f"-# Posted <t:{self.posted_at}:F> · <t:{self.posted_at}:R>\n" if self.posted_at else ""
-        head = ""
-        if self.follow_up:
-            earlier, line = self.follow_up[0], unmask(self.follow_up[1])
-            head = FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post](<{earlier}>)" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
-        room = 1500
-        while True:
-            body = whole if len(whole) <= room else whole[:room - 10] + "…"
-            text = sanitize(f"{head}{body}\n\n{when}{link}\n\n---".strip())
-            # Discord refuses a message over 2000, and the mentions made inert, a quoted line and the links all add to the post's own words
-            if len(text) <= 2000 or room <= 200:
-                return text[:2000]
-            room -= len(text) - 2000 + 50
+    @property
+    def platform(self) -> str:
+        return "Bluesky" if self.url.startswith("https://bsky.app/") else "X"
+
+    def link(self, unfurl: bool = False) -> str:
+        """What the message itself says: nothing, or the bare address when the post's video could not be attached, so Discord draws its preview."""
+        return self.url if unfurl or (self.wanted_video and not self.videos) else ""
+
+    def embed(self, room: int = EMBED_ROOM, head: str = "") -> discord.Embed:
+        """This one post as an embed within ``room`` characters: the translation, a blank line, the original, then a line with its link and age.
+
+        Links in an embed draw no preview, which is why the post goes out as one: SEGA's pages drew one each, twice for the same page.
+        """
+        tail = f"\n\n-# [Open on {self.platform}]({self.url})" + (f" · <t:{self.posted_at}:R>" if self.posted_at else "")
+        body = sanitize(unmask("\n\n".join(p for p in self.parts if p).strip()))
+        room = min(room, EMBED_ROOM) - len(head) - len(tail)
+        if len(body) > room:
+            body = body[:room - 10].rstrip() + "…"
+        embed = discord.Embed(description=f"{head}{body}{tail}", colour=COLORS[self.platform],
+                              timestamp=datetime.fromtimestamp(self.posted_at, timezone.utc) if self.posted_at else None)
+        embed.set_footer(text=self.platform)
+        return embed
+
+    def head(self) -> str:
+        """The follow-up line a post answering an earlier one starts with, quoting it; "" for any other."""
+        if not self.follow_up:
+            return ""
+        earlier, line = self.follow_up[0], sanitize(unmask(self.follow_up[1]))
+        return FOLLOW_UP_MARK + " **Follow-up to " + (f"[their earlier post]({earlier})" if earlier else "their earlier post") + "**\n" + (f"> {line}\n\n" if line else "\n")
+
+    def embeds(self) -> List[discord.Embed]:
+        """The post and its thread as a message's embeds, one each in order, cut to what one message may carry."""
+        out: List[discord.Embed] = []
+        room = EMBEDS_ROOM
+        for post in [self, *self.thread][:EMBEDS_MAX]:
+            if out and room < 200:
+                break       # shortcut: the end of a thread too long for one message is dropped; fits() keeps folds from making one, a whole Bluesky thread could
+            out.append(post.embed(room, self.head() if post is self else ""))
+            room -= len(out[-1])
+        return out
+
+    def fits(self) -> bool:
+        """Whether the post and its thread go out whole in one message: ten embeds, 6000 characters between them."""
+        posts = [self, *self.thread]
+        return len(posts) <= EMBEDS_MAX and sum(len(post.embed(head=self.head() if post is self else "")) for post in posts) <= EMBEDS_ROOM
 
 
 TWITTER_EPOCH_MS = 1288834974657
@@ -399,12 +434,16 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
     thread, above = await bluesky_thread(session, uri, source.did)
     thread = thread or [{"uri": uri, "record": record, "author": {"did": source.did}}]
     parts: List[str] = []
+    answers: List[Post] = []
     images: List[str] = []
     playlists: List[str] = []
     for post in thread:
         body = post.get("record") or {}
         text = str(body.get("text", "")).strip()
-        if text:
+        if post is not thread[0]:
+            answers.append(Post(source.key, str(post.get("uri", "")), f"https://bsky.app/profile/{source.handle}/post/{str(post.get('uri', '')).split('/')[-1]}",
+                                source.label, parts=[text], posted_at=iso_time(str(body.get("createdAt", "")))))
+        elif text:
             parts.append(text)
         more_images, more_videos = bluesky_media(body, source.did)
         images += more_images
@@ -423,8 +462,8 @@ async def build_bluesky_post(session: aiohttp.ClientSession, source: Source, rec
                 await bluesky_avatar(session, source.handle), parts, images, videos, bool(playlists), follow_up,
                 iso_time(str((thread[0].get("record") or {}).get("createdAt", ""))),
                 # the account correcting or continuing a maimai post is about maimai too, whatever the correction says
-                is_maimai("\n".join(parts)) or bool(above and is_maimai(str((above.get("record") or {}).get("text", "")))))
-    post.covers = [p["uri"] for p in thread]
+                is_maimai("\n".join(parts + [a.parts[0] for a in answers])) or bool(above and is_maimai(str((above.get("record") or {}).get("text", "")))),
+                [p["uri"] for p in thread], answers)
     return post, post.covers
 
 
@@ -726,16 +765,37 @@ def media_urls(description_html: str) -> List[str]:
     return [twimg(url) for url in re.findall(r'<img[^>]+src="([^"]+)"', description_html or "")]
 
 
-async def syndication_parent(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Tuple[str, str]]:
-    """The address and first line of the post this one answers, when it is the same account's own; None otherwise or when it cannot be read."""
+async def syndication_tweet(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Dict[str, Any]]:
+    """A post as Twitter's syndication endpoint gives it, with its ``text`` and the ``parent`` it answers; None when it cannot be read or is not the account's."""
     for params in ({"id": post_id, "lang": "en", "token": "a"}, {"id": post_id, "lang": "en"}):
         data = await _get_json(session, "https://cdn.syndication.twimg.com/tweet-result", params)
-        parent = data.get("parent") if isinstance(data, dict) else None
-        if isinstance(parent, dict) and parent.get("id_str"):
-            if str((parent.get("user") or {}).get("screen_name", "")).lower() != handle.lower():
-                return None
-            return f"https://x.com/{handle}/status/{parent['id_str']}", first_line(str(parent.get("text", "")))
+        if isinstance(data, dict) and data.get("id_str"):
+            return data if str((data.get("user") or {}).get("screen_name", "")).lower() == handle.lower() else None
     return None
+
+
+def syndication_text(tweet: Dict[str, Any]) -> str:
+    """What a syndication post says in full, its links written out where the text shortens them."""
+    text = str(tweet.get("text", ""))
+    for link in (tweet.get("entities") or {}).get("urls") or []:
+        if isinstance(link, dict) and link.get("url") and link.get("expanded_url"):
+            text = text.replace(str(link["url"]), str(link["expanded_url"]))
+    return text
+
+
+async def syndication_above(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Tuple[str, str]]:
+    """The id and full text of the post this one answers, when it is the same account's own; None otherwise or when it cannot be read."""
+    data = await syndication_tweet(session, post_id, handle)
+    parent = data.get("parent") if data else None
+    if not isinstance(parent, dict) or not parent.get("id_str") or str((parent.get("user") or {}).get("screen_name", "")).lower() != handle.lower():
+        return None
+    return str(parent["id_str"]), syndication_text(parent)
+
+
+async def syndication_parent(session: aiohttp.ClientSession, post_id: str, handle: str) -> Optional[Tuple[str, str]]:
+    """The address and first line of the post this one answers, when it is the same account's own; None otherwise or when it cannot be read."""
+    above = await syndication_above(session, post_id, handle)
+    return (f"https://x.com/{handle}/status/{above[0]}", first_line(above[1])) if above else None
 
 
 async def syndication_video(session: aiohttp.ClientSession, post_id: str) -> List[str]:

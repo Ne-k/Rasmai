@@ -30,7 +30,7 @@ SEND_TIMEOUT = 30                   # seconds a send may take, Discord's own ret
 UPLOAD_BUDGET = 1 << 30             # bytes a post may upload across all its channels; above it, the link draws the media instead of every channel getting a copy
 GONE_CODES = (10003, 10015, 50027)  # Discord's Unknown Channel, Unknown Webhook and Invalid Webhook Token
 NO_MENTIONS = discord.AllowedMentions.none()      # on every send: whatever a post says, it cannot ping a user, a role, @everyone or @here
-FOLD_ROOM = 1400                    # characters a message may hold once the account's answer to itself is added; past it the answer is a post of its own, or it would be cut off
+GAP_HOPS = 4                        # posts followed up a thread from the account's answer, looking for one that was sent: X's timeline hides the middle of a thread
 
 ALIVE_EVERY = 60                    # seconds between noting that the Jetstream connection is still up
 ALIVE_LAG = 60 * 1_000_000          # the moment noted is this far in the past, so a post still being processed when the bot dies is asked for again
@@ -291,7 +291,7 @@ class NewsWatch:
         if not thread or (carrying and carrying not in {p.get("uri") for p in thread}):
             return None
         post, covers = await news.build_bluesky_post(self.session, source, thread[0].get("record") or {}, root, media=False)
-        if carrying and len("\n\n".join(post.parts)) > FOLD_ROOM:
+        if carrying and not post.fits():
             return None
         await asyncio.to_thread(news_sent_save, source.key, root, covers, "", [])       # a later edit or answer of any of them finds it
         return await self.revise(source.key, root, post)
@@ -392,33 +392,59 @@ class NewsWatch:
         return await self.revise(source.key, root, post)
 
     async def x_fold(self, source: Source, item: news.FeedItem, avatar: str, items: List[news.FeedItem]) -> bool:
-        """Add the account's answer to its own sent post to the message that post became; False when it goes out as a post of its own."""
-        parent = await news.syndication_parent(self.session, item.id, source.handle)
-        root = await asyncio.to_thread(news_sent_root, source.key, news.tweet_id(parent[0])) if parent else None
+        """Add the account's answer to its own sent post to the message that post became; False when it goes out as a post of its own.
+
+        The feed shows a thread's first and last posts and hides the middle, so the answer's parent may never have been seen: the
+        thread is followed up a few posts for one that was sent, and the posts between, which the feed never showed, come from the
+        syndication endpoint's text and are recorded under the root so they are never sent on their own if they turn up later.
+        """
+        root, between, post_id = None, [], item.id     # between: (id, text) of the posts above the answer that were not sent, nearest first
+        for _ in range(GAP_HOPS):
+            above = await news.syndication_above(self.session, post_id, source.handle)
+            root = await asyncio.to_thread(news_sent_root, source.key, above[0]) if above else None
+            if above is None or root is not None:
+                break
+            between.append(above)
+            post_id = above[0]
         if root is None:
             return False
-        post = await self._x_whole(source, root, items, avatar, item.id)
+        post = await self._x_whole(source, root, items, avatar, item.id, dict(between))
         if post is None:
             return False
-        await asyncio.to_thread(news_sent_save, source.key, root, [item.id], item.text, [])
+        for each, text in [(item.id, item.text), *between]:
+            await asyncio.to_thread(news_sent_save, source.key, root, [each], text, [])
+        await asyncio.to_thread(news_mark_seen, source.key, [each for each, _text in between])
         await self.revise(source.key, root, post)
         return True
 
-    async def _x_whole(self, source: Source, root: str, items: List[news.FeedItem], avatar: str, adding: str = "") -> Optional[Post]:
-        """A sent X post and the account's answers to it as one message, built from the feed, oldest first.
+    async def _x_whole(self, source: Source, root: str, items: List[news.FeedItem], avatar: str, adding: str = "",
+                       texts: Optional[Dict[str, str]] = None) -> Optional[Post]:
+        """A sent X post and the account's answers to it as one message, oldest first, each an embed: from the feed, or for a post
+        the feed no longer shows, from ``texts`` or the syndication endpoint, without its media.
 
-        None when one of them is no longer in the feed to build from, or ``adding`` would no longer fit the message.
+        None when one of them cannot be read from anywhere, or ``adding`` would no longer fit the message.
         """
         covered = [post_id for post_id, under, _body in await asyncio.to_thread(news_sent_recent, source.key) if under == root]
         found = {item.id: item for item in items}
-        ids = sorted({*covered, *([adding] if adding else [])}, key=int)
-        if not ids or any(i not in found for i in ids):
+        texts = texts or {}
+        ids = sorted({*covered, *texts, *([adding] if adding else [])}, key=int)
+        if not ids:
             return None
-        posts = [await news.build_x_post(self.session, source, found[i], avatar, media=False) for i in ids]
+        posts = []
+        for i in ids:
+            if i not in found:
+                words = texts.get(i)
+                if words is None:
+                    tweet = await news.syndication_tweet(self.session, i, source.handle)
+                    if tweet is None:
+                        return None
+                    words = news.syndication_text(tweet)
+                found[i] = news.FeedItem(i, words, f"https://x.com/{source.handle}/status/{i}", "", False, source.handle)
+            posts.append(await news.build_x_post(self.session, source, found[i], avatar, media=False))
         whole = posts[0]
-        whole.parts = [part for post in posts for part in post.parts]
+        whole.thread = posts[1:]
         whole.posted_at = news.tweet_time(root) or whole.posted_at       # still dated when it was first posted, as X shows it
-        if adding and len("\n\n".join(whole.parts)) > FOLD_ROOM:
+        if adding and not whole.fits():
             return None
         return whole
 
@@ -501,7 +527,8 @@ class NewsWatch:
     async def revise(self, source: str, root: str, post: Post) -> int:
         """Edit every message a sent post became to say what it says now; returns how many were edited.
 
-        shortcut: only the words change, its pictures and video stay as sent; re-upload them if edits that swap media turn up.
+        shortcut: only the embeds change, its pictures and video stay the message's attachments as sent, outside the embeds, which is
+        what lets an edit leave them be; re-upload them if edits that swap media turn up.
         """
         messages = await asyncio.to_thread(news_sent_messages, source, root)
         post.wanted_video = False       # whether the link draws its preview was settled when it was sent, and is kept with each message
@@ -514,7 +541,7 @@ class NewsWatch:
             async with gate:
                 try:
                     webhook = discord.Webhook.from_url(url, session=self.session)
-                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=post.content(unfurl=unfurl), allowed_mentions=NO_MENTIONS),
+                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=post.link(unfurl), embeds=post.embeds(), allowed_mentions=NO_MENTIONS),
                                            SEND_TIMEOUT)
                     return True
                 except (discord.NotFound, ValueError):
@@ -563,7 +590,7 @@ class NewsWatch:
         for attach in ([True, False] if files else [False]):
             # without its pictures or video the post would show no media at all, so then the link is left to draw its preview
             unfurled = unfurl or (bool(files) and not attach)
-            options: Dict[str, Any] = {"content": post.content(unfurl=unfurled), "username": post.username, "allowed_mentions": NO_MENTIONS}
+            options: Dict[str, Any] = {"content": post.link(unfurled), "embeds": post.embeds(), "username": post.username, "allowed_mentions": NO_MENTIONS}
             if post.avatar:
                 options["avatar_url"] = post.avatar
             buffers = [io.BytesIO(data) for _name, data in files] if attach else []
