@@ -526,8 +526,9 @@ def _video_button():
         async def built():
             return SongView(1, ref.title, [ref], [{"played": False}], 0, last_play=3)
         rows = [(getattr(item, "label", ""), item.row) for item in asyncio.run(built()).children]
-        if ("Video", 3) not in rows or sum(1 for _, row in rows if row == 4) > 5:
-            problems.append(f"the chart page does not offer Video on row 3, or its last row is over five places: {rows}")
+        # Video is off in views.py for now, so the page must not offer it; flip the `in` back to `not in` when the button returns
+        if ("Video", 3) in rows or sum(1 for _, row in rows if row == 4) > 5:
+            problems.append(f"the chart page offers Video while it is off, or its last row is over five places: {rows}")
         if not shutil.which("ffmpeg"):
             return problems
         update_prefs("1234", note_speed=800, touch_speed=500)

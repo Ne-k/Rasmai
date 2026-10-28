@@ -222,6 +222,7 @@ def _search_aliases():
 
     was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
     store._database_ready = False
+    aliases._memo = (0.0, None)      # a table an earlier check loaded from the real database would be served for five minutes
     problems = []
     try:
         # the file's own shape: [title, artist, [spellings]]
