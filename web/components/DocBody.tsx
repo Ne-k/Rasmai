@@ -75,7 +75,8 @@ export async function docBody(page: keyof typeof PAGES) {
 
   return Object.entries(PAGES[page]).flatMap(([id, blocks]) => {
     const section = `${page}.${id}`;
-    if (!has(`${section}.title`)) return [];
+    // a section one language has and the other leaves empty (the Japanese translation note) is left out, not drawn as an empty panel
+    if (!has(`${section}.title`) || !t(`${section}.title` as never)) return [];
     return [
       <h2 key={id}>{t(`${section}.title` as never)}</h2>,
       ...(blocks as readonly string[]).map((block) => {

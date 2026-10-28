@@ -6,14 +6,13 @@ import type { Locale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { getTranslations } from "next-intl/server";
 import { STATUS_URL, TRANSLATE_URL } from "./Contact";
+import { POLICY_VERSION } from "@/lib/policy";
 
 export { CONTACT_DISCORD, CONTACT_EMAIL, SITE_URL } from "./Contact";
 
-// written once, shown the way each language writes a date
-const EFFECTIVE_DATE = "2026-10-02";
-
+// the date the documents last changed, shown the way each language writes a date
 function effectiveDate(locale: Locale): string {
-  const [year, month, day] = EFFECTIVE_DATE.split("-").map(Number);
+  const [year, month, day] = POLICY_VERSION.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   return locale === "ja"
     ? `${year}年${month}月${day}日`
