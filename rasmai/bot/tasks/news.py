@@ -1,5 +1,6 @@
 from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 import asyncio
+from dataclasses import replace
 import io
 import json
 import logging
@@ -534,11 +535,14 @@ class NewsWatch:
         """Edit every message a sent post became to say what it says now; returns how many were edited.
 
         The message's pictures and video stay as sent: the edit lists its attachments to keep them, and the new card's gallery names them again.
+        An answer that joined the thread since brings its own, uploaded with the edit, as the message holds only what it went out with.
         The text and embeds are cleared too, which a message sent as plain text before cards needs before it may take one.
         shortcut: the note a card carried about its media is not rebuilt on an edit, upgrade if a post's video arrives late
         """
         messages = await asyncio.to_thread(news_sent_messages, source, root)
         gate = asyncio.Semaphore(SEND_AT_ONCE)
+        # fetched once for every channel; each message is given only the ones it does not have yet
+        fresh = {each.tag: await self._files(replace(each, thread=[])) for each in post.thread if each.images or each.videos} if messages else {}
 
         async def one(channel_id: str, message_id: str, _unfurl: bool) -> bool:
             url = await asyncio.to_thread(news_webhook, channel_id)
@@ -548,9 +552,20 @@ class NewsWatch:
                 try:
                     webhook = discord.Webhook.from_url(url, session=self.session)
                     message = await asyncio.wait_for(webhook.fetch_message(int(message_id)), SEND_TIMEOUT)
-                    await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view([a.filename for a in message.attachments]),
-                                                                attachments=message.attachments, allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
-                    return True
+                    kept = [a.filename for a in message.attachments]
+                    added = [file for each in post.thread if not any(name.startswith(each.tag + "_") for name in kept)
+                             for file in fresh.get(each.tag, [])][:max(0, 10 - len(kept))]
+                    for adding in ([added, []] if added else [[]]):
+                        uploads = [discord.File(io.BytesIO(data), filename=name) for name, data in adding]
+                        try:
+                            await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view(kept + [name for name, _data in adding]),
+                                                                        attachments=[*message.attachments, *uploads], allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
+                            return True
+                        except discord.HTTPException as error:
+                            if not (adding and error.status == 413):
+                                raise
+                            # the answer's pictures are over the server's upload limit: its words still join the card
+                    return False
                 except (discord.NotFound, ValueError):
                     # the message was deleted, or the channel's webhook replaced since: there is nothing there to edit any more
                     await asyncio.to_thread(news_message_gone, channel_id, message_id)

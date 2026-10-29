@@ -517,8 +517,11 @@ class _Webhook:
         # an edit clears the text and embeds a message had before cards, which discord.py needs stated to put a card on it
         if options.get("content") is not None or options.get("embeds") or "view" not in options:
             raise TypeError("an edit puts a card on the message with its content and embeds cleared")
-        if self.behave(self.url, {"edit": message_id}) == "deleted":
+        outcome = self.behave(self.url, {"edit": message_id})
+        if outcome == "deleted":
             raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
+        if outcome == "toobig" and any(isinstance(file, discord.File) for file in options.get("attachments", [])):
+            raise discord.HTTPException(type("R", (), {"status": 413, "reason": "too big"})(), {"code": 40005, "message": "Request entity too large"})
         _Webhook.edits.append((self.url, message_id, options))
 
     async def send(self, **options):
@@ -3228,4 +3231,54 @@ def _sent_as():
     finally:
         store.DATABASE_PATH = was
         store._database_ready = False
+    return problems
+
+
+@check("an answer that joins a sent card brings its own pictures, uploaded with the edit, once, and its words still join when they are too big")
+def _fold_media():
+    import discord
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping import news
+    from rasmai.storage import db
+
+    problems = []
+
+    async def fake_bytes(session, url, limit=0):
+        return b"\x89PNG" + b"0" * 10
+    kept_bytes, news.fetch_bytes = news.fetch_bytes, fake_bytes
+    _Webhook.edits = []
+    try:
+        with _scratch(), _no_session():
+            db.add_news_subscription("g1", "c1", "maimai", URL + "1")
+            watch = tasks.NewsWatch()
+            root = news.Post("maimai", "100", "https://x.com/a/status/100", "n", parts=["The campaign starts on 1 November."], images=[f"{news.IMG_CDN}/d/r"])
+            with _webhooks():
+                asyncio.run(watch.publish(root))
+            answer = news.Post("maimai", "101", "https://x.com/a/status/101", "n", parts=["Here is the list of all available locations!"], images=[f"{news.IMG_CDN}/d/a"])
+            whole = news.Post("maimai", "100", "https://x.com/a/status/100", "n", parts=["The campaign starts on 1 November."], thread=[answer])
+            with _webhooks():
+                asyncio.run(watch.revise("maimai", "100", whole))
+            options = _Webhook.edits[0][2] if _Webhook.edits else {}
+            uploaded = [file.filename for file in options.get("attachments", []) if isinstance(file, discord.File)]
+            shape = [type(child).__name__ for child in options["view"].children[0].children] if options else []
+            if uploaded != ["101_image_1.png"] or shape != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery"]                     or _card(options)[2] != ["attachment://100_image_1.png", "attachment://101_image_1.png"]:
+                problems.append(f"an answer's picture was not uploaded with the edit and shown under it: uploaded {uploaded}, card {shape}")
+            # the next edit finds it on the message and does not upload it again
+            message = int(_Webhook.edits[0][1]) if _Webhook.edits else 0
+            _Webhook.files[message] = [*_Webhook.files.get(message, []), type("Attachment", (), {"filename": "101_image_1.png"})()]
+            _Webhook.edits.clear()
+            with _webhooks():
+                asyncio.run(watch.revise("maimai", "100", whole))
+            if not _Webhook.edits or any(isinstance(file, discord.File) for file in _Webhook.edits[0][2]["attachments"]):
+                problems.append("an answer's picture already on the message was uploaded again")
+            # over the server's upload limit: the words still join, without the picture
+            _Webhook.files[message] = _Webhook.files[message][:1]
+            _Webhook.edits.clear()
+            with _webhooks(lambda url, opts: "toobig" if "edit" in opts else None):
+                done = asyncio.run(watch.revise("maimai", "100", whole))
+            if done != 1 or not _Webhook.edits or len(_card(_Webhook.edits[0][2])[0]) != 2 or _card(_Webhook.edits[0][2])[2] != ["attachment://100_image_1.png"]:
+                problems.append("an answer whose picture was too big to upload did not join the card without it")
+    finally:
+        news.fetch_bytes = kept_bytes
+        _Webhook.edits = []
     return problems
