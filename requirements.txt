@@ -5,3 +5,9 @@ numpy==2.5.0
 pillow==13.0.0
 playwright==1.60.0
 requests==2.34.2
+# not imported directly: held at the releases that fix the October-November advisories (certifi's emSign roots,
+# urllib3's proxy TLS and chunk handling, aiohttp's cookie scope and memory use), which a cached build could miss
+aiohttp==3.14.5
+certifi==2026.10.23
+multidict==7.2.1
+urllib3==2.8.0
