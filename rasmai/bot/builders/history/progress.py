@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.insights import plan_credits, rating_forecast
 from rasmai.bot.state.cache import CachedAnalysis
@@ -30,7 +31,7 @@ async def build_progress(cached: CachedAnalysis) -> Tuple[discord.Embed, List[di
     a = cached.analyzer
     player = a.player
     points = load_rating_history(cached.user_id)
-    embed = discord.Embed(title="Progress", color=discord.Color.from_rgb(240, 192, 74))
+    embed = discord.Embed(title="Progress", color=palette.RATING)
     if len(points) < 2:
         files, avatar_url = message_files(player, None, "")
         embed.set_author(name=player.name, icon_url=avatar_url)

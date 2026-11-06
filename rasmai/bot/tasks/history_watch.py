@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.bot.tasks.presence import maintenance_at
 from rasmai.bot.state.cache import forget_analysis
@@ -87,7 +88,7 @@ class HistoryWatch:
             if len(bests) > len(shown):
                 lines.append(f"-# and {len(bests) - len(shown)} more")
         embed = discord.Embed(title=f"{len(bests)} new best{'s' if len(bests) != 1 else ''} since the last read" if bests else "Your rating moved",
-                              description="\n".join(lines), color=discord.Color.from_rgb(255, 61, 143))
+                              description="\n".join(lines), color=palette.BRAND)
         embed.set_footer(text="from the daily read · /settings notify:False turns these off")
         try:
             user = self.bot.get_user(int(user_id)) or await self.bot.fetch_user(int(user_id))

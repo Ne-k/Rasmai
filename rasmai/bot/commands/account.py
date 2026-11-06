@@ -1,6 +1,7 @@
 from typing import Optional
 
 import discord
+from rasmai.bot.ui import palette
 from discord import app_commands
 
 from rasmai.bot.core import bot, server_invite_url
@@ -20,7 +21,7 @@ async def help_command(interaction: discord.Interaction):
             "I read your maimai DX scores and work out what to play next to raise "
             "your rating - based on how *you* actually play, not a generic list."
         ),
-        color=discord.Color.from_rgb(124, 92, 255),
+        color=palette.BRAND,
     )
     embed.add_field(
         name="Getting started",
@@ -113,7 +114,7 @@ async def ping(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Pong",
         description=f"Round trip to Discord: **{latency}ms**\n\nmaimai servers: {describe()}",
-        color=discord.Color.green() if latency < 200 else discord.Color.orange(),
+        color=palette.OK if latency < 200 else palette.WAIT,
     )
     embed.set_footer(text="maintenance is 01:00-02:00 JST daily, 01:00-04:00 on Wednesdays")
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -122,7 +123,7 @@ async def ping(interaction: discord.Interaction):
 @bot.tree.command(name="invite", description="Add Rasmai to your server or to your account, or open the web dashboard")
 async def invite(interaction: discord.Interaction):
     site = get_public_base_url()
-    embed = discord.Embed(title="Rasmai", color=discord.Color.from_rgb(255, 61, 143))
+    embed = discord.Embed(title="Rasmai", color=palette.BRAND)
     if DISCORD_BOT_INVITE:
         embed.add_field(name="Add Rasmai", value=f"[Install the bot]({DISCORD_BOT_INVITE})\n-# add it to a server, or to your own account so the commands work in DMs and in every server you are in", inline=False)
     else:
@@ -147,7 +148,7 @@ async def support(interaction: discord.Interaction):
             "Say which region you play on, what you ran and the exact error. "
             "**Never post your `/login` link, SEGA ID or password.**"
         ),
-        color=discord.Color.from_rgb(255, 61, 143),
+        color=palette.BRAND,
     )
     view = discord.ui.View()
     view.add_item(discord.ui.Button(label="Support server", url=SUPPORT_INVITE))

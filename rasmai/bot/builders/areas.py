@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import asyncio
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import _fit, message_files, progress_bar, stamp, today
@@ -224,7 +225,7 @@ async def build_areas(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disco
             date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-area.png")
-    embed = discord.Embed(title="Area travel", url=area_url(), color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title="Area travel", url=area_url(), color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
 
     areas = summary["areas"]

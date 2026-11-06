@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import io
 import discord
+from rasmai.bot.ui import palette
 import asyncio
 
 from rasmai.engine.analysis import ChartRef, calculate_rating, rank_for
@@ -16,7 +17,7 @@ from rasmai.bot.ui import emoji
 from rasmai.bot.core import try_render
 from rasmai.images.render import cover_html_factory
 from rasmai.bot.builders.charts.index import charts_for, jacket_file, song_for_chart, songs_by_loose_key
-from rasmai.bot.builders.charts.page import DIFFICULTY_COLOUR, last_play
+from rasmai.bot.builders.charts.page import last_play
 from rasmai.bot.builders.charts.rows import _chart_rows
 from rasmai.bot.builders.charts.song import song_videos
 
@@ -73,7 +74,7 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
     from rasmai.bot.builders.charts.views import SongView
     if cached is None:
         embed = discord.Embed(title=title, description="Run `/analyze` first so there is an account to read history for.",
-                              color=discord.Color.orange())
+                              color=palette.WAIT)
         return embed, [], None
     refs = charts_for(title, cached.analyzer.chart_index)
     if not refs:
@@ -86,7 +87,7 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
 
     embed = discord.Embed(
         title=f"{title} · score history",
-        color=discord.Color.from_rgb(*DIFFICULTY_COLOUR.get(ref.difficulty, (162, 102, 232))),
+        color=palette.difficulty(ref.difficulty),
         url=chart_url(title, ref.chart_type, ref.difficulty, ref.cover),
     )
     was = points[0]["constant"] if points else ref.constant

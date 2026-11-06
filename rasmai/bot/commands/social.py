@@ -2,6 +2,7 @@ from typing import Optional
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 from discord import app_commands
 
 from rasmai.bot.core import bot, heavy_cooldown, light_cooldown
@@ -122,13 +123,13 @@ async def export(interaction: discord.Interaction, format: Optional[app_commands
         if fmt == "kamaitachi":
             file, counts = build_kamaitachi_export(cached)
             note = f"\n-# {counts['skipped']} left out: Utage charts, and songs the chart database cannot name" if counts["skipped"] else ""
-            embed = discord.Embed(title="Your scores for Kamaitachi", color=discord.Color.blurple(), description=(
+            embed = discord.Embed(title="Your scores for Kamaitachi", color=palette.PLAYER, description=(
                 f"{counts['charts']} best scores and {counts['plays']} plays. On Kamaitachi, Import Scores > Batch Manual, "
                 f"then choose this file. Only you can see this message.{note}"))
             return embed, [file], None
         file = build_export(cached, fmt)
         embed = discord.Embed(title="Your scores", description=f"Every chart with a score, as {fmt.upper()}. Only you can see this message.",
-                              color=discord.Color.blurple())
+                              color=palette.PLAYER)
         return embed, [file], None
 
     await run_simple_command(interaction, "Something went wrong exporting.", build, ephemeral=True)

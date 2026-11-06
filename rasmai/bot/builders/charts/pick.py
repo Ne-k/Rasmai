@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple
 import io
 import random
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import DIFFICULTY_ORDER
 from rasmai.bot.state.cache import CachedAnalysis
@@ -27,7 +28,7 @@ async def build_random(cached: CachedAnalysis, owner_id: int, level: Optional[st
         # a random pick is something to go and play, so a song still behind an unlock is no use
         and (not unplayed or (song_for_chart(loose_map, ref) is None and not ref.locked))
     ]
-    embed = discord.Embed(color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(color=palette.LOOKUP)
     embed.set_author(name=a.player.name)
     if not pool:
         embed.title = "Nothing matches"

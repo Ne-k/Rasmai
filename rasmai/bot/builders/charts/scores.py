@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 import math
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import rank_for
 from rasmai.bot.state.cache import CachedAnalysis
@@ -64,7 +65,7 @@ async def build_dxscore(cached: CachedAnalysis, owner_id: Optional[int] = None, 
             cover_html_factory(a.jacket_path), average, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-dxscore.png")
-    embed = discord.Embed(title="DX score", color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title="DX score", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     total = sum(tiles.values())
     embed.description = (f"**{tiles[5]}** five-star charts of **{total}** · average **{average * 100:.1f}%** of max DX score\n"
@@ -120,7 +121,7 @@ async def build_b50(cached: CachedAnalysis, owner_id: Optional[int] = None, page
         cover_html_factory(a.jacket_path), b50.new_pool.total, b50.old_pool.total, date_text=today(),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-b50.png")
-    embed = discord.Embed(title=f"Best 50 · {b50.total}", color=discord.Color.from_rgb(240, 192, 74))
+    embed = discord.Embed(title=f"Best 50 · {b50.total}", color=palette.RATING)
     embed.set_author(name=player.name, icon_url=avatar_url)
     embed.description = (f"**{b50.new_pool.total}** from {len(new_entries)} current-version charts · "
                          f"**{b50.old_pool.total}** from {len(old_entries)} older charts\n"

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.bot.state.cache import CachedAnalysis, cache_get
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, level_text, message_files, stamp, today
@@ -40,7 +41,7 @@ async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None, p
             labelled, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path), pbs, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-recent.png")
-    embed = discord.Embed(title="Recent plays", color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title="Recent plays", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     if not plays:
         embed.description = "No recent plays on the account yet."

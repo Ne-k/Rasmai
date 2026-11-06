@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 import asyncio
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine import analysis, insights
 from rasmai.images import posters
@@ -72,7 +73,7 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
             description=(f"Nothing at **{scope}** moves your best-50 at the {analysis.challenge_for(challenge).label.lower()} level. "
                          "Try a bolder level, a wider range, or drop the filter." if scope else
                          "I couldn't find anything worth recommending yet. That usually means very few scores on the account - play a few more charts and try again."),
-            color=discord.Color.from_rgb(240, 192, 74),
+            color=palette.RATING,
         )
         embed.set_author(name=player.name, icon_url=avatar_url)
         return embed, files
@@ -85,7 +86,7 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
             f"**+{reachable}** within reach today across **{movers}** charts"
             + (f" · **+{plan.total}** on the road to **{plan.goal_rating}**" if plan and plan.steps else "")
         ),
-        color=discord.Color.from_rgb(240, 192, 74),
+        color=palette.RATING,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
     if summary.get("fallbackFrom"):
@@ -147,7 +148,7 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
             + f"\n-# {'stretch targets' if stretch else 'grind targets, 25% odds or better'} · "
             f"about **{plan.average_stretch:+.1f}%** above your usual · worth ~+{plan.expected_gain:.0f} by odds"
         ),
-        color=discord.Color.from_rgb(240, 192, 74),
+        color=palette.RATING,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
     if steps:
@@ -212,7 +213,7 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
              f"Never played · lv **{lower:.1f}** to **{upper:.1f}** · first pass should land AAA or better\n")
             + "-# charts that would enter your best-50 come first"
         ),
-        color=discord.Color.from_rgb(33, 195, 227),
+        color=palette.LOOKUP,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
     if focus:
@@ -259,7 +260,7 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
         len(a.recent_songs), date_text=today(), moved=moved_by_recent(a),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-profile.png")
-    embed = discord.Embed(title="Play Profile", color=discord.Color.blurple())
+    embed = discord.Embed(title="Play profile", color=palette.PLAYER)
     embed.set_author(name=player.name, icon_url=avatar_url)
     add_profile_fields(embed, summary)
     add_row_break(embed)
@@ -352,7 +353,7 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
             + (f"\n-# only **{limit_label}**" if limit_label else "")
             + "\n-# each credit goes where gain × odds is highest · a repeat is worth it only if the first try missed · warm-ups first"
         ),
-        color=discord.Color.from_rgb(255, 61, 143),
+        color=palette.PLAYER,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
     if not session.plays:

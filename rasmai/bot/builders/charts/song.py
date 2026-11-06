@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 import io
 import discord
+from rasmai.bot.ui import palette
 import asyncio
 import logging
 
@@ -16,7 +17,7 @@ from rasmai.bot.builders.charts.index import (
 )
 from rasmai.bot.builders.charts.ladder import _cutoffs, _version_label, chart_ladder, prediction_for
 from rasmai.bot.builders.charts.details import _chart_credit, _note_split, _pattern_field, _song_chart_line, unlock_field
-from rasmai.bot.builders.charts.page import DIFFICULTY_COLOUR, _default_page, _page_fields, difficulty_page, ensure_play_counts, last_play
+from rasmai.bot.builders.charts.page import _default_page, _page_fields, difficulty_page, ensure_play_counts, last_play
 from rasmai.bot.builders.charts.rows import _chart_rows, _song_card
 
 logger = logging.getLogger(__name__)
@@ -41,15 +42,15 @@ def _resolve_song(cached: Optional[CachedAnalysis], query: str) -> Tuple[Optiona
                                   description=(f"It is a new song. The database refreshes itself within a day of a read that meets it; the jacket, "
                                                f"constants and this page arrive with it. Until then your score counts with a constant taken from the "
                                                f"middle of its level.\n-# yours: {scores}"),
-                                  color=discord.Color.orange())
+                                  color=palette.WAIT)
             return None, [], embed
         embed = discord.Embed(title="No song found",
                               description=f"Nothing in the chart database matches **{query}**. Try part of the title, or its reading in romaji.",
-                              color=discord.Color.orange())
+                              color=palette.WAIT)
         return None, [], embed
     refs = charts_for(title, index)
     if not refs:
-        embed = discord.Embed(title=title, description="The database lists this title but no playable charts.", color=discord.Color.orange())
+        embed = discord.Embed(title=title, description="The database lists this title but no playable charts.", color=palette.WAIT)
         return title, [], embed
     return title, refs, None
 
@@ -98,7 +99,7 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
     embed = discord.Embed(
         title=f"{title}",
         description=f"{ref.artist}\n-# {ref.genre} · {_version_label(cached, ref)}",
-        color=discord.Color.from_rgb(*DIFFICULTY_COLOUR.get(ref.difficulty, (162, 102, 232))),
+        color=palette.difficulty(ref.difficulty),
     )
     # embeds do not render markdown headings, so the chart name is a field title
     embed.add_field(
@@ -218,7 +219,7 @@ async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner
     embed = discord.Embed(
         title=title,
         description=f"{first.artist or 'artist unknown'}\n-# {' · '.join(facts)}",
-        color=discord.Color.from_rgb(*DIFFICULTY_COLOUR.get(max(refs, key=lambda r: r.constant).difficulty, (162, 102, 232))),
+        color=palette.difficulty(max(refs, key=lambda r: r.constant).difficulty),
     )
     for chart_type in ("std", "dx"):
         group = [(ref, row) for ref, row in zip(refs, rows) if ref.chart_type == chart_type]

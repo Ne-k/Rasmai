@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import math
 
 import discord
+from rasmai.bot.ui import palette
 from discord import app_commands
 
 from rasmai.engine import patterns
@@ -61,7 +62,7 @@ def _line(index: int, r: Dict[str, Any]) -> str:
 def catalogue_embed(cached: Optional[CachedAnalysis]) -> discord.Embed:
     """Every pattern tag with how many charts carry it: the map of what the charts ask of you."""
     items = patterns.catalogue(_index(cached))
-    embed = discord.Embed(title="Traits", color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title="Traits", color=palette.LOOKUP)
     embed.description = ("What a chart asks of your hands. Pick one with `/charts pattern:` to see every chart that has it, with your own "
                          "scores beside them; the option searches Japanese and English, so `streams` and `乱打` both find it.\n"
                          "-# a trait is a reading aid: knowing a chart is streams and hand swaps tells you what to watch for on your next run")
@@ -116,7 +117,7 @@ async def build_patterns(cached: Optional[CachedAnalysis], owner_id: int, query:
         near = patterns.suggest(str(query)[:2], index, limit=4)
         hint = (" Closest: " + ", ".join(f"`{item['english'] if item['community'] else item['label']}`" for item in near)) if near else ""
         embed = discord.Embed(title="Traits", description=f"No trait matches `{str(query)[:40]}`. Run `/charts` on its own to see them all.{hint}",
-                              color=discord.Color.from_rgb(92, 211, 232))
+                              color=palette.LOOKUP)
         return embed, files, None
     entry = next((item for item in patterns.catalogue(index) if item["tag"] == tag), None)
     rows = pattern_rows(cached, tag, level, difficulty)
@@ -124,7 +125,7 @@ async def build_patterns(cached: Optional[CachedAnalysis], owner_id: int, query:
     page = max(0, min(page, pages - 1))
     scope = " · ".join(bit for bit in (f"level {level}" if level else "", TIER_SHORT.get(difficulty or "", "") if difficulty else "") if bit)
     heading = f"{patterns.english_of(tag)} · {tag}" if (entry is None or entry["community"]) else str(entry["label"])
-    embed = discord.Embed(title=heading, color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title=heading, color=palette.LOOKUP)
     if cached is not None:
         embed.set_author(name=cached.analyzer.player.name, icon_url=avatar_url)
     played = sum(1 for r in rows if r["played"])

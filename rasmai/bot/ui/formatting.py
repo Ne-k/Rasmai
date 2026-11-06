@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Tuple, Any
 import base64
 import discord
+from rasmai.bot.ui import palette
 import io
 
 from rasmai.bot.ui import emoji
@@ -276,7 +277,7 @@ def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> di
             "Press the button below to open the setup page. It walks you through "
             "signing in and tells you the moment you are connected."
         ),
-        color=discord.Color.from_rgb(255, 182, 46),
+        color=palette.WAIT,
     )
     if region == "jp":
         embed.add_field(
@@ -324,7 +325,7 @@ def build_login_done_embed(name: str, region: str) -> discord.Embed:
     embed = discord.Embed(
         title="Connected",
         description=f"Signed in as **{name or 'your maimai account'}** · {REGION_LABELS.get(region, region)}.",
-        color=discord.Color.from_rgb(75, 184, 95),
+        color=palette.OK,
     )
     embed.add_field(name="Next", value="`/analyze` for what to play, `/plan` for the route to your next thousand, `/chart` to look anything up.", inline=False)
     embed.set_footer(text="Your password never reached the bot; /delete-account removes everything at any time")

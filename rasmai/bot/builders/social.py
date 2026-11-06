@@ -7,6 +7,7 @@ import json
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import rank_for
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
@@ -35,7 +36,7 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
     me = a.player
     files, avatar_url = message_files(me, None, "")
     other_id = str(other.id)
-    embed = discord.Embed(title="Compare", color=discord.Color.from_rgb(162, 102, 232))
+    embed = discord.Embed(title="Compare", color=palette.PLAYER)
     embed.set_author(name=me.name, icon_url=avatar_url)
     if other_id == cached.user_id:
         embed.description = "Pick someone else - comparing you with yourself is a draw."
@@ -149,7 +150,7 @@ LEADERBOARD_PAGE = 20
 
 async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None, page: int = 0
                             ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
-    embed = discord.Embed(title=f"Rating leaderboard · {guild.name}", color=discord.Color.from_rgb(240, 192, 74))
+    embed = discord.Embed(title=f"Rating leaderboard · {guild.name}", color=palette.RATING)
     accounts = accounts_with_setting("leaderboard")
     if not accounts:
         embed.description = "Nobody has opted in yet. `/settings leaderboard:True` puts you on the board."
@@ -203,7 +204,7 @@ NEW_LABELS = {"any": "Expert and up", "master": "Master", "remaster": "Re:Master
 
 
 def settings_embed(prefs: Dict[str, Any], changed: bool, user_id: str = "") -> discord.Embed:
-    embed = discord.Embed(title="Your settings" + (" · saved" if changed else ""), color=discord.Color.blurple())
+    embed = discord.Embed(title="Your settings" + (" · saved" if changed else ""), color=palette.PLAYER)
     embed.add_field(name="Default layout", value=f"**{LAYOUT_LABELS.get(prefs['layout'], prefs['layout'])}**\n-# what `/analyze`, `/plan`, `/new` and `/profile` send unless you pick `output`", inline=False)
     embed.add_field(name="Default targets", value=f"**{CHALLENGE_LABELS.get(prefs.get('challenge', 'balanced'), 'Balanced')}**\n-# easier: about a coin flip per target · balanced: one in four · challenging: one in six · long shots: one in ten", inline=False)
     embed.add_field(name="Default /new difficulty", value=f"**{NEW_LABELS.get(prefs['new_difficulty'], prefs['new_difficulty'])}**", inline=False)

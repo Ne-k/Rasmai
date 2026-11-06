@@ -15,9 +15,6 @@ from rasmai.bot.builders.charts.ladder import chart_ladder, format_ladder, forma
 logger = logging.getLogger(__name__)
 
 
-DIFFICULTY_COLOUR = {"basic": (75, 184, 95), "advanced": (224, 160, 32), "expert": (226, 69, 90), "master": (162, 102, 232), "remaster": (203, 187, 232)}
-
-
 # Discord only has four button colours; green, grey, red and blurple map to the difficulty ladder
 DIFFICULTY_STYLE = {
     "basic": discord.ButtonStyle.success,

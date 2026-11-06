@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import math
 import re
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import DIFFICULTY_ORDER, rank_for
 from rasmai.bot.state.cache import CachedAnalysis
@@ -90,7 +91,7 @@ async def build_level(cached: CachedAnalysis, owner_id: int, level: str, sort: s
             player.avatar_base64, cover_html_factory(a.jacket_path), len(rows), played, start=page * LEVEL_PAGE + 1, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-level.png")
-    embed = discord.Embed(title=f"{'Constant' if is_constant(level) else 'Level'} {level} · {LEVEL_SORTS[sort]}", color=discord.Color.from_rgb(226, 69, 90))
+    embed = discord.Embed(title=f"{'Constant' if is_constant(level) else 'Level'} {level} · {LEVEL_SORTS[sort]}", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     if not rows:
         embed.description = f"No charts at {level} in the database. Levels look like `13` or `13+`, constants like `13.8`."

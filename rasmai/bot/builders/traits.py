@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Tuple
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, message_files
@@ -71,7 +72,7 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
             wheel, weak, strong, player.name, cached.start_rating, player.avatar_base64, sample, date_text=cached.extras.get("date", ""),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-traits.png")
-    embed = discord.Embed(title="Your traits", color=discord.Color.from_rgb(92, 211, 232))
+    embed = discord.Embed(title="Your traits", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
 
     if not weak and not strong:

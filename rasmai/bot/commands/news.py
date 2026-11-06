@@ -5,6 +5,7 @@ import time
 
 import aiohttp
 import discord
+from rasmai.bot.ui import palette
 from discord import app_commands
 
 from rasmai.bot.core import bot, cannot_see_channel, news_watch, server_invite_url
@@ -24,7 +25,6 @@ MAX_HISTORY = 10             # earlier posts of each account that can be sent on
 HISTORY_SPACING = 300        # seconds a server must leave between two requests for earlier posts: each one is a read, a translation and maybe a video
 WEBHOOK_NAME = "Rasmai news"
 MENU_TIMEOUT = 600           # seconds a menu answers for
-NEWS_COLOR = discord.Color.from_rgb(92, 211, 232)
 CHANNEL_TYPES = [discord.ChannelType.text, discord.ChannelType.news]     # the kinds of channel a webhook can post in
 MAX_EXTRA_PER_SERVER = 5     # accounts of its own choosing one server may follow, so a few servers cannot take every one of the MAX_ADDED
 LOOKUP_SPACING = 15          # seconds between one person's lookups of an account to add: each is up to three reads of a public Nitter instance
@@ -356,7 +356,7 @@ class SubscribeMenu(OwnerOnlyView):
             lines.append(f"\n{self.channel.mention} doesn't get any news yet.")
         if note:
             lines.append("\n" + note)
-        embed = discord.Embed(title="News", description="\n".join(lines), color=NEWS_COLOR)
+        embed = discord.Embed(title="News", description="\n".join(lines), color=palette.LOOKUP)
         where = [f"<#{cid}>: {_names(keys, maimai_only=self.filtered.get(cid, set()))}" for cid, keys in self.following.items()]
         embed.add_field(name="Getting news now", value="\n".join(where)[:1024] if where else "No channels yet.", inline=False)
         embed.set_footer(text=f"Bluesky posts show up within a minute and X posts within about 5. They come through a webhook called \"{WEBHOOK_NAME}\".")
@@ -553,7 +553,7 @@ class UnsubscribeMenu(OwnerOnlyView):
             lines = ["No channels here get news right now. Use `/news subscribe` to set one up."]
         if note:
             lines.append("\n" + note)
-        return discord.Embed(title="News in this server", description="\n".join(lines), color=NEWS_COLOR)
+        return discord.Embed(title="News in this server", description="\n".join(lines), color=palette.LOOKUP)
 
     async def pick(self, interaction: discord.Interaction) -> None:
         chosen = set(self.which.values)

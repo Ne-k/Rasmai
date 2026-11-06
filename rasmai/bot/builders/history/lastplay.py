@@ -3,6 +3,7 @@ import asyncio
 import logging
 
 import discord
+from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import rank_for
 from rasmai.engine.losses import note_losses
@@ -96,7 +97,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
     player = a.player
     plays = recent_plays(cached)
     if not plays:
-        embed = discord.Embed(title="No recent plays", description="Nothing on the account's recent-plays list yet.", color=discord.Color.orange())
+        embed = discord.Embed(title="No recent plays", description="Nothing on the account's recent-plays list yet.", color=palette.WAIT)
         return embed, [], None
     position = max(1, min(position, len(plays)))
     play = plays[position - 1]
@@ -114,7 +115,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
         description=(f"**{TIER_NAMES.get(play['difficulty'], play['difficulty'].upper())} {play['level']}** · "
                      f"{play['chart_type'].upper()} · {detail.get('track') or play['track']} · "
                      + (stamp(play["when"], "f") if play["when"] else str(detail.get("played_at") or play["day"]))),
-        color=discord.Color.from_rgb(162, 102, 232),
+        color=palette.PLAYER,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
     thumb = jacket_file(cached, play["cover"])
