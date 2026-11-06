@@ -13,7 +13,7 @@
 .signin-gate .provider:active { box-shadow: 0 0 0 var(--edge); }
 .signin-gate .provider:disabled { box-shadow: 3px 3px 0 var(--edge); }
 /* brand colours, fixed in both themes: Discord's blurple with white, and Google's light button so its G stays on white */
-.signin-gate .provider.discord { background: #5865f2; color: #fff; }
+.signin-gate .provider.discord { background: var(--discord); color: #fff; }
 .signin-gate .provider.google { background: #fff; color: #1d1a2f; }
 .sg-error { max-width: 380px; }
 

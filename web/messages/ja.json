@@ -122,6 +122,7 @@
   },
   "overviewTab": {
     "age": "よく選ぶ譜面",
+    "refreshHint": "スコアの読み取りは<link>アカウント</link>タブから！",
     "ageValue": "平均 {years} 年前の曲 · {fresh}% が1年以内",
     "charts": "{n} 譜面",
     "comfort": "安定して出せる上限",

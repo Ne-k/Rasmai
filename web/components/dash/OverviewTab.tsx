@@ -10,7 +10,7 @@ import { levelValue } from "./Best50";
 
 const RANK_ORDER = ["SSS+", "SSS", "SS+", "SS", "S+", "S", "AAA", "AA", "A", "BBB", "BB", "B", "C", "D"];
 
-export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview; charts: ChartRow[] | null; chartsError?: string; onRetry?: () => void }) {
+export function OverviewTab({ me, charts, chartsError, onRetry, onAccount }: { me: Overview; charts: ChartRow[] | null; chartsError?: string; onRetry?: () => void; onAccount: () => void }) {
   const t = useTranslations("overviewTab");
   const d = useTranslations("dash");
   const stats = useMemo(() => {
@@ -37,6 +37,9 @@ export function OverviewTab({ me, charts, chartsError, onRetry }: { me: Overview
   return (
     <>
       <Sparkline points={me.history ?? []} />
+      <p className="hint spark-hint">
+        {t.rich("refreshHint", { link: (c) => <button type="button" className="linkish" onClick={onAccount}>{c}</button> })}
+      </p>
       {chartsError ? <LoadError what={d("yourCharts")} message={chartsError} onRetry={onRetry} /> : null}
       {prof?.curve && prof.curve.length > 1 && (
         <SkillCurve

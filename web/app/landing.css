@@ -47,8 +47,8 @@
 .image tr:last-child td { border-bottom: 0; }
 .image .n { color: #a39fae; width: 30px; }
 .image .t { display: block; font-family: var(--font-body), sans-serif; font-weight: 700; font-size: 15px; }
-.image .tier { display: inline-block; margin-top: 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #e2455a; }
-.image .tier.master { color: #a266e8; }
+.image .tier { display: inline-block; margin-top: 4px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--d-expert); }
+.image .tier.master { color: var(--d-master); }
 .image .num { text-align: right; white-space: nowrap; }
 .image .gain { color: var(--gold); font-weight: 700; font-size: 17px; }
 .image-foot { display: flex; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-top: 14px; padding-top: 10px; border-top: 1px solid #2c2935; font-size: 10.5px; letter-spacing: 1.8px; text-transform: uppercase; color: #6f6b7c; }

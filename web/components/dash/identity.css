@@ -48,7 +48,7 @@
 .signin-row:last-child { border-bottom: 0; }
 /* the marks sit on their own brand colours in both themes; Google's G asks for a light ground */
 .signin-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--line); }
-.signin-mark.discord { background: #5865f2; color: #fff; border-color: #5865f2; }
+.signin-mark.discord { background: var(--discord); color: #fff; border-color: var(--discord); }
 .signin-mark.google { background: #fff; }
 .signin-name { font-weight: 500; font-size: 15px; }
 .ok-badge { padding: 1px 8px; border: 1.5px solid var(--ok); border-radius: 999px; color: var(--ok); font-family: var(--font-mono), monospace; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; line-height: 1.6; white-space: nowrap; }

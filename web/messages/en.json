@@ -122,6 +122,7 @@
   },
   "overviewTab": {
     "age": "charts you pick",
+    "refreshHint": "Refresh your scores on the <link>Account</link> page!",
     "ageValue": "{years} yr old · {fresh}% under a year",
     "charts": "{n} charts",
     "comfort": "comfortable up to",

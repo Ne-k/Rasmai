@@ -310,7 +310,7 @@ export function Dash() {
 
       <main className="panel">
         <div hidden={tab !== "overview"}>
-          <OverviewTab me={me} charts={charts} chartsError={chartsError} onRetry={loadCharts} />
+          <OverviewTab me={me} charts={charts} chartsError={chartsError} onRetry={loadCharts} onAccount={() => pick("account")} />
         </div>
         {visited.has("picks") && (
           <div hidden={tab !== "picks"}>

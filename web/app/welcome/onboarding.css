@@ -16,7 +16,7 @@
 .ob-chip-via { font-size: 11px; color: var(--ink-2); }
 /* the marks sit on their own brand grounds, which stay put in both themes: Google asks for its G on white */
 .ob-mark { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 1px solid var(--line); }
-.ob-mark.discord { background: #5865f2; color: #fff; border-color: #5865f2; }
+.ob-mark.discord { background: var(--discord); color: #fff; border-color: var(--discord); }
 .ob-mark.big { width: 44px; height: 44px; }
 
 .ob-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 48px; align-items: start; max-width: 1180px; }

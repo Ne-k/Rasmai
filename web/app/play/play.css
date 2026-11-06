@@ -20,7 +20,7 @@
 .sorts button:hover { color: var(--ink); }
 .levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .levels button { height: 34px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
-.levels button.on { background: var(--pink); border-color: var(--pink-edge); color: #16121a; }
+.levels button.on { background: var(--pink); border-color: var(--pink-edge); color: var(--on-bright); }
 .levels button:hover { border-color: var(--edge); }
 .sorts button:focus-visible, .levels button:focus-visible, .song-row:focus-visible, .diff:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 .songs { border: 2px solid var(--edge); border-radius: 14px; background: var(--paper-2); overflow: hidden; }
@@ -34,14 +34,14 @@
 .song-row .artist { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .song-row .bpm { font-family: var(--font-mono), monospace; font-size: 13px; text-align: right; }
 .song-row .diffs { display: flex; flex-wrap: wrap; gap: 6px; }
-.diff { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border: 0; border-radius: 7px; font: inherit; font-weight: 900; font-size: 12px; color: #16121a; cursor: pointer; transition: transform .1s; }
+.diff { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border: 0; border-radius: 7px; font: inherit; font-weight: 900; font-size: 12px; color: var(--on-bright); cursor: pointer; transition: transform .1s; }
 .diff:hover { transform: translateY(-1px); }
-.diff.d-basic { background: #4bb85f; }
-.diff.d-advanced { background: #e0a020; }
-.diff.d-expert { background: #e2455a; color: #fff5f5; }
-.diff.d-master { background: #a266e8; color: #fbf6ff; }
-.diff.d-remaster { background: #cbbbe8; }
-.diff.d-utage, .diff.d-easy { background: #e2609a; color: #fff5fa; }
+.diff.d-basic { background: var(--d-basic); }
+.diff.d-advanced { background: var(--d-advanced); }
+.diff.d-expert { background: var(--d-expert); color: #fff5f5; }
+.diff.d-master { background: var(--d-master); color: #fbf6ff; }
+.diff.d-remaster { background: var(--d-remaster); }
+.diff.d-utage, .diff.d-easy { background: var(--d-utage); color: #fff5fa; }
 .songs .empty { padding: 26px 16px; color: var(--muted); text-align: center; }
 @media (max-width: 760px) {
   .library { grid-template-columns: 1fr; }
