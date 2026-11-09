@@ -371,6 +371,22 @@ def _translation():
                     problems.append(f"the prompt is not Google's, with two blank lines and then only the text, links left out: {prompt[-80:]!r}")
                 if await news.translate(session, "新曲が登場！ https://example.com/a") != got or len(seen) != 1:
                     problems.append("the same post was translated twice")
+                # a post of several lines is translated a line at a time and keeps its lines, and a line without Japanese stays as written
+                reset("ok")
+                got = await news.translate(session, "一行目\n\n二行目 https://example.com/b\n11/10 10:00")
+                if got != "The final song is out!\n\nThe final song is out!\n11/10 10:00" or len(seen) != 2 or not seen[1]["messages"][0]["content"].endswith("\n\n\n二行目"):
+                    problems.append(f"a post of three lines came out as {got!r} from {len(seen)} requests")
+                # one line of a post that cannot be translated: the whole post goes out as written, not half and half
+                kept_line = news._translate_line
+
+                async def one_of_two(session, clean):
+                    return "The final song is out!" if clean == "一行目" else None
+                news._translate_line = one_of_two
+                try:
+                    if await news.translate(session, "一行目\n二行目\nhttps://example.com/c") != "一行目\n二行目\nhttps://example.com/c":
+                        problems.append("a post with one line the translators could not do went out half translated, or lost a line")
+                finally:
+                    news._translate_line = kept_line
                 # two at once are sent to the model one after the other
                 reset("ok")
                 await asyncio.gather(news.translate(session, "一つ目"), news.translate(session, "二つ目"), news.translate(session, "三つ目"))
@@ -617,7 +633,7 @@ def _delivery():
                 order = [type(item).__name__ for item in sent[0][1]["view"].children[0].children] if sent else []
                 galleries = [[entry.media.url for entry in item.items] for item in sent[0][1]["view"].children[0].children if type(item).__name__ == "MediaGallery"] if sent else []
                 if galleries != [["attachment://3_image_1.png", "attachment://3_image_2.png"], ["attachment://4_image_1.png"]] \
-                        or order != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery"]:
+                        or order != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery", "TextDisplay"]:
                     problems.append(f"a thread's pictures did not come out as one gallery under each post, named apart: {galleries}, {order}")
             # a source nobody follows is sent nowhere
             with _webhooks() as sent:
@@ -2544,6 +2560,11 @@ def _limits():
     short = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["hello"]).view()})[0][0]
     if "hello" not in short or "…" in short:
         problems.append(f"a short post was cut: {short!r}")
+    # a translated post: its links once, under the English, and the original quoted on one line and cut, without them
+    long = "あ" * 300 + " https://maimai.sega.jp/kop8th/"
+    text = _card({"view": news.Post("maimai", "1", "https://x.com/a/status/1", "Maimai", parts=["English", long]).view()})[0][0]
+    if not text.startswith("English\nhttps://maimai.sega.jp/kop8th/\n\n> " + "あ" * 139 + "…") or text.count("https://maimai.sega.jp/kop8th/") != 1:
+        problems.append(f"a translated post did not carry its link once under the English with the original quoted and cut: {text[:120]!r}")
     for blob in ("../../x", "abc?d=1", "a/b", 5, None, ""):
         images, videos = news.bluesky_media({"embed": {"$type": "app.bsky.embed.images", "images": [{"image": {"ref": {"$link": blob}}}]}}, "did:plc:x")
         more, clips = news.bluesky_media({"embed": {"$type": "app.bsky.embed.video", "video": {"ref": {"$link": blob}}}}, "did:plc:x")
@@ -2927,7 +2948,7 @@ def _edits():
                     asyncio.run(watch.x_edit(source, item(now, words), "", was, root_id, feed_now))
                 shapes = [[type(child).__name__ for child in options["view"].children[0].children] for _u, _m, options in _Webhook.edits]
                 texts = [_card(options)[0] for _u, _m, options in _Webhook.edits]
-                if len(_Webhook.edits) != 2 or any(shape != ["Section", "Separator", "Section", "MediaGallery", "Separator", "Section"] for shape in shapes)                         or any(not (t[0].startswith("root") and t[1].startswith(words) and t[2].startswith("last")) for t in texts)                         or any(_card(options)[2] != [f"attachment://{answer_id}_image_1.png"] for _u, _m, options in _Webhook.edits):
+                if len(_Webhook.edits) != 2 or any(shape != ["Section", "Separator", "Section", "MediaGallery", "Separator", "Section", "TextDisplay"] for shape in shapes)                         or any(not (t[0].startswith("root") and t[1].startswith(words) and t[2].startswith("last")) for t in texts)                         or any(_card(options)[2] != [f"attachment://{answer_id}_image_1.png"] for _u, _m, options in _Webhook.edits):
                     problems.append(f"an answer edited under a new id ({words!r}) lost its place in the thread or its picture: {shapes}")
             # a thread whose second post's video was not fetched says so, as a card has no link for Discord to preview
             with _webhooks() as sent_now:
@@ -3141,7 +3162,7 @@ def _gaps():
             shown, _s, _m, buttons = _card(_Webhook.edits[-1][2]) if _Webhook.edits else ([], 0, [], [])
             if sent or len(shown) != 4 or any(f"({n}/4)" not in shown[n - 1] for n in range(1, 5)):
                 problems.append(f"the thread was not rebuilt as four sections in order: {len(sent)} sent, {shown}")
-            if len(shown) == 4 and (not shown[1].startswith("English: here are the qualifier songs (2/4)\n\nオンライン予選") or buttons[1] != ("2", "https://x.com/kop_sega/status/" + two)):
+            if len(shown) == 4 and (not shown[1].startswith("English: here are the qualifier songs (2/4)\nhttps://maimai.sega.jp/kop8th/\n\n> オンライン予選の課題曲はコチラ！ (2/4)") or buttons[1] != ("2", "https://x.com/kop_sega/status/" + two)):
                 problems.append(f"the hidden post was not built from the syndication text with its translation and link: {shown[1]!r}, {buttons}")
             if db.news_sent_root("kop", two) != one or db.news_sent_root("kop", four) != one or db.news_unseen("kop", [two]):
                 problems.append("the hidden post is not recorded under the root as sent and seen, so it would be sent on its own if it turned up")
@@ -3261,7 +3282,7 @@ def _fold_media():
             options = _Webhook.edits[0][2] if _Webhook.edits else {}
             uploaded = [file.filename for file in options.get("attachments", []) if isinstance(file, discord.File)]
             shape = [type(child).__name__ for child in options["view"].children[0].children] if options else []
-            if uploaded != ["101_image_1.png"] or shape != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery"]                     or _card(options)[2] != ["attachment://100_image_1.png", "attachment://101_image_1.png"]:
+            if uploaded != ["101_image_1.png"] or shape != ["Section", "MediaGallery", "Separator", "Section", "MediaGallery", "TextDisplay"]                     or _card(options)[2] != ["attachment://100_image_1.png", "attachment://101_image_1.png"]:
                 problems.append(f"an answer's picture was not uploaded with the edit and shown under it: uploaded {uploaded}, card {shape}")
             # the next edit finds it on the message and does not upload it again
             message = int(_Webhook.edits[0][1]) if _Webhook.edits else 0

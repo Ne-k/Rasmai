@@ -20,7 +20,8 @@ import aiohttp
 import discord
 import requests
 
-from rasmai.config import TRANSLATE_KEEP_ALIVE, TRANSLATE_MODEL, TRANSLATE_URL
+from rasmai.bot.ui.emoji import emoji
+from rasmai.config import TRANSLATE_KEEP_ALIVE, TRANSLATE_MODEL, TRANSLATE_URL, get_public_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,8 @@ FOLLOW_UP_MARK = chr(0x21A9) + chr(0xFE0F)      # the return arrow as an emoji, 
 
 
 TEXT_ROOM = 4000            # characters a message's text displays may hold between them, which Discord counts across all of them
+FOOTER_ROOM = 120           # of those, kept for the card's last line: the site's name with its mark
+COMPONENTS_MAX = 40         # components a message may hold, the container and everything in it
 POSTS_MAX = 8               # posts one message may carry: a message holds 40 components, and each post is a section, its text, its button, a gallery and a separator
 GALLERY_MAX = 10            # pictures and videos a gallery may hold
 PLATFORM_COLOURS = {"Bluesky": 0x1185FE, "X": 0x14171A}
@@ -122,12 +125,18 @@ class Post:
         return "Bluesky" if self.url.startswith("https://bsky.app/") else "X"
 
     def text(self, room: int = TEXT_ROOM, head: str = "", note: str = "") -> str:
-        """This one post's text within ``room`` characters: the translation, a blank line, the original, then when it was made, and ``note`` under that.
+        """This one post's text within ``room`` characters: the translation with the post's links, the original quoted, when it was made, and ``note`` under that.
 
         Links in a card draw no preview, which is why the post goes out as one: SEGA's pages drew one each, twice for the same page.
         """
         tail = (f"\n-# <t:{self.posted_at}:F> · <t:{self.posted_at}:R>" if self.posted_at else "") + (f"\n-# {note}" if note else "")
-        body = sanitize(unmask("\n\n".join(p for p in self.parts if p).strip()))
+        parts = [p for p in self.parts if p]
+        if len(parts) == 2:
+            # under a translation the original is a quote, cut short: the English carries the post, and under it the links translating left out
+            links = [link for link in LINK.findall(parts[1]) if link not in parts[0]]
+            parts[0] = "\n".join([parts[0], *links])
+            parts[1] = "> " + first_line(unlinked(parts[1]))
+        body = sanitize(unmask("\n\n".join(parts).strip()))
         room = min(room, TEXT_ROOM) - len(head) - len(tail)
         if len(body) > room:
             body = body[:room - 10].rstrip() + "…"
@@ -143,7 +152,7 @@ class Post:
     def texts(self, note: str = "") -> List[str]:
         """The post and its thread as a message's texts, one each in order, cut to what one message may carry; ``note`` goes under the first."""
         out: List[str] = []
-        room = TEXT_ROOM
+        room = TEXT_ROOM - FOOTER_ROOM
         for post in [self, *self.thread][:POSTS_MAX]:
             if out and room < 200:
                 break       # shortcut: the end of a thread too long for one message is dropped; fits() keeps folds from making one, a whole Bluesky thread could
@@ -154,7 +163,7 @@ class Post:
     def fits(self) -> bool:
         """Whether the post and its thread go out whole in one message: eight posts, 4000 characters of text between them."""
         posts = [self, *self.thread]
-        return len(posts) <= POSTS_MAX and sum(len(post.text(head=self.head() if post is self else "")) for post in posts) <= TEXT_ROOM
+        return len(posts) <= POSTS_MAX and sum(len(post.text(head=self.head() if post is self else "")) for post in posts) <= TEXT_ROOM - FOOTER_ROOM
 
     def view(self, names: List[str] = (), note: str = "") -> discord.ui.LayoutView:
         """The post and its thread as one card, the look of a status card: a stripe in the account's colour, each post a section with its
@@ -173,6 +182,9 @@ class Post:
             mine = [name for name in names if name.startswith(posts[number].tag + "_")] + (loose if not number else [])
             if mine:
                 card.add_item(discord.ui.MediaGallery(*(discord.MediaGalleryItem(f"attachment://{name}") for name in mine[:GALLERY_MAX])))
+        # the container, then a section counts itself, its text and its button; a full thread with a gallery under every post leaves no room
+        if 1 + sum(3 if isinstance(item, discord.ui.Section) else 1 for item in card.children) < COMPONENTS_MAX:
+            card.add_item(discord.ui.TextDisplay(footer()))
         view = discord.ui.LayoutView(timeout=None)
         view.add_item(card)
         return view
@@ -244,6 +256,21 @@ def edit_of(post_id: str, text: str, sent: List[Tuple[str, str, str]], showing: 
         if likeness >= X_EDIT_LIKENESS and (best is None or likeness > best[0]):
             best = (likeness, earlier, root)
     return (best[1], best[2]) if best else None
+
+
+def footer() -> str:
+    """The card's last line: the site, with the bot's mark in front once its emoji are loaded."""
+    site = get_public_base_url().rstrip("/")
+    mark = emoji("rasmai_dark")
+    return f"-# {mark + ' ' if mark else ''}[{site.split('://', 1)[-1]}]({site})"
+
+
+LINK = re.compile(r"https?://[^\s)）]+")
+
+
+def unlinked(text: str) -> str:
+    """Text with its links taken out; a link taken out of brackets leaves them empty, so those go too."""
+    return re.sub(r"[(（]\s*[)）]", "", LINK.sub("", text or "")).strip()
 
 
 def first_line(text: str, limit: int = 140) -> str:
@@ -778,31 +805,46 @@ async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optio
     return None
 
 
-async def translate(session: aiohttp.ClientSession, text: str) -> str:
-    """Japanese text in English: from the local model when there is one, else Google's free endpoint, else the text itself, which sends the post as written.
+async def _translate_line(session: aiohttp.ClientSession, clean: str) -> Optional[str]:
+    """One line in English, from the local model when there is one, else Google's free endpoint; None when both fail.
 
-    Links are left out of what is translated. A translation is kept for a while, so the same post is not translated twice.
+    A line is kept for a while, so the same post is not translated twice.
     """
-    clean = re.sub(r"https?://[^\s)）]+", "", text or "")
-    # a link taken out of brackets leaves them empty; and "でらっくす" is the game's own name, which Google renders as "Lux"
-    clean = re.sub(r"[(（]\s*[)）]", "", clean).replace("でらっくす", " DX ").strip()
-    if not clean:
-        return text
     if clean in _translated:
         _translated.move_to_end(clean)
         return _translated[clean]
     result = await _translate_local(session, clean) or await _translate_google(session, clean)
-    if not result:
+    if result:
+        _translated[clean] = result
+        while len(_translated) > TRANSLATED_KEPT:
+            _translated.popitem(last=False)
+    return result
+
+
+async def translate(session: aiohttp.ClientSession, text: str) -> str:
+    """Japanese text in English, a line at a time, so the post keeps its lines and blank lines: a line without Japanese stays as
+    written, and when any line could not be translated the whole post goes out in Japanese, as written.
+
+    Links are left out of what is translated; the card puts them back under the English.
+    """
+    out, failed = [], False
+    for line in (text or "").split("\n"):
+        # "でらっくす" is the game's own name, which Google renders as "Lux"
+        clean = unlinked(line).replace("でらっくす", " DX ").strip()
+        if not clean or not has_japanese(clean):
+            out.append(clean)
+            continue
+        result = await _translate_line(session, clean)
+        failed = failed or result is None
+        out.append(result or line)
+    if failed:
         now = time.monotonic()
         # said once per post, with the reasons, because a post sent in Japanese is otherwise indistinguishable from one that was never meant to be translated
         logger.warning("news: a post could not be translated, so it goes out in Japanese. Local model: %s. Google: %s.",
                        "not set up (MAIMAI_TRANSLATE_URL is empty)" if not TRANSLATE_URL else ("paused after a failure" if now < _local_paused_until else "failed or answered badly"),
                        "paused after being throttled" if now < _translate_paused_until else "failed")
         return text
-    _translated[clean] = result
-    while len(_translated) > TRANSLATED_KEPT:
-        _translated.popitem(last=False)
-    return result
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() or text
 
 
 def twimg(url: str) -> str:
