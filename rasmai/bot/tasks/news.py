@@ -556,10 +556,10 @@ class NewsWatch:
                 logger.exception("news: the messages a post became could not be kept, so its edits will not follow")
         return sum(result is True for result in results)
 
-    def translate_behind(self, post: Post) -> None:
+    def translate_behind(self, post: Post, webhook: Optional[Tuple[str, str]] = None) -> None:
         """Start a sent post's translation, remembered by the post: a thread or an edit that rebuilds the card meanwhile stops it, or the
         translation of the first post alone would land over the whole thread."""
-        task = asyncio.create_task(self.translate_later(post))
+        task = asyncio.create_task(self.translate_later(post, webhook))
         self._translating[post.id] = task
         self._running.add(task)
 
@@ -569,15 +569,20 @@ class NewsWatch:
                 del self._translating[post.id]
         task.add_done_callback(done)
 
-    async def translate_later(self, post: Post) -> None:
-        """Put the English on a post sent as written: the post is out in seconds, and the model's time is spent behind it."""
+    async def translate_later(self, post: Post, webhook: Optional[Tuple[str, str]] = None) -> None:
+        """Put the English on a post sent as written: the post is out in seconds, and the model's time is spent behind it.
+
+        ``webhook`` is ``(channel, url)`` for a post sent by hand: that channel may follow nobody, so its webhook is not on record.
+        """
         try:
             written = post.parts[-1] if post.parts else ""
             if not news.needs_english(written):
                 return
             english = await news.translate(self.session, written)
             if english and english != written:
-                await self.revise(post.source, post.id, replace(post, parts=[english, written]))
+                edited = await self.revise(post.source, post.id, replace(post, parts=[english, written]), dict([webhook]) if webhook else None)
+                if not edited:
+                    logger.info("news: a sent post's translation found no message left to edit")
         except Exception:
             logger.exception("news: translating a sent post failed")
 
@@ -594,11 +599,13 @@ class NewsWatch:
             return "The channel's webhook didn't take it - try again in a minute."
         if kept:
             await asyncio.to_thread(news_sent_save, found.source, found.id, found.covers or [found.id], found.parts[-1] if found.parts else "", kept)
-            self.translate_behind(found)
+            self.translate_behind(found, (channel_id, url))
         return ""
 
-    async def revise(self, source: str, root: str, post: Post) -> int:
+    async def revise(self, source: str, root: str, post: Post, webhooks: Optional[Dict[str, str]] = None) -> int:
         """Edit every message a sent post became to say what it says now; returns how many were edited.
+
+        A channel's webhook comes from its subscriptions, or from ``webhooks`` for a channel that follows nobody and was sent a post by hand.
 
         The message's pictures and video stay as sent: the edit lists its attachments to keep them, and the new card's gallery names them again.
         An answer that joined the thread since brings its own, uploaded with the edit, as the message holds only what it went out with.
@@ -610,7 +617,7 @@ class NewsWatch:
         fresh = {each.tag: await self._files(replace(each, thread=[])) for each in post.thread if each.images or each.videos} if messages else {}
 
         async def one(channel_id: str, message_id: str, unfurl: bool) -> bool:
-            url = await asyncio.to_thread(news_webhook, channel_id)
+            url = (webhooks or {}).get(channel_id) or await asyncio.to_thread(news_webhook, channel_id)
             if not url:
                 return False
             async with gate:

@@ -894,9 +894,10 @@ def _history():
                 db.add_news_subscription("g", "c9", "maimai", URL + "9")
                 linked = NewsWatch()
                 with _webhooks() as went:
-                    answer = asyncio.run(settled(linked.post_link("c9", URL + "9", "https://x.com/kop_sega/status/1?a=x&s=20")))
-                    refused = asyncio.run(linked.post_link("c9", URL + "9", "https://x.com/kop_sega/status/42"))
-                    nonsense = asyncio.run(linked.post_link("c9", URL + "9", "https://example.com/kop_sega/status/1"))
+                    # c8 follows nobody, so its webhook is not on record: the edit must come back through the one the send used
+                    answer = asyncio.run(settled(linked.post_link("c8", URL + "8", "https://x.com/kop_sega/status/1?a=x&s=20")))
+                    refused = asyncio.run(linked.post_link("c8", URL + "8", "https://x.com/kop_sega/status/42"))
+                    nonsense = asyncio.run(linked.post_link("c8", URL + "8", "https://example.com/kop_sega/status/1"))
                 first = _card(went[0][1]) if went else None
                 if answer or len(went) != 1 or first[0][0].split("\n")[0] != "新曲が登場" or first[3] != [("Open on X", "https://n/m/status/1")]:
                     problems.append(f"a post by its link was not sent to the channel as written: {answer!r}, {[_card(o)[0] for _u, o in went]}")
@@ -905,6 +906,8 @@ def _history():
                     problems.append(f"the English was not put on the sent card behind the send: {edited}")
                 if "couldn't read" not in refused or "couldn't read" not in nonsense:
                     problems.append(f"a post not in the feed, or a link to no post, was not refused: {refused!r}, {nonsense!r}")
+                if db.news_sent_root("kop", "1") != "1":
+                    problems.append("a hand-posted post of one of the bot's own accounts was not recorded under its live key")
                 # an edit keeps what the card said about media it does not show
                 db.news_sent_save("maimai", "v1", ["v1"], "video", [("c9", "777", False)])
                 _Webhook.edits.clear()
@@ -1285,7 +1288,11 @@ class _Channel:
         self.id, self.mention, self.user_ok, self.bot_ok = cid, f"<#{cid}>", user_ok, bot_ok
         self.name = f"chan{cid}"
         self.created = 0
+        self.hooks = []          # the webhooks already on the channel, as Discord lists them
         self.guild = _Guild(guild_id)
+
+    async def webhooks(self):
+        return list(self.hooks)
 
     def permissions_for(self, who):
         return _Perms(self.bot_ok if who is self.guild.me else self.user_ok)
@@ -3162,7 +3169,7 @@ def _folds():
             await model["wait"].wait()
             return "English"
 
-        async def fake_revise(src, root, whole):
+        async def fake_revise(src, root, whole, webhooks=None):
             revised.append(whole.parts)
             return 1
         kept_translate, watch.revise = news.translate, fake_revise
@@ -3443,6 +3450,13 @@ def _post_link():
             answer[0] = "I couldn't read that post."
             if run(channel) != "I couldn't read that post." or len(calls) != 3:
                 problems.append("the reason a link could not be posted was not shown")
+            # a channel that follows nobody keeps no rows: the hook made for it before is found on the channel, not made again
+            answer[0] = ""
+            reused = _Channel(83)
+            reused.type = discord.ChannelType.text
+            reused.hooks = [type("H", (), {"name": command.WEBHOOK_NAME, "token": "t", "user": reused.guild.me, "url": f"{URL}-kept83"})()]
+            if not run(reused).startswith("Posted to <#83>") or calls[-1][1] != f"{URL}-kept83" or reused.created:
+                problems.append(f"a channel's own Rasmai webhook was not reused: {calls[-1]}, {reused.created} made")
     finally:
         if kept_post_link is None:
             core.news_watch.__dict__.pop("post_link", None)

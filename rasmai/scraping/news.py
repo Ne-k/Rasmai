@@ -955,7 +955,8 @@ async def post_at(session: aiohttp.ClientSession, link: str) -> Optional[Post]:
     x, bluesky = X_POST.match(link.strip()), BLUESKY_POST.match(link.strip())
     if x:
         handle, post_id = x.groups()
-        source = await find_account(session, f"x.com/{handle}")
+        # one of the bot's own accounts keeps its key, so the post is on record where the live reader and its thread edits look
+        source = next((s for s in SOURCES.values() if s.platform == "X" and s.handle.lower() == handle.lower()), None) or await find_account(session, f"x.com/{handle}")
         if source is None:
             return None
         items, avatar = await fetch_feed(session, source.handle)
@@ -964,7 +965,7 @@ async def post_at(session: aiohttp.ClientSession, link: str) -> Optional[Post]:
         return await build_x_post(session, source, item, avatar, english=False) if item else None
     if bluesky:
         handle, rkey = bluesky.groups()
-        source = await find_account(session, f"bsky.app/profile/{handle}")
+        source = next((s for s in SOURCES.values() if s.platform == "Bluesky" and s.handle.lower() == handle.lower()), None) or await find_account(session, f"bsky.app/profile/{handle}")
         if source is None:
             return None
         uri = f"at://{source.did}/app.bsky.feed.post/{rkey}"

@@ -104,6 +104,11 @@ async def _webhook_for(channel: discord.TextChannel) -> str:
             pass            # deleted by hand
         except discord.HTTPException:
             return existing     # Discord is busy or failing, which says nothing about the webhook
+    # a channel that follows nobody keeps no rows, so the hook made for it before is found on the channel itself rather than made again
+    for hook in await channel.webhooks():
+        if hook.name == WEBHOOK_NAME and hook.token and hook.user == channel.guild.me:
+            await asyncio.to_thread(replace_channel_webhook, channel_id, hook.url)
+            return hook.url
     created = await channel.create_webhook(name=WEBHOOK_NAME, reason="Rasmai news subscription")
     # every row of the channel moves to it, including any sealed under a key this install no longer has, which news_webhook cannot open
     await asyncio.to_thread(replace_channel_webhook, channel_id, created.url)
