@@ -540,6 +540,8 @@ class _Webhook:
             raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
         if outcome == "toobig" and any(isinstance(file, discord.File) for file in options.get("attachments", [])):
             raise discord.HTTPException(type("R", (), {"status": 413, "reason": "too big"})(), {"code": 40005, "message": "Request entity too large"})
+        if outcome == "noid" and any(not isinstance(a, discord.File) and set(a.to_dict()) == {"id"} for a in options.get("attachments", [])):
+            raise discord.HTTPException(type("R", (), {"status": 400, "reason": "bad request"})(), {"code": 50035, "message": "Invalid Form Body"})
         _Webhook.edits.append((self.url, message_id, options))
 
     async def send(self, **options):
@@ -809,6 +811,7 @@ def _bluesky():
 
 @check("earlier posts come oldest first, only update posts on Bluesky and only originals on X, go to the one channel that asked, and change nothing live")
 def _history():
+    import discord
     from rasmai.bot.tasks.news import NewsWatch
     from rasmai.scraping import news
     from rasmai.storage import db
@@ -928,6 +931,20 @@ def _history():
                 texts, _lines, media, _buttons = _card(_Webhook.edits[0][2]) if _Webhook.edits else ([], 0, [], [])
                 if kept_by_id != [{"id": 5}] or media != ["attachment://v2_image_1.png"] or "did not fit" in texts[0]:
                     problems.append(f"an edit of a card whose message lists no attachments dropped its picture: kept {kept_by_id}, gallery {media}, {texts[:1]}")
+                # Discord refusing to keep them by id: the pictures are fetched and uploaded again, and the card still shows them
+                async def fake_png(session, url, limit=0):
+                    return bytes.fromhex("89504e470d0a1a0a") + b"0" * 16        # a PNG's first bytes, which decide the file's extension
+                kept_bytes, news.fetch_bytes = news.fetch_bytes, fake_png
+                _Webhook.edits.clear()
+                try:
+                    with _webhooks(lambda url, options: "noid" if "edit" in options else None):
+                        asyncio.run(linked.revise("maimai", "v2", news.Post("maimai", "v2", "https://x.com/a/status/8", "n", parts=["pic"], images=["https://pbs.twimg.com/a.png"])))
+                finally:
+                    news.fetch_bytes = kept_bytes
+                uploaded = [a.filename for a in _Webhook.edits[0][2]["attachments"] if isinstance(a, discord.File)] if _Webhook.edits else []
+                texts, _lines, media, _buttons = _card(_Webhook.edits[0][2]) if _Webhook.edits else ([], 0, [], [])
+                if uploaded != ["v2_image_1.png"] or media != ["attachment://v2_image_1.png"] or "did not fit" in texts[0]:
+                    problems.append(f"with the id refused the picture was not uploaded again: {uploaded}, gallery {media}, {texts[:1]}")
                 _Webhook.parts.clear()
             finally:
                 news.find_account, news.translate = kept_more

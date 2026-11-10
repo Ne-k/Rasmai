@@ -662,15 +662,26 @@ class NewsWatch:
                                                                         attachments=[*(keeper for _name, keeper in held), *uploads], allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
                             return True
                         except discord.HTTPException as error:
-                            if not (adding and error.status == 413):
-                                raise
-                            # the answer's pictures are over the server's upload limit: its words still join the card
+                            if adding and error.status == 413:
+                                continue        # the answer's pictures are over the server's upload limit: its words still join the card
+                            if error.status == 400 and any(isinstance(keeper, _Keep) for _name, keeper in held):
+                                # Discord would not keep the card's pictures by id alone: they are fetched and uploaded again instead
+                                logger.info("news: an edit could not keep a card's pictures by id (%s), so they are uploaded again", error.text)
+                                again = await self._files(post)
+                                plain = [(a.filename, a) for a in message.attachments]
+                                await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[],
+                                                                            view=post.view([name for name, _a in plain] + [name for name, _data in again], _note(post, bool(plain or again), unfurl)),
+                                                                            attachments=[*(a for _name, a in plain), *(discord.File(io.BytesIO(data), filename=name) for name, data in again)],
+                                                                            allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
+                                return True
+                            raise
                     return False
                 except (discord.NotFound, ValueError):
                     # the message was deleted, or the channel's webhook replaced since: there is nothing there to edit any more
                     await asyncio.to_thread(news_message_gone, channel_id, message_id)
                 except (discord.HTTPException, aiohttp.ClientError, asyncio.TimeoutError) as error:
-                    logger.warning("news: an edit failed with %s", type(error).__name__)
+                    logger.warning("news: an edit failed with %s%s", type(error).__name__,
+                                   f" {error.status} {error.code}: {error.text}" if isinstance(error, discord.HTTPException) else "")
                 return False
         results = await asyncio.gather(*(one(*message) for message in messages), return_exceptions=True)
         return sum(result is True for result in results)
