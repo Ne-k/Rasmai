@@ -92,6 +92,32 @@ def _note(post: Post, attached: bool, unfurl: bool) -> str:
     return ""
 
 
+class _Keep:
+    """A file kept through an edit by its id alone, which is all a card's message gives of its pictures; discord.py sends what to_dict() says."""
+
+    def __init__(self, attachment_id: int):
+        self.id = attachment_id
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id}
+
+
+def _held(message: Any) -> List[Tuple[str, Any]]:
+    """``(file name, what keeps it on an edit)`` for every file a message shows: its attachments, then the pictures and videos in its
+    card's galleries, which a card's message does not list as attachments, named as the address Discord gave them."""
+    held: List[Tuple[str, Any]] = [(a.filename, a) for a in message.attachments]
+    queue = list(getattr(message, "components", None) or [])
+    while queue:
+        part = queue.pop(0)
+        queue += list(getattr(part, "children", None) or []) + list(getattr(part, "items", None) or [])
+        media = getattr(part, "media", None)
+        if media is not None and getattr(media, "attachment_id", None):
+            name = urlparse(str(media.url)).path.rsplit("/", 1)[-1]
+            if not any(name == known for known, _keeper in held):
+                held.append((name, _Keep(media.attachment_id)))
+    return held
+
+
 class NewsWatch:
     """Posts from the maimai accounts, sent into every channel that follows them.
 
@@ -607,7 +633,8 @@ class NewsWatch:
 
         A channel's webhook comes from its subscriptions, or from ``webhooks`` for a channel that follows nobody and was sent a post by hand.
 
-        The message's pictures and video stay as sent: the edit lists its attachments to keep them, and the new card's gallery names them again.
+        The message's pictures and video stay as sent: the edit lists them to keep them, by id where the card's message gives nothing more,
+        and the new card's gallery names them again.
         An answer that joined the thread since brings its own, uploaded with the edit, as the message holds only what it went out with.
         The text and embeds are cleared too, which a message sent as plain text before cards needs before it may take one.
         """
@@ -624,14 +651,15 @@ class NewsWatch:
                 try:
                     webhook = discord.Webhook.from_url(url, session=self.session)
                     message = await asyncio.wait_for(webhook.fetch_message(int(message_id)), SEND_TIMEOUT)
-                    kept = [a.filename for a in message.attachments]
+                    held = _held(message)
+                    kept = [name for name, _keeper in held]
                     added = [file for each in post.thread if not any(name.startswith(each.tag + "_") for name in kept)
                              for file in fresh.get(each.tag, [])][:max(0, 10 - len(kept))]
                     for adding in ([added, []] if added else [[]]):
                         uploads = [discord.File(io.BytesIO(data), filename=name) for name, data in adding]
                         try:
                             await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view(kept + [name for name, _data in adding], _note(post, bool(kept), unfurl)),
-                                                                        attachments=[*message.attachments, *uploads], allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
+                                                                        attachments=[*(keeper for _name, keeper in held), *uploads], allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
                             return True
                         except discord.HTTPException as error:
                             if not (adding and error.status == 413):

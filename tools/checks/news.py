@@ -518,6 +518,7 @@ class _Webhook:
 
     edits: list = []        # (url, message id, options) of every edit, across all of them
     files: dict = {}        # the attachments each message was sent with, by id, as fetch_message gives them back
+    parts: dict = {}        # and the components a fetched message shows, by id: a card's message holds its pictures there, not in attachments
     made = 1000
 
     def __init__(self, url, sent, behave):
@@ -527,7 +528,7 @@ class _Webhook:
         import discord
         if self.behave(self.url, {"edit": message_id}) == "deleted":
             raise discord.NotFound(type("R", (), {"status": 404, "reason": "deleted"})(), {"code": 10008, "message": "Unknown Message"})
-        return type("Message", (), {"attachments": _Webhook.files.get(message_id, [])})()
+        return type("Message", (), {"attachments": _Webhook.files.get(message_id, []), "components": _Webhook.parts.get(message_id, [])})()
 
     async def edit_message(self, message_id, **options):
         import discord
@@ -915,6 +916,19 @@ def _history():
                     asyncio.run(linked.revise("maimai", "v1", news.Post("maimai", "v1", "https://x.com/a/status/7", "n", parts=["clip"], wanted_video=True)))
                 if len(_Webhook.edits) != 1 or "The video is on X" not in _card(_Webhook.edits[0][2])[0][0]:
                     problems.append("an edit of a card that went out without its video lost the line saying where the video is")
+                # a card's message lists no attachments: its pictures sit in the card's gallery, and an edit keeps them by id, with the gallery and no note
+                db.news_sent_save("maimai", "v2", ["v2"], "pic", [("c9", "778", False)])
+                shown = type("M", (), {"url": "https://cdn.discordapp.com/attachments/1/5/v2_image_1.png?ex=1", "attachment_id": 5})()
+                _Webhook.files[778] = []
+                _Webhook.parts[778] = [type("C", (), {"children": [type("G", (), {"items": [type("I", (), {"media": shown})()]})()]})()]
+                _Webhook.edits.clear()
+                with _webhooks():
+                    asyncio.run(linked.revise("maimai", "v2", news.Post("maimai", "v2", "https://x.com/a/status/8", "n", parts=["pic"], images=["https://pbs.twimg.com/a.png"])))
+                kept_by_id = [a.to_dict() for a in _Webhook.edits[0][2]["attachments"]] if _Webhook.edits else []
+                texts, _lines, media, _buttons = _card(_Webhook.edits[0][2]) if _Webhook.edits else ([], 0, [], [])
+                if kept_by_id != [{"id": 5}] or media != ["attachment://v2_image_1.png"] or "did not fit" in texts[0]:
+                    problems.append(f"an edit of a card whose message lists no attachments dropped its picture: kept {kept_by_id}, gallery {media}, {texts[:1]}")
+                _Webhook.parts.clear()
             finally:
                 news.find_account, news.translate = kept_more
                 news.build_x_post = fake_x
