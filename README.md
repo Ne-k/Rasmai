@@ -168,7 +168,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `MAIMAI_EMOJI` / `MAIMAI_PRESENCE` | Emoji pack upload, status tracking maintenance. Both on by default. |
 | `USER_AGENT` | How the bot names itself to the wikis and chart databases. Empty is `rasmai/1.0 (+MAIMAI_PUBLIC_URL)`; adding a contact address is the polite thing. |
 | `MAIMAI_TRANSLATE_URL` | An Ollama server that translates Japanese `/news` posts. Empty uses Google Translate. See below. |
-| `MAIMAI_TRANSLATE_MODEL` / `MAIMAI_TRANSLATE_KEEP_ALIVE` | The model it asks for (default `translategemma:12b`) and how long it stays in memory after a post (default `2m`). |
+| `MAIMAI_TRANSLATE_MODEL` / `MAIMAI_TRANSLATE_KEEP_ALIVE` | The model it asks for (default `hf.co/unsloth/Hy-MT2-7B-GGUF:Q4_K_M`) and how long it stays in memory after a post (default `2m`). |
 | `MAIMAI_OTOGE_WEBHOOK_URL` | A Discord webhook that gets a list of what changed in the maimai charts (songs added and removed, level, constant, note count and designer changes) every time otoge-db is fetched. Empty sends nothing. |
 | `MAIMAI_DEBUG` / `MAIMAI_DEBUG_EXPORT_JSON` | Verbose scraper logs and per-analysis JSON dumps. Leave off on a public bot. |
 
@@ -178,7 +178,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 
 ```bash
 brew install ollama && brew services start ollama
-ollama pull translategemma:12b          # 8.1 GB; translategemma:4b is 3.3 GB and less accurate
+ollama pull hf.co/unsloth/Hy-MT2-7B-GGUF:Q4_K_M     # Tencent's translation model, about half the size of translategemma:12b (8.1 GB), which also works but is weaker on Japanese names
 ```
 
 Then in `.env`, and `docker compose up -d`:

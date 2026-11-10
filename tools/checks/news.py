@@ -300,7 +300,7 @@ def _followups():
             problems.append(f"a throttled translation asked {len(calls)} times, not once and then paused")
         # and an answer is read off the shape Google sends: a list of [english, japanese, ...] segments
         calls.clear()
-        news._translate_paused_until, news._google_get = 0.0, lambda clean: (200, [[["The new song ", "新曲", None], ["is here!", "です", None]]])
+        news._translate_paused_until, news._google_get = 0.0, lambda clean: (200, [[["[1] The new song ", "[1] 新曲", None], ["is here!", "です", None]]])
         news._translated.clear()
         if asyncio.run(news.translate(None, "新曲です")) != "The new song is here!":
             problems.append("Google's answer was not read into a translation")
@@ -317,6 +317,7 @@ def _followups():
 @check("a Japanese post is translated by the local model with Google's own prompt, one at a time and kept, and anything wrong with the model falls back to Google and then to the post as written")
 def _translation():
     import aiohttp
+    import re
     from aiohttp import web
     from rasmai.scraping import news
 
@@ -332,7 +333,9 @@ def _translation():
         state["busy"] -= 1
         if state["mode"] == "missing":
             return web.json_response({"error": "model not found"}, status=404)
-        said = {"ok": "The final song is out!", "runaway": "x" * 5000, "japanese": "新曲が登場しました", "empty": "  "}[state["mode"]]
+        numbers = re.findall(r"\[(\d+)\]", body["messages"][0]["content"])
+        said = {"ok": "\n".join(f"[{n}] The final song is out!" for n in numbers), "runaway": "x" * 5000, "japanese": "[1] 新曲が登場しました",
+                "empty": "  ", "short": "[1] The final song is out!", "twice": "[1] See section [2] of the rules\n[2] Done"}[state["mode"]]
         return web.json_response({"message": {"role": "assistant", "content": said}})
 
     async def run():
@@ -347,7 +350,7 @@ def _translation():
 
         async def fake_google(session, clean):
             google.append(clean)
-            return "from Google"
+            return "[1] from Google"
         kept = news.TRANSLATE_URL, news.TRANSLATE_MODEL, news.TRANSLATE_KEEP_ALIVE, news._translate_google
         news.TRANSLATE_URL, news.TRANSLATE_MODEL, news.TRANSLATE_KEEP_ALIVE, news._translate_google = f"http://127.0.0.1:{port}", "translategemma:12b", "2m", fake_google
 
@@ -367,26 +370,24 @@ def _translation():
                 if body["model"] != "translategemma:12b" or body["stream"] is not False or body["keep_alive"] != "2m" or body["options"]["temperature"] != 0:
                     problems.append(f"the request carried {body}")
                 prompt = body["messages"][0]["content"]
-                if not prompt.startswith("You are a professional Japanese (ja) to English (en) translator.") or not prompt.endswith("into English:\n\n\n新曲が登場！"):
-                    problems.append(f"the prompt is not Google's, with two blank lines and then only the text, links left out: {prompt[-80:]!r}")
+                if not prompt.startswith("You are a professional Japanese (ja) to English (en) translator.") or not prompt.endswith("into English:\n\n\n[1] 新曲が登場！"):
+                    problems.append(f"the prompt is not Google's, with two blank lines and then only the numbered text, links left out: {prompt[-80:]!r}")
                 if await news.translate(session, "新曲が登場！ https://example.com/a") != got or len(seen) != 1:
                     problems.append("the same post was translated twice")
-                # a post of several lines is translated a line at a time and keeps its lines, and a line without Japanese stays as written
+                # a post of several lines goes in one request with its Japanese lines numbered and keeps its lines; a line without Japanese stays as written
                 reset("ok")
                 got = await news.translate(session, "一行目\n\n二行目 https://example.com/b\n11/10 10:00")
-                if got != "The final song is out!\n\nThe final song is out!\n11/10 10:00" or len(seen) != 2 or not seen[1]["messages"][0]["content"].endswith("\n\n\n二行目"):
-                    problems.append(f"a post of three lines came out as {got!r} from {len(seen)} requests")
-                # one line of a post that cannot be translated: the whole post goes out as written, not half and half
-                kept_line = news._translate_line
-
-                async def one_of_two(session, clean):
-                    return "The final song is out!" if clean == "一行目" else None
-                news._translate_line = one_of_two
-                try:
-                    if await news.translate(session, "一行目\n二行目\nhttps://example.com/c") != "一行目\n二行目\nhttps://example.com/c":
-                        problems.append("a post with one line the translators could not do went out half translated, or lost a line")
-                finally:
-                    news._translate_line = kept_line
+                if got != "The final song is out!\n\nThe final song is out!\n11/10 10:00" or len(seen) != 1 or not seen[0]["messages"][0]["content"].endswith("\n\n\n[1] 一行目\n[2] 二行目"):
+                    problems.append(f"a post of three lines came out as {got!r} from {len(seen)} requests: {seen[-1]['messages'][0]['content'][-40:]!r}")
+                # an answer missing a line, from the model and then from Google: the whole post goes out as written, not half and half
+                reset("short")
+                news._translate_google = fake_google
+                if await news.translate(session, "一行目\n二行目\nhttps://example.com/c") != "一行目\n二行目\nhttps://example.com/c" or len(google) != 1:
+                    problems.append("a post the model answered one line short went out half translated, or Google was not asked")
+                # a number said twice: the first line would be cut where the second number sits, so that answer is not taken either
+                reset("twice")
+                if await news.translate(session, "一行目\n二行目") != "一行目\n二行目" or len(google) != 1:
+                    problems.append("an answer with a number said twice was taken as the translation, or Google was not asked")
                 # two at once are sent to the model one after the other
                 reset("ok")
                 await asyncio.gather(news.translate(session, "一つ目"), news.translate(session, "二つ目"), news.translate(session, "三つ目"))

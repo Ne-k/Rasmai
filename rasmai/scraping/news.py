@@ -79,6 +79,7 @@ RSS_INSTANCES = [
 TRUSTED_HOSTS = {urlparse(base).hostname for base in RSS_INSTANCES} | {"cdn.bsky.app", "video.bsky.app", "public.api.bsky.app"}
 
 _working: Dict[str, str] = {}
+_unreadable: Set[str] = set()      # accounts no mirror answered for last time, so the recovery is said too
 _titles: Dict[str, str] = {}         # an X account's display name, from the title of its feed
 _avatars: Dict[str, str] = {}
 _translate_paused_until = 0.0        # Google's free endpoint throttles; after a refusal it is left alone for a while
@@ -626,11 +627,16 @@ async def fetch_feed(session: aiohttp.ClientSession, username: str, tries: int =
         content = await fetch_bytes(session, f"{base}/{username}/rss", FEED_BYTES)
         items, avatar = parse_feed(content) if content else ([], "")
         if items:
-            if first != base:
+            if first != base or username in _unreadable:
                 logger.info("news: %s now read through %s", username, urlparse(base).hostname)
                 _working[username] = base
+                _unreadable.discard(username)
             _titles[username.lower()] = feed_title(content)
             return items, avatar
+    # said once, not every four minutes, for an account the bot carries: an added one may simply be empty
+    if tries == len(RSS_INSTANCES) and username not in _unreadable:
+        _unreadable.add(username)
+        logger.warning("news: %s could not be read from any of the %d mirrors; it is tried again every round", username, tries)
     return [], ""
 
 
@@ -805,46 +811,47 @@ async def _translate_google(session: aiohttp.ClientSession, clean: str) -> Optio
     return None
 
 
-async def _translate_line(session: aiohttp.ClientSession, clean: str) -> Optional[str]:
-    """One line in English, from the local model when there is one, else Google's free endpoint; None when both fail.
-
-    A line is kept for a while, so the same post is not translated twice.
-    """
-    if clean in _translated:
-        _translated.move_to_end(clean)
-        return _translated[clean]
-    result = await _translate_local(session, clean) or await _translate_google(session, clean)
-    if result:
-        _translated[clean] = result
-        while len(_translated) > TRANSLATED_KEPT:
-            _translated.popitem(last=False)
-    return result
+def _numbered(answer: str, count: int) -> Optional[List[str]]:
+    """The lines of an answer marked [1], [2]... in order; None unless the numbers run exactly 1 to ``count``, each once."""
+    found = re.findall(r"\[(\d+)\]\s*(.*?)(?=\s*\[\d+\]|\Z)", answer or "", re.S)
+    return [line.strip() for _n, line in found] if [int(n) for n, _line in found] == list(range(1, count + 1)) else None
 
 
 async def translate(session: aiohttp.ClientSession, text: str) -> str:
-    """Japanese text in English, a line at a time, so the post keeps its lines and blank lines: a line without Japanese stays as
-    written, and when any line could not be translated the whole post goes out in Japanese, as written.
+    """Japanese text in English, keeping the post's lines and blank lines: its Japanese lines go to the translator in one request,
+    each marked with its number, and come back by number; a line without Japanese stays as written. From the local model when there
+    is one, else Google's free endpoint; when neither answers for every line the post goes out in Japanese, as written.
 
-    Links are left out of what is translated; the card puts them back under the English.
+    Links are left out of what is translated; the card puts them back under the English. An answer is kept for a while, so the same
+    post is not translated twice.
     """
-    out, failed = [], False
-    for line in (text or "").split("\n"):
-        # "でらっくす" is the game's own name, which Google renders as "Lux"
-        clean = unlinked(line).replace("でらっくす", " DX ").strip()
-        if not clean or not has_japanese(clean):
-            out.append(clean)
-            continue
-        result = await _translate_line(session, clean)
-        failed = failed or result is None
-        out.append(result or line)
-    if failed:
+    # "でらっくす" is the game's own name, which Google renders as "Lux"
+    lines = [unlinked(line).replace("でらっくす", " DX ").strip() for line in (text or "").split("\n")]
+    wanted = [i for i, line in enumerate(lines) if line and has_japanese(line)]
+    if not wanted:
+        return text
+    clean = "\n".join(f"[{n}] {lines[i]}" for n, i in enumerate(wanted, 1))
+    if clean in _translated:
+        _translated.move_to_end(clean)
+        answer = _translated[clean]
+    else:
+        answer = await _translate_local(session, clean)
+        if _numbered(answer, len(wanted)) is None:      # nothing, or a line dropped or merged: Google is asked instead
+            answer = await _translate_google(session, clean)
+    english = _numbered(answer, len(wanted))
+    if english is None:
         now = time.monotonic()
         # said once per post, with the reasons, because a post sent in Japanese is otherwise indistinguishable from one that was never meant to be translated
         logger.warning("news: a post could not be translated, so it goes out in Japanese. Local model: %s. Google: %s.",
                        "not set up (MAIMAI_TRANSLATE_URL is empty)" if not TRANSLATE_URL else ("paused after a failure" if now < _local_paused_until else "failed or answered badly"),
                        "paused after being throttled" if now < _translate_paused_until else "failed")
         return text
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() or text
+    _translated[clean] = answer
+    while len(_translated) > TRANSLATED_KEPT:
+        _translated.popitem(last=False)
+    for i, line in zip(wanted, english):
+        lines[i] = line
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip() or text
 
 
 def twimg(url: str) -> str:

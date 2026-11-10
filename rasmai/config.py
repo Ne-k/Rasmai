@@ -242,7 +242,7 @@ WIKI_VIDEOS = os.getenv("MAIMAI_WIKI_VIDEOS", "true").lower() == "true"     # /c
 
 # /news translates Japanese posts with a model on an Ollama server, such as the one on the machine the bot runs on; empty uses Google Translate only
 TRANSLATE_URL = os.getenv("MAIMAI_TRANSLATE_URL", "").strip().rstrip("/")
-TRANSLATE_MODEL = os.getenv("MAIMAI_TRANSLATE_MODEL", "translategemma:12b").strip()
+TRANSLATE_MODEL = os.getenv("MAIMAI_TRANSLATE_MODEL", "hf.co/unsloth/Hy-MT2-7B-GGUF:Q4_K_M").strip()
 TRANSLATE_KEEP_ALIVE = os.getenv("MAIMAI_TRANSLATE_KEEP_ALIVE", "2m").strip()      # how long the model stays in memory after a post, so a 16 GB machine has it back between posts
 
 

@@ -1,6 +1,7 @@
 from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 import asyncio
 from dataclasses import replace
+from urllib.parse import urlparse
 import io
 import json
 import logging
@@ -19,6 +20,7 @@ from rasmai.storage.db import (
 
 logger = logging.getLogger(__name__)
 
+LATE_SEEN = 600                     # seconds after a post is made that first seeing it counts as late, and is logged with the mirror
 POLL_EVERY = 240                    # seconds from one look at an X feed to the next, start to start, so a post is out inside five minutes
 POLL_SPREAD = 0.8                   # share of that cycle the looks are spread over, one account after another, instead of every account at once
 POLL_GAP_MAX = 30                   # seconds between two accounts' looks at most, so a few accounts are not left waiting out the cycle
@@ -367,6 +369,12 @@ class NewsWatch:
         pending = [item for item in pending if item not in older]
         if older:
             await asyncio.to_thread(news_mark_seen, source.key, [item.id for item in older])
+        for item in pending:
+            # a post seen long after it was made is the mirror's cache or a stretch of unreadable rounds: named, so the next one is not a guess
+            late = time.time() - (news.tweet_time(item.id) or time.time())
+            if late > LATE_SEEN:
+                logger.info("news: %s's post was first seen %d minutes after it was made, through %s", source.handle, late // 60,
+                            urlparse(news._working.get(source.handle, "")).hostname or "no mirror on record")
         sent = 0
         earlier = await asyncio.to_thread(news_sent_recent, source.key) if pending else []
         for item in pending:
