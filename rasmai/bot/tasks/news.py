@@ -81,6 +81,17 @@ def _extension(data: bytes) -> str:
     return "jpg"
 
 
+def _note(post: Post, attached: bool, unfurl: bool) -> str:
+    """The line a card says about media it does not show: a card carries no link for Discord to preview, so without its media it says where that is."""
+    posts = [post, *post.thread]
+    if not attached and not unfurl and any(each.images or each.videos for each in posts):
+        return "The pictures did not fit here"
+    # any post of the thread: one past the thread's five fetched videos says so too, or it would vanish without a word
+    if unfurl or any(each.wanted_video and not each.videos for each in posts):
+        return f"The {'video is' if any(each.wanted_video for each in posts) else 'pictures are'} on {post.platform}"
+    return ""
+
+
 class NewsWatch:
     """Posts from the maimai accounts, sent into every channel that follows them.
 
@@ -95,6 +106,7 @@ class NewsWatch:
         self._tasks: List[Optional[asyncio.Task]] = [None, None]       # the Bluesky loop and the X loop
         self._running: Set[asyncio.Task] = set()
         self._inflight: Set[str] = set()        # Bluesky posts being waited on, built or sent right now
+        self._translating: Dict[str, asyncio.Task] = {}      # a sent X post's translation still running, by the post, so a thread taking the card over can stop it
         self._queued: Dict[str, int] = {}       # of those, how many each account has
         self._copy_turn = asyncio.Lock()        # the two copies of a post, on Bluesky and on X, are decided one after the other
         self._bluesky_turn = asyncio.Lock()     # Bluesky posts are built and sent one at a time, in the order they finish waiting
@@ -385,7 +397,9 @@ class NewsWatch:
             elif item.reply_to and await self.x_fold(source, item, avatar, items):
                 pass
             elif await self._first_copy(source, item.text):
-                await self.publish(await news.build_x_post(self.session, source, item, avatar))
+                post = await news.build_x_post(self.session, source, item, avatar, english=False)
+                if await self.publish(post):
+                    self.translate_behind(post)
                 sent += 1
             await asyncio.to_thread(news_mark_seen, source.key, [item.id])
         return sent
@@ -435,6 +449,9 @@ class NewsWatch:
         None when one of them cannot be read from anywhere, or ``adding`` would no longer fit the message. A post X edited, which
         has a new id, keeps its place in the thread and its pictures' names, both by the id it was sent under.
         """
+        pending = self._translating.pop(root, None)
+        if pending is not None:
+            pending.cancel()        # the card is rebuilt whole and translated here; the first post's own translation must not land after it
         sent = dict(await asyncio.to_thread(news_sent_thread, source.key, root))
         found = {item.id: item for item in items}
         texts = texts or {}
@@ -539,20 +556,60 @@ class NewsWatch:
                 logger.exception("news: the messages a post became could not be kept, so its edits will not follow")
         return sum(result is True for result in results)
 
+    def translate_behind(self, post: Post) -> None:
+        """Start a sent post's translation, remembered by the post: a thread or an edit that rebuilds the card meanwhile stops it, or the
+        translation of the first post alone would land over the whole thread."""
+        task = asyncio.create_task(self.translate_later(post))
+        self._translating[post.id] = task
+        self._running.add(task)
+
+        def done(finished: asyncio.Task) -> None:
+            self._running.discard(finished)
+            if self._translating.get(post.id) is finished:
+                del self._translating[post.id]
+        task.add_done_callback(done)
+
+    async def translate_later(self, post: Post) -> None:
+        """Put the English on a post sent as written: the post is out in seconds, and the model's time is spent behind it."""
+        try:
+            written = post.parts[-1] if post.parts else ""
+            if not news.needs_english(written):
+                return
+            english = await news.translate(self.session, written)
+            if english and english != written:
+                await self.revise(post.source, post.id, replace(post, parts=[english, written]))
+        except Exception:
+            logger.exception("news: translating a sent post failed")
+
+    async def post_link(self, channel_id: str, url: str, link: str) -> str:
+        """Send the post at an X or Bluesky link to one channel, as it would go out live, translated behind it; returns what to tell the person, "" when it went.
+
+        Nothing is marked seen and no age applies: this is a person choosing a post.
+        """
+        found = await news.post_at(self.session, link)
+        if found is None:
+            return "I couldn't read that post. It needs to be an X or Bluesky link to a post the account made recently."
+        kept: List[Tuple[str, str, bool]] = []
+        if not await self._deliver(channel_id, url, found, await self._files(found), kept=kept):
+            return "The channel's webhook didn't take it - try again in a minute."
+        if kept:
+            await asyncio.to_thread(news_sent_save, found.source, found.id, found.covers or [found.id], found.parts[-1] if found.parts else "", kept)
+            self.translate_behind(found)
+        return ""
+
     async def revise(self, source: str, root: str, post: Post) -> int:
         """Edit every message a sent post became to say what it says now; returns how many were edited.
 
         The message's pictures and video stay as sent: the edit lists its attachments to keep them, and the new card's gallery names them again.
         An answer that joined the thread since brings its own, uploaded with the edit, as the message holds only what it went out with.
         The text and embeds are cleared too, which a message sent as plain text before cards needs before it may take one.
-        shortcut: the note a card carried about its media is not rebuilt on an edit, upgrade if a post's video arrives late
         """
         messages = await asyncio.to_thread(news_sent_messages, source, root)
         gate = asyncio.Semaphore(SEND_AT_ONCE)
         # fetched once for every channel; each message is given only the ones it does not have yet
         fresh = {each.tag: await self._files(replace(each, thread=[])) for each in post.thread if each.images or each.videos} if messages else {}
 
-        async def one(channel_id: str, message_id: str, _unfurl: bool) -> bool:
+        async def one(channel_id: str, message_id: str, unfurl: bool) -> bool:
             url = await asyncio.to_thread(news_webhook, channel_id)
             if not url:
                 return False
@@ -566,7 +623,7 @@ class NewsWatch:
                     for adding in ([added, []] if added else [[]]):
                         uploads = [discord.File(io.BytesIO(data), filename=name) for name, data in adding]
                         try:
-                            await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view(kept + [name for name, _data in adding]),
+                            await asyncio.wait_for(webhook.edit_message(int(message_id), content=None, embeds=[], view=post.view(kept + [name for name, _data in adding], _note(post, bool(kept), unfurl)),
                                                                         attachments=[*message.attachments, *uploads], allowed_mentions=NO_MENTIONS), SEND_TIMEOUT)
                             return True
                         except discord.HTTPException as error:
@@ -618,15 +675,8 @@ class NewsWatch:
             await asyncio.to_thread(remove_channel_webhook, channel_id, url)
             return False
         for attach in ([True, False] if files else [False]):
-            # a card carries no link for Discord to preview, so without its media it says where that is
-            if files and not attach:
-                note = "The pictures did not fit here"
-            # any post of the thread: one past the thread's five fetched videos says so too, or it would vanish without a word
-            elif unfurl or any(each.wanted_video and not each.videos for each in [post, *post.thread]):
-                note = f"The {'video is' if any(each.wanted_video for each in [post, *post.thread]) else 'pictures are'} on {post.platform}"
-            else:
-                note = ""
-            options: Dict[str, Any] = {"view": post.view([name for name, _data in files] if attach else [], note), "username": post.username, "allowed_mentions": NO_MENTIONS}
+            options: Dict[str, Any] = {"view": post.view([name for name, _data in files] if attach else [], _note(post, attach or not files, unfurl)),
+                                       "username": post.username, "allowed_mentions": NO_MENTIONS}
             if post.avatar:
                 options["avatar_url"] = post.avatar
             buffers = [io.BytesIO(data) for _name, data in files] if attach else []
@@ -635,7 +685,7 @@ class NewsWatch:
             try:
                 message = await asyncio.wait_for(webhook.send(**options, wait=True), SEND_TIMEOUT)
                 if kept is not None and message is not None:
-                    kept.append((channel_id, str(message.id), False))     # nothing unfurls under a card; the column stays for the messages sent before cards
+                    kept.append((channel_id, str(message.id), unfurl))     # whether its media stayed on the platform, so an edit says the same
                 return True
             except discord.HTTPException as error:
                 if error.code in GONE_CODES or (error.status == 403 and error.code):

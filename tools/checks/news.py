@@ -686,7 +686,7 @@ def _polling():
     async def fake_feed(session, username, tries=0):
         return feed["items"], "https://av/a.png"
 
-    async def fake_post(session, src, entry, avatar):
+    async def fake_post(session, src, entry, avatar, english=True):
         return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.title])
     kept = news.fetch_feed, news.build_x_post
     news.fetch_feed, news.build_x_post = fake_feed, fake_post
@@ -834,7 +834,7 @@ def _history():
     async def fake_feed(session, username, tries=0):
         return items, "https://av/a.png"
 
-    async def fake_x(session, src, item, avatar):
+    async def fake_x(session, src, item, avatar, english=True):
         return news.Post(src.key, item.id, item.link, src.label, avatar, [item.title])
     kept = news._get_json, news.build_bluesky_post, news.fetch_feed, news.build_x_post
     news._get_json, news.build_bluesky_post, news.fetch_feed, news.build_x_post = fake_json, fake_build, fake_feed, fake_x
@@ -872,6 +872,50 @@ def _history():
             sent.clear()
             if asyncio.run(watch.history("gone", URL, ["maimai", "preformai"], 2)) != 1 or len(sent) != 2:
                 problems.append("a channel that stopped accepting posts was still sent the rest")
+
+            # a post picked by its link goes to the one channel as written, with the English put on it behind the send
+            async def fake_account(session, text):
+                return news.Source("x:kop_sega", "KOP", "X", "kop_sega") if text == "x.com/kop_sega" else None
+
+            async def fake_japanese(session, src, item, avatar, english=True):
+                return news.Post(src.key, item.id, item.link, src.label, avatar, (["English"] if english else []) + ["新曲が登場"])
+
+            async def fake_translate(session, written):
+                return "English " + written
+
+            async def settled(work):
+                result = await work         # the translation runs behind the send, so the loop gets a moment before it closes
+                await asyncio.sleep(0.05)
+                return result
+            kept_more = news.find_account, news.translate
+            news.find_account, news.translate, news.build_x_post = fake_account, fake_translate, fake_japanese
+            _Webhook.edits = []
+            try:
+                db.add_news_subscription("g", "c9", "maimai", URL + "9")
+                linked = NewsWatch()
+                with _webhooks() as went:
+                    answer = asyncio.run(settled(linked.post_link("c9", URL + "9", "https://x.com/kop_sega/status/1?a=x&s=20")))
+                    refused = asyncio.run(linked.post_link("c9", URL + "9", "https://x.com/kop_sega/status/42"))
+                    nonsense = asyncio.run(linked.post_link("c9", URL + "9", "https://example.com/kop_sega/status/1"))
+                first = _card(went[0][1]) if went else None
+                if answer or len(went) != 1 or first[0][0].split("\n")[0] != "新曲が登場" or first[3] != [("Open on X", "https://n/m/status/1")]:
+                    problems.append(f"a post by its link was not sent to the channel as written: {answer!r}, {[_card(o)[0] for _u, o in went]}")
+                edited = [_card(options)[0][0] for _u, _m, options in _Webhook.edits]
+                if len(edited) != 1 or not edited[0].startswith("English 新曲が登場\n\n> 新曲が登場"):
+                    problems.append(f"the English was not put on the sent card behind the send: {edited}")
+                if "couldn't read" not in refused or "couldn't read" not in nonsense:
+                    problems.append(f"a post not in the feed, or a link to no post, was not refused: {refused!r}, {nonsense!r}")
+                # an edit keeps what the card said about media it does not show
+                db.news_sent_save("maimai", "v1", ["v1"], "video", [("c9", "777", False)])
+                _Webhook.edits.clear()
+                with _webhooks():
+                    asyncio.run(linked.revise("maimai", "v1", news.Post("maimai", "v1", "https://x.com/a/status/7", "n", parts=["clip"], wanted_video=True)))
+                if len(_Webhook.edits) != 1 or "The video is on X" not in _card(_Webhook.edits[0][2])[0][0]:
+                    problems.append("an edit of a card that went out without its video lost the line saying where the video is")
+            finally:
+                news.find_account, news.translate = kept_more
+                news.build_x_post = fake_x
+                _Webhook.edits = []
     finally:
         news._get_json, news.build_bluesky_post, news.fetch_feed, news.build_x_post = kept
     return problems
@@ -1087,7 +1131,7 @@ def _once():
         counts["feed"] += 1
         return feed["items"], "https://av/a.png"
 
-    async def fake_build(session, src, entry, avatar):
+    async def fake_build(session, src, entry, avatar, english=True):
         counts["build"] += 1
         return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.title], ["https://cdn.bsky.app/a.jpg", "https://cdn.bsky.app/b.jpg"])
 
@@ -1641,7 +1685,7 @@ def _review():
     async def fake_feed(session, username, tries=0):
         return items["now"], ""
 
-    async def fake_build(session, src, entry, avatar):
+    async def fake_build(session, src, entry, avatar, english=True):
         return news.Post(src.key, entry.id, entry.link, src.label, parts=[entry.title], posted_at=news.tweet_time(entry.id))
     kept = news.fetch_feed, news.build_x_post
     news.fetch_feed, news.build_x_post = fake_feed, fake_build
@@ -2179,7 +2223,7 @@ def _both_sites():
     async def fake_feed(session, username, tries=0):
         return list(feed), ""
 
-    async def fake_x(session, src, item, avatar):
+    async def fake_x(session, src, item, avatar, english=True):
         return news.Post(src.key, item.id, f"https://x.com/{src.handle}/status/{item.id}", src.label, parts=[item.text])
 
     async def fake_build(session, src, record, uri):
@@ -2332,7 +2376,7 @@ def _burst():
     async def fake_feed(session, username, tries=0):
         return list(reversed(feed)), ""         # newest first, as a feed lists them
 
-    async def fake_x(session, src, it, avatar):
+    async def fake_x(session, src, it, avatar, english=True):
         return news.Post(src.key, it.id, it.link, src.label, parts=[it.text])
     sent = []
 
@@ -2835,7 +2879,7 @@ def _edits():
     async def fake_feed(session, username, tries=0):
         return feed["items"], "https://av/a.png"
 
-    async def fake_x(session, src, entry, avatar, media=True):
+    async def fake_x(session, src, entry, avatar, media=True, english=True):
         return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.text], posted_at=news.tweet_time(entry.id))
 
     async def fake_thread(session, uri, did):
@@ -3002,7 +3046,7 @@ def _folds():
     async def fake_feed(session, username, tries=0):
         return feed["items"], "https://av/a.png"
 
-    async def fake_x(session, src, entry, avatar, media=True):
+    async def fake_x(session, src, entry, avatar, media=True, english=True):
         return news.Post(src.key, entry.id, entry.link, src.label, avatar, [entry.text], posted_at=news.tweet_time(entry.id))
 
     async def fake_above(session, post_id, handle):
@@ -3108,6 +3152,44 @@ def _folds():
     finally:
         news.fetch_feed, news.build_x_post, news.syndication_above, news.syndication_tweet, news.bluesky_thread, news.build_bluesky_post = kept
         _Webhook.edits = []
+    # a translation still running when the thread takes the card over is stopped, or the first post's English would land over the whole thread
+    with _scratch(), _no_session():
+        watch = tasks.NewsWatch()
+        post = news.Post("maimai", first, f"https://x.com/{source.handle}/status/{first}", source.label, parts=["新曲です"])
+        model, revised = {}, []          # the event is made inside each run: one belongs to one event loop
+
+        async def slow_translate(session, text):
+            await model["wait"].wait()
+            return "English"
+
+        async def fake_revise(src, root, whole):
+            revised.append(whole.parts)
+            return 1
+        kept_translate, watch.revise = news.translate, fake_revise
+        news.translate = slow_translate
+        try:
+            async def taken_over():
+                model["wait"] = asyncio.Event()
+                watch.translate_behind(post)
+                await asyncio.sleep(0.05)           # the translation is waiting on the model
+                await watch._x_whole(source, first, [], "")        # the thread rebuilds the card; with nothing sent under this root it stops right after the cancel
+                model["wait"].set()
+                await asyncio.sleep(0.05)
+                return first in watch._translating
+
+            async def left_alone():
+                model["wait"] = asyncio.Event()
+                watch.translate_behind(post)
+                await asyncio.sleep(0.05)
+                model["wait"].set()
+                await asyncio.sleep(0.05)
+            if asyncio.run(taken_over()) or revised:
+                problems.append(f"a translation kept running after the thread took the card over: {revised}")
+            asyncio.run(left_alone())
+            if revised != [["English", "新曲です"]]:
+                problems.append(f"a translation left alone did not edit the card with the English: {revised}")
+        finally:
+            news.translate = kept_translate
     return problems
 
 
@@ -3303,4 +3385,70 @@ def _fold_media():
     finally:
         news.fetch_bytes = kept_bytes
         _Webhook.edits = []
+    return problems
+
+
+@check("/news-post is the owner's alone: it sends the post at an X or Bluesky link to the channel it is run in through its webhook, refuses anybody else, is not held to the test posts' spacing, and says when the link cannot be read")
+def _post_link():
+    import discord
+    from rasmai.bot import core
+    from rasmai.bot.commands import news as command
+
+    problems = []
+    calls, answer = [], [""]
+
+    async def fake_post_link(channel_id, url, link):
+        calls.append((channel_id, url, link))
+        return answer[0]
+    kept_post_link, kept_spacing, kept_admin = core.news_watch.__dict__.get("post_link"), dict(command._history_at), command.ADMIN_USER_ID
+    core.news_watch.post_link = fake_post_link
+    command.ADMIN_USER_ID = "1"          # the fake interaction's user; the command may be unregistered here, so its function is run either way
+    news_post = getattr(command.news_post, "callback", command.news_post)
+    link = "https://x.com/SACREDRUlN/status/2120011281469960625?a=MGk4cSLQpK5oWXBBBYs&s=20"
+
+    def run(channel):
+        asked = _Interaction(guild=channel.guild)
+        asked.channel = channel
+        asyncio.run(news_post(asked, link))
+        return asked.said[-1] if asked.said else ""
+    try:
+        with _scratch(), _no_session():
+            command._history_at.clear()
+            channel = _Channel(80)
+            channel.type = discord.ChannelType.text
+            # anybody but the admin is refused before anything is read, whatever their channel rights
+            command.ADMIN_USER_ID = "2"
+            if run(channel) != "That command is not yours to run." or calls:
+                problems.append(f"somebody other than the admin ran it: {calls}")
+            command.ADMIN_USER_ID = "1"
+            said = run(channel)
+            if calls != [("80", f"{URL}-made80-1", link)] or not said.startswith("Posted to <#80>"):
+                problems.append(f"a post was sent with {calls} and answered {said!r}")
+            # not spaced like test posts: a thread is two or three links in a row
+            if not run(channel).startswith("Posted to <#80>") or len(calls) != 2:
+                problems.append(f"a second post right after the first was held back: {calls}")
+            # no Manage Webhooks in the channel: refused without a read
+            command._history_at.clear()
+            refused = _Channel(81, user_ok=False)
+            refused.type = discord.ChannelType.text
+            if "Manage Webhooks" not in run(refused) or len(calls) != 2:
+                problems.append("somebody without Manage Webhooks had a post sent")
+            # not a text channel: nothing to make a webhook in
+            elsewhere = _Channel(82)
+            elsewhere.type = discord.ChannelType.voice
+            if run(elsewhere) != "Run this in a server text channel." or len(calls) != 2:
+                problems.append("a post was sent from a channel that cannot hold a webhook")
+            # the link could not be read: the person is told what the watcher said
+            command._history_at.clear()
+            answer[0] = "I couldn't read that post."
+            if run(channel) != "I couldn't read that post." or len(calls) != 3:
+                problems.append("the reason a link could not be posted was not shown")
+    finally:
+        if kept_post_link is None:
+            core.news_watch.__dict__.pop("post_link", None)
+        else:
+            core.news_watch.post_link = kept_post_link
+        command.ADMIN_USER_ID = kept_admin
+        command._history_at.clear()
+        command._history_at.update(kept_spacing)
     return problems

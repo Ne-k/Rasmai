@@ -643,6 +643,8 @@ async def fetch_feed(session: aiohttp.ClientSession, username: str, tries: int =
 BLUESKY_LINK = re.compile(r"^(?:https?://)?(?:www\.)?bsky\.app/profile/([^/?#\s]+)", re.IGNORECASE)
 X_LINK = re.compile(r"^(?:https?://)?(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})(?:[/?#]|$)", re.IGNORECASE)
 X_NAME = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+X_POST = re.compile(r"^(?:https?://)?(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/status/(\d+)", re.IGNORECASE)
+BLUESKY_POST = re.compile(r"^(?:https?://)?(?:www\.)?bsky\.app/profile/([^/?#\s]+)/post/([A-Za-z0-9]+)", re.IGNORECASE)
 LOOKUP_TRIES = 3            # Nitter instances asked about an account someone typed; all of them would be a minute of waiting for a typo
 
 
@@ -920,8 +922,14 @@ async def syndication_video(session: aiohttp.ClientSession, post_id: str) -> Lis
     return []
 
 
-async def build_x_post(session: aiohttp.ClientSession, source: Source, item: FeedItem, avatar: str, media: bool = True) -> Post:
-    """A Nitter post as one to send: its text with a translation, its pictures, and its video when it has one and ``media`` is asked for."""
+def needs_english(text: str) -> bool:
+    """Whether a post is translated: Japanese, and not already carrying its own English, which a translation would only say twice."""
+    return has_japanese(text) and not has_english(text)
+
+
+async def build_x_post(session: aiohttp.ClientSession, source: Source, item: FeedItem, avatar: str, media: bool = True, english: bool = True) -> Post:
+    """A Nitter post as one to send: its text with a translation unless ``english`` is off, its pictures, and its video when it has one
+    and ``media`` is asked for."""
     images = [url for url in media_urls(item.description) if trusted(url)]
     videos: List[bytes] = []
     wanted_video = any("amplify_video_thumb" in url or "/tweet_video_thumb/" in url for url in images)
@@ -932,15 +940,42 @@ async def build_x_post(session: aiohttp.ClientSession, source: Source, item: Fee
             videos.append(data)
             images = []
     written = item.text
-    # some accounts write both languages themselves, and a translation of that would only say it twice
-    english = await translate(session, written) if has_japanese(written) and not has_english(written) else ""
-    parts = [english] if english and english != written else []
+    translated = await translate(session, written) if english and needs_english(written) else ""
+    parts = [translated] if translated and translated != written else []
     parts.append(written)
     follow_up = None
     if item.reply_to:
         follow_up = await syndication_parent(session, item.id, source.handle) or ("", "")
     return Post(source.key, item.id, f"https://x.com/{source.handle}/status/{item.id}", source.label, avatar, parts, images, videos, wanted_video, follow_up,
                 tweet_time(item.id), is_maimai(written) or bool(follow_up and is_maimai(follow_up[1])), colour=await avatar_colour(session, avatar) or 0)
+
+
+async def post_at(session: aiohttp.ClientSession, link: str) -> Optional[Post]:
+    """The post at an X or Bluesky link, built as the live reader builds it but not yet translated; None when the link is neither or the post cannot be read."""
+    x, bluesky = X_POST.match(link.strip()), BLUESKY_POST.match(link.strip())
+    if x:
+        handle, post_id = x.groups()
+        source = await find_account(session, f"x.com/{handle}")
+        if source is None:
+            return None
+        items, avatar = await fetch_feed(session, source.handle)
+        # shortcut: only a post still in the account's feed, its last twenty or so, can be sent; upgrade via the syndication endpoint for older ones
+        item = next((item for item in items if item.id == post_id), None)
+        return await build_x_post(session, source, item, avatar, english=False) if item else None
+    if bluesky:
+        handle, rkey = bluesky.groups()
+        source = await find_account(session, f"bsky.app/profile/{handle}")
+        if source is None:
+            return None
+        uri = f"at://{source.did}/app.bsky.feed.post/{rkey}"
+        data = await _get_json(session, f"{PUBLIC_API}/app.bsky.feed.getPosts", {"uris": uri})
+        posts = data.get("posts") if isinstance(data, dict) else None
+        record = (posts[0].get("record") if posts and isinstance(posts[0], dict) else None) or None
+        if not isinstance(record, dict):
+            return None
+        post, _uris = await build_bluesky_post(session, source, record, uri)
+        return post
+    return None
 
 
 async def recent_posts(session: aiohttp.ClientSession, source: Source, count: int, maimai_only: Optional[bool] = None) -> List[Post]:

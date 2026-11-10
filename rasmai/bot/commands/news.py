@@ -11,6 +11,7 @@ from discord import app_commands
 from rasmai.bot.core import bot, cannot_see_channel, news_watch, server_invite_url
 from rasmai.bot.tasks.news import NO_MENTIONS, all_sources, load_sources
 from rasmai.bot.ui.views import OwnerOnlyView
+from rasmai.config import ADMIN_USER_ID, CONTROL_GUILD_ID
 from rasmai.scraping import news as feeds
 from rasmai.scraping.news import SOURCES, Source
 from rasmai.storage.db import (
@@ -109,6 +110,24 @@ async def _webhook_for(channel: discord.TextChannel) -> str:
     return created.url
 
 
+async def _webhook_or_explain(interaction: discord.Interaction, channel: discord.TextChannel) -> Optional[str]:
+    """``_webhook_for``, or None once the person has been told why there is none: the permission, Discord's limit, or Discord itself."""
+    try:
+        return await _webhook_for(channel)
+    except discord.Forbidden:
+        await _ask_for_permission(interaction, channel)       # the permission was lost between the check and the call, or a channel rule overrides it
+    except discord.HTTPException as error:
+        logger.warning("news: making a webhook failed with %s", error.status)
+        if error.code == 30007:         # Discord's "maximum number of webhooks reached"
+            await _reply(interaction, "That channel already has 15 webhooks, which is Discord's limit. Remove one and try again.")
+        else:
+            await _reply(interaction, "Discord wouldn't let me make a webhook there - try again in a minute.")
+    except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+        logger.warning("news: making a webhook failed with %s", type(error).__name__)
+        await _reply(interaction, "Couldn't reach Discord - try again in a minute.")
+    return None
+
+
 def _refusal(interaction: discord.Interaction, channel: discord.TextChannel) -> str:
     """Why this person may not do this in this channel, or an empty string."""
     if channel.guild.id != interaction.guild_id:
@@ -183,21 +202,8 @@ async def save_channel(interaction: discord.Interaction, channel: discord.TextCh
         if extra and await asyncio.to_thread(followed_news_source_count) + len(extra) > MAX_ADDED:
             await _reply(interaction, ADDED_FULL)
             return None
-        try:
-            url = await _webhook_for(channel)
-        except discord.Forbidden:
-            await _ask_for_permission(interaction, channel)       # the permission was lost between the check and the call, or a channel rule overrides it
-            return None
-        except discord.HTTPException as error:
-            logger.warning("news: making a webhook failed with %s", error.status)
-            if error.code == 30007:         # Discord's "maximum number of webhooks reached"
-                await _reply(interaction, "That channel already has 15 webhooks, which is Discord's limit. Remove one and try again.")
-            else:
-                await _reply(interaction, "Discord wouldn't let me make a webhook there - try again in a minute.")
-            return None
-        except (aiohttp.ClientError, asyncio.TimeoutError) as error:
-            logger.warning("news: making a webhook failed with %s", type(error).__name__)
-            await _reply(interaction, "Couldn't reach Discord - try again in a minute.")
+        url = await _webhook_or_explain(interaction, channel)
+        if url is None:
             return None
         for key in fresh:
             if added and key in added:
@@ -678,5 +684,41 @@ async def manage(interaction: discord.Interaction):
     await interaction.response.send_message(embed=menu.embed(), view=menu, ephemeral=True, allowed_mentions=NO_MENTIONS)
     menu.message = await interaction.original_response()
 
+
+# the owner's own: a post from any account, sent to the channel it is run in as news. Registered against the control server
+# like /notice, so it is in that server's picker alone; with no server set it falls back to global, and the admin check still decides
+_SCOPE = {"guilds": [discord.Object(id=CONTROL_GUILD_ID)]} if CONTROL_GUILD_ID else {}
+if ADMIN_USER_ID and not CONTROL_GUILD_ID:
+    logger.info("MAIMAI_CONTROL_GUILD_ID is not set, so /news-post is registered globally; only MAIMAI_ADMIN_ID can run it")
+
+
+@app_commands.describe(link="The post's address, from Share > Copy link")
+async def news_post(interaction: discord.Interaction, link: str):
+    # a guild command is invisible outside its server, but a user-installed bot carries it into DMs, so this line decides who may run it
+    if not ADMIN_USER_ID or str(interaction.user.id) != ADMIN_USER_ID:
+        await _reply(interaction, "That command is not yours to run.")
+        return
+    channel = interaction.channel
+    if interaction.guild is None or getattr(channel, "type", None) not in CHANNEL_TYPES:
+        await _reply(interaction, "Run this in a server text channel.")
+        return
+    refused = _refusal(interaction, channel)      # type: ignore[arg-type]
+    if refused:
+        await _reply(interaction, refused)
+        return
+    if not channel.permissions_for(channel.guild.me).manage_webhooks:      # type: ignore[union-attr]
+        await _ask_for_permission(interaction, channel)      # type: ignore[arg-type]
+        return
+    # not spaced like test posts: a thread is two or three links in a row, and the reads are the owner's own machine's
+    await interaction.response.defer(ephemeral=True)        # reading the post takes seconds, more with a video
+    url = await _webhook_or_explain(interaction, channel)      # type: ignore[arg-type]
+    if url is None:
+        return
+    problem = await news_watch.post_link(str(channel.id), url, link)      # type: ignore[union-attr]
+    await _reply(interaction, problem or f"Posted to {channel.mention}. The translation follows in a moment if it's in Japanese.")      # type: ignore[union-attr]
+
+
+if ADMIN_USER_ID:
+    news_post = bot.tree.command(name="news-post", description="Send one X or Bluesky post to this channel as a news card", **_SCOPE)(news_post)
 
 bot.tree.add_command(news)
