@@ -247,6 +247,10 @@ export function Dash() {
     );
   }
 
+  // an account that follows a Kamaitachi profile alone has never had its map read, and may hold no dated plays: a tab with
+  // nothing in it is left out, and an address that names one opens the overview
+  const hidden: Tab[] = me.maimai === false ? [...(me.playHistory ? [] : ["recent" as Tab]), ...(me.hasAreas ? [] : ["areas" as Tab])] : [];
+  const open = hidden.includes(tab) ? "overview" : tab;
   const p = me.profile!;
   const s = me.snapshot!;
   const band = ratingBand(p.rating).key;
@@ -295,11 +299,11 @@ export function Dash() {
         </div>
       </section>
 
-      <Tabs current={tab} onPick={pick} admin={me.admin} />
+      <Tabs current={open} onPick={pick} admin={me.admin} hidden={hidden} />
 
-      {IMAGE_FOR[tab] && (
+      {IMAGE_FOR[open] && (
         <div className="tab-tools">
-          {IMAGE_FOR[tab]!.map((kind) => (
+          {IMAGE_FOR[open]!.map((kind) => (
             <SaveImage key={kind} kind={kind} ready={Boolean(me.analysis)} />
           ))}
         </div>
@@ -309,16 +313,16 @@ export function Dash() {
       {queued && <QueueNote spot={queued} />}
 
       <main className="panel">
-        <div hidden={tab !== "overview"}>
+        <div hidden={open !== "overview"}>
           <OverviewTab me={me} charts={charts} chartsError={chartsError} onRetry={loadCharts} onAccount={() => pick("account")} />
         </div>
         {visited.has("picks") && (
-          <div hidden={tab !== "picks"}>
+          <div hidden={open !== "picks"}>
             <Picks initial={String(me.settings?.challenge ?? "balanced")} onOpen={openChart} />
           </div>
         )}
         {visited.has("new") && (
-          <div hidden={tab !== "new"}>
+          <div hidden={open !== "new"}>
             <NewCharts
               initialChallenge={String(me.settings?.challenge ?? "balanced")}
               initialDifficulty={String(me.settings?.new_difficulty ?? "any")}
@@ -327,27 +331,27 @@ export function Dash() {
           </div>
         )}
         {visited.has("best50") && (
-          <div hidden={tab !== "best50"}>
+          <div hidden={open !== "best50"}>
             {chartsError ? <LoadError what={t("yourCharts")} message={chartsError} onRetry={loadCharts} /> : <Best50 charts={charts} cutoffs={me.analysis?.best50} onOpen={openChart} />}
           </div>
         )}
         {visited.has("charts") && (
-          <div hidden={tab !== "charts"}>
+          <div hidden={open !== "charts"}>
             {chartsError ? <LoadError what={t("yourCharts")} message={chartsError} onRetry={loadCharts} /> : charts ? <Charts rows={charts} onOpen={openChart} /> : <Empty>{t("loadingCharts")}</Empty>}
           </div>
         )}
         {visited.has("chart") && (
-          <div hidden={tab !== "chart"}>
+          <div hidden={open !== "chart"}>
             <Lookup target={lookup} settings={me.settings} />
           </div>
         )}
         {visited.has("recent") && (
-          <div hidden={tab !== "recent"}>
+          <div hidden={open !== "recent"}>
             {recentError ? <LoadError what={t("yourHistory")} message={recentError} onRetry={loadRecent} /> : <Recent plays={recent} total={me.playHistory ?? 0} onOpen={openChart} />}
           </div>
         )}
         {visited.has("traits") && (
-          <div hidden={tab !== "traits"}>
+          <div hidden={open !== "traits"}>
             <Traits
               traits={me.analysis?.profile?.traits ?? []}
               axes={me.analysis?.profile?.traitAxes ?? []}
@@ -360,17 +364,17 @@ export function Dash() {
           </div>
         )}
         {visited.has("areas") && (
-          <div hidden={tab !== "areas"}>
+          <div hidden={open !== "areas"}>
             <Areas key={me.profile?.updatedAt ?? ""} focus={areaFocus} />
           </div>
         )}
         {visited.has("account") && (
-          <div hidden={tab !== "account"}>
+          <div hidden={open !== "account"}>
             <Account me={me} refresh={refresh} onRefresh={(st) => setRefresh(st)} />
           </div>
         )}
         {me.admin && visited.has("admin") && (
-          <div hidden={tab !== "admin"}>
+          <div hidden={open !== "admin"}>
             <AdminPanel />
           </div>
         )}

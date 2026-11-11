@@ -26,6 +26,9 @@
 .region.lit:hover { box-shadow: 4px 4px 0 var(--pink); }
 .region.lit .region-dot { background: var(--pink); border-color: var(--pink-edge); }
 .region:disabled { cursor: default; transform: none; }
+/* the third way in takes the whole row under the two regions, and its form opens under it */
+.region.wide { grid-column: 1 / -1; }
+.link-maimai .kamai-link { max-width: 560px; margin-top: 12px; }
 .region:disabled:not(.busy) { opacity: .45; }
 .region.busy .region-dot { background: var(--pink); border-color: var(--pink-edge); animation: throb 1.3s ease-in-out infinite; }
 .region.busy .region-how { color: var(--ink); font-weight: 500; }

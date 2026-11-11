@@ -10,6 +10,7 @@ from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.bot.ui.formatting import stamp, NOT_CONNECTED_MESSAGE
 from rasmai.bot.ui.progress import Progress
 from rasmai.bot.state.snapshots import collect_judgements, persist_progress
+from rasmai.scraping.kamaitachi import KamaitachiError
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
 from rasmai.config import DEBUG_EXPORT_JSON, MAIMAI_BASE_URLS
 from rasmai.storage.db import (
@@ -111,8 +112,36 @@ async def run_full_analysis(
     return recommendations, value_charts
 
 
+async def _kamaitachi_analysis(interaction: discord.Interaction, user_id: str, account: Dict[str, Any], force: bool) -> Optional[CachedAnalysis]:
+    """The analysis of an account with no maimai DX NET sign-in, which follows a Kamaitachi profile: what is stored, or with ``force`` the profile read again.
+
+    Nothing is ever read from maimai for it; a profile that cannot be read leaves the stored scores showing.
+    """
+    from rasmai.web.dashboard.imports import kamaitachi_account
+    if not force:
+        stored = await _analysis_from_store(user_id, account)
+        if stored is not None:
+            return stored
+    try:
+        cached, _counts = await asyncio.to_thread(kamaitachi_account, user_id)
+        return cached
+    except KamaitachiError as error:
+        why = str(error) or "Kamaitachi has no user with that name any more."
+        stored = await _analysis_from_store(user_id, account)
+        if stored is None:
+            await interaction.edit_original_response(content=why, embed=None, attachments=[], view=None)
+            return None
+        try:
+            await interaction.followup.send(f"{why}\n-# Showing your last read instead.", ephemeral=True)
+        except discord.HTTPException:
+            pass
+        return stored
+
+
 async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force: bool = False) -> Optional[CachedAnalysis]:
     account = await asyncio.to_thread(get_connected_account, user_id)
+    if account and not account.get("token") and account.get("kamaitachi"):
+        return await _kamaitachi_analysis(interaction, user_id, account, force)
     token = str(account.get("token", "")) if account else ""
     region = str(account.get("region", "intl")).strip().lower() if account else "intl"
     if region not in MAIMAI_BASE_URLS:
@@ -182,4 +211,8 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
     persist_progress(user_id, analyzer)
     # the judgement pages of the plays just read, fetched behind the reply so the results are not held for them
     asyncio.get_running_loop().run_in_executor(None, collect_judgements, user_id, analyzer, analyzer.recent_songs, region)
+    if account.get("kamaitachi"):
+        # the profile followed beside the sign-in: its bests join the history behind the reply too
+        from rasmai.web.dashboard.imports import merge_followed
+        asyncio.get_running_loop().run_in_executor(None, merge_followed, user_id)
     return cached

@@ -8,7 +8,9 @@ import re
 from rasmai.bot.builders.charts.index import search_titles
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
-from rasmai.storage.db import delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id
+from rasmai.storage.db import (
+    account_exists, delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id, unfollow_kamaitachi,
+)
 from rasmai.bot.state import cohort
 from rasmai.bot.state.prefs import set_speeds
 from rasmai.bot.state.cache import cache_get, forget_analysis
@@ -23,7 +25,7 @@ from rasmai.web.dashboard.overview import overview_payload
 from rasmai.web.dashboard.picks import new_charts_payload, picks_payload, practice_payload
 from rasmai.web.dashboard.refresh import refresh_jobs
 from rasmai.web.dashboard.scores import charts_payload, export_payload, play_payload, recent_payload
-from rasmai.web.dashboard.imports import import_kamaitachi, import_payload
+from rasmai.web.dashboard.imports import import_payload, kamaitachi_account
 from rasmai.storage.db import VERDICTS, set_beta_feedback
 from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
 from rasmai.web.dashboard.public_profile import set_sharing
@@ -41,7 +43,7 @@ READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
           "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/admin/delete-feedback",
-          "/internal/me/kamaitachi/import", "/internal/me/settings")
+          "/internal/me/kamaitachi/import", "/internal/me/kamaitachi/unfollow", "/internal/me/settings")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -285,6 +287,28 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         cohort.drop(user["id"])
         handler._send_json(200, {"ok": True})
         return True
+    if path == "/internal/me/kamaitachi/import":
+        # before the linked-account check: with no maimai account linked, or one whose sign-in has expired, the profile is how the account gets its scores
+        from rasmai.scraping.kamaitachi import KamaitachiError, valid_username
+        username = str((payload or {}).get("username") or "").strip()
+        if not valid_username(username):
+            handler._send_json(400, {"ok": False, "error": "bad_username"})
+            return True
+        if not account_exists(user["id"]):
+            # this makes the account when there is none, so a session that outlived a deleted one must not bring it back
+            handler._send_json(404, {"ok": False, "error": "not_found"})
+            return True
+        if not kamaitachi_limiter.allow(user["id"]):
+            handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five reads from Kamaitachi per quarter hour."})
+            return True
+        try:
+            _cached, result = kamaitachi_account(user["id"], username)
+        except KamaitachiError as error:
+            handler._send_json(404 if error.kind == "no_such_user" else 502,
+                               {"ok": False, "error": error.kind, **({} if error.kind == "no_such_user" else {"message": str(error)})})
+            return True
+        handler._send_json(200, {"ok": True, **result})
+        return True
     account = get_connected_account(user["id"])
     if account is None:
         handler._send_json(404, {"ok": False, "error": "not_linked"})
@@ -348,26 +372,9 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         forget_analysis(user["id"])       # the recorded plays feed the model; the next look rebuilds with them
         handler._send_json(200, {"ok": True, **result})
         return True
-    if path == "/internal/me/kamaitachi/import":
-        from rasmai.bot.builders.charts import shared_index
-        from rasmai.scraping.kamaitachi import KamaitachiError, valid_username
-        from rasmai.scraping.scraper import MaimaiRatingAnalyzer
-        username = str((payload or {}).get("username") or "").strip()
-        if not valid_username(username):
-            handler._send_json(400, {"ok": False, "error": "bad_username"})
-            return True
-        if not kamaitachi_limiter.allow(user["id"]):
-            handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five reads from Kamaitachi per quarter hour."})
-            return True
-        cached = cache_get(user["id"])
-        try:
-            result = import_kamaitachi(user["id"], username, cached.analyzer if cached else MaimaiRatingAnalyzer(),
-                                    cached.analyzer.chart_index if cached else shared_index())
-        except KamaitachiError as error:
-            handler._send_json(404 if error.kind == "no_such_user" else 502,
-                               {"ok": False, "error": error.kind, **({} if error.kind == "no_such_user" else {"message": str(error)})})
-            return True
-        forget_analysis(user["id"])
-        handler._send_json(200, {"ok": True, **result})
+    if path == "/internal/me/kamaitachi/unfollow":
+        # only beside a maimai sign-in: with none, the profile is all the account has to read
+        stopped = unfollow_kamaitachi(user["id"])
+        handler._send_json(200 if stopped else 409, {"ok": True} if stopped else {"ok": False, "error": "only_link"})
         return True
     return False

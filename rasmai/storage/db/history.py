@@ -170,8 +170,10 @@ def quiet_reads_due(every: timedelta) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for row in rows:
         settings = _load_json_column(row["settings"]) or {}
-        if settings.get("history"):
-            out.append({"userId": row["user_id"], "region": row["region"], "token": decrypt_token(str(row["token"] or ""), str(row["user_id"]))})
+        # no token means the account follows a Kamaitachi profile alone: there is no maimai DX NET sign-in to read daily
+        token = decrypt_token(str(row["token"] or ""), str(row["user_id"])) if settings.get("history") else ""
+        if token:
+            out.append({"userId": row["user_id"], "region": row["region"], "token": token})
     return out
 
 

@@ -1,14 +1,18 @@
 from typing import Optional
+import asyncio
 
 import discord
 from rasmai.bot.ui import palette
 from discord import app_commands
 
 from rasmai.bot.core import bot, server_invite_url
+from rasmai.bot.ui.formatting import build_login_done_embed
 from rasmai.bot.ui.login import send_login_card
 from rasmai.bot.tasks.presence import describe
 from rasmai.bot.ui.views import DeleteAccountView
 from rasmai.config import DISCORD_BOT_INVITE, MAIMAI_BASE_URLS, SUPPORT_INVITE, get_public_base_url, region_supported, unsupported_region_text
+from rasmai.scraping.kamaitachi import REGION as KAMAITACHI, KamaitachiError, valid_username
+from rasmai.security import kamaitachi_limiter
 from rasmai.storage.db import get_connected_account
 from rasmai.bot.commands.choices import REGION_CHOICES
 
@@ -92,11 +96,40 @@ async def help_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def _login_kamaitachi(interaction: discord.Interaction, username: str) -> None:
+    """Follow a public Kamaitachi profile: beside a working maimai sign-in, or as where the scores come from when there is none."""
+    from rasmai.web.dashboard.imports import kamaitachi_account
+    if not valid_username(username):
+        await interaction.response.send_message(
+            "Add your Kamaitachi username: `/login region:Kamaitachi username:yourname`", ephemeral=True)
+        return
+    if not kamaitachi_limiter.allow(str(interaction.user.id)):
+        await interaction.response.send_message("You've read from Kamaitachi a few times just now. Try again in about 15 minutes.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        cached, _counts = await asyncio.to_thread(kamaitachi_account, str(interaction.user.id), username)
+    except KamaitachiError as error:
+        await interaction.followup.send(str(error) or "Kamaitachi has no user with that name.", ephemeral=True)
+        return
+    if cached is None:
+        # a maimai account is linked and working: it stays the one read, and the profile is followed beside it
+        await interaction.followup.send(f"Following **{username}** on Kamaitachi. Its scores are added every time your scores are read.", ephemeral=True)
+        return
+    embed = build_login_done_embed(username, KAMAITACHI)
+    embed.set_footer(text="Scores are from your Kamaitachi profile · /refresh reads it again · /delete-account removes everything")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 @bot.tree.command(name="login", description="Connect your maimai account to the bot")
-@app_commands.describe(region="Which maimai region you play in (default International; Japan links with your SEGA ID)")
-@app_commands.choices(region=REGION_CHOICES)
-async def login(interaction: discord.Interaction, region: Optional[app_commands.Choice[str]] = None):
+@app_commands.describe(region="Which maimai region you play in (default International; Japan links with your SEGA ID; Kamaitachi reads a public profile)",
+                       username="Your Kamaitachi username, when the region is Kamaitachi")
+@app_commands.choices(region=[*REGION_CHOICES, app_commands.Choice(name="Kamaitachi", value=KAMAITACHI)])
+async def login(interaction: discord.Interaction, region: Optional[app_commands.Choice[str]] = None, username: Optional[str] = None):
     chosen = region.value if region else "intl"
+    if chosen == KAMAITACHI:
+        await _login_kamaitachi(interaction, (username or "").strip())
+        return
     if chosen not in MAIMAI_BASE_URLS:
         chosen = "intl"
     if not region_supported(chosen):

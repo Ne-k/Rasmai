@@ -185,6 +185,9 @@ def overview_payload(user: Dict[str, Any], account: Optional[Dict[str, Any]]) ->
     snapshot = account.get("latestSnapshot") or {}
     payload.update({
         "region": account.get("region", "intl"),
+        # the two links an account can have at once: a maimai DX NET sign-in, and a Kamaitachi profile it follows
+        "maimai": bool(account.get("token")), "kamaitachi": account.get("kamaitachi") or "",
+        "hasAreas": any((snapshot.get("areas") or {}).get(kind) for kind in ("areaEvents", "eventAreaEvents")),
         "profile": {
             "name": profile.get("name", ""), "rating": int(profile.get("rating") or 0), "dan": profile.get("dan", ""),
             "title": profile.get("title", ""), "totalPlayCount": int(profile.get("totalPlayCount") or 0),

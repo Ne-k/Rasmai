@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
+import logging
 import re
 
 from rasmai.bot.state.snapshots import play_rows
-from rasmai.scraping.kamaitachi import KamaitachiError, fetch_pbs, pb_rows
-from rasmai.storage.db import best_recorded_scores, import_rating_points, load_play_counts, record_chart_scores, save_play_counts
+from rasmai.scraping.kamaitachi import REGION, KamaitachiError, fetch_pbs, pb_rows
+from rasmai.storage.db import (
+    best_recorded_scores, follow_kamaitachi, get_connected_account, import_rating_points, load_judgements, load_play_counts,
+    load_recorded_plays, record_chart_scores, save_play_counts,
+)
+
+logger = logging.getLogger(__name__)
 
 MAX_ROWS = 6000          # more charts than the game has
 NAME_CHARS = 200
@@ -151,6 +157,21 @@ def import_payload(user_id: str, data: Dict[str, Any], analyzer: Any, index: Any
     }
 
 
+def _matches(entries: List[Dict[str, Any]], index: Any) -> Iterator[Tuple[Dict[str, Any], Any, float]]:
+    """Each best that names a chart the database knows, with that chart and the score as a checked percent."""
+    for entry in entries:
+        ref = next((found for title in entry["titles"]
+                    if (found := index.get((_text(title).casefold(), entry["type"], entry["tier"]), entry["level"] or None))), None)
+        accuracy = _accuracy(entry["percent"])
+        if ref is not None and accuracy:
+            yield entry, ref, accuracy
+
+
+def _dx_score(counts: Dict[str, int]) -> int:
+    """A note is worth three points when perfect, two when great and one when good."""
+    return _int(3 * (counts.get("pcrit", 0) + counts.get("perfect", 0)) + 2 * counts.get("great", 0) + counts.get("good", 0), 10000)
+
+
 def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer: Any, index: Any) -> Dict[str, int]:
     """Merge personal bests read from Kamaitachi into the stored history; what is already there is left alone.
 
@@ -177,12 +198,7 @@ def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer:
     bests: List[Tuple[Any, ...]] = []
     plays: List[Tuple[Any, ...]] = []
     matched = 0
-    for entry in entries:
-        ref = next((found for title in entry["titles"]
-                    if (found := index.get((_text(title).casefold(), entry["type"], entry["tier"]), entry["level"] or None))), None)
-        accuracy = _accuracy(entry["percent"])
-        if ref is None or not accuracy:
-            continue
+    for entry, ref, accuracy in _matches(entries, index):
         matched += 1
         key = _chart_key(analyzer._normalize_official_song_name(ref.title), entry["type"], entry["tier"])
         if key in known and accuracy <= known[key] + 0.00005:
@@ -190,8 +206,7 @@ def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer:
         known[key] = accuracy
         counts = entry["judgements"] or {}
         total = sum(counts.values())
-        # a note is worth three points when perfect, two when great and one when good
-        dx = _int(3 * (counts.get("pcrit", 0) + counts.get("perfect", 0)) + 2 * counts.get("great", 0) + counts.get("good", 0), 10000)
+        dx = _dx_score(counts)
         fc = _text(entry["fc"], 8)
         moment = None
         if entry["time"] is not None:
@@ -207,23 +222,84 @@ def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer:
             "unmatched": seen - matched, "seen": seen}
 
 
-def import_kamaitachi(user_id: str, username: str, analyzer: Any, index: Any) -> Dict[str, int]:
-    """Read a public Kamaitachi profile and merge its personal bests into the stored history.
+def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str, int]]:
+    """Follow a public Kamaitachi profile, or read again the one already followed, whatever else the account has.
 
-    :param user_id: The Discord user id.
+    An account with a working maimai sign-in goes on reading maimai DX NET: the profile's bests are merged into its history,
+    which is all an import ever did, and the profile is remembered so every refresh merges it again.
+
+    An account with no sign-in, new or given up once it expired, takes its scores from the profile: each chart keeps the
+    better of what is stored and what the profile holds, so nothing read from maimai earlier is lost, and since no in-game
+    rating can be read the rating is the best 50 of the result.
+
+    Whoever types a public profile's name gets its scores: this is a way to see them, not proof of whose they are.
+
+    :param user_id: The Discord or site user id.
     :type user_id: str
-    :param username: The Kamaitachi username to read.
+    :param username: The Kamaitachi username; left out, the profile the account already follows.
     :type username: str
-    :param analyzer: A scraper, for the title normalisation stored names use.
-    :type analyzer: Any
-    :param index: The chart database.
-    :type index: Any
-    :returns: What :func:`record_pbs` returns.
-    :rtype: Dict[str, int]
-    :raises KamaitachiError: When the profile cannot be read, or holds no maimai DX scores.
+    :returns: The analysis now in memory, or None for an account that still reads maimai; and what :func:`record_pbs` returns.
+    :rtype: Tuple[Any, Dict[str, int]]
+    :raises KamaitachiError: As :func:`rasmai.scraping.kamaitachi.fetch_pbs` raises; ``kamaitachi`` when the profile has no
+        scores, or none Rasmai knows a chart for and nothing is stored either.
     """
+    from rasmai.bot.builders.charts import shared_index
+    from rasmai.bot.state.cache import CachedAnalysis, cache_get, cache_put, forget_analysis
+    from rasmai.bot.state.snapshots import analyzer_from_snapshot, persist_progress
+    from rasmai.scraping.scraper import MaimaiRatingAnalyzer
+    from rasmai.storage.models import PlayerInfo, SongInfo
+    held = get_connected_account(user_id)
+    username = username or str((held or {}).get("kamaitachi") or "")
     body = fetch_pbs(username)
     entries = pb_rows(body)
     if not entries:
         raise KamaitachiError("kamaitachi", "That Kamaitachi profile has no maimai DX scores.")
-    return record_pbs(user_id, entries, len(body.get("pbs") or []), analyzer, index)
+    seen = len(body.get("pbs") or [])
+    if held and held.get("token") and not held.get("sessionExpired"):
+        cached = cache_get(user_id)
+        counts = record_pbs(user_id, entries, seen, cached.analyzer if cached else MaimaiRatingAnalyzer(),
+                            cached.analyzer.chart_index if cached else shared_index())
+        follow_kamaitachi(user_id, username, REGION)
+        if counts["bests"] or counts["plays"]:
+            forget_analysis(user_id)        # rebuilt on the next ask, with the new scores in its history
+        return None, counts
+    analyzer = (analyzer_from_snapshot(user_id, held) if held else None) or MaimaiRatingAnalyzer()
+    index = analyzer.chart_index
+    best = {_chart_key(song.name, song.chart_type, song.difficulty_type): song for song in analyzer.songs}
+    for entry, ref, accuracy in _matches(entries, index):
+        name = analyzer._normalize_official_song_name(ref.title)
+        key = _chart_key(name, entry["type"], entry["tier"])
+        if key not in best or accuracy > best[key].accuracy:
+            best[key] = SongInfo(name=name, chart_type=entry["type"], difficulty_type=entry["tier"], accuracy=accuracy, level=ref.level,
+                                 difficulty=ref.constant, fc_status=_text(entry["fc"], 8), dx_score=_dx_score(entry["judgements"] or {}),
+                                 is_new=False)
+    if not best:
+        raise KamaitachiError("kamaitachi", "That profile has no maimai DX scores Rasmai recognises.")
+    # the row first: the plays, the rating point and the snapshot are all stored against it
+    follow_kamaitachi(user_id, username, REGION)
+    counts = record_pbs(user_id, entries, seen, analyzer, index)
+    analyzer.user_id = user_id
+    analyzer.songs = list(best.values())
+    if not analyzer.player.name:
+        analyzer.player = PlayerInfo(name=username)
+    analyzer.play_counts = load_play_counts(user_id)
+    analyzer.recorded_plays = load_recorded_plays(user_id)
+    analyzer.judgements = load_judgements(user_id)
+    analyzer.generate_recommendations()
+    # read off the first pass and analysed again, since what is worth playing depends on the rating
+    analyzer.player.rating = analyzer.best50.total
+    recommendations, value_charts = analyzer.generate_recommendations()
+    persist_progress(user_id, analyzer)
+    cached = CachedAnalysis(user_id=user_id, region=analyzer.region, analyzer=analyzer, recommendations=recommendations, value_charts=value_charts)
+    cache_put(cached)
+    return cached, counts
+
+
+def merge_followed(user_id: str) -> None:
+    """After a read of maimai DX NET, the followed Kamaitachi profile's bests merged in as well; a profile that cannot be read never reaches the read."""
+    try:
+        kamaitachi_account(user_id)
+    except KamaitachiError as error:
+        logger.info("the Kamaitachi profile %s follows could not be read: %s", user_id, error.kind)
+    except Exception:
+        logger.exception("merging a followed Kamaitachi profile failed")

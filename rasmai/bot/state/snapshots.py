@@ -6,6 +6,7 @@ from rasmai.storage.db import (
     best_recorded_scores, load_judgements, record_area_progress, record_chart_scores, record_rating_point,
     update_account_snapshot,
 )
+from rasmai.config import MAIMAI_BASE_URLS
 from rasmai.util import _json_safe
 
 logger = logging.getLogger(__name__)
@@ -255,7 +256,8 @@ def analyzer_from_snapshot(user_id: str, account: Dict[str, Any]) -> Optional[An
         return None
     profile = account.get("officialProfile") or {}
     analyzer = MaimaiRatingAnalyzer()
-    analyzer.region = account.get("region", "intl")
+    # an account linked to a Kamaitachi profile has no game region of its own: it is analysed as the international game
+    analyzer.region = account.get("region", "intl") if account.get("region") in MAIMAI_BASE_URLS else "intl"
     analyzer.player = PlayerInfo(
         name=str(profile.get("name") or snapshot.get("name") or ""), rating=int(profile.get("rating") or snapshot.get("rating") or 0),
         dan=str(profile.get("dan") or ""), title=str(profile.get("title") or ""),

@@ -101,6 +101,18 @@
       "recent": "Recent plays",
       "scores": "Reading score pages"
     },
+    "groups": {
+      "overview": "Overview",
+      "play": "Play",
+      "scores": "Scores",
+      "lookup": "Look up",
+      "account": "Account",
+      "admin": "Developer"
+    },
+    "subtabs": {
+      "overview": "Summary",
+      "chart": "Charts"
+    },
     "tabs": {
       "account": "Account",
       "admin": "Developer",
@@ -214,6 +226,7 @@
     "speeds": "chart speeds",
     "speedsInfo": "The note and touch speed chart videos and the chart viewer play at, as maimai shows them. Saved as you pick; /settings in Discord changes the same two.",
     "takes": "Takes about a minute. It's the same refresh the Discord commands do, and your picks update after.",
+    "takesKamai": "Reads your Kamaitachi profile again. Your picks update after.",
     "targets": "default targets",
     "touchSpeed": "touch speed",
     "unlink": "unlink",
@@ -889,7 +902,7 @@
         "c01": {
           "c01_login": {
             "name": "/login",
-            "what": "Links your maimai account. You get a link, sign in at maimai DX NET and press one button. It takes about a minute and you only do it once. You need to do this before any other command works. International accounts link with a bookmark; for a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. Accounts from the Chinese version can't be linked yet."
+            "what": "Links your maimai account. You get a link, sign in at maimai DX NET and press one button. It takes about a minute and you only do it once. You need to do this before any other command works. International accounts link with a bookmark; for a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. If your scores are on Kamaitachi, run <code>/login region:Kamaitachi username:yourname</code> instead. Accounts from the Chinese version can't be linked yet."
           },
           "c02_help": {
             "name": "/help",
@@ -1079,7 +1092,7 @@
           "i11": "<b>Beta feedback.</b> If you tell Rasmai whether a beta feature was better, the same or worse, it keeps that answer and the short note you may add (500 characters at most). The site's owner can read it, and it is not shown to anyone else.",
           "i12": "<b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, the note and touch speeds for chart videos, and opt-ins that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below), a daily read of your recent-plays page (below) and a Discord message about what that read found. With the compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai.",
           "i13": "<b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a day.",
-          "i07b": "<b>Scores imported from Kamaitachi.</b> If you use the dashboard's <b>import from Kamaitachi</b> box, the username you type is sent to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores. Nothing else about you is sent. What Rasmai stores is the same as for any imported scores: the bests and plays are recorded in your history and deleted with your account. The username itself is not kept.",
+          "i07b": "<b>Scores from Kamaitachi.</b> If you follow a Kamaitachi profile, from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>import from Kamaitachi</b> box, the username you type is sent to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores, then and each time your scores are refreshed. Nothing else about you is sent. Rasmai keeps the username with your account and records the bests and plays in your history. All of it is deleted with your account.",
           "i06b": "<b>Anonymous statistics.</b> Your best score on each chart and your rating are counted together with every other linked account's to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. It is not a separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. What is shown, on a chart's page on the site and in the bot, is only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. It never shows a name, an account ID or any one person's score, and nothing at all for a chart too few players have played to hide who they are. It changes no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results.",
           "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. The webhook URL is encrypted in the database and only opened to post. It's all deleted when the channel is stopped with <code>/news unsubscribe</code> or <code>/news manage</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept."
         },
@@ -1469,6 +1482,7 @@
     "step3Title": "Start grinding",
     "step3": "Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.",
     "japan": "<b>Playing on a Japan account?</b> Run <code>/login region:Japan</code> instead. The link opens a page where you enter the SEGA ID and password you use on maimaidx.jp, so steps 2 and the video don't apply.",
+    "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi username:yourname</code>, or pick Kamaitachi on <dash>your dashboard</dash>. No maimai sign-in needed, so skip the steps above.",
     "already": "<b>Already linked?</b> Your scores are on the web too. <dash>Open your dashboard</dash> and sign in with Discord."
   },
   "walkthrough": {
@@ -1699,6 +1713,9 @@
     "regionIntlHow": "Sign in at my-aime.net and press a bookmark. About a minute.",
     "regionJp": "Japan",
     "regionJpHow": "Enter your SEGA ID once. It's stored encrypted.",
+    "regionKamai": "Kamaitachi",
+    "regionKamaiHow": "Enter your Kamaitachi username. No maimai sign-in needed.",
+    "kamaiUpgrade": "Your scores come from Kamaitachi. Link maimai to get your real rating, recent plays and areas. Your scores stay.",
     "regionNote": "International: you sign in at my-aime.net and press a bookmark. Japan: you type your SEGA ID once, and it's kept encrypted.",
     "setupLede": "Your account is ready. Choose your region to link your maimai account. It takes about a minute.",
     "setupStep": "Step 2 of 2",
@@ -1718,6 +1735,11 @@
     "username": "Kamaitachi username",
     "import": "import",
     "importing": "importing…",
+    "following": "Following <b>{name}</b>. Its scores are added every time you refresh.",
+    "stop": "stop following",
+    "link": "link",
+    "linking": "reading your scores…",
+    "linkHint": "Reads that profile's public scores. Your rating becomes your best 50. You can link maimai later.",
     "importHint": "Reads that profile's public maimai DX scores and keeps whatever beats what Rasmai has. Nothing is overwritten.",
     "added": "Added {bests, plural, one {# best score} other {# best scores}} and {plays, plural, one {# play} other {# plays}} from Kamaitachi. Reloading…",
     "nothingNew": "Read {seen, plural, one {# score} other {# scores}}, but Rasmai already has all of them or better.",

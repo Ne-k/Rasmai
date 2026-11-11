@@ -16,7 +16,9 @@ def cohort_accounts() -> Iterator[Tuple[str, int, Dict[str, float]]]:
     try:
         rows = connection.execute(
             "SELECT a.user_id, a.official_profile, s.settings FROM connected_accounts a "
-            "LEFT JOIN user_settings s ON s.user_id = a.user_id").fetchall()
+            # with no maimai sign-in the scores are a Kamaitachi profile's, followed by typing its public name: it may be
+            # anybody's, so it is not counted among the players a chart is measured against
+            "LEFT JOIN user_settings s ON s.user_id = a.user_id WHERE a.token != ''").fetchall()
         ratings: Dict[str, int] = {}
         for row in rows:
             if (_load_json_column(row["settings"]) or {}).get("cohort") is False:

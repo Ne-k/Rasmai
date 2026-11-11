@@ -55,6 +55,17 @@
 .tabs button.on { color: var(--ink); border-bottom-color: var(--pink); }
 .tabs button:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
 .tabs-hint, .tabs-hint-left { display: none; }
+/* the tabs of the group that is open: pills under the strip, so the strip itself stays five words wide */
+.subtabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.subtabs button {
+  height: 30px; padding: 0 13px; border: 2px solid var(--edge); border-radius: 999px; background: var(--paper-2); color: var(--ink-2); cursor: pointer;
+  font-family: var(--font-mono), monospace; font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; transition: background .15s ease, color .15s ease;
+}
+.subtabs button:lang(ja) { font-family: var(--font-body), sans-serif; font-size: 12.5px; letter-spacing: .06em; }
+.subtabs button:hover { background: var(--paper); color: var(--ink); }
+.subtabs button.on { background: var(--btn-bg); color: var(--btn-fg); }
+.subtabs button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 
 .panel { margin-top: 26px; min-width: 0; }
 .refresh-bar { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 10px 14px; border: 2px dashed var(--line); border-radius: 12px; font-size: 14px; }
@@ -74,6 +85,23 @@
 .ledger { margin-top: 26px; min-width: 0; }
 .ledger-head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 14px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 2px solid var(--edge); }
 .ledger .ledger-head + .ledger-head { margin-top: 24px; }
+/* a section of the account tab that opens on demand. Closed, its row looks like the heading it stands for; open, the section's
+   own heading takes over and the row shrinks to the mark that closes it */
+.fold { margin-top: 26px; min-width: 0; }
+.fold > summary {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--edge);
+  cursor: pointer; list-style: none; color: var(--muted); -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-mono), monospace; font-size: 11.5px; letter-spacing: 2px; text-transform: uppercase;
+}
+.fold > summary:lang(ja) { font-family: var(--font-body), sans-serif; letter-spacing: .06em; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: "+"; font-family: var(--font-mono), monospace; font-size: 16px; line-height: 1; letter-spacing: 0; color: var(--ink); }
+.fold > summary:hover { color: var(--ink); }
+.fold > summary:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 2px; }
+.fold[open] > summary { justify-content: flex-end; padding-bottom: 0; border-bottom: 0; margin-bottom: -4px; }
+.fold[open] > summary span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fold[open] > summary::after { content: "\2212"; }
+.fold > .ledger { margin-top: 0; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .row-between .seg { margin: 0; }
 .two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; align-items: start; }
@@ -256,6 +284,8 @@
   .two-up, .two-up.wide-right { grid-template-columns: 1fr; }
   .tabs-wrap { margin-top: 22px; }
   .tabs button { padding: 12px 13px 13px; }
+  /* the dashboard's five groups share a phone's width, so nothing is off the edge; a sixth, the developer's, falls back to the sideways scroll */
+  .tabs-wrap .tabs button { flex: 1 0 auto; padding: 12px 6px 13px; font-size: 11px; letter-spacing: .6px; text-align: center; }
   .tabs-wrap[data-more="right"] .tabs-hint,
   .tabs-wrap[data-more="both"] .tabs-hint {
     display: flex;
@@ -381,7 +411,8 @@
 html[data-standalone] .dash .masthead { padding-top: 4px; }
 html[data-standalone] .dash .masthead-nav { display: none; }
 html[data-standalone] .dash .foot span:last-child { display: none; }
-html[data-standalone] .dash .tabs-wrap { position: sticky; top: 0; z-index: 5; background: var(--paper); }
+html[data-standalone] .dash .tabs-top { position: sticky; top: 0; z-index: 5; background: var(--paper); }
+html[data-standalone] .dash .tabs-top .subtabs { padding-bottom: 10px; }
 html[data-standalone] .dash .ident { margin-top: 16px; }
 
 /* look up: a search box, the songs it finds, and one chart laid out the way /chart lays it out */

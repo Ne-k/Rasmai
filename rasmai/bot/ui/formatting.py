@@ -263,7 +263,7 @@ def format_plan_verdict(plan: Optional["analysis.Plan"]) -> str:
     return f"{head}{tail}"
 
 
-REGION_LABELS = {"intl": "International", "jp": "Japan", "cn": "China"}
+REGION_LABELS = {"intl": "International", "jp": "Japan", "cn": "China", "kamaitachi": "Kamaitachi"}
 
 
 NOT_CONNECTED_MESSAGE = "It seems like you haven't created an account yet - run `/login` to get started."

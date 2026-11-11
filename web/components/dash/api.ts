@@ -77,6 +77,11 @@ export type Overview = {
   oauth: boolean;
   google?: boolean;
   region?: string;
+  /** The two links an account can have at once: a maimai DX NET sign-in, and a Kamaitachi profile it follows. */
+  maimai?: boolean;
+  kamaitachi?: string;
+  /** Whether a map of the areas was ever read for the account. */
+  hasAreas?: boolean;
   profile?: { name: string; rating: number; dan: string; title: string; totalPlayCount: number; updatedAt: string; nameplate?: string };
   snapshot?: { recordedAt: string; best50: number; newTotal: number; oldTotal: number; charts: number };
   history?: HistoryPoint[];

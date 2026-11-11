@@ -212,7 +212,7 @@ def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[
     :rtype: Optional[Dict[str, Any]]
     """
     columns = ("user_id, region, token, official_profile, avatar, created_at, updated_at, session_expired, "
-               "share_slug, seen_at" + (", latest_snapshot" if with_snapshot else ""))
+               "share_slug, seen_at, kamaitachi" + (", latest_snapshot" if with_snapshot else ""))
     connection = get_database_connection()
     try:
         row = connection.execute(
@@ -238,10 +238,49 @@ def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[
         "sessionExpired": row["session_expired"] or "",
         "shareSlug": row["share_slug"] or "",
         "seenAt": row["seen_at"] or "",
+        "kamaitachi": row["kamaitachi"] or "",
     }
     if with_snapshot:
         account["latestSnapshot"] = _load_json_column(row["latest_snapshot"])
     return account
+
+
+def follow_kamaitachi(user_id: str, username: str, region: str) -> None:
+    """Attach a Kamaitachi profile to an account, making the account under ``region`` when there is none.
+
+    An account with a working maimai sign-in keeps it and gains the profile. One whose sign-in has expired gives the dead
+    sign-in up, and the count towards deletion with it, since the profile is where its scores come from now; its region and
+    everything stored stay. A new account has no sign-in at all. No sign-in is an empty token written as it is, not sealed,
+    so a query can tell such an account apart.
+    """
+    now = datetime.now().isoformat()
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute(
+                """
+                INSERT INTO connected_accounts (user_id, region, token, official_profile, created_at, updated_at, kamaitachi)
+                VALUES (?, ?, '', ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    kamaitachi      = excluded.kamaitachi,
+                    token           = CASE WHEN connected_accounts.session_expired != '' THEN '' ELSE connected_accounts.token END,
+                    session_expired = '',
+                    deletion_warned = ''
+                """,
+                (user_id, region, _dump_json_column({"name": username}), now, now, username),
+            )
+    finally:
+        connection.close()
+
+
+def unfollow_kamaitachi(user_id: str) -> bool:
+    """Stop following the account's Kamaitachi profile; False for an account with no maimai sign-in, which would be left with nothing to read."""
+    connection = get_database_connection()
+    try:
+        with connection:
+            return connection.execute("UPDATE connected_accounts SET kamaitachi = '' WHERE user_id = ? AND token != ''", (user_id,)).rowcount > 0
+    finally:
+        connection.close()
 
 
 def touch_account(user_id: str) -> None:

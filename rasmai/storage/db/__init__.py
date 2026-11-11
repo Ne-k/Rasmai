@@ -1,7 +1,7 @@
 from rasmai.storage.db.connection import get_database_connection
 from rasmai.storage.db.accounts import (
     issue_login_code, login_code_issued_at, peek_login_code, mark_login_code_verified,
-    login_code_verified, consume_login_code, login_code_expiry, upsert_connected_account, get_connected_account,
+    login_code_verified, consume_login_code, login_code_expiry, upsert_connected_account, get_connected_account, follow_kamaitachi, unfollow_kamaitachi,
     delete_connected_account, update_account_snapshot, mark_session_expired, touch_account,
     set_share_slug, account_by_share_slug, session_deletes_at, expired_accounts_due, purge_expired_accounts,
     accounts_to_warn, mark_deletion_warned, postpone_account_deletions,

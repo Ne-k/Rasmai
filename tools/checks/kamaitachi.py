@@ -451,3 +451,143 @@ def _routes():
     if KamaitachiError("no_such_user").kind != "no_such_user":
         problems.append("the error does not carry its kind")
     return problems
+
+
+@check("a public Kamaitachi profile can be all an account has, with its bests the stored scores and the rating and nothing reading maimai DX NET, "
+       "or be followed beside a working maimai sign-in, which it never replaces; an expired sign-in is given up for it with every stored score kept")
+def _link():
+    from datetime import timedelta
+
+    from rasmai.bot.state.snapshots import CHART_FIELDS, analyzer_from_snapshot, snapshot_charts
+    from rasmai.scraping import scraper
+    from rasmai.scraping.kamaitachi import REGION, KamaitachiError
+    from rasmai.security import kamaitachi_limiter
+    from rasmai.storage.db import best_recorded_scores, get_connected_account, mark_session_expired, quiet_reads_due, set_user_settings, upsert_connected_account
+    from rasmai.storage.db.cohort import cohort_accounts
+    from rasmai.web.dashboard import imports, routes
+
+    problems = []
+    if "/internal/me/kamaitachi/unfollow" not in routes.WRITES:
+        problems.append("the way to stop following is not in the route table")
+    index = _index()
+    kept = scraper.MaimaiRatingAnalyzer
+    # the builder makes its own scraper, which here must stand on the sample chart database rather than the machine's
+    def sample():
+        made = kept()
+        made._chart_index = index
+        return made
+    scraper.MaimaiRatingAnalyzer = sample
+    kamaitachi_limiter._events.clear()
+
+    class Handler:
+        def __init__(self):
+            self.sent = []
+
+        def _send_json(self, status, body):
+            self.sent.append((status, body))
+
+    def post(user, payload, what="import"):
+        handler = Handler()
+        routes.handle_post(handler, f"/internal/me/kamaitachi/{what}", {"id": user}, payload)
+        return handler.sent[0]
+    profile = _tachi([
+        ("Oshama Scramble!", [], "DX Master", "13", 100.5, "FULL COMBO", 1790458048000),
+        ("Oshama Scramble!", [], "DX Master", "13", 99.0, "CLEAR", None),              # the same chart, worse: the better one is the best
+        ("Bring it on!!", ["bring it on"], "DX Expert", "10", 98.0, "FULL COMBO", None),
+        ("Never Heard Of It", [], "DX Master", "13", 99.0, "CLEAR", None),
+    ])
+    try:
+        with _scratch() as store:
+            other, gone = "100000000000000002", "100000000000000005"
+            connection = store.get_database_connection()
+            with connection:
+                # signed in on the site with nothing linked yet; `gone` is a session whose account was deleted, so it has no row at all
+                connection.executemany("INSERT INTO people (user_id, created_at, terms_version, terms_accepted_at) VALUES (?, ?, ?, ?)",
+                                       [(who, "2026-11-01T00:00:00", "2026-10-27", "2026-11-01T00:00:00") for who in (USER, other)])
+            connection.close()
+            with _network(_Answer(body=profile)) as asked:
+                if post(gone, {"username": "someone"}) != (404, {"ok": False, "error": "not_found"}) or asked or get_connected_account(gone) is not None:
+                    problems.append("a session that outlived its account made an account again")
+            # somebody with no maimai account, which is who this is for
+            with _network(_Answer(body=profile)) as asked:
+                if post(USER, {"username": "no good"}) != (400, {"ok": False, "error": "bad_username"}) or asked:
+                    problems.append("a bad username was not refused before Kamaitachi was asked")
+                status, body = post(USER, {"username": "someone"})
+            if status != 200 or not body.get("ok") or body.get("seen") != 4 or body.get("unmatched") != 1:
+                problems.append(f"linking a profile answered {status} {body}")
+            account = get_connected_account(USER) or {}
+            charts = {(c["name"], c["chart_type"], c["difficulty_type"]): c for c in snapshot_charts(account.get("latestSnapshot"))}
+            rating = int((account.get("officialProfile") or {}).get("rating") or 0)
+            if account.get("region") != REGION or account.get("token") or account.get("kamaitachi") != "someone" \
+                    or (account.get("officialProfile") or {}).get("name") != "someone":
+                problems.append(f"the account is not kept under kamaitachi, with no sign-in, following the profile: {account.get('region')!r}, "
+                                f"token {bool(account.get('token'))}, follows {account.get('kamaitachi')!r}")
+            best = charts.get(("OshamaScramble!", "dx", "master")) or {}
+            if len(charts) != 2 or best.get("accuracy") != 100.5 or best.get("fc_status") != "FC" or not best.get("rating"):
+                problems.append(f"the stored scores are not the profile's bests, one a chart: {sorted(charts)}, {best}")
+            if not rating or rating != sum(int(c["rating"]) for c in charts.values()):
+                problems.append(f"the rating {rating} is not the best 50 of what the profile holds")
+            # rebuilt from the store it is analysed as the international game, and nothing signs in to maimai for it
+            rebuilt = analyzer_from_snapshot(USER, account)
+            if rebuilt is None or rebuilt.region != "intl" or len(rebuilt.songs) != 2:
+                problems.append("the stored copy does not rebuild as an analysis of the international game")
+            set_user_settings(USER, {"history": True})
+            if any(row["userId"] == USER for row in quiet_reads_due(timedelta(0))):
+                problems.append("the daily maimai read would try to sign in for an account that has no sign-in")
+            # reading it again keeps the account and adds nothing twice
+            with _network(_Answer(body=profile)):
+                _cached, again = imports.kamaitachi_account(USER)       # no name given: the profile it follows
+            if again["bests"] or again["plays"] or (get_connected_account(USER) or {}).get("region") != REGION:
+                problems.append(f"reading the profile again added {again} or changed the account")
+            # a profile that is gone leaves what is stored, and one with nothing to match links nobody
+            with _network(_Answer(404, {"success": False, "description": "The user someone does not exist."})):
+                if post(USER, {"username": "someone"}) != (404, {"ok": False, "error": "no_such_user"}) or not snapshot_charts((get_connected_account(USER) or {}).get("latestSnapshot")):
+                    problems.append("a profile that no longer exists was not a 404, or cost the stored scores")
+            with _network(_Answer(body=_tachi([("Never Heard Of It", [], "DX Master", "13", 99.0, "CLEAR", None)]))):
+                status, body = post(other, {"username": "someone"})
+            if status != 502 or get_connected_account(other) is not None:
+                problems.append(f"a profile with no chart Rasmai knows linked an account: {status} {body}")
+            if post(USER, None, "unfollow") != (409, {"ok": False, "error": "only_link"}) or (get_connected_account(USER) or {}).get("kamaitachi") != "someone":
+                problems.append("an account with nothing but the profile was allowed to stop following it")
+            # beside a working maimai sign-in the profile is followed, not swapped in: the sign-in stays and the bests join the history
+            linked = "100000000000000003"
+            upsert_connected_account(linked, "intl", "cookie://" + "a" * 64, {"name": "Real", "rating": 12000})
+            with _network(_Answer(body=profile)):
+                status, body = post(linked, {"username": "someone"})
+            held = get_connected_account(linked) or {}
+            if status != 200 or held.get("region") != "intl" or not held.get("token") or held.get("kamaitachi") != "someone" \
+                    or (held.get("officialProfile") or {}).get("name") != "Real" or best_recorded_scores(linked).get("oshamascramble!|dx|master") != 100.5:
+                problems.append(f"following a profile beside a maimai sign-in answered {status} {body}, or cost the sign-in, or kept no scores")
+            with _network(_Answer(body=profile)) as asked:
+                imports.merge_followed(linked)          # what a refresh does after reading maimai
+            if len(asked) != 1 or not (get_connected_account(linked) or {}).get("token"):
+                problems.append("a refresh did not read the followed profile once, or it cost the sign-in")
+            with _network(_Answer(500, {"success": False})):
+                imports.merge_followed(linked)          # Kamaitachi down: the refresh that called this goes on
+            if post(linked, None, "unfollow") != (200, {"ok": True}) or (get_connected_account(linked) or {}).get("kamaitachi"):
+                problems.append("a maimai account could not stop following its profile")
+            # a sign-in that expired is given up for the profile: no deletion clock, the region and every stored score kept, each chart at its better score
+            expired = "100000000000000004"
+            stored = {"fields": list(CHART_FIELDS), "recordedAt": "2026-11-01T10:00:00", "charts": [
+                ["OshamaScramble!", "dx", "master", 99.0, 280, "13", 13.0, "", "", False, 0],       # the profile has it better
+                ["Bringiton", "dx", "master", 97.0, 240, "12+", 12.5, "FC", "", False, 0],          # only maimai had this one
+            ]}
+            upsert_connected_account(expired, "jp", "segaid://x", {"name": "ＥＸＰ", "rating": 14000}, stored)
+            mark_session_expired(expired)
+            with _network(_Answer(body=profile)):
+                status, body = post(expired, {"username": "someone"})
+            held = get_connected_account(expired) or {}
+            kept_charts = {(c["name"], c["difficulty_type"]): c["accuracy"] for c in snapshot_charts(held.get("latestSnapshot"))}
+            if status != 200 or held.get("token") or held.get("sessionExpired") or held.get("region") != "jp" or held.get("kamaitachi") != "someone":
+                problems.append(f"an expired account did not switch to its profile cleanly: {status} {body}, token {bool(held.get('token'))}, "
+                                f"expired {held.get('sessionExpired')!r}, region {held.get('region')!r}")
+            if kept_charts != {("OshamaScramble!", "master"): 100.5, ("Bringiton", "master"): 97.0, ("Bringiton", "expert"): 98.0}:
+                problems.append(f"switching over did not keep the better score of each chart, or lost one maimai had: {kept_charts}")
+            if (held.get("officialProfile") or {}).get("name") != "ＥＸＰ":
+                problems.append("switching over renamed the player after the profile")
+            if any(row[0] in (USER, expired) for row in cohort_accounts()) or not any(row[0] == linked for row in cohort_accounts()):
+                problems.append("an account with no sign-in is counted in the cohort, or one with a sign-in was dropped from it")
+    finally:
+        scraper.MaimaiRatingAnalyzer = kept
+        kamaitachi_limiter._events.clear()
+    return problems

@@ -9,6 +9,8 @@ from rasmai.bot.state.cache import CachedAnalysis, cache_get
 from rasmai.bot.state.snapshots import collect_judgements, persist_progress
 from rasmai.bot.tasks.chart_db import resolve_unknown
 from rasmai.config import MAIMAI_BASE_URLS, MAX_CONCURRENT_SCRAPES
+from rasmai.scraping.kamaitachi import KamaitachiError
+from rasmai.web.dashboard.imports import kamaitachi_account, merge_followed
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.errors import expected
 from rasmai.security import public_reason
@@ -98,10 +100,31 @@ class RefreshJobs:
     def _run(self, user_id: str, account: Dict[str, Any], job: Dict[str, Any]) -> None:
         tell = self._tell(job)
         try:
-            self._read(user_id, account, job, tell)
+            if not account.get("token") and account.get("kamaitachi"):
+                self._read_kamaitachi(user_id, job, tell)
+            else:
+                self._read(user_id, account, job, tell)
         finally:
             # the slot goes back however this ended, or nothing could read this account again
             reads.release(user_id)
+
+    def _read_kamaitachi(self, user_id: str, job: Dict[str, Any], tell: Any) -> None:
+        """A refresh of an account with no maimai DX NET sign-in: the Kamaitachi profile it follows is read again."""
+        try:
+            with self._slots:
+                tell("analysis", 0, 1)
+                kamaitachi_account(user_id)
+            with self._lock:
+                job.update({"running": False, "stage": "done", "finishedAt": datetime.now().isoformat(timespec="seconds")})
+        except KamaitachiError as error:
+            # the profile renamed or gone, or Kamaitachi not answering: theirs to fix, and the stored scores stay as they are
+            logger.info("Dashboard refresh stopped, Kamaitachi could not be read: %s", error.kind)
+            with self._lock:
+                job.update({"running": False, "stage": "failed", "error": str(error) or "Kamaitachi has no user with that name any more."})
+        except Exception as error:
+            logger.exception("Dashboard refresh from Kamaitachi failed")
+            with self._lock:
+                job.update({"running": False, "stage": "failed", "error": public_reason(error)})
 
     def _read(self, user_id: str, account: Dict[str, Any], job: Dict[str, Any], tell: Any) -> None:
         try:
@@ -135,6 +158,9 @@ class RefreshJobs:
                                          recommendations=recommendations, value_charts=value_charts))
             with self._lock:
                 job.update({"running": False, "stage": "done", "finishedAt": datetime.now().isoformat(timespec="seconds")})
+            if account.get("kamaitachi"):
+                # the profile followed beside the sign-in: its bests join the history, after the page has been told the read is done
+                merge_followed(user_id)
             # the judgement pages of the plays just read, after the page has been told the read is done
             collect_judgements(user_id, analyzer, analyzer.recent_songs, region)
         except Exception as error:

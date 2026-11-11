@@ -177,7 +177,8 @@ def _merge(connection: sqlite3.Connection, source: str, target: str, keep: Optio
             connection.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (source,))
     if held:
         # sealed against its owner's id, so a row moved to another id would no longer open
-        connection.execute("UPDATE connected_accounts SET token = ? WHERE user_id = ?", (encrypt_token(opened, target), target))
+        # no sign-in stays an empty token, unsealed, which is how an account that follows Kamaitachi alone is told apart
+        connection.execute("UPDATE connected_accounts SET token = ? WHERE user_id = ?", (encrypt_token(opened, target) if opened else "", target))
     mine = connection.execute("SELECT * FROM people WHERE user_id = ?", (source,)).fetchone()
     theirs = connection.execute("SELECT * FROM people WHERE user_id = ?", (target,)).fetchone()
     if mine and (not theirs or mine["created_at"] < theirs["created_at"]):

@@ -13,6 +13,7 @@ from rasmai.config import USER_AGENT
 logger = logging.getLogger(__name__)
 
 HOST = "https://kamai.tachi.ac"
+REGION = "kamaitachi"    # what an account linked to a profile here is kept under: it has no maimai DX NET sign-in, so no token either
 # the live server (v3) has no playtype in the path; the older docs show one and that address answers "Endpoint Not Found"
 PATH = "/api/v1/users/{}/games/maimaidx/pbs/all"
 USERNAME = re.compile(r"[A-Za-z0-9_-]{2,30}")

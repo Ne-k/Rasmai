@@ -7,16 +7,20 @@ import { ProviderIcon } from "@/components/ProviderIcon";
 import { isWebId } from "@/lib/ids";
 import { postJSON, type Overview } from "./api";
 import { Label } from "./bits";
+import { LinkKamaitachi } from "./Kamaitachi";
 import "./identity.css";
 
 /** Asks the bot for the link that connects a maimai account, from the site rather than from a Discord command.
- * Each region is a button that starts linking at once; `guided` adds a line under each on how that region links. */
-export function LinkMaimai({ guided = false }: { guided?: boolean }) {
+ * Each region is a button that starts linking at once; `guided` adds a line under each on how that region links.
+ * `kamaitachi` adds the way in that needs no maimai sign-in, left out where the account already follows a profile. */
+export function LinkMaimai({ guided = false, kamaitachi = true }: { guided?: boolean; kamaitachi?: boolean }) {
   const t = useTranslations("account");
   const locale = useLocale();
   // the region being opened, so only that button says so
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
+  // the third way in: a Kamaitachi profile's public scores, for someone with no maimai DX NET sign-in to give, or whose sign-in has expired
+  const [kamai, setKamai] = useState(false);
   const go = (chosen: string) => {
     setBusy(chosen);
     setNote("");
@@ -47,7 +51,15 @@ export function LinkMaimai({ guided = false }: { guided?: boolean }) {
             {guided && <span className="region-how">{busy === r ? t("linkOpening") : r === "intl" ? t("regionIntlHow") : t("regionJpHow")}</span>}
           </button>
         ))}
+        {kamaitachi && (
+          <button type="button" className={`region wide${kamai ? " lit" : ""}`} onClick={() => setKamai((open) => !open)} disabled={Boolean(busy)} aria-expanded={kamai}>
+            <span className="region-dot" aria-hidden="true" />
+            <span className="region-name">{t("regionKamai")}</span>
+            {guided && <span className="region-how">{t("regionKamaiHow")}</span>}
+          </button>
+        )}
       </div>
+      {kamaitachi && kamai && <LinkKamaitachi />}
       {note && <p className="hint bad">{note}</p>}
     </div>
   );

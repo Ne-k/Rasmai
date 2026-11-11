@@ -267,7 +267,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
           <canvas ref={canvas} className="screen" aria-label={`${song.title} ${chartInfo.name}`} />
           {!song.audio && <div className="screen-note">{t("noAudio")}</div>}
         </div>
-        <aside className="panel">
+        <aside className="play-panel">
           <div className="song-card">
             {song.image ? <img src={url(song.image) ?? ""} alt="" /> : <div className="jacket blank">{[...song.title][0]?.toUpperCase()}</div>}
             <div style={{ minWidth: 0 }}>
@@ -315,7 +315,7 @@ function Player({ pick, url, onResult, onLibrary }: { pick: Pick & { watch?: boo
             <label><span>{t("centerDisplay")}</span><select value={center} onChange={(e) => setCenter(e.target.value as Center)}>{CENTERS.map((c) => <option key={c} value={c}>{t(c === "off" ? "centerOff" : c === "combo" ? "centerCombo" : c === "achievement" ? "centerAchievement" : c === "achievementDown" ? "centerAchievementDown" : "centerDx")}</option>)}</select></label>
           </div>
           <div>
-            <div className="keys">{keys.map((k, i) => <span key={k}>{k.toUpperCase()}<b>{i + 1}</b></span>)}</div>
+            <div className="play-keys">{keys.map((k, i) => <span key={k}>{k.toUpperCase()}<b>{i + 1}</b></span>)}</div>
             <p className="hint" style={{ marginTop: 6 }}>{t("keysHint")}</p>
           </div>
           <div className="export-row">

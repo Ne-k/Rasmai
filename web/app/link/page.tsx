@@ -62,6 +62,7 @@ export default async function LinkPage() {
       </section>
 
       <div className="aside">{t.rich("japan", tags)}</div>
+      <div className="aside">{t.rich("kamaitachi", tags)}</div>
       <div className="aside">{t.rich("already", tags)}</div>
     </Shell>
   );

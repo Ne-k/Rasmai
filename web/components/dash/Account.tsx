@@ -9,12 +9,29 @@ import { useTranslations } from "next-intl";
 import { postJSON, type Overview, type RefreshStatus } from "./api";
 import { Ago, Label, when } from "./bits";
 import { Beta } from "./Beta";
-import { SignIns } from "./Identity";
+import { LinkMaimai, SignIns } from "./Identity";
 import { Kamaitachi } from "./Kamaitachi";
 import { Sharing } from "./Sharing";
 
+/** A section that opens on demand, so the tab shows what is there without showing all of it. Closed, the row to press is its
+ * heading; open, the section's own heading says it, with its note, and the row is only the way to close it again. */
+function Fold({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <details className="fold">
+      <summary>
+        <span>{title}</span>
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: RefreshStatus | null; onRefresh: (s: RefreshStatus) => void }) {
   const t = useTranslations("accountTab");
+  const acct = useTranslations("account");
+  const kamai = useTranslations("kamaitachi");
+  const share = useTranslations("sharing");
+  const tests = useTranslations("beta");
   const common = useTranslations("common");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -119,10 +136,19 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
           </p>
         )}
         {note && <p className="hint">{note}</p>}
-        <p className="hint">{t("takes")}</p>
+        <p className="hint">{t(me.maimai === false && me.kamaitachi ? "takesKamai" : "takes")}</p>
         <p className="hint">{t("importHint")}</p>
         <InstallHint />
       </section>
+      {me.maimai === false && (
+        <section className="ledger">
+          <div className="ledger-head">
+            <Label>{acct("linkMaimai")}</Label>
+          </div>
+          <p className="hint">{acct("kamaiUpgrade")}</p>
+          <LinkMaimai kamaitachi={false} />
+        </section>
+      )}
       {!isWebId(me.user.id) && (
         <section className="ledger">
           <div className="ledger-head">
@@ -160,34 +186,48 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         </dl>
       </section>
 
-      <SignIns me={me} />
+      <Fold title={acct("signIns")}>
+        <SignIns me={me} />
+      </Fold>
 
-      <Kamaitachi />
+      <Fold title={kamai("title")}>
+        <Kamaitachi me={me} />
+      </Fold>
 
-      {me.sharing && <Sharing state={sharing} onChange={setSharing} />}
+      {me.sharing && (
+        <Fold title={share("title")}>
+          <Sharing state={sharing} onChange={setSharing} />
+        </Fold>
+      )}
 
-      {beta.features.length > 0 && <Beta state={beta} onChange={setBeta} />}
+      {beta.features.length > 0 && (
+        <Fold title={tests("title")}>
+          <Beta state={beta} onChange={setBeta} />
+        </Fold>
+      )}
 
-      <section className="ledger">
-        <div className="ledger-head">
-          <Label>{t("unlink")}</Label>
-        </div>
-        <p className="hint">{t("unlinkHint")}</p>
-        {confirm ? (
-          <div className="btn-row">
-            <button type="button" className="button pink" onClick={unlink} disabled={busy}>
-              {t("unlinkYes")}
-            </button>
-            <button type="button" className="button ghost" onClick={() => setConfirm(false)}>
-              {t("keep")}
-            </button>
+      <Fold title={t("unlink")}>
+        <section className="ledger">
+          <div className="ledger-head">
+            <Label>{t("unlink")}</Label>
           </div>
-        ) : (
-          <button type="button" className="button ghost" onClick={() => setConfirm(true)}>
-            {t("unlinkAsk")}
-          </button>
-        )}
-      </section>
+          <p className="hint">{t("unlinkHint")}</p>
+          {confirm ? (
+            <div className="btn-row">
+              <button type="button" className="button pink" onClick={unlink} disabled={busy}>
+                {t("unlinkYes")}
+              </button>
+              <button type="button" className="button ghost" onClick={() => setConfirm(false)}>
+                {t("keep")}
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="button ghost" onClick={() => setConfirm(true)}>
+              {t("unlinkAsk")}
+            </button>
+          )}
+        </section>
+      </Fold>
     </div>
   );
 }

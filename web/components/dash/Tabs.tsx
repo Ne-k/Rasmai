@@ -6,20 +6,46 @@ import { type RefreshStatus } from "./api";
 
 export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
 
-// what to play, then how you play, then your scores, then the reference tabs; their names are in the translation files
-const TABS: Tab[] = ["overview", "picks", "new", "traits", "best50", "charts", "recent", "chart", "areas", "account"];
+export type Group = "overview" | "play" | "scores" | "lookup" | "account" | "admin";
 
-// the developer tab is only ever added for the one account the internal API answers the developer route for
+// the strip holds five places to go, each with the tabs that belong together under it: you, what to play, your scores, the
+// reference tabs, your account. An address still names a tab, so every link made before the groups lands where it did
+const GROUPS: [Group, Tab[]][] = [
+  ["overview", ["overview", "traits"]],
+  ["play", ["picks", "new"]],
+  ["scores", ["best50", "charts", "recent"]],
+  ["lookup", ["chart", "areas"]],
+  ["account", ["account"]],
+];
+
+/** The groups an account sees, without the tabs that have nothing to show for it. The developer tab is only ever added for the
+ * one account the internal API answers the developer route for. */
+export function groupsFor(admin?: boolean, hidden: Tab[] = []): [Group, Tab[]][] {
+  const groups = GROUPS.map(([group, tabs]): [Group, Tab[]] => [group, tabs.filter((tab) => !hidden.includes(tab))]).filter(([, tabs]) => tabs.length > 0);
+  return admin ? [...groups, ["admin", ["admin"]]] : groups;
+}
+
 export function tabsFor(admin?: boolean): Tab[] {
-  return admin ? [...TABS, "admin"] : TABS;
+  return groupsFor(admin).flatMap(([, tabs]) => tabs);
 }
 
 const NUDGED = "rasmai.nudged";
 
-/** The section strip. It scrolls sideways on a phone; the edges fade where there is more, and the chosen tab is kept in view. */
-export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean }) {
+/** The section strip, and under it the tabs of the group that is open. The strip scrolls sideways if a phone is too narrow for it;
+ * the edges fade where there is more, and the chosen group is kept in view. */
+export function Tabs({ current, onPick, admin, hidden }: { current: Tab; onPick: (t: Tab) => void; admin?: boolean; hidden?: Tab[] }) {
   const t = useTranslations("dash");
-  const shown = tabsFor(admin);
+  const groups = groupsFor(admin, hidden);
+  const [group, inside] = groups.find(([, tabs]) => tabs.includes(current)) ?? groups[0];
+  // the tab last open in each group, so coming back to a group returns to where the person was in it
+  const last = useRef<Partial<Record<Group, Tab>>>({});
+  useEffect(() => {
+    last.current[group] = current;
+  }, [group, current]);
+  const enter = (id: Group, tabs: Tab[]) => {
+    const kept = last.current[id];
+    onPick(kept && tabs.includes(kept) ? kept : tabs[0]);
+  };
   const strip = useRef<HTMLElement>(null);
   const [more, setMore] = useState("none");
   // the SWIPE hint says it in words and motion until the first swipe, then goes quiet; it never goes away while there are more tabs to reach
@@ -60,19 +86,32 @@ export function Tabs({ current, onPick, admin }: { current: Tab; onPick: (t: Tab
     el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [current]);
   return (
-    <div className="tabs-wrap" data-more={more} data-swiped={swiped ? "" : undefined}>
-      <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure} onTouchMove={learn}>
-        {shown.map((id) => (
-          <button key={id} type="button" className={id === current ? "on" : ""} aria-current={id === current ? "true" : undefined} onClick={() => onPick(id)}>
-            {t(`tabs.${id}`)}
-          </button>
-        ))}
-      </nav>
-      <span className="tabs-hint-left" aria-hidden="true">‹</span>
-      <span className="tabs-hint" aria-hidden="true">
-        <span className="tabs-hint-label">SWIPE</span>
-        <span className="tabs-hint-arrow"><i>›</i><i>›</i><i>›</i></span>
-      </span>
+    // one block, so where the strip sticks to the top of the screen the open group's tabs stay under it
+    <div className="tabs-top">
+      <div className="tabs-wrap" data-more={more} data-swiped={swiped ? "" : undefined}>
+        <nav className="tabs" aria-label={t("sections")} ref={strip} data-more={more} onScroll={measure} onTouchMove={learn}>
+          {groups.map(([id, tabs]) => (
+            <button key={id} type="button" className={id === group ? "on" : ""} aria-current={id === group ? "true" : undefined} onClick={() => enter(id, tabs)}>
+              {t(`groups.${id}`)}
+            </button>
+          ))}
+        </nav>
+        <span className="tabs-hint-left" aria-hidden="true">‹</span>
+        <span className="tabs-hint" aria-hidden="true">
+          <span className="tabs-hint-label">SWIPE</span>
+          <span className="tabs-hint-arrow"><i>›</i><i>›</i><i>›</i></span>
+        </span>
+      </div>
+      {inside.length > 1 && (
+        <nav className="subtabs" aria-label={t(`groups.${group}`)}>
+          {inside.map((id) => (
+            <button key={id} type="button" className={id === current ? "on" : ""} aria-current={id === current ? "true" : undefined} onClick={() => onPick(id)}>
+              {/* a tab named like its group is renamed under it: Overview holds Summary, Look up holds Charts */}
+              {t.has(`subtabs.${id}` as never) ? t(`subtabs.${id}` as never) : t(`tabs.${id}`)}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

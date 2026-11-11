@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: Params) {
   const user = currentUser(request);
   if (!user) return json(401, { ok: false, error: "signed_out" });
   const path = tail((await params).rest);
-  if (!path || !["refresh", "unlink", "import", "sharing", "settings", "beta", "beta/feedback", "admin/update", "admin/delete-feedback", "kamaitachi/import"].includes(path))
+  if (!path || !["refresh", "unlink", "import", "sharing", "settings", "beta", "beta/feedback", "admin/update", "admin/delete-feedback", "kamaitachi/import", "kamaitachi/unfollow"].includes(path))
     return json(404, { ok: false, error: "not_found" });
   let body: unknown = {};
   if (path === "sharing" || path === "settings" || path === "beta" || path === "beta/feedback" || path === "admin/update" || path === "admin/delete-feedback" || path === "kamaitachi/import") {
