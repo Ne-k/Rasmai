@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 import asyncio
 import logging
 
@@ -80,6 +80,9 @@ def maintenance_at(now: Optional[datetime] = None, region: str = "intl") -> Main
     return Maintenance(False, window_on(now.date() + timedelta(days=1), region)[0])
 
 
+_said: Dict[str, str] = {}      # why each region's last probe failed, "" when it answered
+
+
 def _probe_once(region: str) -> bool:
     """Whether maimai DX NET answers at all. Any HTTP reply counts: signed out is still up.
 
@@ -94,10 +97,14 @@ def _probe_once(region: str) -> bool:
             headers={"User-Agent": BROWSER_USER_AGENT},
             allow_redirects=False, timeout=PROBE_TIMEOUT, verify=verify_for(url),
         )
-        return response.status_code < 500
+        reason = f"HTTP {response.status_code}" if response.status_code >= 500 else ""
     except requests.RequestException as error:
-        logger.info(f"maimai DX NET did not answer: {type(error).__name__}")
-        return False
+        reason = type(error).__name__
+    # said when it changes, not every minute it stays down: an outage and a broken certificate must not read alike
+    if reason and _said.get(region) != reason:
+        logger.info("maimai DX NET (%s) did not answer: %s", region, reason)
+    _said[region] = reason
+    return not reason
 
 
 class ServerWatch:

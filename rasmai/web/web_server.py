@@ -126,8 +126,9 @@ class InternalApiServer:
             def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
                 status = args[1] if len(args) > 1 else ""
                 path = urlparse(self.path).path
-                # the dashboard polls these every couple of seconds; at info they bury everything else
-                said = logger.debug if path in ("/internal/me/refresh", "/internal/me/beta",
+                # the dashboard polls these every couple of seconds; at info they bury everything else. One that was refused or failed is still said
+                said = logger.debug if str(status) == "200" and path in ("/internal/me/refresh", "/internal/me/beta", "/internal/status",
+                                                "/internal/statuspage", "/internal/servers",
                                                 "/health", "/api/health") else logger.info
                 said(f"internal api: {self.command} {path} -> {status}")
 

@@ -80,6 +80,7 @@ TRUSTED_HOSTS = {urlparse(base).hostname for base in RSS_INSTANCES} | {"cdn.bsky
 
 _working: Dict[str, str] = {}
 _unreadable: Set[str] = set()      # accounts no mirror answered for last time, so the recovery is said too
+_second: Dict[str, str] = {}       # the other mirror an account's feed is checked against
 _titles: Dict[str, str] = {}         # an X account's display name, from the title of its feed
 _avatars: Dict[str, str] = {}
 _translate_paused_until = 0.0        # Google's free endpoint throttles; after a refusal it is left alone for a while
@@ -632,12 +633,40 @@ async def fetch_feed(session: aiohttp.ClientSession, username: str, tries: int =
                 _working[username] = base
                 _unreadable.discard(username)
             _titles[username.lower()] = feed_title(content)
-            return items, avatar
+            return await _second_look(session, username, base, items, avatar)
     # said once, not every four minutes, for an account the bot carries: an added one may simply be empty
     if tries == len(RSS_INSTANCES) and username not in _unreadable:
         _unreadable.add(username)
         logger.warning("news: %s could not be read from any of the %d mirrors; it is tried again every round", username, tries)
     return [], ""
+
+
+async def _second_look(session: aiohttp.ClientSession, username: str, base: str, items: List[FeedItem], avatar: str) -> Tuple[List[FeedItem], str]:
+    """The account's feed from whichever has the newer post: ``base``, or the one other mirror it is checked against.
+
+    A mirror can go on serving its copy of a feed from before the newest post for half an hour, and nothing in the copy says so.
+    The fresher feed is taken whole rather than added to: an edit is known by the post it replaces being gone from the feed, and
+    the mirror that is behind still shows it. The other mirror is kept while it serves the account.
+    """
+    others = [mirror for mirror in RSS_INSTANCES if mirror != base]
+    other = _second.get(username)
+    if other not in others:
+        other = others[0]
+    content = await fetch_bytes(session, f"{other}/{username}/rss", FEED_BYTES)
+    found, picture = parse_feed(content) if content else ([], "")
+    if not found:
+        # shortcut: one mirror is tried a round, so after a restart an account can go a few rounds unchecked; walk the list at once if that shows
+        _second[username] = others[(others.index(other) + 1) % len(others)]
+        return items, avatar
+    _second[username] = other
+
+    def newest(feed: List[FeedItem]) -> int:
+        return max((int(item.id) for item in feed if item.id), default=0)
+    if newest(found) <= newest(items):
+        return items, avatar
+    logger.info("news: %s's feed on %s was behind %s, which is read first from now on", username, urlparse(base).hostname, urlparse(other).hostname)
+    _working[username], _second[username] = other, base
+    return found, picture or avatar
 
 
 BLUESKY_LINK = re.compile(r"^(?:https?://)?(?:www\.)?bsky\.app/profile/([^/?#\s]+)", re.IGNORECASE)

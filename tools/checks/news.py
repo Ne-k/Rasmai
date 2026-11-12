@@ -3497,3 +3497,55 @@ def _post_link():
         command._history_at.clear()
         command._history_at.update(kept_spacing)
     return problems
+
+
+
+
+@check("a mirror serving an old copy of a feed is caught by another mirror the same round from a cold start, the fresher feed is taken whole so an edit still reads as one, and a mirror that fails one account is passed over for that account only")
+def _stale_mirror():
+    from rasmai.scraping import news
+
+    problems = []
+    stale, dead, fresh = news.RSS_INSTANCES[:3]
+    # status ids a minute apart: an id carries the time it was made, and an edit is made after the post it replaces
+    nine, ten, eleven = (str(seconds * 1000 << 22) for seconds in (60, 120, 180))
+
+    def feed(*ids):
+        return ("<rss><channel>" + "".join(f"<item><title>p{i}</title><link>https://n/x/status/{i}#m</link></item>" for i in ids)
+                + "</channel></rss>").encode()
+    # post 10 was edited into 11: the fresh mirror shows only the edit, the stale one still the post it replaced
+    serves = {(stale, "allnet_info"): feed(ten, nine), (fresh, "allnet_info"): feed(eleven, nine), (stale, "kop_sega"): feed(5), (dead, "kop_sega"): feed(5)}
+    asked = []
+
+    async def fake_bytes(session, url, limit=0):
+        base, name = url.rsplit("/", 2)[:2]
+        asked.append(base)
+        return serves.get((base, name))
+
+    def look(name="allnet_info"):
+        asked.clear()
+        return [item.id for item in asyncio.run(news.fetch_feed(None, name))[0]]
+    kept = news.fetch_bytes, dict(news._working), dict(news._second)
+    news.fetch_bytes = fake_bytes
+    news._working.clear()
+    news._second.clear()
+    try:
+        # nothing remembered: the stale mirror answers first, the next in the list serves nothing and is passed over
+        if look() != [ten, nine] or asked != [stale, dead]:
+            problems.append(f"a second mirror was not asked from a cold start: {asked}")
+        if look() != [eleven, nine] or asked != [stale, fresh] or news._working["allnet_info"] != fresh:
+            problems.append(f"the fresher mirror's feed was not taken whole, or the stale one is still read first: {asked}")
+        if news.edit_of(eleven, "the same words", [(ten, ten, "the same words")], set(look())) != (ten, ten):
+            problems.append("an edit seen through the fresher mirror no longer reads as an edit of the post it replaced")
+        if asked != [fresh, stale] or news._working["allnet_info"] != fresh:
+            problems.append(f"a stale mirror's older feed took the first place back: {asked}")
+        # the mirror that served allnet_info nothing serves kop_sega, and is asked for it
+        if look("kop_sega") != ["5"] or asked != [stale, dead] or look("kop_sega") != ["5"] or asked != [stale, dead]:
+            problems.append(f"one account's failure on a mirror kept it from another account: {asked}")
+    finally:
+        news.fetch_bytes = kept[0]
+        news._working.clear()
+        news._working.update(kept[1])
+        news._second.clear()
+        news._second.update(kept[2])
+    return problems
