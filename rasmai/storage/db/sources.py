@@ -138,6 +138,41 @@ def _clean(notice: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+_FLAGS = "dev-flags"
+_flags: Optional[Dict[str, Any]] = None       # read once: the one bot process is the only writer, and the gate asks on every command
+
+
+def dev_flags_get() -> Dict[str, Any]:
+    """The developer's switches: ``maintenance`` pauses every command for everyone but the developer, ``disabled`` names the commands
+    switched off, and ``deletions`` off holds the hourly deletion of expired accounts.
+
+    :rtype: Dict[str, Any]
+    """
+    global _flags
+    if _flags is None:
+        row = source_state_get(_FLAGS)
+        try:
+            stored = json.loads((row or {}).get("payload") or "{}")
+        except json.JSONDecodeError:
+            stored = {}
+        _flags = {"maintenance": bool(stored.get("maintenance")), "disabled": sorted(str(name) for name in stored.get("disabled") or []),
+                  "deletions": bool(stored.get("deletions", True))}
+    return dict(_flags)
+
+
+def dev_flags_set(**changes: Any) -> Dict[str, Any]:
+    """Store the switches named, keeping the rest, so they hold across a restart.
+
+    :param changes: ``maintenance`` and ``deletions`` as bools, ``disabled`` as the command names.
+    :rtype: Dict[str, Any]
+    """
+    global _flags
+    merged = {**dev_flags_get(), **changes}
+    _flags = {"maintenance": bool(merged["maintenance"]), "disabled": sorted(set(merged["disabled"])), "deletions": bool(merged["deletions"])}
+    source_state_set(_FLAGS, payload=json.dumps({**_flags, "setAt": datetime.now().isoformat(timespec="seconds")}))
+    return dict(_flags)
+
+
 def site_notice_get() -> Optional[Dict[str, Any]]:
     """The banner the site should be showing, or ``None`` when one has never been set.
 

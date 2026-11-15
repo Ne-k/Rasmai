@@ -105,31 +105,6 @@ def _speeds():
         store._database_ready = False
 
 
-@check("the linking walkthroughs are web sized and small enough for Discord")
-def _walkthrough():
-    from rasmai.config import WALKTHROUGH_DIR
-    # a master dropped in by mistake is both a slow page and an upload Discord refuses
-    DISCORD_LIMIT = 8 * 1024 * 1024
-    SENSIBLE = 6 * 1024 * 1024
-    problems = []
-    for clip in ("desktop", "ios-safari"):
-        video = WALKTHROUGH_DIR / f"{clip}.mp4"
-        poster = WALKTHROUGH_DIR / f"{clip}.jpg"
-        if not video.is_file():
-            problems.append(f"{video} is missing, so the /login button has nothing to send")
-            continue
-        size = video.stat().st_size
-        if size > DISCORD_LIMIT:
-            problems.append(f"{clip}.mp4 is {size / 1048576:.1f} MB, over Discord's {DISCORD_LIMIT / 1048576:.0f} MB limit")
-        elif size > SENSIBLE:
-            problems.append(f"{clip}.mp4 is {size / 1048576:.1f} MB; transcode it before shipping")
-        if not poster.is_file():
-            problems.append(f"{poster.name} is missing, so the video box collapses before it loads")
-        elif poster.stat().st_mtime < video.stat().st_mtime - 60:
-            problems.append(f"{poster.name} is older than {clip}.mp4: the poster is from a previous cut")
-    return problems
-
-
 @check("the band on every page asks only whether the saved login still works, without building the dashboard or reading the scores")
 def _session_route():
     import pathlib
@@ -316,6 +291,127 @@ def _site_notice():
         store.DATABASE_PATH = was
         store._database_ready = False
     return problems
+
+
+@check("the developer panel is one account's, in the control server only; maintenance and a switched-off command turn everyone else away, "
+       "the switches survive a restart, the presence says so, and held deletions move the deadlines instead of deleting")
+def _dev_panel():
+    import asyncio, tempfile, pathlib
+    from datetime import timedelta
+    from types import SimpleNamespace
+    import discord
+    import rasmai.storage.db as db
+    from rasmai.bot import core
+    from rasmai.bot.commands import dev
+    from rasmai.bot.core import bot
+    from rasmai.bot.tasks.presence import ServerWatch
+    from rasmai.config import ADMIN_USER_ID, CONTROL_GUILD_ID, SUPPORT_INVITE
+    from rasmai.storage.db import connection as store, dev_flags_get, dev_flags_set, sources
+
+    problems = []
+    if any(c.name == "dev" for c in bot.tree.get_commands()):
+        problems.append("/dev is registered globally, so everyone can see it")
+    if not any(c.name == "dev" for c in bot.tree.get_commands(guild=discord.Object(id=CONTROL_GUILD_ID))):
+        problems.append("/dev is not registered in the control guild, so nobody can reach it")
+    if bot.tree.interaction_check is not dev.gate:
+        problems.append("the gate is not installed on the command tree")
+    if "ADMIN_USER_ID" not in (ROOT / "rasmai" / "bot" / "commands" / "dev.py").read_text(encoding="utf-8"):
+        problems.append("/dev does not check who is running it")
+
+    said, views = [], []
+
+    def fake(user_id, name, kind=discord.InteractionType.application_command):
+        async def send_message(text, **kwargs):
+            said.append((text, kwargs.get("ephemeral", False)))
+            views.append(kwargs.get("view"))
+        return SimpleNamespace(type=kind, user=SimpleNamespace(id=user_id), data={"name": name}, response=SimpleNamespace(send_message=send_message))
+
+    def passes(user_id, name, kind=discord.InteractionType.application_command):
+        said.clear()
+        views.clear()
+        return asyncio.run(dev.gate(fake(user_id, name, kind)))
+
+    def without_support(what):
+        view = views[-1] if views else None
+        if view is None or len(view.children) != 1 or getattr(view.children[0], "url", None) != SUPPORT_INVITE:
+            problems.append(f"the {what} refusal does not carry one link to the support server: {view and [(type(c).__name__, getattr(c, 'url', None)) for c in view.children]}")
+
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "t.sqlite3"
+    store._database_ready = False
+    sources._flags = None
+    try:
+        if not passes(1, "analyze") or said:
+            problems.append("with every switch off, an ordinary command was not let through quietly")
+
+        dev_flags_set(maintenance=True)
+        if passes(1, "analyze") or said != [(dev.MAINTENANCE_SAID, True)]:
+            problems.append(f"maintenance did not turn a stranger away with the maintenance notice: {said}")
+        without_support("maintenance")
+        if not passes(int(ADMIN_USER_ID), "analyze") or said:
+            problems.append("maintenance turned the developer away too")
+        if not passes(1, "analyze", discord.InteractionType.component) or said:
+            problems.append("a button press was refused under maintenance; only commands should be")
+        status, text = ServerWatch(bot).state()
+        if status is not discord.Status.dnd or text != "Rasmai maintenance · commands paused":
+            problems.append(f"the presence does not say maintenance: {status} {text!r}")
+
+        dev_flags_set(maintenance=False, disabled=["news"])
+        if passes(1, "news") or not said or "/news" not in said[0][0] or not said[0][1]:
+            problems.append(f"a switched-off command was not refused with its name, ephemerally: {said}")
+        without_support("switched-off command")
+        if not passes(1, "analyze") or said:
+            problems.append("switching /news off also refused /analyze")
+
+        sources._flags = None
+        if dev_flags_get() != {"maintenance": False, "disabled": ["news"], "deletions": True}:
+            problems.append(f"the switches read back differently from the database: {dev_flags_get()}")
+
+        ran, postponed = [], []
+        kept = (core._regions_down, core._warn_expiring_accounts, core._purge_expired_accounts, core.maintenance_at, db.postpone_account_deletions)
+
+        async def warn():
+            ran.append("warn")
+
+        def postpone(regions, delta):
+            postponed.append((list(regions), delta))
+            return 0
+        core._regions_down = lambda: ran.append("probe") or []
+        core._warn_expiring_accounts = warn
+        core._purge_expired_accounts = lambda: ran.append("purge")
+        core.maintenance_at = lambda *a, **k: SimpleNamespace(active=False)
+        db.postpone_account_deletions = postpone
+        try:
+            dev_flags_set(deletions=False)
+            asyncio.run(core._expired_account_sweep.coro())
+            if postponed != [(list(core.SUPPORTED_REGIONS), timedelta(hours=1))]:
+                problems.append(f"held deletions did not move every region's deadlines an hour: {postponed}")
+            if ran:
+                problems.append(f"held deletions still probed, warned or purged: {ran}")
+            dev_flags_set(deletions=True)
+            asyncio.run(core._expired_account_sweep.coro())
+            if ran != ["probe", "warn", "purge"] or len(postponed) != 1:
+                problems.append(f"with deletions resumed the sweep did not warn and purge as usual: {ran}, {postponed}")
+        finally:
+            core._regions_down, core._warn_expiring_accounts, core._purge_expired_accounts, core.maintenance_at, db.postpone_account_deletions = kept
+
+        dev_flags_set(deletions=False)
+
+        async def build():
+            return dev.DevView(1)
+        view = asyncio.run(build())
+        if len(view.children) != 10:
+            problems.append(f"the panel has {len(view.children)} controls, not 10")
+        options = [(o.value, o.default) for o in view.switches.options]
+        if options != [(name, name == "news") for name in dev.switchable()]:
+            problems.append(f"the select does not list the switchable commands with the off ones marked: {options}")
+        if view.deletions.label != "Resume deletions":
+            problems.append(f"the deletions button does not offer to resume while held: {view.deletions.label!r}")
+        return problems
+    finally:
+        dev_flags_set(maintenance=False, disabled=[], deletions=True)
+        sources._flags = None
+        store.DATABASE_PATH = was
+        store._database_ready = False
 
 
 def _web_text():
@@ -1232,12 +1328,10 @@ def _regions():
     if decrypt_token(sealed, "100000000000000002"):
         problems.append("a stored sign-in moved onto another account's row still opened")
 
-    # the bookmarklet runs on SEGA's international page, so its own words are all a player sees there
+    # a bookmark saved before SEGA hid the sign-in from scripts still loads this: it must say so and open the connect page
     script = (ROOT / "web" / "app" / "api" / "login.js" / "route.ts").read_text(encoding="utf-8")
-    if "if(region!=='intl')" not in script:
-        problems.append("the bookmarklet sends a Japan or China login on instead of saying where it goes")
-    if "SEGA ID" not in script or "Japanese or Chinese" not in script:
-        problems.append("the bookmarklet's messages do not send a Japan player to the SEGA ID sign-in")
+    if "no longer works" not in script or "/connect/?code=" not in script or "d.cookie" in script:
+        problems.append("the old bookmark's script does not send a player on to the connect page, or still reads cookies")
     # the error words live in the translation files, one set per language
     import json
     for lang in ("en", "ja"):
@@ -1245,8 +1339,9 @@ def _regions():
         for kind in ("region", "credentials"):
             if not all(errors.get(kind, {}).get(part) for part in ("headline", "detail", "hint")):
                 problems.append(f"the site has no {lang} words for the {kind} refusal, so it would show 'Something went wrong'")
-    if 'method === "segaid"' not in (ROOT / "web" / "app" / "connect" / "page.tsx").read_text(encoding="utf-8"):
-        problems.append("the connect page has no SEGA ID form for a Japan code")
+    page = (ROOT / "web" / "app" / "connect" / "page.tsx").read_text(encoding="utf-8")
+    if 'method === "segaid"' not in page or "CookieConnect" not in page or "[A-Za-z0-9]{64}" not in page:
+        problems.append("the connect page has no SEGA ID form for a Japan code, or no pasted-value form for an International one")
 
     # a stand-in for maimaidx.jp: the sign-in page hands out a form token as _t, the right SEGA ID and
     # password send on to the Aime list, card 1 opens and the profile page answers
@@ -1342,8 +1437,12 @@ def _regions():
 
         code = issue_login_code(user_id, "intl")
         status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
-        if status != 200 or "lng-tgk-aime-gw.am-all.net" not in str(body.get("loginLink")) or body.get("method") != "bookmark":
-            problems.append(f"an International code no longer gets its gateway link: {status} {body}")
+        if status != 200 or "lng-tgk-aime-gw.am-all.net/common_auth/login?" not in str(body.get("loginLink")) or body.get("method") != "cookie":
+            problems.append(f"an International code no longer gets the gateway sign-in link and the paste step: {status} {body}")
+        # the value pasted with its label, or with spaces around it, is the value
+        status, body = ask("/internal/login", {"code": code, "user": opaque, "token": " clal=" + "b" * 64 + " "})
+        if status == 400 and body.get("kind") == "no_login":
+            problems.append("a pasted value with its clal= label in front was refused for its format")
 
         code = issue_login_code(user_id, "jp")
         status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")

@@ -126,6 +126,9 @@ class ServerWatch:
 
         :rtype: Tuple[discord.Status, str]
         """
+        from rasmai.storage.db import dev_flags_get
+        if dev_flags_get()["maintenance"]:
+            return discord.Status.dnd, "Rasmai maintenance · commands paused"
         window = maintenance_at()
         if window.active:
             return discord.Status.dnd, f"maimai maintenance · back in {window.minutes_away}m"

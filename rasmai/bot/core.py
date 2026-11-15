@@ -519,16 +519,19 @@ def _regions_down() -> list:
 
 @tasks.loop(hours=1)
 async def _expired_account_sweep() -> None:
-    from rasmai.storage.db import postpone_account_deletions
+    from rasmai.storage.db import dev_flags_get, postpone_account_deletions
     # scheduled maintenance is a few hours every day and already inside the allowance: the sweep waits, deadlines stay put
     if any(maintenance_at(region=region).active for region in SUPPORTED_REGIONS):
         return
-    down = await asyncio.to_thread(_regions_down)
+    # deletions held from /dev are treated as every region being down: the deadlines move with the hold, so lifting it deletes nobody at once
+    held = dev_flags_get()["deletions"] is False
+    down = list(SUPPORTED_REGIONS) if held else await asyncio.to_thread(_regions_down)
     if down:
         # an hour down is an hour added to their deadline, and nothing is warned about or deleted until the site is back
         try:
             moved = await asyncio.to_thread(postpone_account_deletions, down, timedelta(hours=1))
-            logger.info("maimai DX NET is down in %s: %d expired account(s) get an hour more, and no deletion runs", ", ".join(down), moved)
+            logger.info("%s: %d expired account(s) get an hour more, and no deletion runs",
+                        "deletions are held from /dev" if held else f"maimai DX NET is down in {', '.join(down)}", moved)
         except Exception:
             logger.exception("postponing the deletions while maimai DX NET is down failed")
         return
