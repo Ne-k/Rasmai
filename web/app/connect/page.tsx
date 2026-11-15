@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Support } from "@/components/Support";
 import { Turnstile } from "@/components/Turnstile";
+import { Tutorial } from "@/components/Tutorial";
 import { errorCopy } from "@/components/copy";
 import { useTranslations } from "next-intl";
 
@@ -150,6 +151,7 @@ function useProblemCopy() {
 /** The international gateway keeps its sign-in in a cookie no script may read any more, so the person copies it themselves. */
 function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; code: string; user: string; onExpired: () => void }) {
   const t = useTranslations("flow");
+  const video = useTranslations("tutorial");
   const problemCopy = useProblemCopy();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -232,6 +234,7 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
             <li>{t.rich("copyChrome", tags)}</li>
             <li>{t.rich("copyFirefox", tags)}</li>
           </ul>
+          <Tutorial label={video("label")} note={video("note")} />
         </div>
       </section>
 

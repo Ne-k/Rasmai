@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
+import { Tutorial } from "@/components/Tutorial";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -15,6 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LinkPage() {
   const t = await getTranslations("link");
   const footer = await getTranslations("footer");
+  const video = await getTranslations("tutorial");
   const tags = {
     b: (c: React.ReactNode) => <b>{c}</b>,
     em: (c: React.ReactNode) => <em>{c}</em>,
@@ -39,6 +41,7 @@ export default async function LinkPage() {
         <div>
           <h2>{t("step2Title")}</h2>
           <p>{t.rich("step2", tags)}</p>
+          <Tutorial label={video("label")} note={video("note")} />
         </div>
       </section>
       <section className="step">

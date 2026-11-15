@@ -1819,5 +1819,9 @@
     "starColor": "スターの色",
     "starBlue": "青",
     "starPink": "ピンク"
+  },
+  "tutorial": {
+    "label": "Firefox で海外版アカウントを連携する手順（最初から最後まで）",
+    "note": "Firefox での一連の流れです（約1分・音声なし）。Chrome と Edge では Cookie は「ストレージ」ではなく Application タブにあります。"
   }
 }
