@@ -309,6 +309,8 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 .seg button:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
 .howto { margin: 4px 0 0 20px; padding: 0; color: var(--ink-2); font-size: 15px; max-width: 90ch; }
 .howto li { margin: 8px 0; }
+/* a cookie name or a host in these steps is read as one word; broken across lines it looks like two things to find */
+.howto code { white-space: nowrap; overflow-wrap: normal; }
 .howto b { color: var(--ink); }
 .glyph { font-size: 14px; }
 

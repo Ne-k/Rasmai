@@ -228,10 +228,10 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
               {t("gwPageButton")}
             </a>
           </div>
-          <ol className="howto">
+          <ul className="howto">
             <li>{t.rich("copyChrome", tags)}</li>
             <li>{t.rich("copyFirefox", tags)}</li>
-          </ol>
+          </ul>
         </div>
       </section>
 
