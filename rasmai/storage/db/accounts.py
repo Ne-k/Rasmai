@@ -66,6 +66,25 @@ def _lookup_login_code(code: str, consume: bool) -> Optional[Tuple[str, str]]:
         connection.close()
 
 
+def login_code_used(code: str, user_id: str) -> bool:
+    """Whether this person's login code has been spent, which only a sign-in that worked does.
+
+    :param code: The login code.
+    :type code: str
+    :param user_id: Whose code it must be.
+    :type user_id: str
+    :rtype: bool
+    """
+    if not code or not re.fullmatch(r"[A-Za-z0-9_-]{20,64}", code):
+        return False
+    connection = get_database_connection()
+    try:
+        row = connection.execute("SELECT used_at FROM login_codes WHERE code_hash = ? AND user_id = ?", (_hash_code(code), user_id)).fetchone()
+    finally:
+        connection.close()
+    return bool(row and row["used_at"])
+
+
 def peek_login_code(code: str) -> Optional[Tuple[str, str, str]]:
     return _lookup_login_code(code, consume=False)
 

@@ -163,6 +163,25 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
   const token = value.trim().replace(/^clal=/, "");
   const valid = /^[A-Za-z0-9]{64}$/.test(token);
 
+  // linked from outside this page, by the extension given the link: ask until the account turns up, then go on as a paste would
+  useEffect(() => {
+    if (player !== null) return;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      if (tries++ > 200) return clearInterval(timer);          // the link lasts ten minutes
+      try {
+        const data = await (await fetch(`/api/status?user=${encodeURIComponent(user)}&code=${encodeURIComponent(code)}`)).json();
+        if (!data?.connected) return;
+        clearInterval(timer);
+        setPlayer(String(data.player ?? ""));
+        window.location.href = `/connected/?${new URLSearchParams({ player: data.player ?? "", region: data.region ?? "intl" })}`;
+      } catch {
+        /* keep asking */
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [code, user, player]);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy || !valid) return;
@@ -236,7 +255,7 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
             <li>{t.rich("copyChrome", tags)}</li>
             <li>{t.rich("copyFirefox", tags)}</li>
           </ul>
-          <Tutorial label={video("label")} note={video("note")} />
+          <Tutorial label={video("label")} />
         </div>
       </section>
 

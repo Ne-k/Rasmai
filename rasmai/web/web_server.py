@@ -28,6 +28,7 @@ from rasmai.storage.db import (
     is_discord_id,
     is_web_id,
     login_code_expiry,
+    login_code_used,
     login_code_verified,
     mark_login_code_verified,
     peek_login_code,
@@ -126,7 +127,7 @@ class InternalApiServer:
                 status = args[1] if len(args) > 1 else ""
                 path = urlparse(self.path).path
                 # the dashboard polls these every couple of seconds; at info they bury everything else. One that was refused or failed is still said
-                said = logger.debug if str(status) == "200" and path in ("/internal/me/refresh", "/internal/me/beta", "/internal/statuspage", "/internal/servers",
+                said = logger.debug if str(status) == "200" and path in ("/internal/me/refresh", "/internal/me/beta", "/internal/status", "/internal/statuspage", "/internal/servers",
                                                 "/health", "/api/health") else logger.info
                 said(f"internal api: {self.command} {path} -> {status}")
 
@@ -238,6 +239,9 @@ class InternalApiServer:
                     if not handled:
                         self._send_json(404, {"ok": False, "error": "not_found"})
                     return
+                if route.path == "/internal/status":
+                    self._status(query)
+                    return
                 if route.path == "/internal/statuspage":
                     from rasmai.web.statuspage import status_payload
                     self._send_json(200, status_payload())
@@ -280,6 +284,23 @@ class InternalApiServer:
                     self._connect_info(query)
                     return
                 self._send_json(404, {"ok": False, "error": "not_found"})
+
+            def _status(self, query: Dict[str, Any]) -> None:
+                opaque = (query.get("user") or [""])[0].strip()
+                code = (query.get("code") or [""])[0].strip()
+                user_id = decode_opaque_user_id(opaque) if opaque else None
+                if not user_id:
+                    self._send_json(200, {"connected": False})
+                    return
+                account = get_connected_account(user_id)
+                # linked *by this link* is its code being spent: the account's own dates move with every score read
+                connected = bool(account) and (not code or login_code_used(code, user_id))
+                profile = (account or {}).get("officialProfile") or {}
+                self._send_json(200, {
+                    "connected": connected,
+                    "player": profile.get("name", "") if connected else "",
+                    "region": (account or {}).get("region", "") if connected else "",
+                })
 
             def _connect_info(self, query: Dict[str, Any]) -> None:
                 code = (query.get("code") or [""])[0].strip()

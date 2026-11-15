@@ -1824,7 +1824,6 @@
     "starPink": "Pink"
   },
   "tutorial": {
-    "label": "Linking an International account in Firefox, start to finish",
-    "note": "The whole thing in Firefox, about a minute, no sound. In Chrome and Edge the cookie is under the Application tab instead of Storage."
+    "label": "Linking an International account in Firefox, start to finish"
   }
 }

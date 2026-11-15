@@ -1460,6 +1460,23 @@ def _regions():
         if status == 400 and body.get("kind") == "no_login":
             problems.append("a pasted value with its clal= label in front was refused for its format")
 
+        # the connect page asks whether its link has linked the account: only that link's code being spent says so, not a
+        # score read landing on an account already linked while the page was open
+        from rasmai.storage.db import consume_login_code, update_account_snapshot, upsert_connected_account
+        relinking = "100000000000000078"
+        upsert_connected_account(relinking, "intl", "cookie://" + "c" * 64, official_profile={"name": "ＯＬＤ"})
+        again = issue_login_code(relinking, "intl")
+        update_account_snapshot(relinking, {"name": "ＯＬＤ"}, None)
+        asking = f"/internal/status?code={again}&user={create_opaque_user_id(relinking)}"
+        if ask(asking)[1].get("connected") is not False:
+            problems.append("a score read on an account already linked made its open connect page say it had just been linked")
+        if ask(f"/internal/status?code={again}&user={opaque}")[1].get("connected") is not False:
+            problems.append("one person's login code answered for another person's connect page")
+        consume_login_code(again)
+        status, body = ask(asking)
+        if body.get("connected") is not True or body.get("player") != "ＯＬＤ":
+            problems.append(f"a link whose code was spent is not reported as linked: {status} {body}")
+
         code = issue_login_code(user_id, "jp")
         status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
         if status != 200 or body.get("method") != "segaid" or body.get("loginLink") or body.get("bookmarklet"):

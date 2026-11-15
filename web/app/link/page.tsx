@@ -41,7 +41,7 @@ export default async function LinkPage() {
         <div>
           <h2>{t("step2Title")}</h2>
           <p>{t.rich("step2", tags)}</p>
-          <Tutorial label={video("label")} note={video("note")} />
+          <Tutorial label={video("label")} />
         </div>
       </section>
       <section className="step">

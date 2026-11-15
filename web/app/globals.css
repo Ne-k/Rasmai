@@ -312,7 +312,6 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 /* the linking video, under the steps it shows */
 .tutorial { margin: 16px 0 0; max-width: 720px; }
 .tutorial video { display: block; width: 100%; height: auto; border: 2px solid var(--edge); border-radius: 10px; background: #000; }
-.tutorial figcaption { margin-top: 8px; font-size: 13px; color: var(--muted); }
 /* a cookie name or a host in these steps is read as one word; broken across lines it looks like two things to find */
 .howto code { white-space: nowrap; overflow-wrap: normal; }
 .howto b { color: var(--ink); }
