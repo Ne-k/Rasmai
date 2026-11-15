@@ -1,5 +1,4 @@
 from typing import Any, Awaitable, Callable, Optional
-import asyncio
 import logging
 import discord
 

@@ -79,8 +79,6 @@ RUN mkdir -p /app/data /app/otoge_cache /app/simai_cache /app/debug \
 
 COPY rasmai/ ./rasmai/
 COPY brand/emoji/png/ ./brand/emoji/png/
-# the linking walkthroughs, so /login can play one in Discord rather than sending people away
-COPY web/public/walkthrough/ ./walkthrough/
 
 VOLUME ["/app/data", "/app/otoge_cache", "/app/simai_cache", "/app/debug"]
 EXPOSE 8765

@@ -66,28 +66,6 @@ def _lookup_login_code(code: str, consume: bool) -> Optional[Tuple[str, str]]:
         connection.close()
 
 
-def login_code_issued_at(code: str) -> Optional[datetime]:
-    """When a login code was issued, whether or not it has been used since.
-
-    :param code: The login code.
-    :type code: str
-    :rtype: Optional[datetime]
-    """
-    if not code or not re.fullmatch(r"[A-Za-z0-9_-]{20,64}", code):
-        return None
-    connection = get_database_connection()
-    try:
-        row = connection.execute("SELECT created_at FROM login_codes WHERE code_hash = ?", (_hash_code(code),)).fetchone()
-    finally:
-        connection.close()
-    if row is None:
-        return None
-    try:
-        return datetime.fromisoformat(row["created_at"])
-    except ValueError:
-        return None
-
-
 def peek_login_code(code: str) -> Optional[Tuple[str, str, str]]:
     return _lookup_login_code(code, consume=False)
 

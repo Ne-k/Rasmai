@@ -70,7 +70,6 @@ DEFAULT_NOTICE = {
     "hideOnHost": "rasmai.lol",
 }
 
-# the linking walkthrough recordings: "walkthrough" in the container, web/public in a checkout
 # where a bot-run cloudflared tunnel should point: the public site, which is the Next.js server
 TUNNEL_ORIGIN = os.getenv("MAIMAI_TUNNEL_ORIGIN", "http://127.0.0.1:3000").strip().rstrip("/")
 

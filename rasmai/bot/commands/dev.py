@@ -203,12 +203,9 @@ class DevView(OwnerOnlyView):
     @discord.ui.button(label="Sweep expired accounts", row=2)
     async def sweep(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         self.armed = ""
-        await interaction.response.defer()
-        await core._expired_account_sweep.coro()
-        self.draw()
-        embed = await panel_embed()
-        embed.add_field(name="Last action", value="The hourly sweep ran now: warnings sent and accounts deleted are in the log, and the expired counts above.", inline=False)
-        await interaction.edit_original_response(embed=embed, view=self)
+        # the loop is restarted rather than its body run beside it: two sweeps at once would warn the same people twice
+        core._expired_account_sweep.restart()
+        await self.redraw(interaction, "The sweep is running now, and the next automatic one is an hour from now. Warnings sent and accounts deleted are in the log.")
 
     @discord.ui.button(label="Resync commands", row=2)
     async def resync(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
