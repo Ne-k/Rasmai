@@ -3,7 +3,7 @@ import { clientKey, json } from "@/lib/http";
 import { internal, passthroughJson, unavailable } from "@/lib/internal";
 import { apiLimiter } from "@/lib/limiter";
 
-/** What the connect page needs. The gateway link and the bookmark wait until the human check has passed. */
+/** What the connect page needs. The gateway link waits until the human check has passed. */
 export async function GET(request: Request) {
   if (!apiLimiter.allow(clientKey(request))) return json(429, { ok: false, kind: "rate_limited" });
   const query = new URL(request.url).searchParams;
@@ -19,7 +19,6 @@ export async function GET(request: Request) {
   return json(200, {
     ...info,
     loginLink: gated ? "" : info.loginLink,
-    bookmarklet: gated ? "" : info.bookmarklet,
     verified: !gated,
     turnstile: turnstileReady() ? env.turnstileSiteKey() : "",
   });

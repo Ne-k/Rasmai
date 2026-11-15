@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Support } from "@/components/Support";
@@ -9,38 +9,27 @@ import { errorCopy } from "@/components/copy";
 import { useTranslations } from "next-intl";
 
 type ConnectInfo = {
-  method?: "bookmark" | "segaid";
+  method?: "cookie" | "segaid";
   loginLink: string;
-  bookmarklet: string;
   expiresDisplay: string;
   region: string;
   turnstile: string;
   verified: boolean;
 };
 
-type Platform = "desktop" | "ios" | "android";
+// a page on the gateway that does not send a signed-in browser on to maimai DX NET, so its cookies can be looked at there
+const GATEWAY_PAGE = "https://lng-tgk-aime-gw.am-all.net/common_auth/";
 
-// the tags the flow messages use; the glyphs are the Share and Bookmarks icons in Safari
 const tags = {
   b: (c: React.ReactNode) => <b>{c}</b>,
   em: (c: React.ReactNode) => <em>{c}</em>,
   code: (c: React.ReactNode) => <code>{c}</code>,
-  glyph: (c: React.ReactNode) => <span className="glyph">{c}</span>,
   jp: (c: React.ReactNode) => (
     <a href="https://maimaidx.jp/maimai-mobile/" target="_blank" rel="noopener noreferrer">
       {c}
     </a>
   ),
 };
-
-function detectPlatform(): Platform {
-  const ua = navigator.userAgent;
-  const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  if (/iPhone|iPad|iPod/.test(ua) || iPadOS) return "ios";
-  if (/Android/.test(ua)) return "android";
-  if (window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(pointer: fine)").matches) return "android";
-  return "desktop";
-}
 
 export default function ConnectPage() {
   const t = useTranslations("flow");
@@ -59,16 +48,7 @@ function Connect() {
   const user = params.get("user") ?? "";
   const [info, setInfo] = useState<ConnectInfo | null>(null);
   const [errorKind, setErrorKind] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [status, setStatus] = useState<"waiting" | "done" | "stopped">("waiting");
-  const [player, setPlayer] = useState("");
-  const [platform, setPlatform] = useState<Platform>("desktop");
   const [checkFailed, setCheckFailed] = useState("");
-  const bookmarkRef = useRef<HTMLAnchorElement>(null);
-
-  useEffect(() => {
-    setPlatform(detectPlatform());
-  }, []);
 
   const loadInfo = useCallback(() => {
     if (!code || !user) {
@@ -104,44 +84,6 @@ function Connect() {
       })
       .catch((e: Error) => (e.message === "expired" ? setErrorKind("expired") : setCheckFailed("failed")));
   };
-
-  // React refuses to render javascript: URLs; the bookmarklet is exactly that, so set it on the node directly.
-  useEffect(() => {
-    if (info && bookmarkRef.current) bookmarkRef.current.setAttribute("href", info.bookmarklet);
-  }, [info]);
-
-  useEffect(() => {
-    if (!info?.verified) return;
-    let stopped = false;
-    let tries = 0;
-    const poll = async () => {
-      if (stopped) return;
-      if (tries++ > 600) {
-        setStatus("stopped");
-        return;
-      }
-      try {
-        const r = await fetch(`/api/status?user=${encodeURIComponent(user)}&code=${encodeURIComponent(code)}`);
-        const data = await r.json();
-        if (data?.connected) {
-          setStatus("done");
-          setPlayer(data.player ?? "");
-          const q = new URLSearchParams({ player: data.player ?? "", region: data.region ?? "" });
-          setTimeout(() => {
-            window.location.href = `/connected/?${q.toString()}`;
-          }, 900);
-          return;
-        }
-      } catch {
-        /* keep polling */
-      }
-      setTimeout(poll, 2000);
-    };
-    poll();
-    return () => {
-      stopped = true;
-    };
-  }, [info, user, code]);
 
   if (errorKind) {
     const copy = errorCopy(errorKind, e);
@@ -179,154 +121,171 @@ function Connect() {
     );
   }
 
-  if (info && japan) {
-    return <JapanConnect info={info} code={code} user={user} onExpired={() => setErrorKind("expired")} />;
+  if (!info) {
+    return (
+      <Shell tag="step 2 of 3" lit={2} footLeft={t("neverSeesPassword")}>
+        <p className="hint" style={{ padding: "60px 0" }}>{t("loading")}</p>
+      </Shell>
+    );
   }
+  const onExpired = () => setErrorKind("expired");
+  return japan ? <JapanConnect info={info} code={code} user={user} onExpired={onExpired} /> : <CookieConnect info={info} code={code} user={user} onExpired={onExpired} />;
+}
 
-  const done = status === "done";
-  const mobile = platform !== "desktop";
-  const copyBookmarklet = () => {
-    if (!info) return;
-    navigator.clipboard.writeText(info.bookmarklet).then(() => setCopied(true));
+/** What a sign-in refusal from the bot says on this page, where the login link is still good. */
+function useProblemCopy() {
+  const t = useTranslations("flow");
+  const e = useTranslations("errors");
+  return (data: { kind?: string; error?: unknown }, refused: string, unreachable: string): string => {
+    if (data.kind === "credentials" || data.kind === "upstream") return refused;
+    if (data.kind === "unknown" || !data.kind) return data.error ? String(data.error) : unreachable;
+    if (e.has(`${data.kind}.headline` as never)) {
+      const copy = errorCopy(data.kind, e);
+      return `${copy.detail} ${copy.hint}`;
+    }
+    return String(data.error ?? t("failed"));
+  };
+}
+
+/** The international gateway keeps its sign-in in a cookie no script may read any more, so the person copies it themselves. */
+function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; code: string; user: string; onExpired: () => void }) {
+  const t = useTranslations("flow");
+  const problemCopy = useProblemCopy();
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const [player, setPlayer] = useState<string | null>(null);
+  // the whole row copied, "clal=…", is as good as the value alone
+  const token = value.trim().replace(/^clal=/, "");
+  const valid = /^[A-Za-z0-9]{64}$/.test(token);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy || !valid) return;
+    setBusy(true);
+    setProblem("");
+    try {
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ code, user, region: "intl", token }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) {
+        if (data.kind === "expired" || data.kind === "invalid_user") {
+          onExpired();
+          return;
+        }
+        setProblem(problemCopy(data, t("refusedIntl"), t("unreachableIntl")));
+        return;
+      }
+      setValue("");
+      const name = String(data.player?.name ?? "");
+      setPlayer(name);
+      const q = new URLSearchParams({ player: name, region: "intl", rating: String(data.player?.rating ?? "") });
+      setTimeout(() => {
+        window.location.href = `/connected/?${q.toString()}`;
+      }, 900);
+    } catch {
+      setProblem(t("offline"));
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const platformPicker = (
-    <div className="seg" role="group" aria-label={t("device")}>
-      {(["desktop", "ios", "android"] as Platform[]).map((p) => (
-        <button key={p} type="button" className={platform === p ? "on" : ""} onClick={() => setPlatform(p)}>
-          {t(`devices.${p}`)}
-        </button>
-      ))}
-    </div>
-  );
-
+  const done = player !== null;
   return (
     <Shell
       tag="step 2 of 3"
       lit={done ? 3 : 2}
       done={done}
       footLeft={t("neverSeesPassword")}
-      footRight={info ? t("validUntil", { time: info.expiresDisplay }) : ""}
+      footRight={t("validUntil", { time: info.expiresDisplay })}
     >
-      <h1>{t.rich(mobile ? "titleMobile" : "titleDesktop", tags)}</h1>
-      <p className="lede">{mobile ? t("ledeMobile") : t("ledeDesktop")}</p>
-      {platformPicker}
+      <h1>{t.rich("titleIntl", tags)}</h1>
+      <p className="lede">{t("ledeIntl")}</p>
 
       <section className="step">
         <div className="n">1</div>
         <div>
-          {platform === "desktop" && (
-            <>
-              <h2>{t("dragTitle")}</h2>
-              <p>{t.rich("drag", tags)}</p>
-              <div className="btn-row">
-                <a
-                  ref={bookmarkRef}
-                  className="button pink bookmarklet"
-                  href="#"
-                  title="maimai connect"
-                  draggable
-                  onClick={(e) => e.preventDefault()}
-                  onDragStart={(e) => {
-                    if (!info) return;
-                    e.dataTransfer.effectAllowed = "copyLink";
-                    e.dataTransfer.setData("text/uri-list", info.bookmarklet);
-                    e.dataTransfer.setData("text/plain", info.bookmarklet);
-                    bookmarkRef.current?.classList.add("dragging");
-                  }}
-                  onDragEnd={() => bookmarkRef.current?.classList.remove("dragging")}
-                >
-                  ◯ maimai connect
-                </a>
-                <button className="button ghost" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {t("copyInstead")}
-                </button>
-              </div>
-              {copied && <p className="hint ok">{t("copiedHint")}</p>}
-            </>
-          )}
-
-          {platform === "ios" && (
-            <>
-              <h2>{t("makeTitle")}</h2>
-              <p>{t("makeBody")}</p>
-              <div className="btn-row">
-                <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {copied ? t("copied") : t("copyCode")}
-                </button>
-              </div>
-              <ol className="howto">
-                {(["step1", "step2", "step3"] as const).map((step) => (
-                  <li key={step}>{t.rich(`ios.${step}`, tags)}</li>
-                ))}
-              </ol>
-            </>
-          )}
-
-          {platform === "android" && (
-            <>
-              <h2>{t("makeTitle")}</h2>
-              <p>{t("makeBody")}</p>
-              <div className="btn-row">
-                <button className="button pink" type="button" onClick={copyBookmarklet} disabled={!info}>
-                  {copied ? t("copied") : t("copyCode")}
-                </button>
-              </div>
-              <ol className="howto">
-                {(["step1", "step2", "step3"] as const).map((step) => (
-                  <li key={step}>{t.rich(`android.${step}`, tags)}</li>
-                ))}
-              </ol>
-            </>
-          )}
+          <h2>{t("gwTitle")}</h2>
+          <p>{t.rich("gwBody", tags)}</p>
+          <div className="btn-row">
+            <a className="button" href={info.loginLink} target="_blank" rel="noopener noreferrer">
+              {t("gwButton")}
+            </a>
+          </div>
         </div>
       </section>
 
       <section className="step">
         <div className="n">2</div>
         <div>
-          <h2>{t("signInTitle")}</h2>
-          <p>{t("signIn", { mobile: String(mobile) })}</p>
+          <h2>{t("copyTitle")}</h2>
+          <p>{t.rich("copyBody", tags)}</p>
           <div className="btn-row">
-            <a className="button ghost" href="https://my-aime.net/en/" target="_blank" rel="noopener noreferrer">
-              {t("signInButton")}
+            <a className="button ghost" href={GATEWAY_PAGE} target="_blank" rel="noopener noreferrer">
+              {t("gwPageButton")}
             </a>
-            {info?.loginLink ? (
-              <a className="button" href={info.loginLink} target="_blank" rel="noopener noreferrer">
-                {t("authButton")}
-              </a>
-            ) : (
-              <span className="button disabled" aria-disabled="true">
-                {t("authButton")}
-              </span>
-            )}
           </div>
-          <div className="readout">
-            <span className="lbl">{t("labelValidUntil")}</span>
-            <span className="val">{info?.expiresDisplay ?? "…"}</span>
-            <span className="lbl">{t("labelRegion")}</span>
-            <span className="val">{info?.region.toUpperCase() ?? "…"}</span>
-          </div>
+          <ol className="howto">
+            <li>{t.rich("copyChrome", tags)}</li>
+            <li>{t.rich("copyFirefox", tags)}</li>
+          </ol>
         </div>
       </section>
 
       <section className="step">
         <div className="n">3</div>
         <div>
-          <h2>{t("runTitle")}</h2>
-          {platform === "desktop" && <p>{t.rich("runDesktop", tags)}</p>}
-          {platform === "ios" && <p>{t.rich("runIos", tags)}</p>}
-          {platform === "android" && <p>{t.rich("runAndroid", tags)}</p>}
+          <h2>{t("pasteTitle")}</h2>
+          <form className="signin" onSubmit={submit}>
+            <label>
+              <span>{t("pasteLabel")}</span>
+              <input
+                type="text"
+                name="clal"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                maxLength={80}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                disabled={busy || done}
+              />
+            </label>
+            <p className={`hint${value && !valid ? " bad" : ""}`}>{value && !valid ? t.rich("pasteBad", tags) : t("pasteHint")}</p>
+            <div className="btn-row">
+              <button className="button pink" type="submit" disabled={busy || done || !valid}>
+                {busy ? t("linking") : t("linkButton")}
+              </button>
+            </div>
+            {problem && (
+              <>
+                <p className="hint bad" role="alert">
+                  {problem}
+                </p>
+                <Support />
+              </>
+            )}
+          </form>
+          <div className="readout">
+            <span className="lbl">{t("labelValidUntil")}</span>
+            <span className="val">{info.expiresDisplay}</span>
+            <span className="lbl">{t("labelRegion")}</span>
+            <span className="val">{info.region.toUpperCase()}</span>
+          </div>
           <div className="status">
-            <span className={`lamp ${done ? "done" : status === "waiting" ? "wait" : ""}`} />
-            <span>
-              {done ? (player ? t("connectedAs", { name: player }) : t("connected")) : status === "stopped" ? t("stopped") : t("waiting")}
-            </span>
+            <span className={`lamp ${done ? "done" : "wait"}`} />
+            <span>{done ? (player ? t("connectedAs", { name: player }) : t("connected")) : busy ? t("linking") : t("waiting")}</span>
           </div>
         </div>
       </section>
 
-      <div className="aside">{t.rich("stuck", tags)}</div>
+      <div className="aside">{t.rich("phones", tags)}</div>
+      <div className="aside">{t.rich("keepsIntl", tags)}</div>
+      <div className="aside">{t.rich("stuckIntl", tags)}</div>
     </Shell>
   );
 }
@@ -371,6 +330,7 @@ function JapanConnect({
 }) {
   const t = useTranslations("flow");
   const e = useTranslations("errors");
+  const problemCopy = useProblemCopy();
   const [segaId, setSegaId] = useState("");
   const [password, setPassword] = useState("");
   const [aime, setAime] = useState("1");
@@ -404,23 +364,9 @@ function JapanConnect({
           onExpired();
           return;
         }
-        if (data.kind === "credentials") {
-          // the bot's own words say to run /login again, but on this page the link still works
-          const copy = errorCopy("credentials", e);
-          setProblem(`${copy.detail} ${copy.hint}`);
-          return;
-        }
-        if (data.kind === "upstream") {
-          // maimaidx.jp could not be reached or answered with something unexpected; the link is not spent
-          setProblem(t("unreachableJp"));
-          return;
-        }
-        if (data.kind && e.has(`${data.kind}.headline` as never) && data.kind !== "unknown") {
-          const copy = errorCopy(data.kind, e);
-          setProblem(`${copy.detail} ${copy.hint}`);
-          return;
-        }
-        setProblem(String(data.error ?? t("failed")));
+        // the bot's own words say to run /login again, but on this page the link still works
+        const refused = errorCopy("credentials", e);
+        setProblem(problemCopy(data, `${refused.detail} ${refused.hint}`, t("unreachableJp")));
         return;
       }
       setPassword("");

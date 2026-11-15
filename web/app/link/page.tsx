@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Shell } from "@/components/Shell";
-import { Walkthrough } from "@/components/Walkthrough";
 import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,17 +26,6 @@ export default async function LinkPage() {
     <Shell tag="link" lit={1} footLeft={footer("notAffiliated")}>
       <h1>{t.rich("title", tags)}</h1>
       <p className="lede">{t("lede")}</p>
-
-      <section className="step walk-step">
-        <div className="n" aria-hidden="true">
-          ▶
-        </div>
-        <div>
-          <h2>{t("videoTitle")}</h2>
-          <p>{t("videoBody")}</p>
-          <Walkthrough />
-        </div>
-      </section>
 
       <section className="step">
         <div className="n">1</div>

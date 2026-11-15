@@ -334,9 +334,8 @@ class InternalApiServer:
                     expires_at = login_code_expiry()
                 self._send_json(200, {
                     "ok": True,
-                    "method": login_info["method"],        # "bookmark" (International) or "segaid" (Japan)
+                    "method": login_info["method"],        # "cookie" (International) or "segaid" (Japan)
                     "loginLink": login_info["loginLink"],
-                    "bookmarklet": login_info["bookmarklet"],
                     "expiresAt": expires_at.isoformat(),
                     "expiresDisplay": expires_at.strftime("%H:%M"),
                     "region": region,
@@ -422,16 +421,16 @@ class InternalApiServer:
                 self._send_json(200, {"ok": True, "verified": True})
 
             def _login(self, payload: Dict[str, Any]) -> None:
-                """A login code plus what proves the account: for International, the session cookie the
-                bookmarklet read on SEGA's gateway; for Japan, the SEGA ID, password and Aime card typed on
-                the connect page.
+                """A login code plus what proves the account: for International, the gateway's sign-in cookie the
+                person copied from their browser; for Japan, the SEGA ID, password and Aime card typed on the
+                connect page.
 
                 :param payload: The request body.
                 :type payload: Dict[str, Any]
                 """
                 opaque_user = str(payload.get("user", "")).strip()
                 code = str(payload.get("code", "")).strip()
-                token = str(payload.get("token", "")).strip()
+                token = str(payload.get("token", "")).strip().removeprefix("clal=").strip()
                 sega_id = str(payload.get("segaId", "")).strip()
                 password = str(payload.get("password", ""))
                 require_verified = bool(payload.get("requireVerified"))
@@ -491,8 +490,8 @@ class InternalApiServer:
                     logger.info("A sign-in was refused while linking (%s): %s", region, public_reason(error))
                     # the login code is still unspent here, so the way on is the same link, not a new /login
                     fail(401, "credentials" if region == "jp" else "upstream", public_reason(error) if region == "jp" else
-                         "maimai didn't accept that sign-in - it's probably expired or already used. Sign in to the gateway "
-                         "again and press the bookmark. Your login link still works.")
+                         "maimai didn't accept that value - it has probably expired. Sign in to the gateway again with auto login "
+                         "ticked, copy the value again and paste it. Your login link still works.")
                     return
                 except Exception as error:
                     reason = public_reason(error)

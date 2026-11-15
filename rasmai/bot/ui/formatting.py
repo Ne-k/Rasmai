@@ -299,17 +299,16 @@ def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> di
         embed.add_field(
             name="What you'll do there",
             value=(
-                "1. Save the connect button to your bookmarks\n"
-                "2. Sign in at [my-aime.net](https://my-aime.net/en/) with the account you play on\n"
-                "3. Open the Aime authentication from the setup page\n"
-                "4. Click the bookmark - that's it"
+                "1. Open the setup page on a computer\n"
+                "2. Sign in at the Aime gateway with **auto login** ticked\n"
+                "3. Copy one value from your browser's developer tools - the page shows exactly where\n"
+                "4. Paste it on the setup page - that's it"
             ),
             inline=False,
         )
     embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)
     embed.add_field(name="Link expires", value=expires, inline=True)
-    embed.set_footer(text="This card updates itself once you are connected" if region == "jp"
-                     else "Stuck? The Show me buttons play the whole thing · this card updates itself once you are connected")
+    embed.set_footer(text="This card updates itself once you are connected")
     return embed
 
 

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 
-/** The bookmarklet body. It runs on SEGA's gateway page, reads the session cookie there and posts it back here. */
+/** What a connect bookmark saved before SEGA hid the gateway's sign-in from scripts does now: says so, and opens the connect page the link named. */
 function script(baseUrl: string): string {
-  return `!function(d){const BASE_URL=${JSON.stringify(baseUrl)};if(d.location.host!=='lng-tgk-aime-gw.am-all.net'){alert('Please run this on the maimai Aime gateway page.');return;}function post(path,params){const form=d.createElement('form');form.method='POST';form.action=path;for(const key in params){if(Object.prototype.hasOwnProperty.call(params,key)){const hiddenField=d.createElement('input');hiddenField.type='hidden';hiddenField.name=key;hiddenField.value=params[key];form.appendChild(hiddenField);}}d.body.appendChild(form);form.submit();}const params=new URLSearchParams(d.location.hash.substring(1));const code=params.get('code');const user=params.get('user');const region=params.get('region')||'intl';if(region!=='intl'){alert(region==='jp'?'This bookmark is for International accounts. A Japan account links with its SEGA ID on the Rasmai setup page instead: run /login region:Japan in Discord.':'China accounts cannot be linked yet: they sign in with WeChat, which this page cannot hand over.');return;}if(!code||!/^[A-Za-z0-9_-]{20,64}$/.test(code)){alert('Missing or invalid login code. Please restart the login flow.');return;}if(!user){alert('Missing user identifier. Please restart the login flow.');return;}const cookieMap=Object.fromEntries(d.cookie.split(';').map(function(c){const idx=c.indexOf('=');const name=idx===-1?c.trim():c.slice(0,idx).trim();const value=idx===-1?'':c.slice(idx+1);return [name,value];}));const clal=cookieMap.clal;if(!clal||clal.trim().length!==64){alert("Couldn't retrieve login data. Sign out of this page, sign in again, then press the bookmark. If your account is from the Japanese or Chinese version of maimai DX, this page cannot read it: a Japan account links with its SEGA ID (run /login region:Japan in Discord), and China accounts cannot be linked yet.");return;}post(BASE_URL+'/api/login',{code,user,token:clal.trim(),region});}(document);`;
+  return `!function(d){const BASE_URL=${JSON.stringify(baseUrl)};const p=new URLSearchParams(d.location.hash.substring(1));const code=p.get('code');const user=p.get('user');alert('This bookmark no longer works: SEGA changed the gateway so no bookmark can read the sign-in. Rasmai links another way now; the connect page shows the steps.');if(code&&user&&/^[A-Za-z0-9_-]{20,64}$/.test(code)){d.location.href=BASE_URL+'/connect/?code='+encodeURIComponent(code)+'&user='+encodeURIComponent(user);}else{d.location.href=BASE_URL+'/link/';}}(document);`;
 }
 
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
     headers: {
       "Content-Type": "application/javascript; charset=utf-8",
       "Cache-Control": "no-store",
-      // loaded by the bookmarklet on lng-tgk-aime-gw.am-all.net
+      // still loaded by the old bookmark on lng-tgk-aime-gw.am-all.net
       "Cross-Origin-Resource-Policy": "cross-origin",
     },
   });

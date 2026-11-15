@@ -902,7 +902,7 @@
         "c01": {
           "c01_login": {
             "name": "/login",
-            "what": "Links your maimai account. You get a link, sign in at maimai DX NET and press one button. It takes about a minute and you only do it once. You need to do this before any other command works. International accounts link with a bookmark; for a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. If your scores are on Kamaitachi, run <code>/login region:Kamaitachi username:yourname</code> instead. Accounts from the Chinese version can't be linked yet."
+            "what": "Links your maimai account. You get a link, sign in at maimai DX NET and press one button. It takes about a minute and you only do it once. You need to do this before any other command works. International accounts link by pasting one value from the Aime gateway, on a computer; for a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. If your scores are on Kamaitachi, run <code>/login region:Kamaitachi username:yourname</code> instead. Accounts from the Chinese version can't be linked yet."
           },
           "c02_help": {
             "name": "/help",
@@ -1247,12 +1247,12 @@
     "maintenance": {
       "detail": "Your Aime sign-in worked, but the maimai DX NET score site is down right now, so your session can't be checked yet.",
       "headline": "maimai DX NET is <em>down</em>",
-      "hint": "Your login link still works. Press the bookmark again once the servers are back. The bar at the top shows when."
+      "hint": "Your login link still works. Paste the value again once the servers are back. The bar at the top shows when."
     },
     "no_login": {
       "detail": "You may not be signed in to the SEGA gateway yet, or the sign-in didn't stick.",
       "headline": "Couldn't read your <em>session</em>",
-      "hint": "Sign out of the gateway, sign back in, then press the bookmark again. A Japan account links with its SEGA ID instead: run /login region:Japan in Discord."
+      "hint": "Sign in to the gateway again with auto login ticked, copy the value again and paste it. A Japan account links with its SEGA ID instead: run /login region:Japan in Discord."
     },
     "rate_limited": {
       "detail": "Sign-in attempts from your connection are paused for a few minutes.",
@@ -1270,14 +1270,14 @@
       "hint": "Run /login in Discord to start over."
     },
     "upstream": {
-      "detail": "The sign-in was read correctly, but the maimai site rejected it.",
+      "detail": "The value was read correctly, but the maimai site rejected it.",
       "headline": "maimai said <em>no</em>",
-      "hint": "The session probably expired partway through. Your login link still works, so sign in to the gateway again and press the bookmark."
+      "hint": "It has probably expired. Your login link still works: sign in to the gateway again with auto login ticked, copy the new value and paste it."
     },
     "verify": {
       "detail": "You need to pass the human check on the connect page before signing in.",
       "headline": "One check was <em>skipped</em>",
-      "hint": "Go back to the connect page, pass the check, then press the bookmark again."
+      "hint": "Go back to the connect page, pass the check, then paste the value again."
     }
   },
   "feedback": {
@@ -1458,7 +1458,7 @@
       }
     },
     "lede": "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating. You get the results as images in Discord or on the web dashboard, and you can look up any chart's patterns before you play it.",
-    "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at my-aime.net, open the Aime authentication, then press a bookmark once, and Rasmai only gets the session it needs and never sees your password. A Japan account links with its SEGA ID and password on the next page instead, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
+    "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at SEGA's Aime gateway, then copy its sign-in cookie from your browser's developer tools and paste it on the next page: Rasmai gets only that value and never sees your password. A Japan account links with its SEGA ID and password on the next page instead, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
     "linkingButton": "how linking works →",
     "linkingTitle": "Linking your account",
     "metaTitle": "maimai DX rating bot for Discord",
@@ -1470,66 +1470,33 @@
   },
   "link": {
     "metaTitle": "Link your maimai account",
-    "metaDescription": "How to link your maimai DX NET account to Rasmai on a computer or iPhone, with a video.",
+    "metaDescription": "How to link your maimai DX NET account to Rasmai, step by step.",
     "title": "Link your <em>maimai</em> account.",
     "lede": "Once you're linked, Rasmai checks your scores and tells you which charts to play to raise your rating.",
-    "videoTitle": "Watch the video first",
-    "videoBody": "Pick your device. It's about a minute long with no sound.",
     "step1Title": "Get your link",
     "step1": "Run <code>/login</code> in Discord. You'll get a private link to this site with your login code already filled in.",
-    "step2Title": "Sign in at my-aime, then authenticate",
-    "step2": "Sign in at <aime>my-aime.net</aime> with the account you play on, then open the Aime authentication from the setup page. That takes you to the gateway page.",
+    "step2Title": "Sign in at the gateway, then copy one value",
+    "step2": "The setup page sends you to sign in at SEGA's Aime gateway with auto login on, then shows where to copy the <code>clal</code> cookie from your browser's developer tools and where to paste it. Do it on a computer: phone browsers can't show cookies.",
     "step3Title": "Start grinding",
     "step3": "Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.",
-    "japan": "<b>Playing on a Japan account?</b> Run <code>/login region:Japan</code> instead. The link opens a page where you enter the SEGA ID and password you use on maimaidx.jp, so steps 2 and the video don't apply.",
+    "japan": "<b>Playing on a Japan account?</b> Run <code>/login region:Japan</code> instead. The link opens a page where you enter the SEGA ID and password you use on maimaidx.jp, so step 2 doesn't apply.",
     "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi username:yourname</code>, or pick Kamaitachi on <dash>your dashboard</dash>. No maimai sign-in needed, so skip the steps above.",
     "already": "<b>Already linked?</b> Your scores are on the web too. <dash>Open your dashboard</dash> and sign in with Discord."
-  },
-  "walkthrough": {
-    "desktop": "On a computer",
-    "desktopNote": "Works the same in Chrome, Edge and Firefox.",
-    "ios": "On iPhone",
-    "iosNote": "Safari on iOS. Android works the same way in Chrome.",
-    "videoLabel": "{device}: the full linking process",
-    "tabs": "which device you are linking on"
   },
   "flow": {
     "aimeCard": "Aime card",
     "aimeHint": "One SEGA ID can hold several Aime cards, each its own player. Leave this at 1 unless yours has more than one.",
-    "android": {
-      "step1": "Tap <b>⋮</b> → <b>☆</b> to bookmark this page.",
-      "step2": "Tap <b>⋮</b> → <b>Bookmarks</b>, then <b>⋮</b> on the new bookmark → <b>Edit</b>.",
-      "step3": "Name it <b>maimai connect</b>, replace the <b>URL</b> with what you copied, and go back to save."
-    },
-    "authButton": "2 · open the Aime authentication →",
     "backInDiscord": "Back in Discord",
     "backToLink": "back to your login link",
     "checkFailed": "The check failed. Reload the page and try again.",
-    "checkLede": "Pass the human check to get your link and the connect bookmark.",
+    "checkLede": "Pass the human check to get the sign-in steps.",
     "checkLedeJapan": "Pass the human check to get the sign-in form.",
     "checkTitle": "One quick <em>check</em>.",
     "checkWhy": "<b>Why?</b> The next screen gives Rasmai {japan, select, true {your maimaidx.jp sign-in} other {your maimai session}}, and the check stops bots from grabbing it.",
     "closeTab": "You can close this tab.",
     "connected": "Connected.",
     "connectedAs": "Connected as {name}.",
-    "copied": "✓ copied",
-    "copiedHint": "Copied. Paste it as a bookmark's address.",
-    "copyCode": "copy bookmark code",
-    "copyInstead": "copy instead",
-    "device": "Your device",
-    "devices": {
-      "android": "Android",
-      "desktop": "Computer",
-      "ios": "iPhone / iPad"
-    },
-    "drag": "Grab the pink button and drop it on your browser's bookmarks bar. If the bar is hidden, press <code>Ctrl+Shift+B</code> (<code>⌘+Shift+B</code> on a Mac) first.",
-    "dragTitle": "Drag this to your bookmarks bar",
     "failed": "The sign-in didn't work. Try again in a moment.",
-    "ios": {
-      "step1": "Tap <b>Share</b> <glyph>⎙</glyph> → <b>Add Bookmark</b> → <b>Save</b>. Name it <b>maimai connect</b>.",
-      "step2": "Open <b>Bookmarks</b> <glyph>📖</glyph> → <b>Edit</b> → tap the new bookmark.",
-      "step3": "Replace its <b>address</b> with what you copied → <b>Done</b>."
-    },
     "jpLede": "maimaidx.jp has no sign-in Rasmai can borrow the way the international site does, so Rasmai signs in there with your SEGA ID whenever it reads your scores.",
     "jpStep": "The SEGA ID and password you use on <jp>maimaidx.jp</jp>.",
     "jpStepTitle": "Your maimaidx.jp sign-in",
@@ -1537,13 +1504,9 @@
     "keeps": "<b>What Rasmai keeps.</b> Your SEGA ID and password are encrypted before they're stored, and they're used only to sign in to maimaidx.jp and read your scores. They're deleted when you run <code>/logout</code> or <code>/delete-account</code>. If you change the password, run <code>/login</code> again.",
     "labelRegion": "region",
     "labelValidUntil": "link valid until",
-    "ledeDesktop": "Keep this tab open. It updates when you're connected.",
-    "ledeMobile": "Set up the bookmark, sign in at my-aime and open the Aime authentication. Then run the bookmark there. This page updates when you're connected.",
     "linkedGeneric": "Your maimai account is now linked to your Discord account.",
     "linkedTitle": "You're <em>linked</em>.",
     "loading": "Loading…",
-    "makeBody": "Copy the bookmark code, then save it as a bookmark like this.",
-    "makeTitle": "Make the connect bookmark",
     "neverSeesPassword": "Rasmai never sees your password",
     "nextCommands": {
       "analyze": "what to grind, biggest gains first",
@@ -1559,27 +1522,37 @@
     "rating": "rating",
     "remember": "Save my login for next time",
     "rememberHint": "Remembers your SEGA ID and card on this device only. Your password is never saved here; your browser can offer to save it.",
-    "runAndroid": "When you're on the gateway page, tap the <b>address bar</b>, type <b>maimai connect</b> and pick the bookmark from the suggestions. Pasting the code into the address bar won't work in Chrome. Then come back to this tab.",
-    "runDesktop": "When you're on the gateway page, click the <b>maimai connect</b> bookmark. This page updates once it's done.",
-    "runIos": "When you're on the gateway page, open <b>Bookmarks</b> <glyph>📖</glyph> and tap <b>maimai connect</b>. Then come back to this tab.",
-    "runTitle": "Run the bookmark on the AIME page",
     "segaId": "SEGA ID",
     "segaIdEncrypted": "your SEGA ID is stored encrypted",
     "signedInAs": "Signed in as <b>{name}</b>. Rasmai can check your scores now.",
-    "signIn": "First sign in at my-aime.net with the account you play on{mobile, select, true {} other { (opens in a new tab)}}. Then open the Aime authentication, which takes you to the gateway page.",
     "signInAndLink": "sign in and link",
-    "signInButton": "1 · sign in at my-aime →",
     "signingIn": "signing in…",
     "signingInJp": "Signing in to maimaidx.jp…",
-    "signInTitle": "Sign in at my-aime, then authenticate",
-    "stopped": "Stopped checking. Reload to keep waiting.",
-    "stuck": "<b>Stuck?</b> If the bookmark says it can't read your login, sign out of the gateway, sign in again, then run it again. If the link expired, run <code>/login</code> in Discord for a new one. This bookmark is for International accounts. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet.",
-    "titleDesktop": "Drag in the <em>bookmark</em>, then sign in.",
-    "titleMobile": "Set up the <em>bookmark</em>, then sign in.",
     "unreachableJp": "Rasmai couldn't reach maimaidx.jp just now. Try again in a few minutes. Your login link still works.",
     "usingBot": "Using the bot too? Try these in Discord",
     "validUntil": "link valid until {time}",
-    "waiting": "Waiting for the sign-in…"
+    "waiting": "Waiting for the sign-in…",
+    "titleIntl": "Sign in, then <em>paste</em> one value.",
+    "ledeIntl": "SEGA changed its gateway so no bookmark can read the sign-in any more, so you copy it yourself. It takes a minute on a computer, and Rasmai still never sees your password.",
+    "gwTitle": "Sign in at the Aime gateway",
+    "gwBody": "Sign in with the account you play on and leave <b>auto login</b> ticked: that is what makes the value you copy next. When it works you land on maimai DX NET.",
+    "gwButton": "1 · sign in at the gateway →",
+    "copyTitle": "Copy your login value",
+    "copyBody": "Open the gateway page below (it says <em>Not found</em>, which is fine), then open your browser's developer tools and find the cookie called <code>clal</code>.",
+    "gwPageButton": "2 · open the gateway page →",
+    "copyChrome": "<b>Chrome, Edge:</b> press <code>F12</code> (<code>⌥⌘I</code> on a Mac) → the <b>Application</b> tab → <b>Cookies</b> → <code>https://lng-tgk-aime-gw.am-all.net</code> → click the <code>clal</code> row → double-click its value in the box at the bottom and copy it.",
+    "copyFirefox": "<b>Firefox:</b> <code>F12</code> → <b>Storage</b> → <b>Cookies</b> → the same row. <b>Safari:</b> turn on the Develop menu under Settings → Advanced, then <b>Develop</b> → <b>Show Web Inspector</b> → <b>Storage</b> → <b>Cookies</b>.",
+    "pasteTitle": "Paste it here",
+    "pasteLabel": "clal value",
+    "pasteHint": "64 letters and digits. Nothing else from your browser is sent.",
+    "pasteBad": "That doesn't look like the value: it is 64 letters and digits with no spaces. Copy the <code>clal</code> row's value again.",
+    "linkButton": "link my account",
+    "linking": "checking the sign-in…",
+    "refusedIntl": "maimai didn't accept that value. Sign out of the gateway, sign in again with auto login ticked, and copy the new value. Your login link still works.",
+    "unreachableIntl": "Rasmai couldn't reach maimai DX NET just now. Try again in a few minutes. Your login link still works.",
+    "phones": "<b>On a phone?</b> Phone browsers can't show cookies, so do this once on a computer: your login link opens there too.",
+    "keepsIntl": "<b>What Rasmai keeps.</b> Only this value, encrypted. It lets Rasmai read your scores until SEGA expires it, and it's deleted when you run <code>/logout</code> or <code>/delete-account</code>. Your password never leaves SEGA.",
+    "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> in Discord for a new one. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet."
   },
   "welcome": {
     "agree": "I have read the privacy policy and terms and agree to them",
@@ -1657,7 +1630,7 @@
     "title": "Terms of <em>use</em>."
   },
   "notFound": {
-    "bookmark": "<b>Came from the bookmark?</b> Connect links work once and last about ten minutes. Run the bookmark on the SEGA gateway page, not on this site.",
+    "bookmark": "<b>Came from the old connect bookmark?</b> It no longer works: SEGA hid the sign-in from it. Run <code>/login</code> in Discord and follow the steps on the connect page instead.",
     "dashboard": "<dash>Your dashboard</dash>, after signing in with Discord.",
     "foot": "404 · nothing was saved",
     "home": "<home>Home</home> to see what Rasmai does and how to add it.",
@@ -1710,13 +1683,13 @@
     "providerGoogle": "Google",
     "region": "region",
     "regionIntl": "International",
-    "regionIntlHow": "Sign in at my-aime.net and press a bookmark. About a minute.",
+    "regionIntlHow": "Sign in at the Aime gateway and paste one value. About a minute, on a computer.",
     "regionJp": "Japan",
     "regionJpHow": "Enter your SEGA ID once. It's stored encrypted.",
     "regionKamai": "Kamaitachi",
     "regionKamaiHow": "Enter your Kamaitachi username. No maimai sign-in needed.",
     "kamaiUpgrade": "Your scores come from Kamaitachi. Link maimai to get your real rating, recent plays and areas. Your scores stay.",
-    "regionNote": "International: you sign in at my-aime.net and press a bookmark. Japan: you type your SEGA ID once, and it's kept encrypted.",
+    "regionNote": "International: you sign in at the Aime gateway and paste one value from your browser. Japan: you type your SEGA ID once, and it's kept encrypted.",
     "setupLede": "Your account is ready. Choose your region to link your maimai account. It takes about a minute.",
     "setupStep": "Step 2 of 2",
     "setupTitle": "One more <em>step</em>.",

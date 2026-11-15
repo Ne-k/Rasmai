@@ -71,7 +71,6 @@ DEFAULT_NOTICE = {
 }
 
 # the linking walkthrough recordings: "walkthrough" in the container, web/public in a checkout
-WALKTHROUGH_DIR = next((p for p in (Path("walkthrough"), Path("web/public/walkthrough")) if p.is_dir()), Path("walkthrough"))
 # where a bot-run cloudflared tunnel should point: the public site, which is the Next.js server
 TUNNEL_ORIGIN = os.getenv("MAIMAI_TUNNEL_ORIGIN", "http://127.0.0.1:3000").strip().rstrip("/")
 
@@ -115,7 +114,7 @@ MAIMAI_BASE_URLS = {
 }
 
 # The regions an account can actually be linked from. International signs in through SEGA's Aime
-# gateway, whose session cookie the bookmarklet hands over and the bot replays. Japan has no session a
+# gateway, whose session cookie the person copies from their browser and the bot replays. Japan has no session a
 # server can replay, so a Japan account is linked with its SEGA ID and password, which the bot keeps
 # encrypted and signs in to maimaidx.jp with on every read. China's site only opens inside WeChat and
 # has no sign-in here yet; it is kept in the tables above so its pages have somewhere to point.

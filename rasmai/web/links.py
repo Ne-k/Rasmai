@@ -6,6 +6,9 @@ from rasmai.config import get_public_base_url
 from rasmai.storage.db import issue_login_code, login_code_expiry
 from rasmai.security import create_opaque_user_id
 
+# signing in here with auto login ticked is what sets the cookie the person copies; a signed-in browser lands on maimai DX NET
+GATEWAY_LOGIN = "https://lng-tgk-aime-gw.am-all.net/common_auth/login?site_id=maimaidxex&redirect_url=https://maimaidx-eng.com/maimai-mobile/&back_url=https://maimai.sega.com/"
+
 
 def build_login_link_payload(opaque_user_id: str, code: str, region: str) -> Dict[str, str]:
     """Everything the connect page needs, given an already-issued login code.
@@ -17,29 +20,15 @@ def build_login_link_payload(opaque_user_id: str, code: str, region: str) -> Dic
     :rtype: Dict[str, str]
     """
     base_url = get_public_base_url()
-    script_url = f"{base_url}/api/login.js"
-    connect_url = f"{base_url}/connect/?code={code}&user={opaque_user_id}"
-    if region == "jp":
-        # a Japan account is linked on the connect page itself, with its SEGA ID: no gateway, no bookmark
-        return {
-            "code": code,
-            "expiresAt": login_code_expiry().isoformat(),
-            "opaqueUserId": opaque_user_id,
-            "method": "segaid",
-            "loginLink": "",
-            "scriptUrl": "",
-            "bookmarklet": "",
-            "connectUrl": connect_url,
-        }
+    # both are linked on the connect page itself: a Japan account with its SEGA ID, an International one with the gateway's
+    # sign-in cookie, which the person copies from their own browser since SEGA hid it from scripts
     return {
         "code": code,
         "expiresAt": login_code_expiry().isoformat(),
         "opaqueUserId": opaque_user_id,
-        "method": "bookmark",
-        "loginLink": f"https://lng-tgk-aime-gw.am-all.net/common_auth/#code={code}&user={opaque_user_id}&region={region}",
-        "scriptUrl": script_url,
-        "bookmarklet": f"javascript:void(function(d){{var s=d.createElement(\"script\");s.src=\"{script_url}\";d.body.append(s);}}(document))",
-        "connectUrl": connect_url,
+        "method": "segaid" if region == "jp" else "cookie",
+        "loginLink": "" if region == "jp" else GATEWAY_LOGIN,
+        "connectUrl": f"{base_url}/connect/?code={code}&user={opaque_user_id}",
     }
 
 

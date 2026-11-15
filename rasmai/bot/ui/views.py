@@ -5,7 +5,7 @@ import discord
 
 from rasmai.bot.state.cache import cache_get
 from rasmai.bot.state.forget import forget_user
-from rasmai.config import WALKTHROUGH_DIR, get_public_base_url
+from rasmai.config import get_public_base_url
 from rasmai.storage.db import delete_connected_account, get_connected_account
 from rasmai.security import LOGIN_CODE_TTL, public_reason
 
@@ -118,51 +118,15 @@ class LoginView(OwnerOnlyView):
     def __init__(self, owner_id: int, connect_url: str, region: str = "intl"):
         super().__init__(owner_id, timeout=LOGIN_CODE_TTL.total_seconds())
         if region == "jp":
-            # a Japan account is linked with its SEGA ID on the setup page itself: no my-aime, no bookmark
+            # a Japan account is linked with its SEGA ID on the setup page itself
             self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
         else:
-            self.add_item(discord.ui.Button(label="1 · Sign in at my-aime", url="https://my-aime.net/en/"))
-            self.add_item(discord.ui.Button(label="2 · Start setup", url=connect_url))
+            from rasmai.web.links import GATEWAY_LOGIN
+            self.add_item(discord.ui.Button(label="1 · Sign in at the gateway", url=GATEWAY_LOGIN))
+            self.add_item(discord.ui.Button(label="2 · Open setup", url=connect_url))
         check = discord.ui.Button(label="Check connection", style=discord.ButtonStyle.success)
         check.callback = self._check
         self.add_item(check)
-        if region == "jp":
-            return
-        # the same steps as a recording, played in Discord rather than sending anyone to a browser
-        for label, clip in (("Show me: computer", "desktop"), ("Show me: iPhone", "ios-safari")):
-            watch = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, row=1)
-            watch.callback = self._walkthrough(clip)
-            self.add_item(watch)
-
-    def _walkthrough(self, clip: str):
-        """A button that answers with one walkthrough recording, only to the person who pressed it.
-
-        :param clip: The recording's file stem.
-        :type clip: str
-        :rtype: Callable
-        """
-        async def callback(interaction: discord.Interaction) -> None:
-            # a couple of megabytes take longer to upload than the three seconds Discord allows for a
-            # first response, so acknowledge the press before going anywhere near the file
-            await interaction.response.defer(ephemeral=True, thinking=True)
-            path = WALKTHROUGH_DIR / f"{clip}.mp4"
-            wording = "on a computer" if clip == "desktop" else "on an iPhone, in Safari"
-            if not path.is_file():
-                await interaction.followup.send(
-                    f"The recording is not on this server. The same walkthrough is at {get_public_base_url()}/link/",
-                    ephemeral=True)
-                return
-            try:
-                await interaction.followup.send(
-                    f"Linking {wording}, start to finish. No sound, about a minute.",
-                    file=await asyncio.to_thread(discord.File, str(path), f"rasmai-linking-{clip}.mp4"),
-                    ephemeral=True)
-            except discord.HTTPException as error:
-                logger.info("walkthrough could not be sent: %s", error)
-                await interaction.followup.send(
-                    f"That would not upload here. The same walkthrough is at {get_public_base_url()}/link/",
-                    ephemeral=True)
-        return callback
 
     async def on_timeout(self) -> None:
         for item in self.children:

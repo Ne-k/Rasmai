@@ -902,7 +902,7 @@
         "c01": {
           "c01_login": {
             "name": "/login",
-            "what": "maimai アカウントを連携します。届いたリンクから maimaiでらっくすNET にログインし、ボタンを1回押すだけ。約1分で、最初に1回やれば済みます。ほかのコマンドを使う前に必要です。海外版アカウントはブックマークで連携し、日本版アカウントは <code>/login region:Japan</code> を実行して SEGA ID でログインします。スコアが Kamaitachi にある場合は、<code>/login region:Kamaitachi username:ユーザー名</code> を実行してください。中国版のアカウントはまだ連携できません。"
+            "what": "maimai アカウントを連携します。届いたリンクから maimaiでらっくすNET にログインし、ボタンを1回押すだけ。約1分で、最初に1回やれば済みます。ほかのコマンドを使う前に必要です。海外版アカウントはパソコンで Aime ゲートウェイの値を1つ貼り付けて連携し、日本版アカウントは <code>/login region:Japan</code> を実行して SEGA ID でログインします。スコアが Kamaitachi にある場合は、<code>/login region:Kamaitachi username:ユーザー名</code> を実行してください。中国版のアカウントはまだ連携できません。"
           },
           "c02_help": {
             "name": "/help",
@@ -1247,12 +1247,12 @@
     "maintenance": {
       "detail": "Aime へのログインはできましたが、maimaiでらっくすNET のスコアサイトが現在停止しているため、まだセッションを確認できません。",
       "headline": "maimaiでらっくすNET が<em>停止中です</em>",
-      "hint": "ログインリンクはまだ使えます。サーバーが復旧したら、もう一度ブックマークを押してください。復旧予定は上部の帯に表示されます。"
+      "hint": "ログインリンクはまだ使えます。サーバーが復旧したら、もう一度値を貼り付けてください。復旧予定は上部の帯に表示されます。"
     },
     "no_login": {
       "detail": "SEGA のゲートウェイにまだログインしていないか、ログインが保持されていない可能性があります。",
       "headline": "セッションを<em>読み取れませんでした</em>",
-      "hint": "ゲートウェイからログアウトして再度ログインし、もう一度ブックマークを押してください。日本版アカウントは SEGA ID で連携します：Discord で /login region:Japan を実行してください。"
+      "hint": "自動ログインにチェックを入れてゲートウェイに再度ログインし、値をもう一度コピーして貼り付けてください。日本版アカウントは SEGA ID で連携します：Discord で /login region:Japan を実行してください。"
     },
     "rate_limited": {
       "detail": "お使いの接続からのログインを数分間停止しています。",
@@ -1270,14 +1270,14 @@
       "hint": "Discord で /login を実行して、最初からやり直してください。"
     },
     "upstream": {
-      "detail": "ログイン情報は正しく読み取れましたが、maimai のサイトに拒否されました。",
+      "detail": "値は正しく読み取れましたが、maimai のサイトに拒否されました。",
       "headline": "maimai に<em>拒否されました</em>",
-      "hint": "途中でセッションが切れた可能性があります。ログインリンクはまだ使えるので、ゲートウェイに再度ログインしてブックマークを押してください。"
+      "hint": "期限が切れた可能性があります。ログインリンクはまだ使えるので、自動ログインにチェックを入れてゲートウェイに再度ログインし、新しい値をコピーして貼り付けてください。"
     },
     "verify": {
       "detail": "ログインの前に、連携ページで人間であることの確認を完了する必要があります。",
       "headline": "確認が<em>済んでいません</em>",
-      "hint": "連携ページに戻って確認を完了し、もう一度ブックマークを押してください。"
+      "hint": "連携ページに戻って確認を完了し、もう一度値を貼り付けてください。"
     }
   },
   "feedback": {
@@ -1458,7 +1458,7 @@
       }
     },
     "lede": "Rasmai は maimaiでらっくすNET のスコアを読み取り、レーティングを上げるために遊ぶべき譜面を教えてくれます。結果は Discord の画像やWebダッシュボードで確認でき、遊ぶ前にどんな譜面の配置かも調べられます。",
-    "linking": "Discord で <code>/login</code> を実行し、表示されたリンクを開きます。海外版アカウントは my-aime.net でログインして Aime 認証を開き、ブックマークを1回押すだけ。Rasmai が受け取るのはスコアを読むためのセッションだけで、パスワードは見ません。日本版アカウントは次のページで SEGA ID とパスワードを入力して連携し、暗号化して保存します。<code>/delete-account</code> で Rasmai が持つあなたのデータをすべて削除できます。",
+    "linking": "Discord で <code>/login</code> を実行し、表示されたリンクを開きます。海外版アカウントは SEGA の Aime ゲートウェイにログインし、ブラウザの開発者ツールからログイン用の Cookie をコピーして次のページに貼り付けます。Rasmai が受け取るのはその値だけで、パスワードは見ません。日本版アカウントは次のページで SEGA ID とパスワードを入力して連携し、暗号化して保存します。<code>/delete-account</code> で Rasmai が持つあなたのデータをすべて削除できます。",
     "linkingButton": "連携のしくみ →",
     "linkingTitle": "アカウントの連携",
     "metaTitle": "Discord で使える maimai DX レーティングbot",
@@ -1470,66 +1470,33 @@
   },
   "link": {
     "metaTitle": "maimai アカウントを連携する",
-    "metaDescription": "maimaiでらっくすNET のアカウントを Rasmai に連携する方法（パソコン・iPhone、動画つき）。",
+    "metaDescription": "maimaiでらっくすNET のアカウントを Rasmai に連携する手順。",
     "title": "<em>maimai</em> アカウントを連携しよう。",
     "lede": "連携すると、Rasmai があなたのスコアを確認し、レーティングを上げるために遊ぶべき譜面を教えてくれます。",
-    "videoTitle": "まずは動画をどうぞ",
-    "videoBody": "お使いの端末を選んでください。音声なしの約1分の動画です。",
     "step1Title": "リンクを取得する",
     "step1": "Discord で <code>/login</code> を実行します。ログインコードが入った、あなた専用のこのサイトへのリンクが届きます。",
-    "step2Title": "my-aime にログインして認証する",
-    "step2": "普段遊んでいるアカウントで <aime>my-aime.net</aime> にログインし、設定ページから Aime 認証を開きます。するとゲートウェイのページに移ります。",
+    "step2Title": "ゲートウェイにログインして、値を1つコピー",
+    "step2": "セットアップページから SEGA の Aime ゲートウェイに自動ログインありでログインし、ブラウザの開発者ツールで <code>clal</code> という Cookie をコピーして貼り付けます。場所はページが案内します。スマホのブラウザでは Cookie を表示できないので、パソコンで行ってください。",
     "step3Title": "さあ、詰めよう",
     "step3": "Discord に戻って <code>/analyze</code> で遊ぶ譜面を確認するか、<code>/plan</code> で次の1000までの計画を立てましょう。",
-    "japan": "<b>日本版のアカウントですか？</b> その場合は <code>/login region:Japan</code> を実行してください。リンク先のページで maimaidx.jp の SEGA ID とパスワードを入力するだけなので、手順2と動画は不要です。",
+    "japan": "<b>日本版アカウントの場合</b> 代わりに <code>/login region:Japan</code> を実行してください。開いたページで maimaidx.jp の SEGA ID とパスワードを入力するので、手順2は不要です。",
     "kamaitachi": "<b>スコアが Kamaitachi にありますか？</b> <code>/login region:Kamaitachi username:ユーザー名</code> を実行するか、<dash>ダッシュボード</dash>で Kamaitachi を選んでください。maimai へのログインは不要なので、上の手順は飛ばせます。",
     "already": "<b>連携済みですか？</b> スコアはWebでも見られます。<dash>ダッシュボードを開いて</dash> Discord でログインしてください。"
-  },
-  "walkthrough": {
-    "desktop": "パソコン",
-    "desktopNote": "Chrome・Edge・Firefox のどれでも同じ手順です。",
-    "ios": "iPhone",
-    "iosNote": "iOS の Safari です。Android の Chrome でも同じ手順です。",
-    "videoLabel": "{device}：連携の全手順",
-    "tabs": "連携に使う端末"
   },
   "flow": {
     "aimeCard": "Aime カード",
     "aimeHint": "1つの SEGA ID には複数の Aime カード（それぞれ別のプレイヤー）を登録できます。複数ない場合は 1 のままで構いません。",
-    "android": {
-      "step1": "<b>⋮</b> → <b>☆</b> をタップして、このページをブックマークします。",
-      "step2": "<b>⋮</b> → <b>ブックマーク</b> を開き、作ったブックマークの <b>⋮</b> → <b>編集</b> をタップします。",
-      "step3": "名前を <b>maimai connect</b> にし、<b>URL</b> をコピーした内容に置き換えて、戻って保存します。"
-    },
-    "authButton": "2・Aime 認証を開く →",
     "backInDiscord": "Discord に戻って",
     "backToLink": "ログインリンクに戻る",
     "checkFailed": "確認に失敗しました。ページを再読み込みしてもう一度お試しください。",
-    "checkLede": "人間であることの確認を完了すると、リンクと連携用ブックマークが表示されます。",
+    "checkLede": "人間であることの確認を完了すると、ログインの手順が表示されます。",
     "checkLedeJapan": "人間であることの確認を完了すると、ログインフォームが表示されます。",
     "checkTitle": "簡単な<em>確認</em>をお願いします。",
     "checkWhy": "<b>なぜ必要？</b> 次の画面で Rasmai は{japan, select, true { maimaidx.jp のログイン情報} other { maimai のセッション}}を受け取ります。この確認は bot による悪用を防ぐためのものです。",
     "closeTab": "このタブは閉じて構いません。",
     "connected": "連携しました。",
     "connectedAs": "{name} として連携しました。",
-    "copied": "✓ コピーしました",
-    "copiedHint": "コピーしました。ブックマークのアドレスとして貼り付けてください。",
-    "copyCode": "ブックマーク用コードをコピー",
-    "copyInstead": "代わりにコピー",
-    "device": "お使いの端末",
-    "devices": {
-      "android": "Android",
-      "desktop": "パソコン",
-      "ios": "iPhone / iPad"
-    },
-    "drag": "ピンクのボタンをつかんで、ブラウザのブックマークバーにドロップしてください。バーが表示されていない場合は、先に <code>Ctrl+Shift+B</code>（Mac は <code>⌘+Shift+B</code>）を押してください。",
-    "dragTitle": "これをブックマークバーにドラッグ",
     "failed": "ログインできませんでした。少し待ってからもう一度お試しください。",
-    "ios": {
-      "step1": "<b>共有</b> <glyph>⎙</glyph> → <b>ブックマークを追加</b> → <b>保存</b> の順にタップ。名前は <b>maimai connect</b> にします。",
-      "step2": "<b>ブックマーク</b> <glyph>📖</glyph> → <b>編集</b> を開き、作ったブックマークをタップします。",
-      "step3": "<b>アドレス</b>をコピーした内容に置き換えて → <b>完了</b>。"
-    },
     "jpLede": "maimaidx.jp には海外版のように借りられるログインがないため、Rasmai はスコアを読むたびにあなたの SEGA ID でログインします。",
     "jpStep": "<jp>maimaidx.jp</jp> で使っている SEGA ID とパスワードを入力してください。",
     "jpStepTitle": "maimaidx.jp のログイン情報",
@@ -1537,13 +1504,9 @@
     "keeps": "<b>Rasmai が保存するもの。</b> SEGA ID とパスワードは暗号化してから保存し、maimaidx.jp へのログインとスコアの読み取りにだけ使います。<code>/logout</code> または <code>/delete-account</code> を実行すると削除されます。パスワードを変更した場合は、もう一度 <code>/login</code> を実行してください。",
     "labelRegion": "地域",
     "labelValidUntil": "有効期限",
-    "ledeDesktop": "このタブは開いたままにしてください。連携が完了すると更新されます。",
-    "ledeMobile": "ブックマークを用意して my-aime にログインし、Aime 認証を開いたら、そのページでブックマークを実行します。連携が完了するとこのページが更新されます。",
     "linkedGeneric": "maimai アカウントが Discord アカウントに連携されました。",
     "linkedTitle": "<em>連携</em>できました。",
     "loading": "読み込み中…",
-    "makeBody": "ブックマーク用のコードをコピーして、次の手順でブックマークとして保存してください。",
-    "makeTitle": "連携用ブックマークを作る",
     "neverSeesPassword": "Rasmai はパスワードを見ません",
     "nextCommands": {
       "analyze": "伸びが大きい順に、詰めるべき譜面",
@@ -1559,27 +1522,37 @@
     "rating": "レーティング",
     "remember": "次回のためにログイン情報を保存",
     "rememberHint": "SEGA ID とカード番号をこの端末にだけ保存します。パスワードはここには保存されません（ブラウザの保存機能は使えます）。",
-    "runAndroid": "ゲートウェイのページを開いたら、<b>アドレスバー</b>をタップして <b>maimai connect</b> と入力し、候補からブックマークを選びます。Chrome ではアドレスバーにコードを貼り付けても動きません。その後このタブに戻ってきてください。",
-    "runDesktop": "ゲートウェイのページを開いたら、<b>maimai connect</b> ブックマークをクリックします。完了するとこのページが更新されます。",
-    "runIos": "ゲートウェイのページを開いたら、<b>ブックマーク</b> <glyph>📖</glyph> を開いて <b>maimai connect</b> をタップし、このタブに戻ってきてください。",
-    "runTitle": "AIME のページでブックマークを実行",
     "segaId": "SEGA ID",
     "segaIdEncrypted": "SEGA ID は暗号化して保存されます",
     "signedInAs": "<b>{name}</b> としてログインしました。Rasmai がスコアを確認できるようになりました。",
-    "signIn": "まず、普段遊んでいるアカウントで my-aime.net にログインします{mobile, select, true {} other {（新しいタブで開きます）}}。次に Aime 認証を開くと、ゲートウェイのページに移ります。",
     "signInAndLink": "ログインして連携",
-    "signInButton": "1・my-aime にログイン →",
     "signingIn": "ログイン中…",
     "signingInJp": "maimaidx.jp にログインしています…",
-    "signInTitle": "my-aime にログインして認証する",
-    "stopped": "確認を停止しました。待ち続けるにはページを再読み込みしてください。",
-    "stuck": "<b>うまくいかない？</b> ブックマークが「ログインを読み取れない」と表示する場合は、ゲートウェイからログアウトして再度ログインし、もう一度実行してください。リンクの期限が切れた場合は、Discord で <code>/login</code> を実行して新しいリンクを取得してください。このブックマークは海外版アカウント用です。日本版アカウントは SEGA ID で連携します：<code>/login region:Japan</code> を実行してください。中国版のアカウントはまだ連携できません。",
-    "titleDesktop": "<em>ブックマーク</em>をドラッグして、ログインしよう。",
-    "titleMobile": "<em>ブックマーク</em>を用意して、ログインしよう。",
     "unreachableJp": "現在 maimaidx.jp に接続できませんでした。数分後にもう一度お試しください。ログインリンクはまだ使えます。",
     "usingBot": "bot も使うなら、Discord でこちらも",
     "validUntil": "リンクの有効期限 {time}",
-    "waiting": "ログインを待っています…"
+    "waiting": "ログインを待っています…",
+    "titleIntl": "ログインして、値を1つ<em>貼り付け</em>。",
+    "ledeIntl": "SEGA がゲートウェイを変更し、ブックマークからログイン情報を読めなくなりました。そのため自分でコピーします。パソコンで1分ほどです。Rasmai がパスワードを見ないのは変わりません。",
+    "gwTitle": "Aime ゲートウェイにログイン",
+    "gwBody": "普段遊んでいるアカウントでログインし、<b>自動ログイン</b>にチェックを入れたままにしてください。それが次にコピーする値を作ります。うまくいくと maimaiでらっくすNET に移ります。",
+    "gwButton": "1・ゲートウェイにログイン →",
+    "copyTitle": "ログインの値をコピー",
+    "copyBody": "下のゲートウェイのページを開き（<em>Not found</em> と出ますが問題ありません）、ブラウザの開発者ツールで <code>clal</code> という Cookie を探します。",
+    "gwPageButton": "2・ゲートウェイのページを開く →",
+    "copyChrome": "<b>Chrome・Edge：</b> <code>F12</code>（Mac は <code>⌥⌘I</code>）→ <b>Application</b> タブ → <b>Cookies</b> → <code>https://lng-tgk-aime-gw.am-all.net</code> → <code>clal</code> の行をクリック → 下の欄の値をダブルクリックしてコピー。",
+    "copyFirefox": "<b>Firefox：</b> <code>F12</code> → <b>ストレージ</b> → <b>Cookie</b> → 同じ行。<b>Safari：</b> 設定 → 詳細 で「開発」メニューを表示し、<b>開発</b> → <b>Web インスペクタを表示</b> → <b>ストレージ</b> → <b>Cookie</b>。",
+    "pasteTitle": "ここに貼り付け",
+    "pasteLabel": "clal の値",
+    "pasteHint": "英数字64文字です。ブラウザのほかの情報は送られません。",
+    "pasteBad": "値の形が違うようです。スペースなしの英数字64文字です。<code>clal</code> の行の値をもう一度コピーしてください。",
+    "linkButton": "アカウントを連携",
+    "linking": "ログインを確認中…",
+    "refusedIntl": "maimai がこの値を受け付けませんでした。ゲートウェイからログアウトし、自動ログインにチェックを入れて再度ログインしてから、新しい値をコピーしてください。ログインリンクはまだ使えます。",
+    "unreachableIntl": "現在 maimaiでらっくすNET に接続できませんでした。数分後にもう一度お試しください。ログインリンクはまだ使えます。",
+    "phones": "<b>スマホの場合</b> スマホのブラウザでは Cookie を表示できないため、一度パソコンで行ってください。ログインリンクはパソコンでも開けます。",
+    "keepsIntl": "<b>Rasmai が保存するもの。</b> この値だけを暗号化して保存します。SEGA 側で期限が切れるまでスコアの読み取りに使い、<code>/logout</code> または <code>/delete-account</code> を実行すると削除されます。パスワードが SEGA の外に出ることはありません。",
+    "stuckIntl": "<b>うまくいかない？</b> リンクの期限が切れた場合は、Discord で <code>/login</code> を実行して新しいリンクを取得してください。日本版アカウントは SEGA ID で連携します：<code>/login region:Japan</code> を実行してください。中国版のアカウントはまだ連携できません。"
   },
   "welcome": {
     "agree": "プライバシーポリシーと利用規約を読み、同意します",
@@ -1657,7 +1630,7 @@
     "title": "<em>利用</em>規約。"
   },
   "notFound": {
-    "bookmark": "<b>ブックマークから来ましたか？</b> 連携リンクは1回限りで、有効期限は約10分です。ブックマークはこのサイトではなく、SEGA のゲートウェイのページで実行してください。",
+    "bookmark": "<b>以前の連携用ブックマークから来ましたか？</b> SEGA がログイン情報を読めなくしたため、もう動きません。Discord で <code>/login</code> を実行し、連携ページの手順に従ってください。",
     "dashboard": "Discord でログインして<dash>ダッシュボード</dash>へ。",
     "foot": "404・何も保存されていません",
     "home": "<home>ホーム</home>：Rasmai でできることと追加方法。",
@@ -1710,13 +1683,13 @@
     "providerGoogle": "Google",
     "region": "地域",
     "regionIntl": "海外版",
-    "regionIntlHow": "my-aime.net にログインして、ブックマークを押すだけ。約1分。",
+    "regionIntlHow": "Aime ゲートウェイにログインして、値を1つ貼り付けるだけ。パソコンで約1分。",
     "regionJp": "日本版",
     "regionJpHow": "SEGA ID を一度入力するだけ。暗号化して保存します。",
     "regionKamai": "Kamaitachi",
     "regionKamaiHow": "Kamaitachi のユーザー名を入力するだけ。maimai へのログインは不要です。",
     "kamaiUpgrade": "スコアは Kamaitachi から読み込んでいます。maimai を連携すると、実際のレーティング、最近のプレイ、エリアが見られます。スコアはそのまま残ります。",
-    "regionNote": "海外版は my-aime.net にログインして、ブックマークを押します。日本版は SEGA ID を一度入力するだけで、暗号化して保存されます。",
+    "regionNote": "海外版は Aime ゲートウェイにログインして、ブラウザから値を1つ貼り付けます。日本版は SEGA ID を一度入力するだけで、暗号化して保存されます。",
     "setupLede": "アカウントができました。地域を選んで、maimai アカウントを連携してください。約1分で終わります。",
     "setupStep": "ステップ 2 / 2",
     "setupTitle": "あと<em>ひとつ</em>。",
