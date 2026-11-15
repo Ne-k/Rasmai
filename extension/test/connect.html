@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>stand-in connect page</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+</head><body>
+<!--FORM--><form data-aime-link="token" action="/api/login" method="post" hidden><input type="hidden" name="code" value="test"><input type="hidden" name="user" value="someone"></form><!--/FORM-->
+<!--FIELD--><div id="root"></div><!--/FIELD-->
+<script>
+const root = document.getElementById("root");
+if (root) {
+  const { useState, createElement: h } = React;
+  function Form() {
+    const [value, setValue] = useState("");
+    const token = value.trim().replace(/^clal=/, "");
+    const valid = /^[A-Za-z0-9]{64}$/.test(token);
+    return h("form", null,
+      h("input", { name: "clal", value, onChange: (e) => setValue(e.target.value) }),
+      h("span", { id: "state" }, valid ? "valid:" + token.length : "invalid:" + value.length));
+  }
+  ReactDOM.createRoot(root).render(h(Form));
+}
+</script></body></html>
