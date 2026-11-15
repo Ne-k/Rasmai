@@ -157,6 +157,8 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [player, setPlayer] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState<"" | "copied" | "shown">("");
+  const helperLink = typeof window === "undefined" ? "" : `${window.location.origin}/api/link/${code}.${user}`;
   // the whole row copied, "clal=…", is as good as the value alone
   const token = value.trim().replace(/^clal=/, "");
   const valid = /^[A-Za-z0-9]{64}$/.test(token);
@@ -286,6 +288,19 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
         </div>
       </section>
 
+      {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
+      <div className="aside">
+        {t.rich("helper", tags)}{" "}
+        <button
+          type="button"
+          className="linkish"
+          onClick={() => navigator.clipboard.writeText(helperLink).then(() => setLinkCopied("copied"), () => setLinkCopied("shown"))}
+        >
+          {linkCopied === "copied" ? t("helperCopied") : t("helperCopy")}
+        </button>
+        {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
+        {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
+      </div>
       <div className="aside">{t.rich("phones", tags)}</div>
       <div className="aside">{t.rich("keepsIntl", tags)}</div>
       <div className="aside">{t.rich("stuckIntl", tags)}</div>

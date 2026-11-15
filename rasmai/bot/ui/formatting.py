@@ -306,6 +306,12 @@ def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> di
             ),
             inline=False,
         )
+        if login_info.get("helperLink"):
+            embed.add_field(
+                name="Have the Aime sign-in helper extension?",
+                value=f"Paste this link into it instead of steps 3 and 4. Pass the check on the setup page first.\n||`{login_info['helperLink']}`||",
+                inline=False,
+            )
     embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)
     embed.add_field(name="Link expires", value=expires, inline=True)
     embed.set_footer(text="This card updates itself once you are connected")

@@ -1552,7 +1552,10 @@
     "unreachableIntl": "Rasmai couldn't reach maimai DX NET just now. Try again in a few minutes. Your login link still works.",
     "phones": "<b>On a phone?</b> Phone browsers can't show cookies, so do this once on a computer: your login link opens there too.",
     "keepsIntl": "<b>What Rasmai keeps.</b> Only this value, encrypted. It lets Rasmai read your scores until SEGA expires it, and it's deleted when you run <code>/logout</code> or <code>/delete-account</code>. Your password never leaves SEGA.",
-    "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> in Discord for a new one. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet."
+    "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> in Discord for a new one. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet.",
+    "helper": "<b>Have the Aime sign-in helper extension?</b> Copy your link, paste it into the extension and press its button. That replaces steps 2 and 3.",
+    "helperCopy": "copy my link",
+    "helperCopied": "✓ copied"
   },
   "welcome": {
     "agree": "I have read the privacy policy and terms and agree to them",

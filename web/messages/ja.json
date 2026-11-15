@@ -1552,7 +1552,10 @@
     "unreachableIntl": "現在 maimaiでらっくすNET に接続できませんでした。数分後にもう一度お試しください。ログインリンクはまだ使えます。",
     "phones": "<b>スマホの場合</b> スマホのブラウザでは Cookie を表示できないため、一度パソコンで行ってください。ログインリンクはパソコンでも開けます。",
     "keepsIntl": "<b>Rasmai が保存するもの。</b> この値だけを暗号化して保存します。SEGA 側で期限が切れるまでスコアの読み取りに使い、<code>/logout</code> または <code>/delete-account</code> を実行すると削除されます。パスワードが SEGA の外に出ることはありません。",
-    "stuckIntl": "<b>うまくいかない？</b> リンクの期限が切れた場合は、Discord で <code>/login</code> を実行して新しいリンクを取得してください。日本版アカウントは SEGA ID で連携します：<code>/login region:Japan</code> を実行してください。中国版のアカウントはまだ連携できません。"
+    "stuckIntl": "<b>うまくいかない？</b> リンクの期限が切れた場合は、Discord で <code>/login</code> を実行して新しいリンクを取得してください。日本版アカウントは SEGA ID で連携します：<code>/login region:Japan</code> を実行してください。中国版のアカウントはまだ連携できません。",
+    "helper": "<b>Aime sign-in helper 拡張機能をお使いですか？</b> リンクをコピーして拡張機能に貼り付け、ボタンを押してください。手順2と3の代わりになります。",
+    "helperCopy": "リンクをコピー",
+    "helperCopied": "✓ コピーしました"
   },
   "welcome": {
     "agree": "プライバシーポリシーと利用規約を読み、同意します",

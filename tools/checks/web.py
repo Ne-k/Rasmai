@@ -1295,6 +1295,7 @@ def _seam_fails_closed():
 def _regions():
     import json as jsonlib
     import pathlib
+    import re
     import tempfile
     import threading
     import urllib.error
@@ -1303,11 +1304,13 @@ def _regions():
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     from rasmai import config
+    from rasmai.bot.ui.formatting import build_login_walkthrough_embed
     from rasmai.config import SUPPORTED_REGIONS, region_supported, unsupported_region_text
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
     from rasmai.security import create_opaque_user_id, decrypt_token, encrypt_token, read_sega_id_token
     from rasmai.storage.db import connection as store
     from rasmai.web import web_server
+    from rasmai.web.links import build_login_link_payload
 
     problems = []
     if SUPPORTED_REGIONS != ("intl", "jp") or not region_supported("jp") or region_supported("cn"):
@@ -1439,6 +1442,19 @@ def _regions():
         status, body = ask(f"/internal/connect-info?code={code}&user={opaque}")
         if status != 200 or "lng-tgk-aime-gw.am-all.net/common_auth/login?" not in str(body.get("loginLink")) or body.get("method") != "cookie":
             problems.append(f"an International code no longer gets the gateway sign-in link and the paste step: {status} {body}")
+        # the helper extension's link is this same code and signed id, in the shape web/app/api/link/[key]/route.ts accepts
+        intl_info, jp_info = build_login_link_payload(opaque, code, "intl"), build_login_link_payload(opaque, code, "jp")
+        helper = intl_info["helperLink"]
+        route_key = re.search(r"const KEY = /(.+)/;", (ROOT / "web" / "app" / "api" / "link" / "[key]" / "route.ts").read_text(encoding="utf-8"))
+        if not helper.endswith(f"/api/link/{code}.{opaque}") or not route_key or not re.search(route_key.group(1), helper.rsplit("/", 1)[-1]):
+            problems.append(f"an International code's helper link is not one the site's /api/link route accepts: {helper}")
+        if jp_info["helperLink"] != "":
+            problems.append(f"a Japan code was given a helper link, though it has no cookie to hand over: {jp_info['helperLink']}")
+        if not any(f"`{helper}`" in str(field.value) for field in build_login_walkthrough_embed("intl", intl_info).fields):
+            problems.append("the International /login card does not carry the helper link in a field")
+        # the Japan card stays without it even when handed a payload that has one
+        if any("/api/link/" in str(field.value) for field in build_login_walkthrough_embed("jp", intl_info).fields):
+            problems.append("the Japan /login card carries a helper link")
         # the value pasted with its label, or with spaces around it, is the value
         status, body = ask("/internal/login", {"code": code, "user": opaque, "token": " clal=" + "b" * 64 + " "})
         if status == 400 and body.get("kind") == "no_login":
