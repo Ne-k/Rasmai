@@ -1116,6 +1116,16 @@
           "i05": "<b>Page counts.</b> Cloudflare Web Analytics, a script Cloudflare adds to each page, counts page views and load times by page, country and browser. It sets no cookie and keeps no ID for you, and is covered by <cloudflare>Cloudflare's privacy policy</cloudflare>. There is no advertising and no other third-party script."
         }
       },
+      "extension": {
+        "title": "The Aime sign-in helper extension",
+        "p01": "Aime sign-in helper is an optional browser extension for Chrome, Edge and Firefox. It links an International account without you opening your browser's developer tools. You don't need it to use Rasmai.",
+        "u01": {
+          "i01": "<b>What it reads.</b> One cookie, <code>clal</code>, from SEGA's sign-in site (lng-tgk-aime-gw.am-all.net). That's the same session key described above. It reads nothing else from your browser.",
+          "i02": "<b>Where it goes.</b> Only where you send it, and only when you click: into the box on the page you're on, to a link your bot gave you, or to your clipboard. If you send it to Rasmai, Rasmai keeps it exactly like one you pasted, as described above.",
+          "i03": "<b>What it keeps.</b> Nothing. It has no server of its own, doesn't run in the background, and has no analytics.",
+          "i04": "<b>Other bots.</b> The extension works with other bots too. What a bot other than Rasmai does with your sign-in is up to that bot and its own policy."
+        }
+      },
       "notStored": {
         "title": "What is not stored",
         "u01": {

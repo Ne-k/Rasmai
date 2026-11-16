@@ -21,6 +21,7 @@ const PAGES = {
     stored: ["p01", "u01", "p02"],
     profile: ["p01"],
     website: ["u01"],
+    extension: ["p01", "u01"],
     notStored: ["u01"],
     whoElse: ["u01"],
     kept: ["p01", "u01", "p02"],
