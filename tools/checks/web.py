@@ -403,6 +403,21 @@ def _dev_panel():
             problems.append(f"the panel has {len(view.children)} controls, not 11")
         if "Force read news" not in [getattr(c, "label", "") for c in view.children]:
             problems.append("the panel has no Force read news button")
+        # pressed, not only drawn: the button reaches the bot's one news loop and says what it did
+        drawn, woken = [], []
+        kept_redraw, kept_read_now = dev.DevView.redraw, core.news_watch.read_now
+
+        async def redraw(self, interaction, note=""):
+            drawn.append(note)
+        dev.DevView.redraw, core.news_watch.read_now = redraw, lambda: woken.append(1) or True
+        try:
+            asyncio.run(next(c for c in view.children if getattr(c, "label", "") == "Force read news").callback(None))
+        except Exception as error:
+            drawn.append(f"{type(error).__name__}: {error}")
+        finally:
+            dev.DevView.redraw, core.news_watch.read_now = kept_redraw, kept_read_now
+        if woken != [1] or not drawn or "being read now" not in drawn[0]:
+            problems.append(f"pressing Force read news did not wake the news loop and say so: {drawn}")
         options = [(o.value, o.default) for o in view.switches.options]
         if options != [(name, name == "news") for name in dev.switchable()]:
             problems.append(f"the select does not list the switchable commands with the off ones marked: {options}")

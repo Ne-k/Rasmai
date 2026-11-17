@@ -148,9 +148,8 @@ class DevView(OwnerOnlyView):
     @discord.ui.button(label="Force read news", row=0)
     async def read_news(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         self.armed = ""
-        from rasmai.bot.tasks.news import news_watch
         await self.redraw(interaction, "Every followed X account is being read now, one after another, and any new post goes out as usual. "
-                                       "Bluesky needs no push: its posts arrive as they are made." if news_watch.read_now() else
+                                       "Bluesky needs no push: its posts arrive as they are made." if core.news_watch.read_now() else
                           "The X news loop is not running, so nothing was read. A restart starts it again.")
 
     @discord.ui.button(label="Restart bot", style=discord.ButtonStyle.danger, row=0)
