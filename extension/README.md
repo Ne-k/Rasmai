@@ -13,7 +13,7 @@ Pick whichever fits your site. The person always sees which host gets the sign-i
 
 ### 0. Do nothing
 
-On a page that declares nothing, the button copies the cookie to the clipboard, and a second "Copy sign-in" button does the same
+On a page that declares nothing, the button copies the cookie to the clipboard, and a second "Copy" button does the same
 from any tab. If your site has a paste box, it already works.
 
 ### 1. Mark your input: the button fills it
@@ -44,8 +44,8 @@ unguessable, short-lived, single-use code that says whose account to link, becau
 
 ```
 GET  https://your.site/any/path/<code>
-     200 { "aimeLink": 1, "site": "Your bot", "ready": true }
-     not ready yet (say, a check to pass first): { "aimeLink": 1, "site": "Your bot", "ready": false, "wait": "what to do" }
+     200 { "aimeLink": 1, "ready": true }
+     not ready yet (say, a check to pass first): { "aimeLink": 1, "ready": false, "wait": "what to do" }
      anything else, or no "aimeLink": 1: not a link. { "error": "words for the person" } is shown if present.
 
 POST https://your.site/any/path/<code>      Content-Type: application/x-www-form-urlencoded      body: clal=<64 letters and digits>
@@ -69,7 +69,7 @@ def aime_link(code):
     if who is None:
         body, status = {"error": "That link has expired. Ask the bot for a new one."}, 404
     elif request.method == "GET":
-        body, status = {"aimeLink": 1, "site": "My bot", "ready": True}, 200
+        body, status = {"aimeLink": 1, "ready": True}, 200
     else:
         clal = request.form.get("clal", "")
         if not re.fullmatch(r"[A-Za-z0-9]{64}", clal):

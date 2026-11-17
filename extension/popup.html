@@ -6,73 +6,94 @@
 <style>
   :root {
     --canvas: #f9f9f9; --ink: #000; --quiet: #595959;
-    --blue: #0082fa;
     --blue-text: #0074e0;
     --rule: #bfbfbf; --head: #ededed; --dots: #d0d0d0;
-    --empty: #fff4cd; --wrong: #ffcece; --wrong-edge: #f12222; --badge: #d80860;
+    --empty: #fff4cd; --wrong: #ffcece; --wrong-edge: #f12222; --badge: #d80860; --done: #13803a;
   }
-  body { width: 280px; margin: 0; padding: 14px 14px 16px; background: var(--canvas); color: var(--ink);
+  body { width: 260px; margin: 0; padding: 12px 12px 14px; background: var(--canvas); color: var(--ink);
          font: 14px/1.5 "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; -webkit-font-smoothing: antialiased; }
   p { margin: 0; }
 
-  #card { position: relative; background: #fff; border: 2px solid var(--head); border-radius: 10px; transition: transform .24s ease-out; }
-  #card header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; background: var(--head); font-weight: 700; }
+  #card { background: #fff; border: 2px solid var(--head); border-radius: 10px; }
+  #card header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; font-weight: 700; }
   #badge { padding: 1px 7px; border-radius: 3px; font-size: 12px; font-weight: 700; color: #fff; background: #6b6b6b; white-space: nowrap; }
   #card[data-state="found"] #badge { background: var(--badge); }
   #card[data-state="sent"] #badge { background: var(--blue-text); }
   #card[data-state="unknown"] #badge { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
-  #code { padding: 10px 10px 2px; font: 15px/1.2 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 1px; white-space: nowrap; }
-  #card:not([data-state="found"]):not([data-state="sent"]) #code { color: var(--rule); }
-  #until { padding: 0 10px 12px; font-size: 12px; color: var(--quiet); }
-  #until a { color: #0000ff; }
-  #card::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; margin-left: -7px; background: #fff;
-                 border: solid var(--head); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-  #card[data-state="sent"] { transform: translateY(6px); }
+  #until { padding: 0 10px 8px; font-size: 13px; }
+  #until:empty { display: none; }
+  a { color: #0000ff; }
 
-  #goes { margin: 20px 0 0; padding-left: 12px; position: relative; font-size: 12px; color: var(--quiet); }
-  #goes::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 5px; border-radius: 10px; background: var(--blue); }
-  #dest { display: block; font-size: 20px; line-height: 1.2; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
-  #lead { margin: 8px 0 12px; font-size: 13px; }
+  #goes { margin: 14px 0 0; font-size: 12px; color: var(--quiet); }
+  #goes[hidden] { display: none; }
+  #dest { display: block; font-size: 16px; line-height: 1.3; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+  #lead { margin-top: 6px; font-size: 13px; }
+  #lead:empty { display: none; }
 
-  #go { display: block; width: 100%; padding: 11px 0; border: 1px solid var(--blue-text); border-radius: 250px; background: var(--blue-text);
-        color: #fff; font: inherit; font-weight: 700; line-height: 1.3; cursor: pointer; }
+  #go, #copy { display: block; width: 100%; border-radius: 250px; font: inherit; font-weight: 700; line-height: 1.3; cursor: pointer; }
+  #act { position: relative; margin-top: 10px; }
+  #go { padding: 10px 0; border: 1px solid var(--blue-text); background: var(--blue-text); color: #fff; }
   #go:hover:enabled { background: #fff; color: var(--blue-text); }
-  #go:focus-visible, #copy:focus-visible, #link:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-  #go:disabled, #copy:disabled { opacity: .45; cursor: default; }
-  #copy { display: block; width: 100%; margin-top: 8px; padding: 9px 0; border: 2px solid var(--rule); border-radius: 250px; background: #fff;
-          color: var(--ink); font: inherit; font-weight: 700; line-height: 1.3; cursor: pointer; }
+  #go[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
+  #go[data-done], #go[data-done]:disabled { opacity: 1; border-color: var(--done); background: var(--done); color: #fff; }
+
+  @property --arc-start { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @property --arc-end { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @property --dash { syntax: "*"; inherits: false; initial-value: , dash 3s ease-in-out infinite; }
+  #spin[hidden] { display: none; }
+  #spin::-webkit-progress-bar, #spin::-webkit-progress-value { display: none; background: none; }
+  #spin::-moz-progress-bar { display: none; background: none; }
+  #spin:indeterminate {
+    --from: calc(90deg + var(--arc-start, 0deg)); --to: calc(90deg + var(--arc-end, 158deg));
+    --ring: #fff; --track: rgb(255 255 255 / .35); --turn: 1.2s;
+    position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; margin: -9px 0 0; border-radius: 50%; appearance: none;
+    background: conic-gradient(from var(--from), var(--ring) calc(var(--to) - var(--from)), transparent 0) var(--track);
+    mask-image: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: spin var(--turn) linear infinite var(--dash, );
+  }
+  @keyframes spin { to { rotate: 1turn; } }
+  @keyframes dash { from { --arc-start: 0deg; --arc-end: 3deg; } 50% { --arc-start: 100deg; --arc-end: 358deg; } to { --arc-start: 360deg; --arc-end: 363deg; } }
+  #card[data-state="sent"] #badge { animation: pop .35s ease-out; }
+  @keyframes pop { 40% { scale: 1.25; } }
+  @media (prefers-reduced-motion: reduce) {
+    #spin:indeterminate { --turn: 6s; --dash: ; --arc-end: 158deg; }
+    #card[data-state="sent"] #badge { animation: none; }
+  }
+  @media (forced-colors: active) {
+    #spin:indeterminate { forced-color-adjust: none; --ring: ButtonText; --track: ButtonFace; }
+  }
+  #copy { margin-top: 6px; padding: 8px 0; border: 2px solid var(--rule); background: #fff; color: var(--ink); }
   #copy:hover:enabled { border-color: var(--ink); }
   #copy[hidden] { display: none; }
+  #go:disabled, #copy:disabled { opacity: .45; cursor: default; }
+  #go:focus-visible, #copy:focus-visible, #link:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
   #said { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
   #said:empty { display: none; }
-  #said.bad { padding: 8px 10px; border: 2px solid var(--wrong-edge); border-radius: 10px; background: var(--wrong); }
-  #said a { color: #0000ff; }
+  #said.bad { padding: 6px 10px; border: 2px solid var(--wrong-edge); border-radius: 10px; background: var(--wrong); }
 
-  label { display: block; margin-top: 16px; padding-top: 14px; border-top: 2px dotted var(--dots); text-align: center; font-weight: 700; }
-  #link { display: block; width: 100%; box-sizing: border-box; height: 40px; margin-top: 8px; padding: 0 12px; border: 2px solid var(--rule); border-radius: 10px;
-          background: #fff; color: var(--ink); font: inherit; font-weight: 400; }
+  #link { display: block; width: 100%; box-sizing: border-box; height: 38px; margin-top: 14px; padding: 0 12px; border: 2px solid var(--rule); border-radius: 10px;
+          background: #fff; color: var(--ink); font: inherit; }
   #link:placeholder-shown { background: var(--empty); }
   #link::placeholder { color: var(--ink); opacity: .6; }
-
-  @media (prefers-reduced-motion: reduce) { #card { transition: none; } }
 </style>
 </head>
 <body>
 <section id="card" data-state="unknown" aria-live="polite">
-  <header><span>Aime sign-in</span><span id="badge">not checked yet</span></header>
-  <p id="code" aria-hidden="true">●●●● ●●●● ●●●● ●●●●</p>
-  <p id="until">Click the button once and allow it to check if you're signed in.</p>
+  <header><span>Aime sign-in</span><span id="badge">not checked</span></header>
+  <p id="until"></p>
 </section>
 
-<p id="goes">sending to <strong id="dest">…</strong></p>
-<p id="lead">Checking this page…</p>
-<button id="go" type="button" disabled>…</button>
-<button id="copy" type="button">Copy sign-in</button>
+<p id="goes">Sends to <strong id="dest">…</strong></p>
+<p id="lead"></p>
+<div id="act">
+  <button id="go" type="button" disabled>…</button>
+  <progress id="spin" aria-label="Sending" hidden></progress>
+</div>
+<button id="copy" type="button">Copy</button>
 <p id="said" role="status"></p>
 
-<label for="link">Or paste your bot's link</label>
-<input id="link" type="url" autocomplete="off" spellcheck="false" placeholder="paste link here">
+<input id="link" type="url" autocomplete="off" spellcheck="false" placeholder="Paste a bot link" aria-label="Bot link">
 <script src="popup.js"></script>
 </body>
 </html>

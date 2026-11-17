@@ -40,6 +40,11 @@ const links = createServer((request, response) => {
   const answer = (status, body) => { response.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }); response.end(JSON.stringify(body)); };
   if (request.url === "/not-a-link") return answer(200, { hello: "world" });
   if (request.url === "/link/waiting") return answer(200, { aimeLink: 1, site: "Test bot", ready: false, wait: "Pass the check first." });
+  if (request.url === "/link/slow") {
+    if (request.method === "GET") return answer(200, { aimeLink: 1, ready: true });
+    request.resume();
+    return request.on("end", () => setTimeout(() => answer(200, { ok: true, player: "SLOW" }), 1500));
+  }
   if (request.url !== "/link/abc") return answer(404, { error: "That link has expired." });
   if (request.method === "GET") return answer(200, { aimeLink: 1, site: "Test bot", ready: true });
   let body = "";
@@ -120,7 +125,7 @@ try {
     await send("Target.activateTarget", { targetId });
     const action = await open(`chrome-extension://${id}/popup.html`);
     await send("Target.activateTarget", { targetId });
-    const label = () => evaluate(action.sessionId, "document.getElementById('go').textContent + ' | ' + document.getElementById('dest').textContent");
+    const label = () => evaluate(action.sessionId, "(document.getElementById('go')?.textContent ?? '…') + ' | ' + (document.getElementById('dest')?.textContent ?? '')");
     const said = () => evaluate(action.sessionId, "document.getElementById('said').textContent");
     await until(label, (text) => !text.startsWith("…"));
     return {
@@ -146,8 +151,8 @@ try {
   await loaded(connect.sessionId);
   let popup = await popupOn(connect.targetId);
   expect("a page with a declared form gets the link button, naming the host", await popup.label(), "Link my account | localhost:3000");
-  expect("the card says nobody is signed in", (await popup.card()).startsWith("none / Sign in on the maimai site"), true);
-  expect("without a cookie the popup says to sign in", (await popup.press()).startsWith("You're not signed in"), true);
+  expect("the card says nobody is signed in", await popup.card(), "none / Sign in on the maimai site");
+  expect("without a cookie the popup says to sign in", await popup.press(), "Not signed in. Sign in");
   expect("and posts nothing", posted.length, 0);
 
   const value = "k".repeat(64);
@@ -155,7 +160,7 @@ try {
   const set = await send("Network.setCookie", { name: "clal", value, url: `${GATEWAY_PAGE}login/`, domain: "lng-tgk-aime-gw.am-all.net", path: "/common_auth/login", httpOnly: true, secure: true }, connect.sessionId);
   expect("the HttpOnly cookie is set", set.success, true);
 
-  expect("with the cookie the press posts the page's form", await popup.press(), "Sent. The page is loading.");
+  expect("with the cookie the press posts the page's form", await popup.press(), "Sent.");
   await until(() => evaluate(connect.sessionId, "location.pathname"), (path) => path.startsWith("/connected/"));
   expect("the site got the form's fields and the cookie under the declared name", posted, [{ code: "test", user: "someone", token: value }]);
   expect("and the page followed the site's redirect", await evaluate(connect.sessionId, "location.pathname + location.search"), "/connected/?player=test");
@@ -164,8 +169,8 @@ try {
   await loaded(field.sessionId);
   popup = await popupOn(field.targetId);
   expect("a page with only a marked field gets the fill button", await popup.label(), "Fill it in | localhost:3000");
-  expect("the card says a sign-in is there, without showing it", [(await popup.card()).startsWith("found / "), await evaluate(popup.sessionId, `document.body.innerText.includes(${JSON.stringify(value.slice(0, 8))})`)], [true, false]);
-  expect("the press fills it", await popup.press(), "Filled in. Finish on the page.");
+  expect("the card says a sign-in is there, without showing it", [await popup.card(), await evaluate(popup.sessionId, `document.body.innerText.includes(${JSON.stringify(value.slice(0, 8))})`)], ["found / ", false]);
+  expect("the press fills it", await popup.press(), "Filled in.");
   expect("the page's own check accepts the value", await evaluate(field.sessionId, "document.getElementById('state').textContent"), "valid:64");
   expect("nothing more was posted", posted.length, 1);
   expect("the second button copies from any page, leaving the page alone", [(await popup.press(true, "copy")).startsWith("Copied"), await evaluate(popup.sessionId, "navigator.clipboard.readText()"), posted.length], [true, value, 1]);
@@ -173,12 +178,12 @@ try {
   const plain = await open(`http://plain.test:${PORT}/field/`);
   await loaded(plain.sessionId);
   popup = await popupOn(plain.targetId);
-  expect("a page that is not https is never typed into, only copied for", await popup.label(), "Copy it | your clipboard");
+  expect("a page that is not https is never typed into, only copied for", await popup.label(), "Copy sign-in | ");
 
   const bare = await open(`${SITE}/`);
   await loaded(bare.sessionId);
   popup = await popupOn(bare.targetId);
-  expect("a page with nothing declared gets the copy button", await popup.label(), "Copy it | your clipboard");
+  expect("a page with nothing declared gets the copy button, naming no site", [await popup.label(), await evaluate(popup.sessionId, "document.getElementById('goes').hidden")], ["Copy sign-in | ", true]);
   expect("where the main button already copies, the second one is hidden", await evaluate(popup.sessionId, "document.getElementById('copy').hidden"), true);
   expect("the press copies", (await popup.press()).startsWith("Copied"), true);
   expect("the clipboard holds the value", await evaluate(popup.sessionId, "navigator.clipboard.readText()"), value);
@@ -186,28 +191,36 @@ try {
   const paste = async (url) => {
     await evaluate(popup.sessionId, `(() => { const f = document.getElementById('link'); f.value = ${JSON.stringify(url)}; document.getElementById('lead').textContent = 'pending'; f.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     const lead = () => evaluate(popup.sessionId, "document.getElementById('lead').textContent");
-    await until(lead, (text) => text !== "pending" && !text.startsWith("Checking "));
+    await until(lead, (text) => text !== "pending" && text !== "Checking…");
     return { label: await popup.label(), lead: await lead() };
   };
   let seen = await paste(`${LINKS}/not-a-link`);
-  expect("an address that is not a link is refused, the button dead", [seen.lead.includes("isn't set up for this extension"), await evaluate(popup.sessionId, "document.getElementById('go').disabled")], [true, true]);
+  expect("an address that is not a link is refused, the button dead", [seen.lead, await evaluate(popup.sessionId, "document.getElementById('go').disabled")], ["This site doesn't take sign-ins from the extension.", true]);
   seen = await paste("http://example.com/link/abc");
-  expect("a link that is not https is refused", seen.lead.includes("has to start with https://"), true);
+  expect("a link that is not https is refused", seen.lead, "Not a link. It has to start with https://");
   seen = await paste(`${LINKS}/link/gone`);
   expect("a dead link shows the site's own words", seen.lead, "That link has expired.");
   seen = await paste(`${LINKS}/link/waiting`);
   expect("a link whose site is not ready says what to do, and sends nothing", [await popup.press(), linked.length], ["Pass the check first.", 0]);
   seen = await paste(`${LINKS}/link/abc`);
-  expect("a live link names its host on the button", seen.label, `Send it | localhost:${PORT + 1}`);
-  expect("and the lead names the host before what the site calls itself", seen.lead.startsWith(`localhost:${PORT + 1} (calls itself Test bot)`), true);
+  expect("a live link names its host, and only its host: what the site calls itself is not shown", [seen.label, seen.lead], [`Send | localhost:${PORT + 1}`, ""]);
   await evaluate(popup.sessionId, "(() => { const f = document.getElementById('link'); f.value = ''; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
   await popup.press(false);
   await sleep(900);
-  expect("a press on an edit not read yet sends nothing and copies nothing", [linked.length, await popup.label(), await evaluate(popup.sessionId, "document.getElementById('said').textContent")], [0, "Copy it | your clipboard", ""]);
+  expect("a press on an edit not read yet sends nothing and copies nothing", [linked.length, await popup.label(), await evaluate(popup.sessionId, "document.getElementById('said').textContent")], [0, "Copy sign-in | ", ""]);
   seen = await paste(`${LINKS}/link/abc`);
-  expect("the press sends the sign-in to the link", await popup.press(), "Linked as TEST. You can close this.");
+  expect("the press sends the sign-in to the link", await popup.press(), "Linked as TEST.");
   expect("the bot got the cookie, and only that", linked, [{ clal: value }]);
-  expect("and the card shows it went", (await popup.card()).startsWith("sent / "), true);
+  expect("and the card shows it went", await popup.card(), "sent / ");
+  expect("the button turns into a done state", [await evaluate(popup.sessionId, "document.getElementById('go').textContent"), await evaluate(popup.sessionId, "'done' in document.getElementById('go').dataset")], ["Linked ✓", true]);
+
+  seen = await paste(`${LINKS}/link/slow`);
+  expect("a new link clears the done state", [seen.label, await evaluate(popup.sessionId, "'done' in document.getElementById('go').dataset")], [`Send | localhost:${PORT + 1}`, false]);
+  await popup.press(false);
+  const mid = await until(() => evaluate(popup.sessionId, "[document.getElementById('spin').hidden, document.getElementById('go').getAttribute('aria-busy'), document.getElementById('go').textContent].join(' ')"), (text) => text.startsWith("false"), 1200);
+  expect("while the bot answers, the button spins and says so", mid, "false true Sending…");
+  expect("then it says who was linked", await until(() => evaluate(popup.sessionId, "document.getElementById('said').textContent"), (text) => text !== ""), "Linked as SLOW.");
+  expect("and the spinner goes", await evaluate(popup.sessionId, "document.getElementById('spin').hidden + ' ' + document.getElementById('go').hasAttribute('aria-busy')"), "true false");
 } catch (error) {
   failures.push(String(error));
   console.log("FAIL  the test itself:", String(error.stack ?? error));

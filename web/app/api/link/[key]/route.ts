@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: Params) {
     if (!upstream.ok || !info.ok || info.method !== "cookie") {
       return open(json(404, { ok: false, error: "That link expired or was already used. Run /login in Discord for a new one." }));
     }
-    return open(json(200, { aimeLink: 1, site: "Rasmai", ready: !turnstileReady() || Boolean(info.verified), wait: "Pass the check on your Rasmai link page first, then try again." }));
+    return open(json(200, { aimeLink: 1, ready: !turnstileReady() || Boolean(info.verified), wait: "Pass the check on your Rasmai link page first, then try again." }));
   } catch {
     return open(unavailable());
   }

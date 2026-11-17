@@ -8,6 +8,8 @@ const said = document.getElementById("said");
 const lead = document.getElementById("lead");
 const dest = document.getElementById("dest");
 const card = document.getElementById("card");
+const goes = document.getElementById("goes");
+const spin = document.getElementById("spin");
 let tab = null;
 const linkField = document.getElementById("link");
 let way = "copy";
@@ -24,25 +26,22 @@ function say(text, bad = false, href = "") {
     a.href = href;
     a.target = "_blank";
     a.rel = "noopener";
-    a.textContent = "Open sign in";
+    a.textContent = "Sign in";
     said.append(" ", a);
   }
 }
 
-function showCard(state, cookie) {
+function showCard(state) {
   card.dataset.state = state;
-  document.getElementById("badge").textContent = { found: "signed in", none: "not signed in", sent: "sent", unknown: "not checked yet" }[state];
+  document.getElementById("badge").textContent = { found: "signed in", none: "not signed in", sent: "sent", unknown: "not checked" }[state];
   const until = document.getElementById("until");
-  if (state === "found" || state === "sent") {
-    const ends = cookie?.expirationDate ? new Date(cookie.expirationDate * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
-    until.textContent = ends ? `Works until ${ends}.` : "Found.";
-  } else if (state === "none") {
-    until.textContent = "Sign in on the maimai site with auto login checked. ";
+  until.textContent = "";
+  if (state === "none") {
     const a = document.createElement("a");
     a.href = GATEWAY_LOGIN;
     a.target = "_blank";
     a.rel = "noopener";
-    a.textContent = "Open sign in";
+    a.textContent = "Sign in on the maimai site";
     until.append(a);
   }
 }
@@ -56,7 +55,7 @@ async function peek() {
   try {
     if (!(await api.permissions.contains({ origins: [`https://${GATEWAY_HOST}/*`] }))) return;
     const cookie = await signIn();
-    showCard(cookie ? "found" : "none", cookie);
+    showCard(cookie ? "found" : "none");
   } catch {
 
   }
@@ -68,7 +67,7 @@ function onPage(value) {
   if (!value) return form ? "post" : field ? "fill" : "copy";
   if (form) {
     const action = new URL(form.getAttribute("action") || location.href, location.href);
-    if (action.origin !== location.origin || (action.protocol !== "https:" && action.hostname !== "localhost")) return { error: "This page's form sends to a different site, so it was blocked." };
+    if (action.origin !== location.origin || (action.protocol !== "https:" && action.hostname !== "localhost")) return { error: "the form sends to another site, so it was blocked" };
     const body = new URLSearchParams(new FormData(form));
     body.set(form.dataset.aimeLink || "token", value);
     return fetch(action, { method: (form.getAttribute("method") || "post").toUpperCase(), body, credentials: "same-origin", headers: { Accept: "text/html" } })
@@ -78,7 +77,7 @@ function onPage(value) {
       })
       .catch((error) => ({ error: String(error) }));
   }
-  if (!field) return { error: "The box on this page is gone." };
+  if (!field) return { error: "the box on this page is gone" };
   // React only notices a value set through the native setter
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(field, value);
   field.dispatchEvent(new Event("input", { bubbles: true }));
@@ -99,11 +98,11 @@ async function look() {
   } catch {
     way = "copy";
   }
-  lead.textContent = way === "post" ? "This page can link your account. Your sign-in only goes to the site above."
-    : way === "fill" ? "This page has a box for your sign-in. It only goes to the site above."
-    : "Nothing to fill on this page, so this copies your sign-in and you paste it where the site asks.";
-  dest.textContent = way === "copy" ? "your clipboard" : host;
-  button.textContent = way === "post" ? "Link my account" : way === "fill" ? "Fill it in" : "Copy it";
+  lead.textContent = "";
+  delete button.dataset.done;
+  dest.textContent = way === "copy" ? "" : host;
+  goes.hidden = way === "copy";
+  button.textContent = way === "post" ? "Link my account" : way === "fill" ? "Fill it in" : "Copy sign-in";
   button.disabled = false;
   copyButton.hidden = way === "copy";
 }
@@ -129,59 +128,60 @@ async function readLink() {
   if (!linkField.value.trim()) return look();
   const url = linkUrl(linkField.value);
   button.disabled = true;
-  button.textContent = "Send it";
+  button.textContent = "Send";
+  delete button.dataset.done;
   copyButton.hidden = false;
-  dest.textContent = url ? url.host : "nowhere yet";
+  goes.hidden = !url;
+  dest.textContent = url ? url.host : "";
   if (!url) {
-    lead.textContent = "That's not a valid link. It has to start with https://";
+    lead.textContent = "Not a link. It has to start with https://";
     return;
   }
-  lead.textContent = `Checking ${url.host}…`;
+  lead.textContent = "Checking…";
   try {
     const { data } = await ask(url);
     if (url.href !== linkUrl(linkField.value)?.href) return;
     if (data.aimeLink !== 1) {
-      lead.textContent = typeof data.error === "string" ? data.error.slice(0, 200) : `${url.host} isn't set up for this extension.`;
+      lead.textContent = typeof data.error === "string" ? data.error.slice(0, 200) : "This site doesn't take sign-ins from the extension.";
       return;
     }
     link = { url };
-    lead.textContent = `${url.host}${typeof data.site === "string" ? ` (calls itself ${data.site.slice(0, 40)})` : ""} will get your sign-in and link your account. Only send it if that's your bot.`;
+    lead.textContent = "";
     button.disabled = false;
   } catch {
-    lead.textContent = `Couldn't reach ${url.host}, or it isn't set up for this extension.`;
+    lead.textContent = "Couldn't reach it.";
   }
 }
 
 async function sendToLink(link, value) {
   const { data: now } = await ask(link.url);
   if (now.aimeLink !== 1) return say(typeof now.error === "string" ? now.error.slice(0, 200) : "That link doesn't work anymore.", true);
-  if (now.ready === false) return say((typeof now.wait === "string" && now.wait.slice(0, 200)) || "The site isn't ready yet. Finish its steps, then try again.", true);
+  if (now.ready === false) return say((typeof now.wait === "string" && now.wait.slice(0, 200)) || "Finish the steps on the site first.", true);
   const { status, data } = await ask(link.url, new URLSearchParams({ clal: value }));
   if (status === 200 && data.ok === true) {
-    say(`Linked${typeof data.player === "string" && data.player ? ` as ${data.player.slice(0, 40)}` : ""}. You can close this.`);
+    say(`Linked${typeof data.player === "string" && data.player ? ` as ${data.player.slice(0, 40)}` : ""}.`);
     linkField.value = "";
     lastRead = "";
-    button.textContent = "Done";
     return true;
   }
-  say(typeof data.error === "string" && data.error ? data.error.slice(0, 300) : `${link.url.host} gave an error (${status}).`, true);
+  say(typeof data.error === "string" && data.error ? data.error.slice(0, 300) : `Error ${status}.`, true);
 }
 
 async function signedIn() {
   // Firefox: permissions.request has to be the first await of a click
   if (!(await api.permissions.request({ origins: [`https://${GATEWAY_HOST}/*`] }))) {
-    say("It needs permission to read your sign-in from the maimai site. Nothing else.", true);
+    say("It needs permission to read your maimai sign-in.", true);
     return null;
   }
   const cookie = await signIn();
-  showCard(cookie ? "found" : "none", cookie);
-  if (!cookie) say("You're not signed in. Sign in on the maimai site with auto login checked, then try again.", true, GATEWAY_LOGIN);
+  showCard(cookie ? "found" : "none");
+  if (!cookie) say("Not signed in.", true, GATEWAY_LOGIN);
   return cookie ?? null;
 }
 
 async function toClipboard(cookie) {
   await navigator.clipboard.writeText(cookie.value);
-  say("Copied. Paste it where it's needed, then copy something else after to clear it.");
+  say("Copied.");
 }
 
 async function copy() {
@@ -199,6 +199,21 @@ async function copy() {
   }
 }
 
+function sending(on) {
+  spin.hidden = !on;
+  if (on) {
+    button.textContent = "Sending…";
+    button.setAttribute("aria-busy", "true");
+  } else {
+    button.removeAttribute("aria-busy");
+  }
+}
+
+function finished(text) {
+  button.dataset.done = "";
+  button.textContent = text;
+}
+
 async function go() {
   clearTimeout(typing);
   if (linkField.value.trim() !== lastRead) return readLink();
@@ -206,15 +221,18 @@ async function go() {
   busy = true;
   const target = link;
   const how = way;
+  const label = button.textContent;
   button.disabled = true;
   linkField.disabled = true;
   try {
     const cookie = await signedIn();
     if (!cookie) return;
     if (target) {
+      sending(true);
       if (await sendToLink(target, cookie.value)) {
         link = null;
-        showCard("sent", cookie);
+        showCard("sent");
+        finished("Linked ✓");
       }
       return;
     }
@@ -222,25 +240,30 @@ async function go() {
       await toClipboard(cookie);
       return;
     }
+    if (how === "post") sending(true);
     const result = await inPage(cookie.value);
     if (!result || result.error) {
       say(`Didn't work: ${result?.error ?? "the page didn't respond"}`, true);
     } else if (result.filled) {
-      say("Filled in. Finish on the page.");
-      showCard("sent", cookie);
+      say("Filled in.");
+      showCard("sent");
     } else if (result.redirected) {
-      say("Sent. The page is loading.");
-      showCard("sent", cookie);
-      button.textContent = "Done";
+      say("Sent.");
+      showCard("sent");
+      finished("Sent ✓");
     } else {
-      say(result.status < 400 ? "Sent." : `The site gave an error (${result.status}). Check the page.`, result.status >= 400);
+      say(result.status < 400 ? "Sent." : `Error ${result.status}.`, result.status >= 400);
     }
   } catch (error) {
     say(`Didn't work: ${error && error.message ? error.message : error}`, true);
   } finally {
     busy = false;
+    sending(false);
     linkField.disabled = false;
-    if (button.textContent !== "Done") button.disabled = false;
+    if (!("done" in button.dataset)) {
+      button.textContent = label;
+      button.disabled = false;
+    }
   }
 }
 
