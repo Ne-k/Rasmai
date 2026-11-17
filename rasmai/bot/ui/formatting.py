@@ -269,54 +269,55 @@ REGION_LABELS = {"intl": "International", "jp": "Japan", "cn": "China", "kamaita
 NOT_CONNECTED_MESSAGE = "It seems like you haven't created an account yet - run `/login` to get started."
 
 
-def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> discord.Embed:
+def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> List[discord.Embed]:
+    """The login card, one way of linking to a page: with the Aime sign-in helper first where there is a link for it, then by hand.
+
+    :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+    :type region: str
+    :param login_info: What ``build_login_link_payload`` made for this person.
+    :type login_info: Dict[str, str]
+    :rtype: List[discord.Embed]
+    """
     expires = stamp(datetime.fromisoformat(login_info["expiresAt"]), "R")
-    embed = discord.Embed(
-        title="Connect your maimai account",
-        description=(
-            "Press the button below to open the setup page. It walks you through "
-            "signing in and tells you the moment you are connected."
-        ),
-        color=palette.WAIT,
-    )
+
+    def page(title: str, description: str, *fields: Tuple[str, str]) -> discord.Embed:
+        embed = discord.Embed(title=title, description=description, color=palette.WAIT)
+        for name, value in fields:
+            embed.add_field(name=name, value=value, inline=False)
+        embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)
+        embed.add_field(name="Link expires", value=expires, inline=True)
+        embed.set_footer(text="This card updates itself once you are connected")
+        return embed
+
+    opening = "Press the button below to open the setup page."
     if region == "jp":
-        embed.add_field(
-            name="What you'll do there",
-            value=(
-                "1. Pass a quick check\n"
-                "2. Enter the SEGA ID and password you use on [maimaidx.jp](https://maimaidx.jp/maimai-mobile/)\n"
-                "3. That's it: Rasmai signs in and links the account"
-            ),
-            inline=False,
-        )
-        embed.add_field(
-            name="Your SEGA ID",
-            value=("maimaidx.jp has no sign-in Rasmai can borrow, so it keeps your SEGA ID and password, encrypted, "
-                   "and uses them only to sign in there and read your scores. `/logout` deletes them."),
-            inline=False,
-        )
-    else:
-        embed.add_field(
-            name="What you'll do there",
-            value=(
-                "1. Open the setup page on a computer\n"
-                "2. Sign in at the Aime gateway with **auto login** ticked\n"
-                "3. Copy one value from your browser's developer tools - the page shows exactly where\n"
-                "4. Paste it on the setup page - that's it"
-            ),
-            inline=False,
-        )
-        if login_info.get("helperLink"):
-            embed.add_field(
-                name="Easier: the Aime sign-in helper extension",
-                value=(f"Add it to Chrome from {login_info.get('helperInstall') or 'rasmai.lol/extension'}, then paste this link into it instead of "
-                       f"steps 3 and 4. Pass the check on the setup page first.\n||`{login_info['helperLink']}`||"),
-                inline=False,
-            )
-    embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)
-    embed.add_field(name="Link expires", value=expires, inline=True)
-    embed.set_footer(text="This card updates itself once you are connected")
-    return embed
+        return [page(
+            "Connect your maimai account", opening,
+            ("What you'll do there",
+             "1. Pass a quick check\n"
+             "2. Enter the SEGA ID and password you use on [maimaidx.jp](https://maimaidx.jp/maimai-mobile/)\n"
+             "3. That's it: Rasmai signs in and links the account"),
+            ("Your SEGA ID",
+             "Rasmai keeps your SEGA ID and password, encrypted, and uses them only to read your scores. `/logout` deletes them."),
+        )]
+    by_hand = page(
+        "Connect your maimai account", opening,
+        ("What you'll do there",
+         "1. Open the setup page on a computer\n"
+         "2. Sign in at the Aime gateway with **auto login** ticked\n"
+         "3. Copy one value from developer tools and paste it on the page"),
+    )
+    if not login_info.get("helperLink"):
+        return [by_hand]
+    by_hand.title = "Connect without the extension"
+    return [page(
+        "Connect with the Aime sign-in helper",
+        (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) (Firefox version in review)\n"
+         "2. Sign in at the Aime gateway with **auto login** ticked\n"
+         "3. Pass the check on the setup page\n"
+         f"4. Paste this link into the extension:\n||`{login_info['helperLink']}`||\n"
+         "No extension? Press **Next**."),
+    ), by_hand]
 
 
 def build_login_done_embed(name: str, region: str) -> discord.Embed:

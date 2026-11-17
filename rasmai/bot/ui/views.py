@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional, Sequence
 import logging
 import discord
 
@@ -114,8 +114,13 @@ def from_cache(owner_id: int, build: Callable[..., Awaitable[Any]]) -> Callable[
 
 
 class LoginView(OwnerOnlyView):
-    def __init__(self, owner_id: int, connect_url: str, region: str = "intl"):
+    """The buttons under the login card, and Prev and Next when the card has more than one page.
+
+    The pages are turned in this one view rather than each drawing a new one: the watcher and the timeout hold on to it."""
+
+    def __init__(self, owner_id: int, connect_url: str, region: str = "intl", pages: Sequence[discord.Embed] = ()):
         super().__init__(owner_id, timeout=LOGIN_CODE_TTL.total_seconds())
+        self.pages, self.page = list(pages), 0
         if region == "jp":
             # a Japan account is linked with its SEGA ID on the setup page itself
             self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
@@ -126,6 +131,22 @@ class LoginView(OwnerOnlyView):
         check = discord.ui.Button(label="Check connection", style=discord.ButtonStyle.success)
         check.callback = self._check
         self.add_item(check)
+        if len(self.pages) > 1:
+            self.prev = discord.ui.Button(label="Prev", row=1, disabled=True)
+            self.where = discord.ui.Button(label=f"page 1 of {len(self.pages)}", row=1, disabled=True)
+            self.next = discord.ui.Button(label="Next", row=1)
+            self.prev.callback, self.next.callback = self._turn(-1), self._turn(1)
+            for button in (self.prev, self.where, self.next):
+                self.add_item(button)
+
+    def _turn(self, by: int):
+        async def callback(interaction: discord.Interaction) -> None:
+            last = len(self.pages) - 1
+            self.page = max(0, min(self.page + by, last))
+            self.prev.disabled, self.next.disabled = self.page == 0, self.page == last
+            self.where.label = f"page {self.page + 1} of {len(self.pages)}"
+            await interaction.response.edit_message(embed=self.pages[self.page], view=self)
+        return callback
 
     async def on_timeout(self) -> None:
         for item in self.children:

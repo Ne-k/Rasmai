@@ -23,7 +23,7 @@ export default async function LinkPage() {
     code: (c: React.ReactNode) => <code>{c}</code>,
     aime: (c: React.ReactNode) => <a href="https://my-aime.net/en/">{c}</a>,
     dash: (c: React.ReactNode) => <a href="/me/">{c}</a>,
-    ext: (c: React.ReactNode) => <a href="/extension">{c}</a>,
+    chrome: (c: React.ReactNode) => <a href="/chromeextension">{c}</a>,
   };
   return (
     <Shell tag="link" lit={1} footLeft={footer("notAffiliated")}>
@@ -42,7 +42,7 @@ export default async function LinkPage() {
         <div>
           <h2>{t("step2Title")}</h2>
           <p>{t.rich("step2", tags)}</p>
-          <Tutorial label={video("label")} />
+          <Tutorial clip="extension" label={video("helperLabel")} />
         </div>
       </section>
       <section className="step">
@@ -53,10 +53,6 @@ export default async function LinkPage() {
         </div>
       </section>
 
-      <div className="aside">
-        {t.rich("helper", tags)}
-        <Tutorial clip="extension" label={video("helperLabel")} />
-      </div>
       <div className="aside">{t.rich("japan", tags)}</div>
       <div className="aside">{t.rich("kamaitachi", tags)}</div>
       <div className="aside">{t.rich("already", tags)}</div>

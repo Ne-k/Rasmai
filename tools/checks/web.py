@@ -1321,7 +1321,7 @@ def _regions():
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     from rasmai import config
-    from rasmai.bot.ui.formatting import build_login_walkthrough_embed
+    from rasmai.bot.ui.formatting import build_login_walkthrough_pages
     from rasmai.config import SUPPORTED_REGIONS, region_supported, unsupported_region_text
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
     from rasmai.security import create_opaque_user_id, decrypt_token, encrypt_token, read_sega_id_token
@@ -1467,17 +1467,46 @@ def _regions():
             problems.append(f"an International code's helper link is not one the site's /api/link route accepts: {helper}")
         if jp_info["helperLink"] != "":
             problems.append(f"a Japan code was given a helper link, though it has no cookie to hand over: {jp_info['helperLink']}")
-        if not any(f"`{helper}`" in str(field.value) for field in build_login_walkthrough_embed("intl", intl_info).fields):
-            problems.append("the International /login card does not carry the helper link in a field")
+        def card(region):
+            """Everything the card says, each page's words in turn."""
+            return [" ".join([page.title or "", page.description or ""] + [str(field.value) for field in page.fields])
+                    for page in build_login_walkthrough_pages(region, intl_info)]
+        if not any(f"`{helper}`" in words for words in card("intl")):
+            problems.append("the International /login card does not carry the helper link")
         # the instructions say where the extension is added from: the site's short address, which the site sends on to the store
-        sent_on = re.search(r'source: "/extension", destination: "(https://chromewebstore\.google\.com/detail/[a-z-]+/[a-p]{32})", permanent: false',
+        sent_on = re.search(r'source: "/:name\(chromeextension\|extension\)", destination: "(https://chromewebstore\.google\.com/detail/[a-z-]+/[a-p]{32})", permanent: false',
                             (ROOT / "web" / "next.config.ts").read_text(encoding="utf-8"))
-        if not intl_info["helperInstall"].endswith("/extension") or not sent_on:
+        if not intl_info["helperInstall"].endswith("/chromeextension") or not sent_on:
             problems.append(f"the extension's short address is not one the site sends on to its store page: {intl_info['helperInstall']}")
-        if not any(intl_info["helperInstall"] in str(field.value) for field in build_login_walkthrough_embed("intl", intl_info).fields):
+        if not any(intl_info["helperInstall"] in words for words in card("intl")):
             problems.append("the International /login card does not say where to add the extension from")
+        # the card is two pages, the extension's way then the steps by hand, turned in the one view the watcher holds
+        from rasmai.bot.ui.views import LoginView
+        intl_pages = build_login_walkthrough_pages("intl", intl_info)
+        shown = []
+
+        async def turn():
+            view = LoginView(1, intl_info["connectUrl"], "intl", intl_pages)
+
+            async def edit_message(embed=None, view=None):
+                shown.append((embed.title, view.where.label, view.prev.disabled, view.next.disabled, view))
+            press = types.SimpleNamespace(response=types.SimpleNamespace(edit_message=edit_message))
+            for button in (view.next, view.next, view.prev):
+                await button.callback(press)
+            return view, len(LoginView(1, intl_info["connectUrl"], "jp", build_login_walkthrough_pages("jp", jp_info)).children)
+        import asyncio
+        import types
+        view, japan_buttons = asyncio.run(turn())
+        # the sign-in the extension reads is only there after a sign-in with auto login ticked, so both ways say so
+        if len(intl_pages) != 2 or any("auto login" not in words for words in card("intl")) or helper in card("intl")[1]:
+            problems.append(f"the International /login card is not two pages, the steps by hand on the second: {[p.title for p in intl_pages]}")
+        if [s[:4] for s in shown] != [(intl_pages[1].title, "page 2 of 2", False, True), (intl_pages[1].title, "page 2 of 2", False, True),
+                                      (intl_pages[0].title, "page 1 of 2", True, False)] or any(s[4] is not view for s in shown):
+            problems.append(f"Prev and Next on the /login card do not turn its pages in the same view: {[s[:4] for s in shown]}")
+        if len(build_login_walkthrough_pages("jp", jp_info)) != 1 or japan_buttons != 2:
+            problems.append("the Japan /login card, which is one page, has pages to turn")
         # the Japan card stays without it even when handed a payload that has one
-        if any("/api/link/" in str(field.value) for field in build_login_walkthrough_embed("jp", intl_info).fields):
+        if any("/api/link/" in words for words in card("jp")):
             problems.append("the Japan /login card carries a helper link")
         # the value pasted with its label, or with spaces around it, is the value
         status, body = ask("/internal/login", {"code": code, "user": opaque, "token": " clal=" + "b" * 64 + " "})

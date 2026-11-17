@@ -22,8 +22,8 @@ type ConnectInfo = {
 const GATEWAY_PAGE = "https://lng-tgk-aime-gw.am-all.net/common_auth/";
 
 const tags = {
-  ext: (c: React.ReactNode) => (
-    <a href="/extension" target="_blank" rel="noopener noreferrer">
+  chrome: (c: React.ReactNode) => (
+    <a href="/chromeextension" target="_blank" rel="noopener noreferrer">
       {c}
     </a>
   ),
@@ -233,6 +233,21 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
       <h1>{t.rich("titleIntl", tags)}</h1>
       <p className="lede">{t("ledeIntl")}</p>
 
+      {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
+      <div className="aside">
+        {t.rich("helper", tags)}{" "}
+        <button
+          type="button"
+          className="linkish"
+          onClick={() => navigator.clipboard.writeText(helperLink).then(() => setLinkCopied("copied"), () => setLinkCopied("shown"))}
+        >
+          {linkCopied === "copied" ? t("helperCopied") : t("helperCopy")}
+        </button>
+        {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
+        {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
+        <Tutorial clip="extension" label={video("helperLabel")} />
+      </div>
+
       <section className="step">
         <div className="n">1</div>
         <div>
@@ -312,20 +327,6 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
         </div>
       </section>
 
-      {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
-      <div className="aside">
-        {t.rich("helper", tags)}{" "}
-        <button
-          type="button"
-          className="linkish"
-          onClick={() => navigator.clipboard.writeText(helperLink).then(() => setLinkCopied("copied"), () => setLinkCopied("shown"))}
-        >
-          {linkCopied === "copied" ? t("helperCopied") : t("helperCopy")}
-        </button>
-        {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
-        {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
-        <Tutorial clip="extension" label={video("helperLabel")} />
-      </div>
       <div className="aside">{t.rich("phones", tags)}</div>
       <div className="aside">{t.rich("keepsIntl", tags)}</div>
       <div className="aside">{t.rich("stuckIntl", tags)}</div>
