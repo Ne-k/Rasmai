@@ -57,6 +57,8 @@ const nextConfig: NextConfig = {
   // named here, so this follows the domain wherever it moves and stays out of the way in development.
   async redirects() {
     return [
+      // the short address the link instructions give for the Aime sign-in helper; temporary, so it can move to a page of its own
+      { source: "/extension", destination: "https://chromewebstore.google.com/detail/aime-sign-in-helper/neekcgoeopejbnccgepdbakgojojicpm", permanent: false },
       {
         source: "/:path*",
         has: [{ type: "host", value: "www\.(?<bare>.+)" }],

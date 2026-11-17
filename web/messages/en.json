@@ -1489,6 +1489,7 @@
     "step2": "The setup page sends you to sign in at SEGA's Aime gateway with auto login on, then shows where to copy the <code>clal</code> cookie from your browser's developer tools and where to paste it. Do it on a computer: phone browsers can't show cookies.",
     "step3Title": "Start grinding",
     "step3": "Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.",
+    "helper": "<b>Don't want to open developer tools?</b> <ext>Add the Aime sign-in helper to Chrome</ext> (rasmai.lol/extension) and paste your <code>/login</code> link into it. It reads the sign-in for you, so there's nothing to copy in step 2.",
     "japan": "<b>Playing on a Japan account?</b> Run <code>/login region:Japan</code> instead. The link opens a page where you enter the SEGA ID and password you use on maimaidx.jp, so step 2 doesn't apply.",
     "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi username:yourname</code>, or pick Kamaitachi on <dash>your dashboard</dash>. No maimai sign-in needed, so skip the steps above.",
     "already": "<b>Already linked?</b> Your scores are on the web too. <dash>Open your dashboard</dash> and sign in with Discord."
@@ -1563,7 +1564,7 @@
     "phones": "<b>On a phone?</b> Phone browsers can't show cookies, so do this once on a computer: your login link opens there too.",
     "keepsIntl": "<b>What Rasmai keeps.</b> Only this value, encrypted. It lets Rasmai read your scores until SEGA expires it, and it's deleted when you run <code>/logout</code> or <code>/delete-account</code>. Your password never leaves SEGA.",
     "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> in Discord for a new one. A Japan account links with its SEGA ID instead: run <code>/login region:Japan</code>. Accounts from the Chinese version can't be linked yet.",
-    "helper": "<b>Have the Aime sign-in helper extension?</b> Copy your link, paste it into the extension and press its button. That replaces steps 2 and 3.",
+    "helper": "<b>Skip the copying with the Aime sign-in helper.</b> <ext>Add the extension to Chrome</ext>, copy your link, paste it into the extension and press its button. That replaces steps 2 and 3.",
     "helperCopy": "copy my link",
     "helperCopied": "✓ copied"
   },
@@ -1834,6 +1835,7 @@
     "starPink": "Pink"
   },
   "tutorial": {
-    "label": "Linking an International account in Firefox, start to finish"
+    "label": "Linking an International account in Firefox, start to finish",
+    "helperLabel": "Linking an International account with the Aime sign-in helper extension, start to finish"
   }
 }

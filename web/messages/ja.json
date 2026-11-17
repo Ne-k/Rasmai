@@ -1489,6 +1489,7 @@
     "step2": "セットアップページから SEGA の Aime ゲートウェイに自動ログインありでログインし、ブラウザの開発者ツールで <code>clal</code> という Cookie をコピーして貼り付けます。場所はページが案内します。スマホのブラウザでは Cookie を表示できないので、パソコンで行ってください。",
     "step3Title": "さあ、詰めよう",
     "step3": "Discord に戻って <code>/analyze</code> で遊ぶ譜面を確認するか、<code>/plan</code> で次の1000までの計画を立てましょう。",
+    "helper": "<b>開発者ツールを開きたくない場合</b> <ext>Aime sign-in helper を Chrome に追加</ext>（rasmai.lol/extension）して、<code>/login</code> のリンクを貼り付けてください。拡張機能がログイン情報を読み取るので、手順2でコピーするものはありません。",
     "japan": "<b>日本版アカウントの場合</b> 代わりに <code>/login region:Japan</code> を実行してください。開いたページで maimaidx.jp の SEGA ID とパスワードを入力するので、手順2は不要です。",
     "kamaitachi": "<b>スコアが Kamaitachi にありますか？</b> <code>/login region:Kamaitachi username:ユーザー名</code> を実行するか、<dash>ダッシュボード</dash>で Kamaitachi を選んでください。maimai へのログインは不要なので、上の手順は飛ばせます。",
     "already": "<b>連携済みですか？</b> スコアはWebでも見られます。<dash>ダッシュボードを開いて</dash> Discord でログインしてください。"
@@ -1563,7 +1564,7 @@
     "phones": "<b>スマホの場合</b> スマホのブラウザでは Cookie を表示できないため、一度パソコンで行ってください。ログインリンクはパソコンでも開けます。",
     "keepsIntl": "<b>Rasmai が保存するもの。</b> この値だけを暗号化して保存します。SEGA 側で期限が切れるまでスコアの読み取りに使い、<code>/logout</code> または <code>/delete-account</code> を実行すると削除されます。パスワードが SEGA の外に出ることはありません。",
     "stuckIntl": "<b>うまくいかない？</b> リンクの期限が切れた場合は、Discord で <code>/login</code> を実行して新しいリンクを取得してください。日本版アカウントは SEGA ID で連携します：<code>/login region:Japan</code> を実行してください。中国版のアカウントはまだ連携できません。",
-    "helper": "<b>Aime sign-in helper 拡張機能をお使いですか？</b> リンクをコピーして拡張機能に貼り付け、ボタンを押してください。手順2と3の代わりになります。",
+    "helper": "<b>Aime sign-in helper を使えばコピーは不要です。</b> <ext>Chrome に拡張機能を追加</ext>し、リンクをコピーして拡張機能に貼り付け、ボタンを押してください。手順2と3の代わりになります。",
     "helperCopy": "リンクをコピー",
     "helperCopied": "✓ コピーしました"
   },
@@ -1834,6 +1835,7 @@
     "starPink": "ピンク"
   },
   "tutorial": {
-    "label": "Firefox で海外版アカウントを連携する手順（最初から最後まで）"
+    "label": "Firefox で海外版アカウントを連携する手順（最初から最後まで）",
+    "helperLabel": "Aime sign-in helper 拡張機能で海外版アカウントを連携する手順（最初から最後まで）"
   }
 }

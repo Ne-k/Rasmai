@@ -1469,6 +1469,13 @@ def _regions():
             problems.append(f"a Japan code was given a helper link, though it has no cookie to hand over: {jp_info['helperLink']}")
         if not any(f"`{helper}`" in str(field.value) for field in build_login_walkthrough_embed("intl", intl_info).fields):
             problems.append("the International /login card does not carry the helper link in a field")
+        # the instructions say where the extension is added from: the site's short address, which the site sends on to the store
+        sent_on = re.search(r'source: "/extension", destination: "(https://chromewebstore\.google\.com/detail/[a-z-]+/[a-p]{32})", permanent: false',
+                            (ROOT / "web" / "next.config.ts").read_text(encoding="utf-8"))
+        if not intl_info["helperInstall"].endswith("/extension") or not sent_on:
+            problems.append(f"the extension's short address is not one the site sends on to its store page: {intl_info['helperInstall']}")
+        if not any(intl_info["helperInstall"] in str(field.value) for field in build_login_walkthrough_embed("intl", intl_info).fields):
+            problems.append("the International /login card does not say where to add the extension from")
         # the Japan card stays without it even when handed a payload that has one
         if any("/api/link/" in str(field.value) for field in build_login_walkthrough_embed("jp", intl_info).fields):
             problems.append("the Japan /login card carries a helper link")

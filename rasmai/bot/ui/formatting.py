@@ -308,8 +308,9 @@ def build_login_walkthrough_embed(region: str, login_info: Dict[str, str]) -> di
         )
         if login_info.get("helperLink"):
             embed.add_field(
-                name="Have the Aime sign-in helper extension?",
-                value=f"Paste this link into it instead of steps 3 and 4. Pass the check on the setup page first.\n||`{login_info['helperLink']}`||",
+                name="Easier: the Aime sign-in helper extension",
+                value=(f"Add it to Chrome from {login_info.get('helperInstall') or 'rasmai.lol/extension'}, then paste this link into it instead of "
+                       f"steps 3 and 4. Pass the check on the setup page first.\n||`{login_info['helperLink']}`||"),
                 inline=False,
             )
     embed.add_field(name="Region", value=REGION_LABELS.get(region, region), inline=True)

@@ -22,6 +22,11 @@ type ConnectInfo = {
 const GATEWAY_PAGE = "https://lng-tgk-aime-gw.am-all.net/common_auth/";
 
 const tags = {
+  ext: (c: React.ReactNode) => (
+    <a href="/extension" target="_blank" rel="noopener noreferrer">
+      {c}
+    </a>
+  ),
   b: (c: React.ReactNode) => <b>{c}</b>,
   em: (c: React.ReactNode) => <em>{c}</em>,
   code: (c: React.ReactNode) => <code>{c}</code>,
@@ -319,6 +324,7 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
         </button>
         {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
         {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
+        <Tutorial clip="extension" label={video("helperLabel")} />
       </div>
       <div className="aside">{t.rich("phones", tags)}</div>
       <div className="aside">{t.rich("keepsIntl", tags)}</div>
