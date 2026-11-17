@@ -81,27 +81,3 @@ def aime_link(code):
     return body, status, {"Access-Control-Allow-Origin": "*"}
 ```
 
-Rasmai's own is `web/app/api/link/[key]/route.ts`.
-
-To use the cookie: set it as `clal` on `lng-tgk-aime-gw.am-all.net`, GET
-`https://lng-tgk-aime-gw.am-all.net/common_auth/login?site_id=maimaidxex&redirect_url=https://maimaidx-eng.com/maimai-mobile/&back_url=https://maimai.sega.com/`
-without following redirects, then GET the `Location` it answers with. That session is signed in to maimaidx-eng.com.
-
-## Trying it
-
-- Chrome, Edge: `chrome://extensions` → Developer mode → Load unpacked → this folder.
-- Firefox: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → `manifest.json` here. Firefox asks for the gateway
-  permission the first time the button is pressed.
-
-`node extension/test/run.mjs` loads it into a throwaway headless Google Chrome, sets the cookie as SEGA sets it (HttpOnly) and
-presses the button against stand-ins for each of the four ways, the link endpoint on an origin the extension holds no
-permission for. The real extension reaches a page through `activeTab`, which only a real press grants, so the test copy is
-given the local pages' host instead.
-
-## Publishing
-
-- Chrome Web Store: a developer account (one-time fee) and a review; Edge Add-ons takes the same zip for free.
-- Firefox: addons.mozilla.org signs it for free; the `gecko.id` in `manifest.json` is the add-on's identity there, and the
-  `data_collection_permissions` entry is the declaration it requires.
-
-The icon is the extension's own: a card with tap waves, drawn at 16, 48 and 128 pixels.
