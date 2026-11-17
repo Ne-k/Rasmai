@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<script>try{if(localStorage.getItem("rasmai-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
+<script>try{if(localStorage.getItem("rasmai-theme")==="dark"){document.documentElement.setAttribute("data-theme","dark");document.querySelector('meta[name="color-scheme"]').content="dark"}}catch(e){}</script>
 <title>Rasmai · offline</title>
 <style>
   :root { --paper: #fbf6ec; --ink: #1d1a2f; --ink-2: #4a4660; --pink: #ff3d8f; --line: #e2d8c4; --edge: #1d1a2f; }

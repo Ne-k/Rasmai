@@ -19,7 +19,7 @@ export function Sparkline({ points }: { points: HistoryPoint[] }) {
     return () => watch.disconnect();
   }, []);
 
-  const sorted = [...points].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+  const sorted = points.toSorted((a, b) => a.recordedAt.localeCompare(b.recordedAt));
   const values = sorted.map((p) => p.rating);
   if (sorted.length < 2) {
     return (

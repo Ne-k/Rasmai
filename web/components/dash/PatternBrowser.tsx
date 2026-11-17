@@ -71,7 +71,7 @@ export function PatternBrowser({ onOpen, open, setOpen, tag, setTag }: {
           aria-label={t("label")}
           onChange={(e) => setFind(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && matches.length) setTag(matches[0].tag);
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229 && matches.length) setTag(matches[0].tag);
           }}
         />
         <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label={newTab("level")}>

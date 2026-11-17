@@ -19,7 +19,7 @@ export function ScoreHistory({ points }: { points: ChartDetail["history"] }) {
     watch.observe(el);
     return () => watch.disconnect();
   }, []);
-  const sorted = [...points].sort((a, b) => a.when.localeCompare(b.when));
+  const sorted = points.toSorted((a, b) => a.when.localeCompare(b.when));
   if (sorted.length < 2) {
     return (
       <div className="score-history" ref={box}>

@@ -78,11 +78,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // the theme-color meta is written by the theme boot script, so it follows the reader's switch rather than the device
+  // the theme-color and color-scheme metas are written by the theme boot script, so they follow the reader's switch rather than the device
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -89,7 +89,7 @@ export async function encodeVideo(job: Omit<RenderJob, "size" | "fps" | "worker"
     const sounded = audio.then((buf) => sound.add(buf));
     sounded.catch(() => {});   // awaited below; this only keeps an abort from leaving it unhandled
     for (let i = 0; i < job.frames; i++) {
-      while (!drawn.has(i) && !failed && !signal.aborted) await new Promise<void>((r) => { wake = r; });
+      while (!drawn.has(i) && !failed && !signal.aborted) { const next = Promise.withResolvers<void>(); wake = next.resolve; await next.promise; }
       if (failed) throw failed;
       if (signal.aborted) { await output.cancel(); return null; }
       const sample = new VideoSample(drawn.get(i)!);

@@ -51,7 +51,7 @@ async function render(job: RenderJob) {
       advance(L, fld, null, now, job.view, job.colors, mine && k === i * per);
     }
     if (!mine) continue;
-    while (credit <= 0) await new Promise<void>((r) => { wake = r; });
+    while (credit <= 0) { const next = Promise.withResolvers<void>(); wake = next.resolve; await next.promise; }
     credit--;
     // from the pixels, not the canvas, which Chrome can still hand over as a GPU texture
     const frame = new VideoFrame(i420(g.getImageData(0, 0, job.size, job.size).data, job.size, yuv), {

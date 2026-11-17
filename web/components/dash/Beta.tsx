@@ -100,7 +100,7 @@ function Feedback({ feature, onSaved }: { feature: BetaFeature; onSaved: (next: 
             disabled={busy}
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && said?.verdict) send(said.verdict, note);
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229 && said?.verdict) send(said.verdict, note);
             }}
           />
           {said?.verdict && (

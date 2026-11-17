@@ -68,7 +68,7 @@ export function radarAxes(axes: Trait[], limit = 8): Axis[] {
   const down = pool.filter((a) => a.offset < 0).sort((a, b) => a.offset - b.offset).slice(0, limit - half);
   const chosen = [...up, ...down];
   if (chosen.length < limit) {
-    const rest = [...pool].sort((a, b) => Math.abs(b.offset) - Math.abs(a.offset)).filter((a) => !chosen.includes(a));
+    const rest = pool.toSorted((a, b) => Math.abs(b.offset) - Math.abs(a.offset)).filter((a) => !chosen.includes(a));
     chosen.push(...rest.slice(0, limit - chosen.length));
   }
   return chosen.sort((a, b) => b.offset - a.offset);

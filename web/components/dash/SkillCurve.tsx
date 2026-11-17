@@ -74,7 +74,7 @@ export function SkillCurve({ curve, charts, comfort, reach, playedCeiling }: Pro
     const line = points.map((p) => `${x(p.c).toFixed(1)},${y(p.e).toFixed(1)}`).join(" ");
     const band = [
       ...points.map((p) => `${x(p.c).toFixed(1)},${y(p.e + p.s).toFixed(1)}`),
-      ...[...points].reverse().map((p) => `${x(p.c).toFixed(1)},${y(p.e - p.s).toFixed(1)}`),
+      ...points.toReversed().map((p) => `${x(p.c).toFixed(1)},${y(p.e - p.s).toFixed(1)}`),
     ].join(" ");
     const ticks: number[] = [];
     for (let c = Math.ceil(x0); c <= x1; c += 1) ticks.push(c);
