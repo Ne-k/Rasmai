@@ -399,8 +399,10 @@ def _dev_panel():
         async def build():
             return dev.DevView(1)
         view = asyncio.run(build())
-        if len(view.children) != 10:
-            problems.append(f"the panel has {len(view.children)} controls, not 10")
+        if len(view.children) != 11:
+            problems.append(f"the panel has {len(view.children)} controls, not 11")
+        if "Force read news" not in [getattr(c, "label", "") for c in view.children]:
+            problems.append("the panel has no Force read news button")
         options = [(o.value, o.default) for o in view.switches.options]
         if options != [(name, name == "news") for name in dev.switchable()]:
             problems.append(f"the select does not list the switchable commands with the off ones marked: {options}")

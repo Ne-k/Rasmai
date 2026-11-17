@@ -310,6 +310,9 @@ def is_maimai(text: str) -> bool:
     other = OTHER_GAMES.search(text)
     if other is None or other.start() > found.start() or "#maimai" in text.lower():
         return True
+    # maimai as an item of a list of games, as ALL.Net names the titles a maintenance covers
+    if any(MAIMAI.search(line) for line in re.findall(r"^\s*[・•·\-*■●◆▶].*$", text, re.MULTILINE)):
+        return True
     return any(MAIMAI.search(part) and OTHER_GAMES.search(part) for part in re.split(r"[\n!?。！？]+", text))
 
 
@@ -621,7 +624,8 @@ def feed_title(content: bytes) -> str:
 async def fetch_feed(session: aiohttp.ClientSession, username: str, tries: int = len(RSS_INSTANCES)) -> Tuple[List[FeedItem], str]:
     """An account's posts from the first Nitter instance that answers with any, of the first ``tries``; ([], "") when none does."""
     first = _working.get(username)
-    instances = ([first] if first else []) + [b for b in RSS_INSTANCES if b != first]
+    # then the mirrors serving other accounts: an account asked of only a few must not spend them on mirrors that are down
+    instances = list(dict.fromkeys(([first] if first else []) + list(_working.values()) + RSS_INSTANCES))
     for number, base in enumerate(instances[:tries]):
         if number:
             await asyncio.sleep(RSS_FALLBACK_DELAY)

@@ -137,6 +137,7 @@ class NewsWatch:
         self._copy_turn = asyncio.Lock()        # the two copies of a post, on Bluesky and on X, are decided one after the other
         self._bluesky_turn = asyncio.Lock()     # Bluesky posts are built and sent one at a time, in the order they finish waiting
         self._history_turn = asyncio.Semaphore(1)       # one /news subscribe previous: at a time, however many servers ask
+        self._read_now = asyncio.Event()        # set by /dev: the X loop starts its next round at once, every account read straight away
 
     @property
     def session(self) -> aiohttp.ClientSession:
@@ -156,6 +157,11 @@ class NewsWatch:
                         else "by Google Translate only: MAIMAI_TRANSLATE_URL is not set")
         for number in stopped:
             self._tasks[number] = asyncio.create_task(loops[number]())
+
+    def read_now(self) -> bool:
+        """Have every followed X account read now rather than at its turn; False when the X loop is not running to do it."""
+        self._read_now.set()
+        return self._tasks[1] is not None and not self._tasks[1].done()
 
     def spawn(self, work: Coroutine[Any, Any, Any]) -> None:
         """Run something in the background, kept referenced until it ends."""
@@ -349,6 +355,8 @@ class NewsWatch:
         followed: Optional[Set[str]] = None
         turn = asyncio.Semaphore(X_AT_ONCE)
         while True:
+            forced = self._read_now.is_set()
+            self._read_now.clear()
             try:
                 sources = await asyncio.to_thread(load_sources)
                 wanted = await asyncio.to_thread(followed_news_keys)
@@ -359,11 +367,16 @@ class NewsWatch:
                 polled: Set[str] = set()
                 learned = followed
                 began = time.monotonic()
-                gap = min(POLL_GAP_MAX, POLL_EVERY * POLL_SPREAD / max(1, len(feeds)))
+                gap = 0.0 if forced else min(POLL_GAP_MAX, POLL_EVERY * POLL_SPREAD / max(1, len(feeds)))
 
                 async def read(source: Source, wait: float) -> None:
                     if wait > 0:
-                        await asyncio.sleep(wait)       # the feeds are asked one after another across the cycle: a Nitter instance sees a trickle, not a burst
+                        # the feeds are asked one after another across the cycle: a Nitter instance sees a trickle, not a burst. A Force read
+                        # starts the ones still waiting at once, and the round after reads again the ones already read
+                        try:
+                            await asyncio.wait_for(self._read_now.wait(), wait)
+                        except asyncio.TimeoutError:
+                            pass
                     async with turn:
                         try:
                             # an account followed again after nobody did only learns: its posts in the meantime are not news to anyone
@@ -377,7 +390,11 @@ class NewsWatch:
                 # a locked database must cost one round, not the loop: nothing else would start it again
                 logger.exception("news: a round of reading X failed")
                 began = time.monotonic()
-            await asyncio.sleep(max(min(5.0, POLL_EVERY / 10), POLL_EVERY - (time.monotonic() - began)))
+            try:
+                # a press while a round runs is kept for the round after it
+                await asyncio.wait_for(self._read_now.wait(), max(min(5.0, POLL_EVERY / 10), POLL_EVERY - (time.monotonic() - began)))
+            except asyncio.TimeoutError:
+                pass
 
     async def poll(self, source: Source, learn: bool = False) -> int:
         """Send the posts of an X account that nobody has seen.

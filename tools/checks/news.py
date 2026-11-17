@@ -451,6 +451,8 @@ def _maimai_and_time():
                             ("CHUNITHM and maimai DX share this campaign!", True),
                             ("A new Irodorimidori song will be added in #CHUNITHM on 10/01.", False), ("The monthly login bonuses are available in #CHUNITHM!", False),
                             ("good morning", False), ("", False),
+                            ("ALL.Netのメンテナンスについて\n\n＜対象タイトル＞\n・英傑大戦\n・CHUNITHM\n・maimai でらっくす\n・BINGO THEATER", True),
+                            ("＜対象タイトル＞\n・英傑大戦\n・CHUNITHM", False),
                             # SEGA's pages for every game are under maimai.sega.jp, so a link names maimai without the post being about it
                             ("『KING of Performai The 8th』 CHUNITHMのオンライン予選課題コースはコチラ！ https://maimai.sega.jp/kop8th/chunithm/", False),
                             ("⬇️ KOP8th Official Site (JP) maimai.sega.jp/kop8th/", False),
@@ -2721,6 +2723,55 @@ def _loops():
     return problems
 
 
+@check("/dev's Force read news wakes the X loop out of its wait and reads every followed account at once, and says so when the loop is not running")
+def _read_now():
+    import time
+    from rasmai.bot.tasks import news as tasks
+    from rasmai.scraping.news import Source
+
+    problems = []
+    accounts = {key: Source(key, key, "X", key) for key in ("a", "b")}
+    kept = tasks.followed_news_keys, tasks.load_sources, tasks.POLL_GAP_MAX, tasks.remove_unknown_news_sources
+    tasks.followed_news_keys, tasks.load_sources, tasks.POLL_GAP_MAX, tasks.remove_unknown_news_sources = \
+        (lambda: set(accounts)), (lambda: accounts), 5.0, (lambda sources: None)
+
+    async def run():
+        watch = tasks.NewsWatch()
+        reads = []
+
+        async def poll(source, learn=False):
+            reads.append((source.key, time.monotonic()))
+            return 0
+        watch.poll = poll
+        if watch.read_now():
+            problems.append("Force read said the X loop was running before it was started")
+        watch._read_now.clear()
+        watch._tasks[1] = asyncio.create_task(watch._x_loop())
+        await asyncio.sleep(0.2)        # a is read; b waits five seconds for its turn
+        middle = len(reads)
+        watch.read_now()
+        await asyncio.sleep(0.3)        # b at once, then a forced round of both; the loop then waits out its four minutes
+        after = len(reads)
+        pressed = watch.read_now()
+        await asyncio.sleep(0.3)
+        watch._tasks[1].cancel()
+        return pressed, middle, after, reads
+    try:
+        pressed, middle, after, reads = asyncio.run(run())
+        keys = [key for key, _at in reads]
+        if not pressed:
+            problems.append("Force read said the running X loop was not running")
+        if middle != 1 or keys[1:after] != ["b", "a", "b"]:
+            problems.append(f"Force read in the middle of a round left the waiting accounts waiting: {keys[:after]}")
+        if sorted(keys[after:]) != ["a", "b"]:
+            problems.append(f"Force read while the loop waited out its cycle did not read every account once: {keys[after:]}")
+        elif reads[-1][1] - reads[after][1] > 0.1:
+            problems.append("a forced round still spaced its accounts out across the cycle")
+    finally:
+        tasks.followed_news_keys, tasks.load_sources, tasks.POLL_GAP_MAX, tasks.remove_unknown_news_sources = kept
+    return problems
+
+
 @check("a channel the bot cannot see is only changed by someone with Manage Webhooks across the server, a deleted one by anybody who may use the command, and adding accounts is spaced out and capped per server")
 def _unseen():
     import discord
@@ -3539,9 +3590,17 @@ def _stale_mirror():
             problems.append("an edit seen through the fresher mirror no longer reads as an edit of the post it replaced")
         if asked != [fresh, stale] or news._working["allnet_info"] != fresh:
             problems.append(f"a stale mirror's older feed took the first place back: {asked}")
-        # the mirror that served allnet_info nothing serves kop_sega, and is asked for it
-        if look("kop_sega") != ["5"] or asked != [stale, dead] or look("kop_sega") != ["5"] or asked != [stale, dead]:
+        # the mirror that served allnet_info nothing serves kop_sega, and is asked for it, after the mirror serving allnet_info
+        if look("kop_sega") != ["5"] or asked != [fresh, stale, dead] or look("kop_sega") != ["5"] or asked != [stale, dead]:
             problems.append(f"one account's failure on a mirror kept it from another account: {asked}")
+        # an added account is asked of only the first few mirrors: the ones serving other accounts go first, not the head of the list, which may be down
+        far = news.RSS_INSTANCES[news.LOOKUP_TRIES + 1]
+        serves[(far, "added")] = feed(7)
+        news._working.clear()
+        news._working["kop_sega"] = far
+        asked.clear()
+        if [item.id for item in asyncio.run(news.fetch_feed(None, "added", news.LOOKUP_TRIES))[0]] != ["7"] or asked[:1] != [far]:
+            problems.append(f"an added account was not asked of a mirror known to work: {asked}")
     finally:
         news.fetch_bytes = kept[0]
         news._working.clear()
