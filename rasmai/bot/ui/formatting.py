@@ -270,7 +270,7 @@ NOT_CONNECTED_MESSAGE = "It seems like you haven't created an account yet - run 
 
 
 def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> List[discord.Embed]:
-    """The login card, one way of linking to a page: with the Aime sign-in helper first where there is a link for it, then by hand.
+    """The login card, one way of linking to a page, in the order the site's link page has them: the two with the Aime sign-in helper where there is a link for it, then by hand.
 
     :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
     :type region: str
@@ -301,23 +301,23 @@ def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> Li
              "Rasmai keeps your SEGA ID and password, encrypted, and uses them only to read your scores. `/logout` deletes them."),
         )]
     by_hand = page(
-        "Connect your maimai account", opening,
-        ("What you'll do there",
-         "1. Open the setup page on a computer\n"
-         "2. Sign in at the Aime gateway with **auto login** ticked\n"
-         "3. Copy one value from developer tools and paste it on the page"),
+        "By hand, from the developer tools",
+        "1. Press **Open setup** below, on a computer\n"
+        "2. Sign in at the Aime gateway with **auto login** ticked\n"
+        "3. Copy one value from developer tools and paste it on the page",
     )
     if not login_info.get("helperLink"):
         return [by_hand]
-    by_hand.title = "Connect without the extension"
-    return [page(
-        "Connect with the Aime sign-in helper",
-        (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) (Firefox version in review)\n"
-         "2. Sign in at the Aime gateway with **auto login** ticked\n"
-         "3. Press **Link with the extension** below, pass the check, then approve in the extension's window\n"
-         f"Or paste this link into the extension:\n||`{login_info['helperLink']}`||\n"
-         "No extension? Press **Next**."),
-    ), by_hand]
+    extension = (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) (Firefox version in review)\n"
+                 "2. Sign in at the Aime gateway with **auto login** ticked\n")
+    return [
+        page("Approve in the extension",
+             extension + "3. Press **Link with the extension** below, pass the check, then approve in the extension's window"),
+        page("Paste your link into the extension",
+             extension + "3. Press **Open setup** below and pass the check\n"
+             f"4. Paste this link into the extension:\n||`{login_info['helperLink']}`||"),
+        by_hand,
+    ]
 
 
 def build_login_done_embed(name: str, region: str) -> discord.Embed:

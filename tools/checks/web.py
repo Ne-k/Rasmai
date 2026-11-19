@@ -2122,36 +2122,41 @@ def _regions():
             problems.append(f"the extension's short address is not one the site sends on to its store page: {intl_info['helperInstall']}")
         if not any(intl_info["helperInstall"] in words for words in card("intl")):
             problems.append("the International /login card does not say where to add the extension from")
-        # the card is two pages, the extension's way then the steps by hand, turned in the one view the watcher holds
+        # the card is a page a way of linking, as the site's link page has a card a way: a button a way shows its page in the one
+        # view the watcher holds, and the link beside it opens the setup page on that same way
         from rasmai.bot.ui.views import LoginView
         intl_pages = build_login_walkthrough_pages("intl", intl_info)
         shown = []
 
+        def drawn(view):
+            ways = [item for item in view.children if item.row == 1]
+            return [button.disabled for button in ways], [item.url for item in view.children if "/connect/" in (getattr(item, "url", None) or "")]
+
         async def turn():
             view = LoginView(1, intl_info["connectUrl"], "intl", intl_pages)
+            first = drawn(view)
 
             async def edit_message(embed=None, view=None):
-                shown.append((embed.title, view.where.label, view.prev.disabled, view.next.disabled, view))
+                shown.append((embed.title, *drawn(view), view))
             press = types.SimpleNamespace(response=types.SimpleNamespace(edit_message=edit_message))
-            for button in (view.next, view.next, view.prev):
-                await button.callback(press)
-            return view, len(LoginView(1, intl_info["connectUrl"], "jp", build_login_walkthrough_pages("jp", jp_info)).children)
+            for at in (2, 1, 0):
+                await [item for item in view.children if item.row == 1][at].callback(press)
+            return view, first, len(LoginView(1, intl_info["connectUrl"], "jp", build_login_walkthrough_pages("jp", jp_info)).children)
         import asyncio
         import types
-        view, japan_buttons = asyncio.run(turn())
-        # the sign-in the extension reads is only there after a sign-in with auto login ticked, so both ways say so
-        if len(intl_pages) != 2 or any("auto login" not in words for words in card("intl")) or helper in card("intl")[1]:
-            problems.append(f"the International /login card is not two pages, the steps by hand on the second: {[p.title for p in intl_pages]}")
-        if [s[:4] for s in shown] != [(intl_pages[1].title, "page 2 of 2", False, True), (intl_pages[1].title, "page 2 of 2", False, True),
-                                      (intl_pages[0].title, "page 1 of 2", True, False)] or any(s[4] is not view for s in shown):
-            problems.append(f"Prev and Next on the /login card do not turn its pages in the same view: {[s[:4] for s in shown]}")
-        # the extension's way has its own button: the setup page, told to start the approval itself
-        buttons = {getattr(item, "label", ""): getattr(item, "url", None) for item in view.children}
-        if buttons.get("Link with the extension") != intl_info["connectUrl"] + "&way=extension" or buttons.get("Open setup") != intl_info["connectUrl"] \
-                or not any("Link with the extension" in words for words in card("intl")[:1]):
-            problems.append(f"the International /login card has no button that starts linking with the extension: {sorted(buttons)}")
+        view, first, japan_buttons = asyncio.run(turn())
+        setup = intl_info["connectUrl"]
+        # the sign-in the extension reads is only there after a sign-in with auto login ticked, so every way says so; the link to
+        # paste is on the page for pasting it and no other
+        if len(intl_pages) != 3 or any("auto login" not in words for words in card("intl")) or [helper in words for words in card("intl")] != [False, True, False] \
+                or [intl_info["helperInstall"] in words for words in card("intl")] != [True, True, False]:
+            problems.append(f"the International /login card is not three pages, a way of linking each: {[p.title for p in intl_pages]}")
+        if first != ([True, False, False], [setup + "&way=extension"]) or [s[:3] for s in shown] != [
+                (intl_pages[2].title, [False, False, True], [setup + "&way=hand"]), (intl_pages[1].title, [False, True, False], [setup + "&way=paste"]),
+                (intl_pages[0].title, [True, False, False], [setup + "&way=extension"])] or any(s[3] is not view for s in shown):
+            problems.append(f"the /login card's buttons do not show each way's page in the same view, with its own link to the setup page: {first} {[s[:3] for s in shown]}")
         if len(build_login_walkthrough_pages("jp", jp_info)) != 1 or japan_buttons != 2:
-            problems.append("the Japan /login card, which is one page, has pages to turn")
+            problems.append("the Japan /login card, which is one page, has ways to pick between")
         # the Japan card stays without it even when handed a payload that has one
         if any("/api/link/" in words for words in card("jp")):
             problems.append("the Japan /login card carries a helper link")

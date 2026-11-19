@@ -54,8 +54,8 @@ function Connect() {
   const params = useSearchParams();
   const code = params.get("code") ?? "";
   const user = params.get("user") ?? "";
-  // the /login card's "Link with the extension" button opens the page this way
-  const viaExtensionFirst = params.get("way") === "extension";
+  // the /login card's buttons name the way of linking to open on: "extension" also starts it, "paste" and "hand" open their cards
+  const way = params.get("way") ?? "";
   const [info, setInfo] = useState<ConnectInfo | null>(null);
   const [errorKind, setErrorKind] = useState<string | null>(null);
   const [checkFailed, setCheckFailed] = useState("");
@@ -139,7 +139,7 @@ function Connect() {
     );
   }
   const onExpired = () => setErrorKind("expired");
-  return japan ? <JapanConnect info={info} code={code} user={user} onExpired={onExpired} /> : <CookieConnect info={info} code={code} user={user} onExpired={onExpired} autoStart={viaExtensionFirst} />;
+  return japan ? <JapanConnect info={info} code={code} user={user} onExpired={onExpired} /> : <CookieConnect info={info} code={code} user={user} onExpired={onExpired} way={way} />;
 }
 
 /** What a sign-in refusal from the bot says on this page, where the login link is still good. */
@@ -158,7 +158,8 @@ function useProblemCopy() {
 }
 
 /** The international gateway keeps its sign-in in a cookie no script may read any more, so the person copies it themselves. */
-function CookieConnect({ info, code, user, onExpired, autoStart = false }: { info: ConnectInfo; code: string; user: string; onExpired: () => void; autoStart?: boolean }) {
+function CookieConnect({ info, code, user, onExpired, way = "" }: { info: ConnectInfo; code: string; user: string; onExpired: () => void; way?: string }) {
+  const autoStart = way === "extension";
   const t = useTranslations("flow");
   const video = useTranslations("tutorial");
   const problemCopy = useProblemCopy();
@@ -283,7 +284,7 @@ function CookieConnect({ info, code, user, onExpired, autoStart = false }: { inf
       <p className="lede">{t("ledeIntl")}</p>
 
       <div className="ways">
-        <details className="way first" open>
+        <details className="way first" open={way !== "paste" && way !== "hand"}>
           <summary>{t("wayOne")}</summary>
           <div className="way-body">
             <p>{t.rich("oneBody", rich)}</p>
@@ -304,7 +305,7 @@ function CookieConnect({ info, code, user, onExpired, autoStart = false }: { inf
         </details>
 
         {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
-        <details className="way">
+        <details className="way" open={way === "paste"}>
           <summary>{t("wayTwo")}</summary>
           <div className="way-body">
             <p>{t.rich("twoBody", rich)}</p>
@@ -323,7 +324,7 @@ function CookieConnect({ info, code, user, onExpired, autoStart = false }: { inf
           </div>
         </details>
 
-        <details className="way">
+        <details className="way" open={way === "hand"}>
           <summary>{t("wayThree")}</summary>
           <div className="way-body">
             <section className="step">

@@ -114,40 +114,46 @@ def from_cache(owner_id: int, build: Callable[..., Awaitable[Any]]) -> Callable[
 
 
 class LoginView(OwnerOnlyView):
-    """The buttons under the login card, and Prev and Next when the card has more than one page.
+    """The buttons under the login card. Where the card has a page a way of linking, a button a way shows its page, and the
+    link beside it opens the setup page on that same way.
 
-    The pages are turned in this one view rather than each drawing a new one: the watcher and the timeout hold on to it."""
+    The pages are shown in this one view rather than each drawing a new one: the watcher and the timeout hold on to it."""
+
+    # a page's own button, its link to the setup page and what that page is told to open, in the order of the card's pages
+    WAYS = (("Approve in the extension", "Link with the extension", "extension"), ("Paste your link", "Open setup", "paste"), ("By hand", "Open setup", "hand"))
 
     def __init__(self, owner_id: int, connect_url: str, region: str = "intl", pages: Sequence[discord.Embed] = ()):
         super().__init__(owner_id, timeout=LOGIN_CODE_TTL.total_seconds())
         self.pages, self.page = list(pages), 0
-        if region == "jp":
-            # a Japan account is linked with its SEGA ID on the setup page itself
-            self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
-        else:
+        self.connect_url, self.region = connect_url, region
+        self._draw()
+
+    def _draw(self) -> None:
+        """The buttons for the page shown."""
+        self.clear_items()
+        several = len(self.pages) == len(self.WAYS)
+        if self.region != "jp":
+            # a Japan account is linked with its SEGA ID on the setup page itself, with no gateway to sign in at first
             from rasmai.web.links import GATEWAY_LOGIN
             self.add_item(discord.ui.Button(label="Sign in at the gateway", url=GATEWAY_LOGIN))
-            # the setup page, told to start the extension's approval as soon as the human check is passed
-            self.add_item(discord.ui.Button(label="Link with the extension", url=f"{connect_url}&way=extension"))
-            self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
+        _name, label, way = self.WAYS[self.page] if several else ("", "Open setup", "")
+        self.add_item(discord.ui.Button(label=label, url=self.connect_url + (f"&way={way}" if way else "")))
         check = discord.ui.Button(label="Check connection", style=discord.ButtonStyle.success)
         check.callback = self._check
         self.add_item(check)
-        if len(self.pages) > 1:
-            self.prev = discord.ui.Button(label="Prev", row=1, disabled=True)
-            self.where = discord.ui.Button(label=f"page 1 of {len(self.pages)}", row=1, disabled=True)
-            self.next = discord.ui.Button(label="Next", row=1)
-            self.prev.callback, self.next.callback = self._turn(-1), self._turn(1)
-            for button in (self.prev, self.where, self.next):
+        if several:
+            for at, (name, _label, _way) in enumerate(self.WAYS):
+                # the way shown is the one that cannot be pressed
+                button = discord.ui.Button(label=name, row=1, disabled=at == self.page,
+                                           style=discord.ButtonStyle.primary if at == self.page else discord.ButtonStyle.secondary)
+                button.callback = self._show(at)
                 self.add_item(button)
 
-    def _turn(self, by: int):
+    def _show(self, at: int):
         async def callback(interaction: discord.Interaction) -> None:
-            last = len(self.pages) - 1
-            self.page = max(0, min(self.page + by, last))
-            self.prev.disabled, self.next.disabled = self.page == 0, self.page == last
-            self.where.label = f"page {self.page + 1} of {len(self.pages)}"
-            await interaction.response.edit_message(embed=self.pages[self.page], view=self)
+            self.page = at
+            self._draw()
+            await interaction.response.edit_message(embed=self.pages[at], view=self)
         return callback
 
     async def on_timeout(self) -> None:
