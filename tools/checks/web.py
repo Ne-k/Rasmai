@@ -2145,6 +2145,11 @@ def _regions():
         if [s[:4] for s in shown] != [(intl_pages[1].title, "page 2 of 2", False, True), (intl_pages[1].title, "page 2 of 2", False, True),
                                       (intl_pages[0].title, "page 1 of 2", True, False)] or any(s[4] is not view for s in shown):
             problems.append(f"Prev and Next on the /login card do not turn its pages in the same view: {[s[:4] for s in shown]}")
+        # the extension's way has its own button: the setup page, told to start the approval itself
+        buttons = {getattr(item, "label", ""): getattr(item, "url", None) for item in view.children}
+        if buttons.get("Link with the extension") != intl_info["connectUrl"] + "&way=extension" or buttons.get("Open setup") != intl_info["connectUrl"] \
+                or not any("Link with the extension" in words for words in card("intl")[:1]):
+            problems.append(f"the International /login card has no button that starts linking with the extension: {sorted(buttons)}")
         if len(build_login_walkthrough_pages("jp", jp_info)) != 1 or japan_buttons != 2:
             problems.append("the Japan /login card, which is one page, has pages to turn")
         # the Japan card stays without it even when handed a payload that has one

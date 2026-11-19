@@ -314,7 +314,7 @@ def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> Li
         "Connect with the Aime sign-in helper",
         (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) (Firefox version in review)\n"
          "2. Sign in at the Aime gateway with **auto login** ticked\n"
-         "3. Open the setup page, pass the check and press **link with the extension**\n"
+         "3. Press **Link with the extension** below, pass the check, then approve in the extension's window\n"
          f"Or paste this link into the extension:\n||`{login_info['helperLink']}`||\n"
          "No extension? Press **Next**."),
     ), by_hand]

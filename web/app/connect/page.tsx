@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Support } from "@/components/Support";
@@ -54,6 +54,8 @@ function Connect() {
   const params = useSearchParams();
   const code = params.get("code") ?? "";
   const user = params.get("user") ?? "";
+  // the /login card's "Link with the extension" button opens the page this way
+  const viaExtensionFirst = params.get("way") === "extension";
   const [info, setInfo] = useState<ConnectInfo | null>(null);
   const [errorKind, setErrorKind] = useState<string | null>(null);
   const [checkFailed, setCheckFailed] = useState("");
@@ -137,7 +139,7 @@ function Connect() {
     );
   }
   const onExpired = () => setErrorKind("expired");
-  return japan ? <JapanConnect info={info} code={code} user={user} onExpired={onExpired} /> : <CookieConnect info={info} code={code} user={user} onExpired={onExpired} />;
+  return japan ? <JapanConnect info={info} code={code} user={user} onExpired={onExpired} /> : <CookieConnect info={info} code={code} user={user} onExpired={onExpired} autoStart={viaExtensionFirst} />;
 }
 
 /** What a sign-in refusal from the bot says on this page, where the login link is still good. */
@@ -156,7 +158,7 @@ function useProblemCopy() {
 }
 
 /** The international gateway keeps its sign-in in a cookie no script may read any more, so the person copies it themselves. */
-function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; code: string; user: string; onExpired: () => void }) {
+function CookieConnect({ info, code, user, onExpired, autoStart = false }: { info: ConnectInfo; code: string; user: string; onExpired: () => void; autoStart?: boolean }) {
   const t = useTranslations("flow");
   const video = useTranslations("tutorial");
   const problemCopy = useProblemCopy();
@@ -260,6 +262,13 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
       setOpening(false);
     }
   };
+  // once, even where React runs an effect twice in development
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    viaExtension();
+  }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const done = player !== null;
   return (

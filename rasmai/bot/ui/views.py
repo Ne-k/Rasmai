@@ -126,8 +126,10 @@ class LoginView(OwnerOnlyView):
             self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
         else:
             from rasmai.web.links import GATEWAY_LOGIN
-            self.add_item(discord.ui.Button(label="1 · Sign in at the gateway", url=GATEWAY_LOGIN))
-            self.add_item(discord.ui.Button(label="2 · Open setup", url=connect_url))
+            self.add_item(discord.ui.Button(label="Sign in at the gateway", url=GATEWAY_LOGIN))
+            # the setup page, told to start the extension's approval as soon as the human check is passed
+            self.add_item(discord.ui.Button(label="Link with the extension", url=f"{connect_url}&way=extension"))
+            self.add_item(discord.ui.Button(label="Open setup", url=connect_url))
         check = discord.ui.Button(label="Check connection", style=discord.ButtonStyle.success)
         check.callback = self._check
         self.add_item(check)
