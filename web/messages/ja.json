@@ -1864,7 +1864,8 @@
   },
   "tutorial": {
     "label": "Firefox で海外版アカウントを連携する手順（最初から最後まで）",
-    "helperLabel": "Aime sign-in helper 拡張機能で海外版アカウントを連携する手順（最初から最後まで）"
+    "helperLabel": "Aime sign-in helper 拡張機能で海外版アカウントを連携する手順（最初から最後まで）",
+    "approveLabel": "Aime sign-in helper 拡張機能で承認して海外版アカウントを連携する手順（最初から最後まで）"
   },
   "oauth": {
     "steps": {"check": "アプリを確認", "approve": "拡張機能で承認", "return": "アプリに戻る"},

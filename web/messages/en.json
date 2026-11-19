@@ -1864,7 +1864,8 @@
   },
   "tutorial": {
     "label": "Linking an International account in Firefox, start to finish",
-    "helperLabel": "Linking an International account with the Aime sign-in helper extension, start to finish"
+    "helperLabel": "Linking an International account with the Aime sign-in helper extension, start to finish",
+    "approveLabel": "Linking an International account by approving in the Aime sign-in helper extension, start to finish"
   },
   "oauth": {
     "steps": {"check": "Check the app", "approve": "Approve in the extension", "return": "Back to the app"},

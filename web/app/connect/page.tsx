@@ -301,6 +301,7 @@ function CookieConnect({ info, code, user, onExpired, way = "" }: { info: Connec
                 <Support />
               </>
             )}
+            <Tutorial clip="approve" label={video("approveLabel")} />
           </div>
         </details>
 

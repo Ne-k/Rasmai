@@ -52,6 +52,7 @@ export default async function LinkPage() {
               <summary>{flow("wayOne")}</summary>
               <div className="way-body">
                 <p>{t.rich("oneBody", tags)}</p>
+                <Tutorial clip="approve" label={video("approveLabel")} />
               </div>
             </details>
             <details className="way">
