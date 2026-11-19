@@ -77,8 +77,10 @@ def _transaction() -> Iterator[sqlite3.Connection]:
 
 def _exists(connection: sqlite3.Connection, user_id: str) -> bool:
     return bool(connection.execute(
-        "SELECT 1 FROM connected_accounts WHERE user_id = ? UNION SELECT 1 FROM people WHERE user_id = ?",
-        (user_id, user_id)).fetchone())
+        # a developer whose maimai sign-in lapsed and was deleted still has an account: their applications
+        "SELECT 1 FROM connected_accounts WHERE user_id = ? UNION SELECT 1 FROM people WHERE user_id = ? "
+        "UNION SELECT 1 FROM oauth_apps WHERE user_id = ?",
+        (user_id, user_id, user_id)).fetchone())
 
 
 def account_exists(user_id: str) -> bool:
@@ -153,7 +155,8 @@ def _attach(connection: sqlite3.Connection, provider: str, subject: str, user_id
 def _clear_data(connection: sqlite3.Connection, user_id: str) -> None:
     """Delete an account's data but not the rows naming it, which go on to the account that stays."""
     for table in _account_tables(connection):
-        if table not in _NOT_DATA:
+        # an application is other people's way in, not this person's maimai data: it moves with the rest instead
+        if table not in _NOT_DATA and table != "oauth_apps":
             connection.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (user_id,))
 
 

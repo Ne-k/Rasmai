@@ -173,6 +173,31 @@ def dev_flags_set(**changes: Any) -> Dict[str, Any]:
     return dict(_flags)
 
 
+_BOTS = "link-bots"
+
+
+def link_bots_get() -> Dict[str, str]:
+    """The bots the developer listed as verified for the Aime sign-in helper, as origin to name.
+
+    :rtype: Dict[str, str]
+    """
+    row = source_state_get(_BOTS)
+    try:
+        stored = json.loads((row or {}).get("payload") or "{}")
+    except json.JSONDecodeError:
+        stored = {}
+    return {str(origin): str(name) for origin, name in stored.items()} if isinstance(stored, dict) else {}
+
+
+def link_bots_set(bots: Dict[str, str]) -> None:
+    """Replace the list of verified bots.
+
+    :param bots: Origin to name.
+    :type bots: Dict[str, str]
+    """
+    source_state_set(_BOTS, payload=json.dumps(bots))
+
+
 def site_notice_get() -> Optional[Dict[str, Any]]:
     """The banner the site should be showing, or ``None`` when one has never been set.
 

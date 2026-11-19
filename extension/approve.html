@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aime sign-in helper</title>
+<style>
+  :root {
+    --canvas: #f9f9f9; --ink: #000; --quiet: #595959;
+    --blue-text: #0074e0;
+    --rule: #bfbfbf; --head: #ededed; --dots: #d0d0d0;
+    --wrong: #ffcece; --wrong-edge: #f12222; --done: #13803a;
+  }
+  body { max-width: 388px; margin: 0 auto; padding: 14px 16px 16px; background: var(--canvas); color: var(--ink);
+         font: 14px/1.5 "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; -webkit-font-smoothing: antialiased; }
+  p, h1 { margin: 0; }
+  h1 { font-size: 14px; overflow-wrap: anywhere; }
+  #head { display: flex; align-items: center; gap: 10px; }
+  #icon { flex: none; width: 40px; height: 40px; border: 2px solid var(--head); border-radius: 9px; }
+  a { color: #0000ff; }
+
+  #card { margin-top: 10px; background: #fff; border: 2px solid var(--head); border-radius: 10px; }
+  #card header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; font-weight: 700; }
+  #badge { padding: 1px 7px; border-radius: 3px; font-size: 12px; font-weight: 700; color: #fff; background: var(--done); white-space: nowrap; }
+  #card[data-state="unreviewed"] #badge { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 10px; border-top: 2px solid var(--head); text-align: left; vertical-align: baseline; overflow-wrap: anywhere; }
+  th { width: 1%; font-size: 12px; font-weight: 400; color: var(--quiet); white-space: nowrap; }
+  #dest { font-size: 16px; line-height: 1.3; font-weight: 700; }
+
+  #gets { margin-top: 12px; font-size: 13px; }
+  #unreviewed, #said { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
+  #said:empty { display: none; }
+  #unreviewed, #said.bad { padding: 6px 10px; border: 2px solid var(--wrong-edge); border-radius: 10px; background: var(--wrong); }
+
+  #acts { display: flex; gap: 6px; margin-top: 14px; }
+  .act { position: relative; flex: 1; }
+  #go, #no { display: block; width: 100%; border-radius: 250px; font: inherit; font-weight: 700; line-height: 1.3; cursor: pointer; }
+  #go { padding: 10px 0; border: 1px solid var(--blue-text); background: var(--blue-text); color: #fff; }
+  #go:hover:enabled { background: #fff; color: var(--blue-text); }
+  #no { padding: 9px 0; border: 2px solid var(--rule); background: #fff; color: var(--ink); }
+  #no:hover:enabled { border-color: var(--ink); }
+  #go:disabled, #no:disabled { opacity: .45; cursor: default; }
+  #go[aria-busy="true"]:disabled, #no[aria-busy="true"]:disabled { opacity: 1; cursor: progress; }
+  #go:focus-visible, #no:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  @property --arc-start { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @property --arc-end { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @property --dash { syntax: "*"; inherits: false; initial-value: , dash 3s ease-in-out infinite; }
+  #spin[hidden] { display: none; }
+  #spin::-webkit-progress-bar, #spin::-webkit-progress-value { display: none; background: none; }
+  #spin::-moz-progress-bar { display: none; background: none; }
+  #spin:indeterminate {
+    --from: calc(90deg + var(--arc-start, 0deg)); --to: calc(90deg + var(--arc-end, 158deg));
+    --ring: #fff; --track: rgb(255 255 255 / .35); --turn: 1.2s;
+    position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; margin: -9px 0 0; border-radius: 50%; appearance: none;
+    background: conic-gradient(from var(--from), var(--ring) calc(var(--to) - var(--from)), transparent 0) var(--track);
+    mask-image: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: spin var(--turn) linear infinite var(--dash, );
+  }
+  #no ~ #spin:indeterminate { --ring: var(--ink); --track: var(--dots); }
+  @keyframes spin { to { rotate: 1turn; } }
+  @keyframes dash { from { --arc-start: 0deg; --arc-end: 3deg; } 50% { --arc-start: 100deg; --arc-end: 358deg; } to { --arc-start: 360deg; --arc-end: 363deg; } }
+  @media (prefers-reduced-motion: reduce) {
+    #spin:indeterminate { --turn: 6s; --dash: ; --arc-end: 158deg; }
+  }
+  @media (forced-colors: active) {
+    #spin:indeterminate, #no ~ #spin:indeterminate { forced-color-adjust: none; --ring: ButtonText; --track: ButtonFace; }
+  }
+</style>
+</head>
+<body>
+<main id="ask" hidden>
+  <div id="head"><img id="icon" alt="" hidden><h1 id="title"></h1></div>
+  <section id="card">
+    <header><span>App details</span><span id="badge"></span></header>
+    <table>
+      <tr><th scope="row">App</th><td id="app"></td></tr>
+      <tr><th scope="row">Made by</th><td id="by"></td></tr>
+      <tr><th scope="row">For</th><td id="for"></td></tr>
+      <tr><th scope="row">Sends you to</th><td id="dest"></td></tr>
+      <tr><th scope="row">Website</th><td id="website"></td></tr>
+      <tr><th scope="row">Privacy policy</th><td id="privacy"></td></tr>
+    </table>
+  </section>
+  <p id="unreviewed">Rasmai hasn't reviewed this app. Only approve it if you trust it.</p>
+  <p id="gets">If you approve, this app gets your maimai sign-in. It can act as you on maimai DX NET until you sign out there.</p>
+  <div id="acts">
+    <div class="act"><button id="no" type="button" disabled>Decline</button></div>
+    <div class="act"><button id="go" type="button" disabled>Approve</button><progress id="spin" aria-label="Sending" hidden></progress></div>
+  </div>
+</main>
+<p id="said" role="status"></p>
+<script src="core.js"></script>
+<script src="approve.js"></script>
+</body>
+</html>

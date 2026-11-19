@@ -519,11 +519,16 @@ def _regions_down() -> list:
 
 @tasks.loop(hours=1)
 async def _expired_account_sweep() -> None:
-    from rasmai.storage.db import dev_flags_get, postpone_account_deletions
+    from rasmai.storage.db import dev_flags_get, oauth_purge, postpone_account_deletions
+    # a sign-in handed to an app is deleted within the hour after it runs out, whether or not anyone asks for another
+    try:
+        await asyncio.to_thread(oauth_purge)
+    except Exception:
+        logger.exception("deleting the run-out OAuth sign-ins failed")
     # scheduled maintenance is a few hours every day and already inside the allowance: the sweep waits, deadlines stay put
     if any(maintenance_at(region=region).active for region in SUPPORTED_REGIONS):
         return
-    # deletions held from /dev are treated as every region being down: the deadlines move with the hold, so lifting it deletes nobody at once
+    # deletions held from the developer page are treated as every region being down: the deadlines move with the hold, so lifting it deletes nobody at once
     held = dev_flags_get()["deletions"] is False
     down = list(SUPPORTED_REGIONS) if held else await asyncio.to_thread(_regions_down)
     if down:
@@ -531,7 +536,7 @@ async def _expired_account_sweep() -> None:
         try:
             moved = await asyncio.to_thread(postpone_account_deletions, down, timedelta(hours=1))
             logger.info("%s: %d expired account(s) get an hour more, and no deletion runs",
-                        "deletions are held from /dev" if held else f"maimai DX NET is down in {', '.join(down)}", moved)
+                        "deletions are held from the developer page" if held else f"maimai DX NET is down in {', '.join(down)}", moved)
         except Exception:
             logger.exception("postponing the deletions while maimai DX NET is down failed")
         return

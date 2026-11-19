@@ -1,7 +1,3 @@
-const api = globalThis.browser ?? globalThis.chrome;
-const GATEWAY_HOST = "lng-tgk-aime-gw.am-all.net";
-const GATEWAY_LOGIN = `https://${GATEWAY_HOST}/common_auth/login?site_id=maimaidxex&redirect_url=https://maimaidx-eng.com/maimai-mobile/&back_url=https://maimai.sega.com/`;
-
 const button = document.getElementById("go");
 const copyButton = document.getElementById("copy");
 const said = document.getElementById("said");
@@ -10,6 +6,7 @@ const dest = document.getElementById("dest");
 const card = document.getElementById("card");
 const goes = document.getElementById("goes");
 const spin = document.getElementById("spin");
+const who = document.getElementById("who");
 let tab = null;
 const linkField = document.getElementById("link");
 let way = "copy";
@@ -17,6 +14,15 @@ let link = null;
 let typing;
 let busy = false;
 let lastRead = "";
+let known = "";
+let sure = false;
+
+function showWho(name) {
+  known = name;
+  sure = false;
+  who.textContent = name ? `✓ ${name}` : "not a verified bot";
+  who.className = name ? "ok" : "no";
+}
 
 function say(text, bad = false, href = "") {
   said.textContent = text;
@@ -46,15 +52,11 @@ function showCard(state) {
   }
 }
 
-async function signIn() {
-  const cookies = await api.cookies.getAll({ domain: GATEWAY_HOST, name: "clal" });
-  return cookies.find((c) => /^[A-Za-z0-9]{64}$/.test(c.value));
-}
-
 async function peek() {
   try {
     if (!(await api.permissions.contains({ origins: [`https://${GATEWAY_HOST}/*`] }))) return;
-    const cookie = await signIn();
+    const [active] = await api.tabs.query({ active: true, currentWindow: true });
+    const cookie = await signIn(active?.id);
     showCard(cookie ? "found" : "none");
   } catch {
 
@@ -64,10 +66,10 @@ async function peek() {
 function onPage(value) {
   const form = document.querySelector("form[data-aime-link]");
   const field = document.querySelector('input[name="clal"], [data-aime-cookie]');
-  if (!value) return form ? "post" : field ? "fill" : "copy";
+  if (!value) return { way: form ? "post" : field ? "fill" : "copy", grant: document.querySelector("[data-aime-grant]")?.getAttribute("data-aime-grant") || "" };
   if (form) {
     const action = new URL(form.getAttribute("action") || location.href, location.href);
-    if (action.origin !== location.origin || (action.protocol !== "https:" && action.hostname !== "localhost")) return { error: "the form sends to another site, so it was blocked" };
+    if (action.origin !== location.origin || (action.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(action.hostname))) return { error: "the form sends to another site, so it was blocked" };
     const body = new URLSearchParams(new FormData(form));
     body.set(form.dataset.aimeLink || "token", value);
     return fetch(action, { method: (form.getAttribute("method") || "post").toUpperCase(), body, credentials: "same-origin", headers: { Accept: "text/html" } })
@@ -92,12 +94,15 @@ async function inPage(value) {
 
 async function look() {
   [tab] = await api.tabs.query({ active: true, currentWindow: true });
-  const { host, protocol, hostname } = new URL(tab?.url || "about:blank");
+  const { host, origin, protocol, hostname } = new URL(tab?.url || "about:blank");
+  let found = null;
   try {
-    way = tab?.id && (protocol === "https:" || (protocol === "http:" && ["localhost", "127.0.0.1"].includes(hostname))) ? (await inPage("")) || "copy" : "copy";
+    found = tab?.id && (protocol === "https:" || (protocol === "http:" && ["localhost", "127.0.0.1"].includes(hostname))) ? await inPage("") : null;
   } catch {
-    way = "copy";
+    found = null;
   }
+  way = found?.way || "copy";
+  showWho(way === "copy" ? "" : await bot(found.grant, origin));
   lead.textContent = "";
   delete button.dataset.done;
   dest.textContent = way === "copy" ? "" : host;
@@ -105,20 +110,6 @@ async function look() {
   button.textContent = way === "post" ? "Link my account" : way === "fill" ? "Fill it in" : "Copy sign-in";
   button.disabled = false;
   copyButton.hidden = way === "copy";
-}
-
-function linkUrl(text) {
-  try {
-    const url = new URL(text.trim());
-    return url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)) ? url : null;
-  } catch {
-    return null;
-  }
-}
-
-async function ask(url, body) {
-  const response = await fetch(url, { method: body ? "POST" : "GET", body, redirect: "error", credentials: "omit", cache: "no-store" });
-  return { status: response.status, data: await response.json().catch(() => ({})) };
 }
 
 async function readLink() {
@@ -133,6 +124,8 @@ async function readLink() {
   copyButton.hidden = false;
   goes.hidden = !url;
   dest.textContent = url ? url.host : "";
+  showWho("");
+  who.textContent = "";
   if (!url) {
     lead.textContent = "Not a link. It has to start with https://";
     return;
@@ -145,6 +138,8 @@ async function readLink() {
       lead.textContent = typeof data.error === "string" ? data.error.slice(0, 200) : "This site doesn't take sign-ins from the extension.";
       return;
     }
+    showWho(await bot(data.grant, url.origin));
+    if (url.href !== linkUrl(linkField.value)?.href) return;
     link = { url };
     lead.textContent = "";
     button.disabled = false;
@@ -154,17 +149,12 @@ async function readLink() {
 }
 
 async function sendToLink(link, value) {
-  const { data: now } = await ask(link.url);
-  if (now.aimeLink !== 1) return say(typeof now.error === "string" ? now.error.slice(0, 200) : "That link doesn't work anymore.", true);
-  if (now.ready === false) return say((typeof now.wait === "string" && now.wait.slice(0, 200)) || "Finish the steps on the site first.", true);
-  const { status, data } = await ask(link.url, new URLSearchParams({ clal: value }));
-  if (status === 200 && data.ok === true) {
-    say(`Linked${typeof data.player === "string" && data.player ? ` as ${data.player.slice(0, 40)}` : ""}.`);
-    linkField.value = "";
-    lastRead = "";
-    return true;
-  }
-  say(typeof data.error === "string" && data.error ? data.error.slice(0, 300) : `Error ${status}.`, true);
+  const done = await handOver(link.url, value);
+  if (!done.ok) return say(done.error, true);
+  say(`Linked${done.player ? ` as ${done.player}` : ""}.`);
+  linkField.value = "";
+  lastRead = "";
+  return true;
 }
 
 async function signedIn() {
@@ -173,7 +163,7 @@ async function signedIn() {
     say("It needs permission to read your maimai sign-in.", true);
     return null;
   }
-  const cookie = await signIn();
+  const cookie = await signIn(tab?.id);
   showCard(cookie ? "found" : "none");
   if (!cookie) say("Not signed in.", true, GATEWAY_LOGIN);
   return cookie ?? null;
@@ -218,6 +208,12 @@ async function go() {
   clearTimeout(typing);
   if (linkField.value.trim() !== lastRead) return readLink();
   if (busy) return;
+  if ((link || way !== "copy") && !known && !sure) {
+    sure = true;
+    button.textContent = "Send anyway";
+    say("Not a verified bot. Only send if you trust this site.", true);
+    return;
+  }
   busy = true;
   const target = link;
   const how = way;

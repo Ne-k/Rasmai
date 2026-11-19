@@ -161,10 +161,11 @@ def get_database_connection() -> sqlite3.Connection:
                     )
                     """
                 )
-                try:
-                    setup.execute("ALTER TABLE login_codes ADD COLUMN verified_at TEXT")
-                except sqlite3.OperationalError:
-                    pass          # already there
+                for column in ("verified_at TEXT", "name TEXT NOT NULL DEFAULT ''"):
+                    try:
+                        setup.execute(f"ALTER TABLE login_codes ADD COLUMN {column}")
+                    except sqlite3.OperationalError:
+                        pass          # already there
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS guild_settings (
@@ -395,6 +396,78 @@ def get_database_connection() -> sqlite3.Connection:
                 )
                 setup.execute("CREATE INDEX IF NOT EXISTS identities_email ON identities(email_hash)")
                 setup.execute("CREATE INDEX IF NOT EXISTS identities_user ON identities(user_id)")
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oauth_apps (   -- an application a developer registered to ask players for their maimai sign-in
+                        id          TEXT PRIMARY KEY,              -- the client id
+                        user_id     TEXT NOT NULL,                 -- its developer, named as every account table names its owner, so it goes or moves with their account
+                        owner_name  TEXT NOT NULL DEFAULT '',      -- the developer as players are shown them
+                        name        TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        website     TEXT NOT NULL DEFAULT '',
+                        privacy     TEXT NOT NULL DEFAULT '',
+                        redirects   TEXT NOT NULL DEFAULT '[]',
+                        secret_hash TEXT NOT NULL DEFAULT '',
+                        review      TEXT NOT NULL DEFAULT 'none',  -- none, pending, verified or rejected
+                        icon        TEXT NOT NULL DEFAULT '',      -- a mark of its picture in oauth_icons, '' with none
+                        blocked     INTEGER NOT NULL DEFAULT 0,    -- 1 once blocked from the developer page: nobody can approve it and nothing it holds works
+                        created_at  TEXT NOT NULL
+                    )
+                    """
+                )
+                have = {row[1] for row in setup.execute("PRAGMA table_info(oauth_apps)")}
+                for column in ("icon TEXT NOT NULL DEFAULT ''", "blocked INTEGER NOT NULL DEFAULT 0"):
+                    if column.split()[0] not in have:
+                        setup.execute(f"ALTER TABLE oauth_apps ADD COLUMN {column}")
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oauth_icons (   -- an app's picture as this site redrew it, never the file its developer sent
+                        app_id TEXT PRIMARY KEY,
+                        png    BLOB NOT NULL
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oauth_tickets (   -- an authorize request waiting for the player's answer in the extension
+                        ticket_hash  TEXT PRIMARY KEY,
+                        client_id    TEXT NOT NULL,
+                        redirect_uri TEXT NOT NULL,
+                        scope        TEXT NOT NULL,
+                        state        TEXT NOT NULL,
+                        challenge    TEXT NOT NULL,
+                        expires_at   INTEGER NOT NULL
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oauth_codes (   -- an approved request, holding the player's sealed sign-in until the app exchanges it
+                        code_hash    TEXT PRIMARY KEY,
+                        client_id    TEXT NOT NULL,
+                        redirect_uri TEXT NOT NULL,
+                        scope        TEXT NOT NULL,
+                        challenge    TEXT NOT NULL,
+                        clal         TEXT NOT NULL,              -- sealed; emptied when the code is spent
+                        clal_expires INTEGER NOT NULL DEFAULT 0,
+                        expires_at   INTEGER NOT NULL,
+                        used         INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS oauth_tokens (   -- an access token, holding the sealed sign-in for its hour
+                        token_hash   TEXT PRIMARY KEY,
+                        code_hash    TEXT NOT NULL,
+                        client_id    TEXT NOT NULL,
+                        scope        TEXT NOT NULL,
+                        clal         TEXT NOT NULL,
+                        clal_expires INTEGER NOT NULL DEFAULT 0,
+                        expires_at   INTEGER NOT NULL
+                    )
+                    """
+                )
                 _upgrade_stored_tokens(setup)
             _database_ready = True
 

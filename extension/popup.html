@@ -8,7 +8,7 @@
     --canvas: #f9f9f9; --ink: #000; --quiet: #595959;
     --blue-text: #0074e0;
     --rule: #bfbfbf; --head: #ededed; --dots: #d0d0d0;
-    --empty: #fff4cd; --wrong: #ffcece; --wrong-edge: #f12222; --badge: #d80860; --done: #13803a;
+    --empty: #fff4cd; --wrong: #ffcece; --wrong-edge: #f12222; --badge: #d80860; --done: #13803a; --warn: #b3261e;
   }
   body { width: 260px; margin: 0; padding: 12px 12px 14px; background: var(--canvas); color: var(--ink);
          font: 14px/1.5 "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -27,6 +27,9 @@
   #goes { margin: 14px 0 0; font-size: 12px; color: var(--quiet); }
   #goes[hidden] { display: none; }
   #dest { display: block; font-size: 16px; line-height: 1.3; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+  #who { display: block; font-size: 12px; font-weight: 700; }
+  #who.ok { color: var(--done); }
+  #who.no { color: var(--warn); }
   #lead { margin-top: 6px; font-size: 13px; }
   #lead:empty { display: none; }
 
@@ -84,7 +87,7 @@
   <p id="until"></p>
 </section>
 
-<p id="goes">Sends to <strong id="dest">…</strong></p>
+<p id="goes">Sends to <strong id="dest">…</strong><span id="who"></span></p>
 <p id="lead"></p>
 <div id="act">
   <button id="go" type="button" disabled>…</button>
@@ -94,6 +97,7 @@
 <p id="said" role="status"></p>
 
 <input id="link" type="url" autocomplete="off" spellcheck="false" placeholder="Paste a bot link" aria-label="Bot link">
+<script src="core.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>

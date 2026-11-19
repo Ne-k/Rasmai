@@ -137,7 +137,7 @@ class NewsWatch:
         self._copy_turn = asyncio.Lock()        # the two copies of a post, on Bluesky and on X, are decided one after the other
         self._bluesky_turn = asyncio.Lock()     # Bluesky posts are built and sent one at a time, in the order they finish waiting
         self._history_turn = asyncio.Semaphore(1)       # one /news subscribe previous: at a time, however many servers ask
-        self._read_now = asyncio.Event()        # set by /dev: the X loop starts its next round at once, every account read straight away
+        self._read_now = asyncio.Event()        # set from the developer page: the X loop starts its next round at once, every account read straight away
 
     @property
     def session(self) -> aiohttp.ClientSession:

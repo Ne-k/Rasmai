@@ -12,13 +12,15 @@ from rasmai.storage.db.connection import _dump_json_column, _load_json_column, g
 from rasmai.util import _json_safe
 
 
-def issue_login_code(user_id: str, region: str) -> str:
+def issue_login_code(user_id: str, region: str, name: str = "") -> str:
     """Random, single-use, short-lived code bound to one Discord user.
 
     :param user_id: The Discord user id.
     :type user_id: str
     :param region: intl, jp or cn.
     :type region: str
+    :param name: Whose account it is, in words, such as "nek on Discord": what someone asked to approve a link is shown.
+    :type name: str
     :rtype: str
     """
     code = secrets.token_urlsafe(24)
@@ -30,12 +32,22 @@ def issue_login_code(user_id: str, region: str) -> str:
                 "DELETE FROM login_codes WHERE created_at < ?", ((now - timedelta(days=1)).isoformat(),)
             )
             connection.execute(
-                "INSERT INTO login_codes (code_hash, user_id, region, created_at) VALUES (?, ?, ?, ?)",
-                (_hash_code(code), user_id, region, now.isoformat()),
+                "INSERT INTO login_codes (code_hash, user_id, region, created_at, name) VALUES (?, ?, ?, ?, ?)",
+                (_hash_code(code), user_id, region, now.isoformat(), " ".join(name.split())[:48]),
             )
     finally:
         connection.close()
     return code
+
+
+def login_code_name(code: str) -> str:
+    """Whose account a login code is for, as it was named when the code was made; "" when it was not, or the code is unknown."""
+    connection = get_database_connection()
+    try:
+        row = connection.execute("SELECT name FROM login_codes WHERE code_hash = ?", (_hash_code(code),)).fetchone()
+        return row["name"] if row else ""
+    finally:
+        connection.close()
 
 
 def _lookup_login_code(code: str, consume: bool) -> Optional[Tuple[str, str]]:
@@ -371,17 +383,17 @@ def _account_tables(connection: Any) -> List[str]:
             if any(column[1] == "user_id" for column in connection.execute(f'PRAGMA table_info("{name}")'))]
 
 
-def _delete_account_rows(connection: Any, user_id: str) -> bool:
-    """Delete the account and every row stored against it, inside the caller's transaction."""
+def _delete_account_rows(connection: Any, user_id: str, keep: Tuple[str, ...] = ()) -> bool:
+    """Delete the account and every row stored against it, inside the caller's transaction; `keep` names tables left alone."""
     tables = _account_tables(connection)
     cursor = connection.execute("DELETE FROM connected_accounts WHERE user_id = ?", (user_id,))
     for table in tables:
-        if table != "connected_accounts":
+        if table != "connected_accounts" and table not in keep:
             connection.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (user_id,))
     return cursor.rowcount > 0
 
 
-def _erase(connection: Any, user_id: str, keep_if: Optional[Any] = None) -> bool:
+def _erase(connection: Any, user_id: str, keep_if: Optional[Any] = None, keep: Tuple[str, ...] = ()) -> bool:
     """Delete one account so its data cannot be read back out of the file.
 
     SQLite marks deleted rows free and leaves their bytes on disk until something else happens to
@@ -396,7 +408,7 @@ def _erase(connection: Any, user_id: str, keep_if: Optional[Any] = None) -> bool
     with connection:
         if keep_if is not None and keep_if(connection):
             return False
-        deleted = _delete_account_rows(connection, user_id)
+        deleted = _delete_account_rows(connection, user_id, keep)
     try:
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     except Exception:
@@ -440,10 +452,18 @@ def _erase_from_backup(user_id: str) -> None:
         copy.close()
 
 
-def delete_connected_account(user_id: str) -> bool:
+def _not_maimai(connection: Any, user_id: str) -> Tuple[str, ...]:
+    """What a maimai account's end leaves: a developer's applications are other people's way in, not maimai data, so they
+    stay, with the site sign-in that owns them. Someone with no application keeps nothing."""
+    owns = connection.execute("SELECT 1 FROM oauth_apps WHERE user_id = ? LIMIT 1", (user_id,)).fetchone()
+    return ("oauth_apps", "identities", "people") if owns else ()
+
+
+def delete_connected_account(user_id: str, maimai_only: bool = False) -> bool:
+    """Delete one account and everything stored against it; with ``maimai_only``, only its maimai side (see ``_not_maimai``)."""
     connection = get_database_connection()
     try:
-        return _erase(connection, user_id)
+        return _erase(connection, user_id, keep=_not_maimai(connection, user_id) if maimai_only else ())
     finally:
         connection.close()
 
@@ -528,7 +548,8 @@ def purge_expired_accounts(now: Optional[datetime] = None, days: Optional[int] =
 
         connection = get_database_connection()
         try:
-            if _erase(connection, entry["userId"], keep_if=relinked):
+            # a sign-in left to lapse takes the scores and the saved login, and nothing that is not maimai data
+            if _erase(connection, entry["userId"], keep_if=relinked, keep=_not_maimai(connection, entry["userId"])):
                 deleted.append(entry["userId"])
         finally:
             connection.close()

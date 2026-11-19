@@ -1,7 +1,7 @@
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Dict, Optional, Any
-from urllib.parse import urlparse, parse_qs
+from typing import Dict, Optional, Any, Tuple
+from urllib.parse import urlencode, urlparse, parse_qs
 import gzip
 import hmac
 import json
@@ -17,6 +17,7 @@ from rasmai.config import (
     MAIMAI_BASE_URLS,
     WEBSERVER_HOST,
     WEBSERVER_PORT,
+    get_public_base_url,
     region_supported,
     unsupported_region_text,
 )
@@ -34,8 +35,9 @@ from rasmai.storage.db import (
     peek_login_code,
     upsert_connected_account,
 )
-from rasmai.web import dashboard
+from rasmai.web import dashboard, oauth
 from rasmai.errors import report
+from rasmai.web.grants import issue_grant
 from rasmai.web.links import build_login_link_payload
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer
 from rasmai.scraping.scraper.session import SessionRejected
@@ -97,6 +99,15 @@ class _QueueingServer(ThreadingHTTPServer):
         super().server_close()
         for _ in range(self.workers if hasattr(self, "_accepted") else 0):     # none when the bind itself failed
             self._accepted.put(None)
+
+
+# what the extension's approval window is told when linking with it is refused. The request is not spent by a refusal, so
+# the way on is the same window; "expired" is a word the window has its own sentence for
+OWN_REFUSED = {
+    "expired": "expired",
+    "upstream": "maimai didn't accept your sign-in. Sign in on the maimai site again, then press Approve again.",
+    "verify": "Pass the check on your Rasmai link page first.",
+}
 
 
 class InternalApiServer:
@@ -283,6 +294,20 @@ class InternalApiServer:
                 if route.path == "/internal/connect-info":
                     self._connect_info(query)
                     return
+                if route.path.startswith("/internal/oauth/icon/"):
+                    oauth.icon(self, route.path[len("/internal/oauth/icon/"):])
+                    return
+                if route.path.startswith("/internal/oauth/"):
+                    self._send_json(*(oauth.handle_get(route.path, {key: values[0] for key, values in query.items()})
+                                      or (404, {"ok": False, "error": "not_found"})))
+                    return
+                if route.path == "/internal/grant":
+                    granted = issue_grant((query.get("origin") or [""])[0])
+                    if granted is None:
+                        self._send_json(404, {"ok": False, "error": "That site is not a verified bot."})
+                    else:
+                        self._send_json(200, {"ok": True, "grant": granted[0], "name": granted[1], "exp": granted[2]})
+                    return
                 self._send_json(404, {"ok": False, "error": "not_found"})
 
             def _status(self, query: Dict[str, Any]) -> None:
@@ -332,6 +357,7 @@ class InternalApiServer:
                     "expiresDisplay": expires_at.strftime("%H:%M"),
                     "region": region,
                     "verified": login_code_verified(code),   # the web server passed the human check for this code
+                    "grant": (issue_grant(get_public_base_url()) or ("",))[0],     # shows the extension this site is a verified bot
                 })
 
             def do_POST(self) -> None:  # noqa: N802
@@ -340,8 +366,8 @@ class InternalApiServer:
                     self._send_json(401, {"ok": False, "error": "unauthorized"})
                     return
                 try:
-                    # an export of a big account is a few hundred KB; nothing else posted here comes near 64 KB
-                    payload = self._parse_payload(limit=4 * 1024 * 1024 if path == "/internal/me/import" else 65536)
+                    # an export of a big account is a few hundred KB and an app's picture up to 256 KB as base64; nothing else comes near 64 KB
+                    payload = self._parse_payload(limit={"/internal/me/import": 4 * 1024 * 1024, "/internal/me/apps/icon": 512 * 1024}.get(path, 65536))
                 except Exception as error:
                     self._send_json(400, {"ok": False, "error": f"invalid_request: {error}"})
                     return
@@ -359,6 +385,12 @@ class InternalApiServer:
                             return
                         self._send_json(404, {"ok": False, "error": "not_found"})
                         return
+                    if path.startswith("/internal/oauth/"):
+                        status, answer = oauth.handle_post(path, payload) or (404, {"ok": False, "error": "not_found"})
+                        if "login" in answer:
+                            status, answer = self._link_own(answer["login"], payload)
+                        self._send_json(status, answer)
+                        return
                     if path == "/internal/verify":
                         self._verify(payload)
                         return
@@ -366,7 +398,7 @@ class InternalApiServer:
                         self._feedback(payload)
                         return
                     if path == "/internal/login":
-                        self._login(payload)
+                        self._send_json(*self._login(payload))
                         return
                     self._send_json(404, {"ok": False, "error": "not_found"})
                 except dashboard.StillBuilding as wait:
@@ -412,13 +444,33 @@ class InternalApiServer:
                 mark_login_code_verified(code)
                 self._send_json(200, {"ok": True, "verified": True})
 
-            def _login(self, payload: Dict[str, Any]) -> None:
+            def _link_own(self, key: Dict[str, str], payload: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+                """A request of this site's own, approved in the extension: the account is linked with the sign-in that came with
+                the approval, under the login code the player's link page holds, exactly as a pasted sign-in is.
+
+                :param key: The login code and user the request was started under.
+                :type key: Dict[str, str]
+                :param payload: The approval as it was sent: ``clal``, and ``requireVerified`` when the site runs its human check.
+                :type payload: Dict[str, Any]
+                :returns: The approval window's answer: where to send the player, or why the account was not linked.
+                :rtype: Tuple[int, Dict[str, Any]]
+                """
+                status, linked = self._login({**key, "token": payload.get("clal", ""), "requireVerified": payload.get("requireVerified")})
+                if not linked.get("ok"):
+                    return status, {"ok": False, "error": OWN_REFUSED.get(linked.get("kind"), linked.get("error") or "The sign-in didn't work.")}
+                player = linked.get("player") or {}
+                landed = urlencode({"player": player.get("name", ""), "region": linked.get("region", "intl"), "rating": player.get("rating", "")})
+                return 200, {"ok": True, "redirect": f"{get_public_base_url()}/connected/?{landed}"}
+
+            def _login(self, payload: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
                 """A login code plus what proves the account: for International, the gateway's sign-in cookie the
                 person copied from their browser; for Japan, the SEGA ID, password and Aime card typed on the
                 connect page.
 
                 :param payload: The request body.
                 :type payload: Dict[str, Any]
+                :returns: The HTTP status and the answer.
+                :rtype: Tuple[int, Dict[str, Any]]
                 """
                 opaque_user = str(payload.get("user", "")).strip()
                 code = str(payload.get("code", "")).strip()
@@ -427,31 +479,25 @@ class InternalApiServer:
                 password = str(payload.get("password", ""))
                 require_verified = bool(payload.get("requireVerified"))
 
-                def fail(status: int, kind: str, message: str) -> None:
-                    self._send_json(status, {"ok": False, "kind": kind, "error": message})
+                def fail(status: int, kind: str, message: str) -> Tuple[int, Dict[str, Any]]:
+                    return status, {"ok": False, "kind": kind, "error": message}
 
                 if not login_attempt_allowed(self._client_key()):
-                    fail(429, "rate_limited", "too many sign-in attempts")
-                    return
+                    return fail(429, "rate_limited", "too many sign-in attempts")
                 if not opaque_user or not code or not (token or (sega_id and password)):
-                    fail(400, "no_login", "missing required form fields")
-                    return
+                    return fail(400, "no_login", "missing required form fields")
                 user_id = decode_opaque_user_id(opaque_user)
                 if not user_id:
-                    fail(401, "invalid_user", "invalid user identifier")
-                    return
+                    return fail(401, "invalid_user", "invalid user identifier")
                 record = peek_login_code(code)
                 if not record or record[0] != user_id:
-                    fail(401, "expired", "invalid or expired login code")
-                    return
+                    return fail(401, "expired", "invalid or expired login code")
                 if require_verified and not login_code_verified(code):
-                    fail(403, "verify", "complete the check on the connect page first")
-                    return
+                    return fail(403, "verify", "complete the check on the connect page first")
                 region = record[1] if record[1] in MAIMAI_BASE_URLS else "intl"
                 if not region_supported(region):
                     # before the maintenance check: a server coming back would not make this one work
-                    fail(400, "region", unsupported_region_text(region))
-                    return
+                    return fail(400, "region", unsupported_region_text(region))
                 # the session can only be proved against the score site, and the Aime gateway being up says
                 # nothing about that one. Refusing here leaves the login code unspent, so the same link works later.
                 if region == "jp":
@@ -460,46 +506,38 @@ class InternalApiServer:
                     except ValueError:
                         aime = 0
                     if not sega_id or not password:
-                        fail(400, "no_login", "enter the SEGA ID and password you use on maimaidx.jp")
-                        return
+                        return fail(400, "no_login", "enter the SEGA ID and password you use on maimaidx.jp")
                     if len(sega_id) > 256 or len(password) > 256 or not 1 <= aime <= 20:
-                        fail(400, "no_login", "the SEGA ID, password or Aime card number is not valid")
-                        return
+                        return fail(400, "no_login", "the SEGA ID, password or Aime card number is not valid")
                     final_token = sega_id_token(sega_id, password, aime - 1)
                 else:
                     if not re.fullmatch(r"[A-Za-z0-9]{64}", token):
-                        fail(400, "no_login", "session token has an unexpected format")
-                        return
+                        return fail(400, "no_login", "session token has an unexpected format")
                     final_token = normalize_login_token(token)
                 down = dashboard.servers_down_note(region)
                 if down:
-                    fail(503, "maintenance", down)
-                    return
+                    return fail(503, "maintenance", down)
                 try:
                     official_profile = MaimaiRatingAnalyzer().fetch_official_player_profile(final_token, region)
                 except SessionRejected as error:
                     # the sign-in itself was turned down: for Japan, a wrong SEGA ID, password or card
                     logger.info("A sign-in was refused while linking (%s): %s", region, public_reason(error))
                     # the login code is still unspent here, so the way on is the same link, not a new /login
-                    fail(401, "credentials" if region == "jp" else "upstream", public_reason(error) if region == "jp" else
+                    return fail(401, "credentials" if region == "jp" else "upstream", public_reason(error) if region == "jp" else
                          "maimai didn't accept that value - it has probably expired. Sign in to the gateway again with auto login "
                          "ticked, copy the value again and paste it. Your login link still works.")
-                    return
                 except Exception as error:
                     reason = public_reason(error)
                     # a 5xx from the score site is the site, not the session: name it as such and keep the link alive
                     server_side = bool(re.search(r"HTTP 5\d\d", str(error)))
                     if server_side:
                         logger.info("maimai DX NET could not confirm a session right now: %s", reason)
-                        fail(503, "maintenance", "maimai DX NET answered with an error; it is probably down")
-                    else:
-                        logger.exception("Failed to validate connected token")
-                        fail(502, "upstream", reason)
-                    return
+                        return fail(503, "maintenance", "maimai DX NET answered with an error; it is probably down")
+                    logger.exception("Failed to validate connected token")
+                    return fail(502, "upstream", reason)
                 # the session works: spend the code now, so nothing above can burn the link on its way to failing
                 if not consume_login_code(code):
-                    fail(401, "expired", "invalid or expired login code")
-                    return
+                    return fail(401, "expired", "invalid or expired login code")
                 upsert_connected_account(user_id, region, final_token, official_profile=_json_safe(official_profile))
                 # linking only proves the session works; the scores still have to be read. Start that
                 # here so the dashboard and the first command find them ready instead of scraping on demand.
@@ -514,10 +552,10 @@ class InternalApiServer:
                         "connectedAt": datetime.now().isoformat(), "source": "api/login",
                         "userId": user_id, "region": region, "officialProfile": official_profile,
                     })
-                self._send_json(200, {
+                return 200, {
                     "ok": True, "connected": True, "region": region,
                     "player": {"name": getattr(official_profile, "name", ""), "rating": getattr(official_profile, "rating", "")},
-                })
+                }
 
         self.httpd = _QueueingServer((self.host, self.port), Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)

@@ -715,6 +715,19 @@ html[data-standalone] .dash .ident { margin-top: 16px; }
 .mono.bad { color: var(--link); }
 @media (max-width: 720px) { .admin-bars { height: 96px; } .keys { grid-template-columns: 1fr; } }
 
+/* the developer's controls: a switch or an action beside what it is, the commands as boxes to tick, and the bots as text */
+.admin-row { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.admin-row .seg button { padding: 5px 14px; font-size: 13px; }
+.admin-row .seg button:disabled { opacity: .5; cursor: default; }
+.admin-checks { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 14px 0 6px; padding: 0; border: 0; }
+.admin-checks legend { padding: 0; margin-bottom: 8px; font-size: 14.5px; }
+.admin-checks label { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 2px solid var(--line); border-radius: 10px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.admin-checks label:has(:checked) { border-color: var(--edge); background: var(--paper-2); }
+.admin-checks input { flex: none; width: 15px; height: 15px; margin: 0; accent-color: var(--pink); }
+.admin-text { display: block; width: 100%; min-height: 76px; margin-top: 12px; padding: 8px 11px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper-2); color: var(--ink); font-size: 13.5px; resize: vertical; }
+.admin-text:focus { outline: 2px solid var(--pink); outline-offset: 1px; }
+.tbl .seg { margin: 0; }
+.tbl .seg button { padding: 3px 11px; font-size: 12.5px; }
 /* the account browser on the developer page, and one account opened over it */
 .admin-users tr.clickable { cursor: pointer; }
 .admin-users tr.clickable:hover { background: var(--paper-2); }

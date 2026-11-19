@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 480 480">
+  <defs>
+    <path id="s" d="M0-10C1-2 2-1 10 0 2 1 1 2 0 10-1 2-2 1-10 0-2-1-1-2 0-10Z"/>
+  </defs>
+  <use href="#s" xlink:href="#s" transform="translate(58 92) scale(1)" fill="#e8b422"/>
+  <use href="#s" xlink:href="#s" transform="translate(364 48) scale(.6)" fill="#a78bfa"/>
+  <use href="#s" xlink:href="#s" transform="translate(228 276) scale(.8)" fill="#ff4fa3"/>
+  <use href="#s" xlink:href="#s" transform="translate(432 396) scale(.55)" fill="#3cc8e8"/>
+  <use href="#s" xlink:href="#s" transform="translate(140 418) scale(.5)" fill="#1fb77a"/>
+  <use href="#s" xlink:href="#s" transform="translate(300 170) scale(.45)" fill="#3cc8e8"/>
+  <g fill="none" stroke-width="2" stroke-linecap="round">
+    <path d="M130 196h10M135 191v10" stroke="#a78bfa"/>
+    <path d="M410 250h8M414 246v8" stroke="#e8b422"/>
+    <circle cx="206" cy="92" r="6" stroke="#3cc8e8" stroke-width="1.5"/>
+  </g>
+  <circle cx="206" cy="92" r="1.8" fill="#3cc8e8"/>
+  <circle cx="24" cy="24" r="2.2" fill="#a78bfa"/>
+  <circle cx="296" cy="88" r="2.6" fill="#ff4fa3"/>
+  <circle cx="92" cy="300" r="2.2" fill="#3cc8e8"/>
+  <circle cx="352" cy="330" r="2.8" fill="#e8b422"/>
+  <circle cx="20" cy="408" r="2.2" fill="#ff4fa3"/>
+  <circle cx="268" cy="428" r="2.2" fill="#a78bfa"/>
+  <circle cx="452" cy="132" r="2" fill="#1fb77a"/>
+  <circle cx="176" cy="342" r="1.8" fill="#e8b422"/>
+</svg>

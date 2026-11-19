@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, getJSON, postJSON } from "../api";
 import { Empty, Label, num, when } from "../bits";
 import { Activity, Composition, Facts, Gauge, Who, duration, size } from "./bits";
+import { Controls } from "./Controls";
 import { UserDetail } from "./UserDetail";
 import type { AdminData, Detail } from "./types";
 
@@ -48,13 +49,18 @@ export function AdminPanel() {
       });
   };
 
+  // once the page has been read, only a 404 takes it away: a poll that fails while the bot restarts keeps what was last read
+  const loaded = useRef(false);
   const load = useCallback(() => {
     getJSON<AdminData>("/api/me/admin")
       .then((d) => {
+        loaded.current = true;
         setData(d);
         setError("");
       })
-      .catch((e: ApiError) => setError(e.status === 404 ? "no such page" : e.message));
+      .catch((e: ApiError) => {
+        if (e.status === 404 || !loaded.current) setError(e.status === 404 ? "no such page" : e.message);
+      });
   }, []);
 
   useEffect(() => {
@@ -72,7 +78,7 @@ export function AdminPanel() {
         </h1>
         <p className="lede">This page doesn&apos;t exist.</p>
         <a className="button" href="/me/">
-          back to your dashboard →
+          back to your dashboard
         </a>
       </div>
     );
@@ -110,6 +116,8 @@ export function AdminPanel() {
             <span className="val">{size(data.store.bytes)}</span>
           </div>
         </section>
+
+        <Controls tick={data.generatedAt} />
 
         <section className="ledger">
           <div className="ledger-head">
@@ -384,7 +392,7 @@ export function AdminPanel() {
         </section>
 
         <section className="ledger">
-          <Label info="What visitors said on the feedback form. Anonymous unless they left a way to reach them. The newest 100 are shown.">
+          <Label info="What visitors said on the feedback form. Anonymous unless they left a way to reach them. Shows the newest 100.">
             feedback form
           </Label>
           {data.feedbackSummary?.total ? (

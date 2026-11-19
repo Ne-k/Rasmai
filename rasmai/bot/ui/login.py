@@ -69,7 +69,7 @@ async def send_login_card(interaction: discord.Interaction, region: str = "intl"
     :type intro: Optional[str]
     :rtype: LoginView
     """
-    login_info = build_login_session_payload(str(interaction.user.id), region)
+    login_info = build_login_session_payload(str(interaction.user.id), region, f"{interaction.user.name} on Discord")
     pages = build_login_walkthrough_pages(region, login_info)
     embed = pages[0]
     view = LoginView(interaction.user.id, login_info["connectUrl"], region, pages)
@@ -110,7 +110,7 @@ async def dm_login_card(bot: discord.Client, user_id: str, region: str, intro: s
         return False          # an account made on the site has no Discord user to message
     try:
         user = bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
-        login_info = build_login_session_payload(user_id, region)
+        login_info = build_login_session_payload(user_id, region, f"{user.name} on Discord")
         pages = build_login_walkthrough_pages(region, login_info)
         view = LoginView(int(user_id), login_info["connectUrl"], region, pages)
         message = await user.send(content=intro, embed=pages[0], view=view)

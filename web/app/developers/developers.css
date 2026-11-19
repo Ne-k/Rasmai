@@ -1,0 +1,147 @@
+/* The developer portal: the site's paper, ink, fonts and controls, laid out as a tool rather than a page to read.
+   Only the layout and the parts the site has no other use for are here: the bar, the sidebar, field rows and the dialog.
+   The save bar is the site's toast, held to the bottom of the column. */
+.dp { max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter) 72px; }
+
+/* the room: the site's backdrop layer at the site's weight (globals.css, body::before and --bg-art), with the portal's own
+   scene across the whole screen: a night sky under a garland of flags. Stars tiled over all of it, constellations as
+   wide as the window (two of them are the portal's own, code brackets and a key), a crescent, and a floor of clouds
+   along the bottom edge */
+body:has(.dp)::before {
+  background:
+    url(/bg/garland.svg) center top / 600px repeat-x,
+    url(/bg/moon.svg) right 4vw top 110px / min(210px, 44vw) no-repeat,
+    url(/bg/constellations.svg) center top 84px / max(100vw, 1000px) auto no-repeat,
+    url(/bg/clouds.svg) left bottom -2px / 520px repeat-x,
+    url(/bg/stars.svg) 0 0 / 480px;
+}
+
+.dp-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 14px 0 12px; border-bottom: 3px solid var(--edge); }
+.dp-bar .wordmark { color: var(--ink); text-decoration: none; }
+.dp-here { font-weight: 500; color: var(--ink-2); text-decoration: none; }
+.dp-here:hover { color: var(--ink); text-decoration: underline; }
+.dp-bar a:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; border-radius: 2px; }
+.dp-nav { display: flex; gap: 14px; margin-left: 10px; font-size: 14px; }
+.dp-nav a { color: var(--ink-2); text-decoration: none; }
+.dp-nav a:hover { color: var(--ink); text-decoration: underline; }
+.dp-tools { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 10px; }
+
+.dp h1 { font-size: 26px; line-height: 1.2; letter-spacing: -0.3px; margin: 0; }
+.dp h2 { font-family: var(--font-display), sans-serif; font-weight: 700; font-size: 18px; line-height: 1.3; margin: 0 0 6px; }
+.dp-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 26px 0 6px; }
+.dp-note { margin: 0 0 12px; max-width: 76ch; color: var(--ink-2); font-size: 14.5px; }
+.dp > .hint, .dp-gate { margin-top: 26px; }
+.dp-gate .dp-note { margin-top: 8px; }
+
+/* the site's buttons, a size down and never the full width of a phone: there are many to a screen here */
+.dp .button { width: auto; padding: 8px 16px; font-size: 14px; }
+.dp .button.dp-mini { padding: 3px 11px; font-size: 12.5px; }
+.dp .btn-row { flex-direction: row; align-items: center; margin: 10px 0 0; }
+
+/* an app's picture, or its first letter in the same square until it has one */
+.dp-icon { flex: 0 0 auto; display: inline-grid; place-items: center; width: var(--s, 28px); height: var(--s, 28px); border: 2px solid var(--edge); border-radius: 24%; background: var(--paper-2); object-fit: cover; font-family: var(--font-display), sans-serif; font-weight: 800; font-size: calc(var(--s, 28px) * .46); line-height: 1; color: var(--ink-2); }
+.dp-lamp { flex: 0 0 auto; display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--edge); background: var(--line); }
+.dp-lamp[data-review="pending"] { background: var(--pink); }
+.dp-lamp[data-review="verified"] { background: var(--gold); }
+.dp-lamp[data-review="rejected"] { background: var(--edge); }
+.dp-state { display: flex; align-items: center; gap: 9px; margin: 0 0 6px; font-weight: 700; }
+.dp-state .dp-lamp[data-review="pending"] { animation: throb 1.3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .dp-state .dp-lamp { animation: none; } }
+
+/* the applications: one ruled row each, lamp, name, client id, review state */
+.dp-apps { list-style: none; margin: 16px 0 12px; padding: 0; border-top: 1px solid var(--line); }
+.dp-apps a { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 14px; padding: 12px 8px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+/* with reviews on, a lamp before the picture and the state after the id */
+.dp-apps[data-reviews] a { grid-template-columns: 12px 28px minmax(0, 1fr) minmax(0, 1fr) 96px; }
+.dp-apps a:hover { background: var(--paper-2); }
+.dp-apps a:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
+.dp-apps b { overflow-wrap: anywhere; }
+.dp-apps b small { font-weight: 500; font-size: 13px; color: var(--link); }
+.dp-id { font-family: var(--font-mono), monospace; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-apps[data-reviews] a > :last-child { font-size: 13.5px; color: var(--ink-2); }
+
+.dp-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 44px; margin-top: 26px; align-items: start; }
+.dp-side { position: sticky; top: 16px; display: grid; gap: 3px; }
+.dp-side a { font-size: 13.5px; color: var(--muted); }
+.dp-side a:hover { color: var(--ink); }
+.dp-side a:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; border-radius: 2px; }
+.dp-side strong { font-family: var(--font-display), sans-serif; font-size: 17px; line-height: 1.3; margin: 8px 0 8px; overflow-wrap: anywhere; }
+.dp-side button { font: inherit; font-weight: 500; text-align: left; padding: 7px 10px; border: 2px solid transparent; border-radius: 10px; background: none; color: var(--ink-2); cursor: pointer; }
+.dp-side button:hover { background: var(--paper-2); color: var(--ink); }
+.dp-side button[aria-current] { border-color: var(--edge); background: var(--paper-2); color: var(--ink); font-weight: 700; }
+.dp-side button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+/* the documentation: the sidebar's pages are links, grouped under a word, and the page is set to be read */
+.dp-docs { gap: 14px; }
+.dp-docs div { display: grid; gap: 2px; }
+.dp-docs strong { margin: 0 0 4px; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.dp-docs a { padding: 6px 10px; border: 2px solid transparent; border-radius: 10px; font-size: 14.5px; font-weight: 500; color: var(--ink-2); text-decoration: none; }
+.dp-docs a:hover { background: var(--paper-2); color: var(--ink); }
+.dp-docs a[aria-current] { border-color: var(--edge); background: var(--paper-2); color: var(--ink); font-weight: 700; }
+.dp-doc { max-width: 780px; min-width: 0; font-size: 15.5px; line-height: 1.65; }
+.dp-doc h2 { margin: 34px 0 8px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 20px; scroll-margin-top: 16px; }
+.dp-doc p, .dp-doc ul, .dp-doc ol { margin: 0 0 14px; text-wrap: pretty; }
+.dp-doc ul, .dp-doc ol { padding-left: 22px; }
+.dp-doc li { margin: 4px 0; }
+.dp-lede { margin-top: 10px; font-size: 17px; color: var(--ink-2); }
+.dp-code { display: grid; margin: 0 0 16px; border: 2px solid var(--edge); border-radius: 12px; background: var(--paper-2); }
+/* the button has a strip of its own above the code, so it never covers a line */
+.dp-code .button { order: -1; justify-self: end; margin: 8px 8px 0 0; background: var(--paper); }
+.dp-code pre { margin: 0; padding: 2px 16px 14px; overflow-x: auto; font-family: var(--font-mono), monospace; font-size: 13px; line-height: 1.6; tab-size: 2; }
+.dp-code pre:focus-visible, .dp-table:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.dp-code code { padding: 0; border: 0; border-radius: 0; background: none; font-size: inherit; overflow-wrap: normal; }
+.dp-table { margin: 0 0 16px; overflow-x: auto; }
+.dp-table table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.dp-table th, .dp-table td { padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.dp-table thead th { border-bottom: 2px solid var(--edge); font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.dp-table tbody th { width: 1%; font-weight: 500; white-space: nowrap; }
+
+.dp-sec { padding: 18px 0 22px; border-top: 1px solid var(--line); }
+.dp-sec:first-of-type { border-top: 0; padding-top: 14px; }
+.dp-field { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 4px 20px; align-items: start; padding: 7px 0; }
+.dp-field > label, .dp-field > span { padding-top: 9px; font-weight: 500; font-size: 14px; }
+.dp-field small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.dp-field > div { min-width: 0; min-height: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.dp-field > div > p { flex-basis: 100%; margin: 0; }
+.dp-field > div > span { color: var(--ink-2); font-size: 14.5px; }
+.dp input, .dp textarea { width: 100%; max-width: 540px; font: inherit; font-size: 16px; padding: 7px 11px; border: 2px solid var(--edge); border-radius: 10px; background: var(--paper-2); color: var(--ink); }
+.dp textarea { display: block; min-height: 78px; resize: vertical; }
+.dp input:focus, .dp textarea:focus { outline: 2px solid var(--pink); outline-offset: 1px; }
+.dp input:disabled, .dp textarea:disabled { opacity: .6; }
+.dp-long { display: block; max-width: 760px; padding: 8px 10px; line-height: 1.6; }
+
+.dp-rows { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 8px; }
+.dp-rows li { display: flex; align-items: center; gap: 10px; }
+.dp-rows input { flex: 1 1 auto; min-width: 0; }
+.dp-needs { list-style: none; margin: 0; padding: 0; max-width: 440px; font-size: 14.5px; }
+.dp-needs li { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.dp-needs span { font-weight: 500; color: var(--link); }
+.dp-needs span[data-met] { color: var(--ok); }
+
+.dp-save { position: sticky; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; padding: 9px 10px 9px 16px; border: 2px solid var(--edge); border-radius: 14px; background: var(--paper-2); box-shadow: 4px 4px 0 var(--pink); font-weight: 500; font-size: 14.5px; }
+.dp-save span { margin-right: auto; }
+form > .hint.bad { margin-top: 12px; }
+
+.dp dialog { width: min(440px, calc(100vw - 32px)); padding: 20px 22px 22px; border: 2px solid var(--edge); border-radius: 14px; background: var(--paper); color: var(--ink); box-shadow: 5px 5px 0 var(--pink); }
+.dp dialog::backdrop { background: color-mix(in srgb, var(--ring-screen) 60%, transparent); }
+.dp dialog label { display: grid; gap: 5px; margin-top: 10px; font-weight: 500; font-size: 14px; }
+.dp dialog p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+.dp dialog .hint { margin-top: 6px; font-size: 13.5px; color: var(--muted); }
+.dp dialog .hint.bad { margin-top: 10px; color: var(--link); }
+.dp dialog .btn-row { justify-content: flex-end; margin-top: 18px; }
+
+@media (max-width: 780px) {
+  .dp-body { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 16px; }
+  .dp-side { position: static; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .dp-side a, .dp-side strong { flex-basis: 100%; margin: 0; }
+  .dp-field { grid-template-columns: minmax(0, 1fr); }
+  .dp-field > label, .dp-field > span { padding-top: 0; }
+  .dp-field > div { min-height: 0; }
+  .dp-apps a { grid-template-columns: 28px minmax(0, 1fr); }
+  .dp-id { grid-column: 2 / -1; grid-row: 2; }
+  .dp-apps[data-reviews] a { grid-template-columns: 12px 28px minmax(0, 1fr) auto; }
+  .dp-apps[data-reviews] .dp-id { grid-column: 3 / -1; }
+}
+@media (pointer: coarse) {
+  .dp-side button, .dp .button.dp-mini { min-height: 40px; }
+}

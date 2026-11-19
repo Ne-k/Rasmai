@@ -6,6 +6,7 @@ import { Shell } from "@/components/Shell";
 import { Support } from "@/components/Support";
 import { Turnstile } from "@/components/Turnstile";
 import { Tutorial } from "@/components/Tutorial";
+import { GATEWAY_HOST } from "@/lib/gateway";
 import { errorCopy } from "@/components/copy";
 import { useTranslations } from "next-intl";
 
@@ -16,10 +17,11 @@ type ConnectInfo = {
   region: string;
   turnstile: string;
   verified: boolean;
+  grant?: string;
 };
 
 // a page on the gateway that does not send a signed-in browser on to maimai DX NET, so its cookies can be looked at there
-const GATEWAY_PAGE = "https://lng-tgk-aime-gw.am-all.net/common_auth/";
+const GATEWAY_PAGE = `https://${GATEWAY_HOST}/common_auth/`;
 
 const tags = {
   chrome: (c: React.ReactNode) => (
@@ -163,6 +165,16 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
   const [problem, setProblem] = useState("");
   const [player, setPlayer] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState<"" | "copied" | "shown">("");
+  const [opening, setOpening] = useState(false);
+  const [extensionProblem, setExtensionProblem] = useState("");
+  const rich = {
+    ...tags,
+    gw: (c: React.ReactNode) => (
+      <a href={info.loginLink} target="_blank" rel="noopener noreferrer">
+        {c}
+      </a>
+    ),
+  };
   const helperLink = typeof window === "undefined" ? "" : `${window.location.origin}/api/link/${code}.${user}`;
   // the whole row copied, "clal=…", is as good as the value alone
   const token = value.trim().replace(/^clal=/, "");
@@ -221,6 +233,34 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
     }
   };
 
+  // the site asks for the sign-in the way any app does: the answer is its own authorize page, where the extension takes over
+  const viaExtension = async () => {
+    if (opening) return;
+    setOpening(true);
+    setExtensionProblem("");
+    try {
+      const r = await fetch("/api/oauth/rasmai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ code, user }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok && typeof data.link === "string") {
+        window.location.assign(data.link);
+        return;
+      }
+      if (data.kind === "expired" || data.kind === "invalid_user") {
+        onExpired();
+        return;
+      }
+      setExtensionProblem(problemCopy(data, t("failed"), t("offline")));
+    } catch {
+      setExtensionProblem(t("offline"));
+    } finally {
+      setOpening(false);
+    }
+  };
+
   const done = player !== null;
   return (
     <Shell
@@ -233,99 +273,139 @@ function CookieConnect({ info, code, user, onExpired }: { info: ConnectInfo; cod
       <h1>{t.rich("titleIntl", tags)}</h1>
       <p className="lede">{t("ledeIntl")}</p>
 
-      {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
-      <div className="aside">
-        {t.rich("helper", tags)}{" "}
-        <button
-          type="button"
-          className="linkish"
-          onClick={() => navigator.clipboard.writeText(helperLink).then(() => setLinkCopied("copied"), () => setLinkCopied("shown"))}
-        >
-          {linkCopied === "copied" ? t("helperCopied") : t("helperCopy")}
-        </button>
-        {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
-        {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
-        <Tutorial clip="extension" label={video("helperLabel")} />
-      </div>
-
-      <section className="step">
-        <div className="n">1</div>
-        <div>
-          <h2>{t("gwTitle")}</h2>
-          <p>{t.rich("gwBody", tags)}</p>
-          <div className="btn-row">
-            <a className="button" href={info.loginLink} target="_blank" rel="noopener noreferrer">
-              {t("gwButton")}
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="step">
-        <div className="n">2</div>
-        <div>
-          <h2>{t("copyTitle")}</h2>
-          <p>{t.rich("copyBody", tags)}</p>
-          <div className="btn-row">
-            <a className="button ghost" href={GATEWAY_PAGE} target="_blank" rel="noopener noreferrer">
-              {t("gwPageButton")}
-            </a>
-          </div>
-          <ul className="howto">
-            <li>{t.rich("copyChrome", tags)}</li>
-            <li>{t.rich("copyFirefox", tags)}</li>
-          </ul>
-          <Tutorial label={video("label")} />
-        </div>
-      </section>
-
-      <section className="step">
-        <div className="n">3</div>
-        <div>
-          <h2>{t("pasteTitle")}</h2>
-          <form className="signin" onSubmit={submit}>
-            <label>
-              <span>{t("pasteLabel")}</span>
-              <input
-                type="text"
-                name="clal"
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                maxLength={80}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                disabled={busy || done}
-              />
-            </label>
-            <p className={`hint${value && !valid ? " bad" : ""}`}>{value && !valid ? t.rich("pasteBad", tags) : t("pasteHint")}</p>
+      <div className="ways">
+        <details className="way first" open>
+          <summary>{t("wayOne")}</summary>
+          <div className="way-body">
+            <p>{t.rich("oneBody", rich)}</p>
             <div className="btn-row">
-              <button className="button pink" type="submit" disabled={busy || done || !valid}>
-                {busy ? t("linking") : t("linkButton")}
+              <button type="button" className="button pink" onClick={viaExtension} disabled={opening || done}>
+                {opening ? t("loading") : t("oneButton")}
               </button>
             </div>
-            {problem && (
+            {extensionProblem && (
               <>
                 <p className="hint bad" role="alert">
-                  {problem}
+                  {extensionProblem}
                 </p>
                 <Support />
               </>
             )}
-          </form>
-          <div className="readout">
-            <span className="lbl">{t("labelValidUntil")}</span>
-            <span className="val">{info.expiresDisplay}</span>
-            <span className="lbl">{t("labelRegion")}</span>
-            <span className="val">{info.region.toUpperCase()}</span>
           </div>
-          <div className="status">
-            <span className={`lamp ${done ? "done" : "wait"}`} />
-            <span>{done ? (player ? t("connectedAs", { name: player }) : t("connected")) : busy ? t("linking") : t("waiting")}</span>
+        </details>
+
+        {/* the same hand-off as the paste, as a link for the Aime sign-in helper extension: see app/api/link */}
+        <details className="way">
+          <summary>{t("wayTwo")}</summary>
+          <div className="way-body">
+            <p>{t.rich("twoBody", rich)}</p>
+            <div className="btn-row">
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => navigator.clipboard.writeText(helperLink).then(() => setLinkCopied("copied"), () => setLinkCopied("shown"))}
+              >
+                {linkCopied === "copied" ? t("helperCopied") : t("helperCopy")}
+              </button>
+            </div>
+            {/* the clipboard refused (blocked, or Firefox without the permission): the link itself, to copy by hand */}
+            {linkCopied === "shown" && <code style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{helperLink}</code>}
+            <Tutorial clip="extension" label={video("helperLabel")} />
           </div>
-        </div>
-      </section>
+        </details>
+
+        <details className="way">
+          <summary>{t("wayThree")}</summary>
+          <div className="way-body">
+            <section className="step">
+              <div className="n">1</div>
+              <div>
+                <h2>{t("gwTitle")}</h2>
+                <p>{t.rich("gwBody", tags)}</p>
+                <div className="btn-row">
+                  <a className="button" href={info.loginLink} target="_blank" rel="noopener noreferrer">
+                    {t("gwButton")}
+                  </a>
+                </div>
+              </div>
+            </section>
+
+            <section className="step">
+              <div className="n">2</div>
+              <div>
+                <h2>{t("copyTitle")}</h2>
+                <p>{t.rich("copyBody", tags)}</p>
+                <div className="btn-row">
+                  <a className="button ghost" href={GATEWAY_PAGE} target="_blank" rel="noopener noreferrer">
+                    {t("gwPageButton")}
+                  </a>
+                </div>
+                <ul className="howto">
+                  <li>{t.rich("copyChrome", tags)}</li>
+                  <li>{t.rich("copyFirefox", tags)}</li>
+                </ul>
+                <Tutorial label={video("label")} />
+              </div>
+            </section>
+
+            <section className="step">
+              <div className="n">3</div>
+              <div>
+                <h2>{t("pasteTitle")}</h2>
+                <form className="signin" onSubmit={submit}>
+                  <label>
+                    <span>{t("pasteLabel")}</span>
+                    <input
+                      type="text"
+                      name="clal"
+                      data-aime-grant={info.grant || undefined}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                      maxLength={80}
+                      value={value}
+                      onChange={(e) => {
+                        setValue(e.target.value);
+                        // the extension's popup fills this box from outside the page: its card opens so the value is seen
+                        const card = e.target.closest("details");
+                        if (card) card.open = true;
+                      }}
+                      disabled={busy || done}
+                    />
+                  </label>
+                  <p className={`hint${value && !valid ? " bad" : ""}`}>{value && !valid ? t.rich("pasteBad", tags) : t("pasteHint")}</p>
+                  <div className="btn-row">
+                    <button className="button pink" type="submit" disabled={busy || done || !valid}>
+                      {busy ? t("linking") : t("linkButton")}
+                    </button>
+                  </div>
+                  {problem && (
+                    <>
+                      <p className="hint bad" role="alert">
+                        {problem}
+                      </p>
+                      <Support />
+                    </>
+                  )}
+                </form>
+              </div>
+            </section>
+          </div>
+        </details>
+      </div>
+
+      {/* outside the cards: the account can turn up through any of the three, whichever card is open */}
+      <div className="readout">
+        <span className="lbl">{t("labelValidUntil")}</span>
+        <span className="val">{info.expiresDisplay}</span>
+        <span className="lbl">{t("labelRegion")}</span>
+        <span className="val">{info.region.toUpperCase()}</span>
+      </div>
+      <div className="status" role="status">
+        <span className={`lamp ${done ? "done" : "wait"}`} />
+        <span>{done ? (player ? t("connectedAs", { name: player }) : t("connected")) : busy ? t("linking") : t("waiting")}</span>
+      </div>
 
       <div className="aside">{t.rich("phones", tags)}</div>
       <div className="aside">{t.rich("keepsIntl", tags)}</div>

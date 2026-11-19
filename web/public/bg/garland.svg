@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 100">
+  <g stroke-linejoin="round" stroke-width="2">
+    <path d="M30 15.9L90 32.5 50.9 56.9Z" fill="#ff4fa3" fill-opacity=".35" stroke="#ff4fa3"/>
+    <path d="M90 32.5L150 45 113.1 72Z" fill="none" stroke="#e8b422"/>
+    <path d="M150 45L210 53.3 175.3 82.8Z" fill="#3cc8e8" fill-opacity=".35" stroke="#3cc8e8"/>
+    <path d="M210 53.3L270 57.5 237.6 89.3Z" fill="none" stroke="#a78bfa" stroke-dasharray="3 4"/>
+    <path d="M270 57.5L330 57.5 300 91.5Z" fill="#1fb77a" fill-opacity=".35" stroke="#1fb77a"/>
+    <path d="M330 57.5L390 53.3 362.4 89.3Z" fill="none" stroke="#ff4fa3"/>
+    <path d="M390 53.3L450 45 424.7 82.8Z" fill="#e8b422" fill-opacity=".35" stroke="#e8b422"/>
+    <path d="M450 45L510 32.5 486.9 72Z" fill="none" stroke="#3cc8e8"/>
+    <path d="M510 32.5L570 15.9 549.1 56.9Z" fill="#a78bfa" fill-opacity=".35" stroke="#a78bfa"/>
+  </g>
+  <path d="M0 6Q300 110 600 6" fill="none" stroke="#14a9a0" stroke-width="2.5"/>
+  <circle cx="0" cy="6" r="5" fill="#e8b422"/>
+  <circle cx="600" cy="6" r="5" fill="#e8b422"/>
+</svg>

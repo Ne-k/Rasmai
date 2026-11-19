@@ -99,4 +99,5 @@ def start_link(handler: Any, user: Dict[str, Any], payload: Dict[str, Any]) -> N
     if not region_supported(region):
         handler._send_json(400, {"ok": False, "error": "region", "message": unsupported_region_text(region)})
         return
-    handler._send_json(200, {"ok": True, "connectUrl": build_login_session_payload(user["id"], region)["connectUrl"]})
+    handler._send_json(200, {"ok": True, "connectUrl": build_login_session_payload(
+        user["id"], region, f"{user['handle']} on Discord" if user.get("handle") else "a Google account")["connectUrl"]})

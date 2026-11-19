@@ -206,9 +206,34 @@ def _expired_purge():
             problems.append(f"due for deletion {due}, expected ['old', 'edge'] oldest first")
         if get_connected_account("old") is None:
             problems.append("listing what is due deleted something; it has to read only")
+        # "old" is also a developer: the application is other people's way in, and outlives a maimai sign-in left to lapse
+        connection = get_database_connection()
+        try:
+            with connection:
+                connection.execute("INSERT INTO oauth_apps (id, user_id, name, created_at) VALUES ('app-of-old', 'old', 'Old app', '2026-09-01T00:00:00')")
+        finally:
+            connection.close()
         gone = purge_expired_accounts(now)
         if sorted(gone) != ["edge", "old"]:
             problems.append(f"deleted {gone}, expected old and edge")
+        from rasmai.storage.db import delete_connected_account
+        connection = get_database_connection()
+        try:
+            kept_apps = [row[0] for row in connection.execute("SELECT id FROM oauth_apps WHERE user_id = 'old'")]
+        finally:
+            connection.close()
+        from rasmai.storage.db import account_exists
+        if not account_exists("old") or account_exists("edge"):
+            problems.append("a developer whose sign-in was deleted no longer counts as an account, so they could never link maimai again")
+        if kept_apps != ["app-of-old"]:
+            problems.append(f"an expired sign-in's deletion took its developer's applications with it: {kept_apps}")
+        delete_connected_account("old")
+        connection = get_database_connection()
+        try:
+            if connection.execute("SELECT 1 FROM oauth_apps WHERE user_id = 'old'").fetchone():
+                problems.append("deleting an account outright left its applications behind")
+        finally:
+            connection.close()
         for user_id in ("old", "edge"):
             if get_connected_account(user_id) is not None:
                 problems.append(f"{user_id} was reported deleted but is still linked")
@@ -661,7 +686,8 @@ def _profile_lists_link():
 
     problems = []
     exports = sorted((ROOT / "debug").glob("*.json"), key=lambda p: p.stat().st_size)
-    data = next((d for d in (json.loads(p.read_text(encoding="utf-8")) for p in exports) if d.get("songs")), None)
+    # the folder also holds caches and other checks' leftovers: an export is the one with a player and their songs
+    data = next((d for d in (json.loads(p.read_text(encoding="utf-8")) for p in exports) if isinstance(d, dict) and d.get("songs") and d.get("player")), None)
     if data is None:
         return []      # no export on this machine to build from
     a = MaimaiRatingAnalyzer()

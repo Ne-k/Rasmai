@@ -2723,7 +2723,7 @@ def _loops():
     return problems
 
 
-@check("/dev's Force read news wakes the X loop out of its wait and reads every followed account at once, and says so when the loop is not running")
+@check("Force read news wakes the X loop out of its wait and reads every followed account at once, and says so when the loop is not running")
 def _read_now():
     import time
     from rasmai.bot.tasks import news as tasks

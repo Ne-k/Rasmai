@@ -1,6 +1,6 @@
 from rasmai.storage.db.connection import get_database_connection
 from rasmai.storage.db.accounts import (
-    issue_login_code, login_code_used, peek_login_code, mark_login_code_verified,
+    issue_login_code, login_code_name, login_code_used, peek_login_code, mark_login_code_verified,
     login_code_verified, consume_login_code, login_code_expiry, upsert_connected_account, get_connected_account, follow_kamaitachi, unfollow_kamaitachi,
     delete_connected_account, update_account_snapshot, mark_session_expired, touch_account,
     set_share_slug, account_by_share_slug, session_deletes_at, expired_accounts_due, purge_expired_accounts,
@@ -27,7 +27,7 @@ from rasmai.storage.db.settings import (
 from rasmai.storage.db.feedback import (VERDICTS, add_form_feedback, beta_feedback, beta_feedback_for,  # noqa: F401
                                         beta_feedback_tally, delete_form_feedback, form_feedback, form_feedback_summary,
                                         set_beta_feedback)
-from rasmai.storage.db.sources import (chart_videos_get, chart_videos_set, dev_flags_get, dev_flags_set, site_notice_get, site_notice_set,
+from rasmai.storage.db.sources import (chart_videos_get, chart_videos_set, dev_flags_get, dev_flags_set, link_bots_get, link_bots_set, site_notice_get, site_notice_set,
                                        source_state_get, source_state_set)
 from rasmai.storage.db.sheets import (sheet_get, sheet_held, sheet_put, sheets_all, sheets_held,  # noqa: F401
                                       squash_sheets)
@@ -35,3 +35,6 @@ from rasmai.storage.db.identities import (account_exists, clean_identity, create
                                           email_hash, is_discord_id, is_web_id, merge_accounts,
                                           resolve_identity, sign_in_providers, summaries)
 from rasmai.storage.db.judgements import save_judgement, load_judgements, judged_ids, judgement_for, judged_marks
+from rasmai.storage.db.oauth import (oauth_app_add, oauth_app_block, oauth_app_delete, oauth_app_get, oauth_app_set, oauth_apps, oauth_code_add,  # noqa: F401
+                                     oauth_code_get, oauth_code_spend, oauth_code_waiting, oauth_icon_get, oauth_icon_set, oauth_purge, oauth_ticket_add, oauth_ticket_get,
+                                     oauth_token_get, oauth_tokens_drop)

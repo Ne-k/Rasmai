@@ -1,15 +1,35 @@
 {
   "manifest_version": 3,
   "name": "Aime sign-in helper",
-  "version": "1.0.1",
+  "version": "1.1.1",
   "description": "Link your maimai account to bots like Rasmai. Sends your sign-in to the bot page or link you choose, or copies it for you.",
+  "minimum_chrome_version": "137",
   "permissions": [
+    "clipboardWrite",
     "cookies",
     "activeTab",
     "scripting"
   ],
   "host_permissions": [
     "https://lng-tgk-aime-gw.am-all.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "core.js",
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://rasmai.lol/oauth/authorize*"
+      ],
+      "js": [
+        "page.js"
+      ],
+      "run_at": "document_start"
+    }
   ],
   "action": {
     "default_popup": "popup.html",

@@ -12,7 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         // a shared profile is for whoever was given the link, the rest is someone's own data or
         // a sign-in step. None of it should turn up in a search result.
-        disallow: ["/me", "/me/", "/p/", "/connect", "/connected", "/link/?", "/api/", "/auth/", "/invite"],
+        disallow: ["/me", "/me/", "/p/", "/connect", "/connected", "/oauth", "/developers", "/link/?", "/api/", "/auth/", "/invite"],
       },
     ],
     sitemap: `${site}/sitemap.xml`,

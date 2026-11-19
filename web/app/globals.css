@@ -226,6 +226,53 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 
 .aside { margin-top: 34px; padding: 18px 20px; border: 2px dashed var(--line); border-radius: 14px; color: var(--ink-2); font-size: 14.5px; }
 .aside b { color: var(--ink); }
+
+/* the ways to link an International account, one card each; the favoured one is the only card with an edge and a shadow */
+.ways { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0 0 22px; }
+.step .ways { margin: 4px 0 0; }
+.way { border: 2px solid var(--line); border-radius: 14px; }
+.way.first { border-color: var(--edge); background: var(--paper-2); box-shadow: 4px 4px 0 var(--pink); }
+.way > summary {
+  display: flex; align-items: baseline; gap: 12px; padding: 16px 20px; border-radius: 12px; cursor: pointer; list-style: none;
+  font-family: var(--font-display), sans-serif; font-weight: 700; font-size: 20px; line-height: 1.25;
+  -webkit-tap-highlight-color: transparent;
+}
+.way > summary::-webkit-details-marker { display: none; }
+.way > summary::before { content: "+"; content: "+" / ""; flex: 0 0 1ch; font-family: var(--font-mono), monospace; font-weight: 400; text-align: center; color: var(--muted); }
+.way[open] > summary::before { content: "\2212"; content: "\2212" / ""; }
+.way > summary:hover::before { color: var(--pink); }
+.way > summary:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
+.way-body { padding: 0 20px 20px; }
+.way-body > p { margin: 0 0 14px; color: var(--ink-2); max-width: 90ch; }
+.way-body > :last-child { margin-bottom: 0; }
+/* steps inside a card sit a size under the card's own title */
+.way .step { grid-template-columns: 40px 1fr; gap: 12px; padding: 20px 0; }
+.way .step:first-of-type { padding-top: 0; }
+.way .step:last-of-type { padding-bottom: 0; }
+.way .step .n { font-size: 30px; margin-top: 0; }
+.way .step h2 { font-size: 17px; }
+.way .signin { margin-bottom: 0; }
+
+/* the slide is an extra: without interpolate-size the card opens at once */
+.way::details-content { interpolate-size: allow-keywords; overflow: clip; contain: layout; }
+.way:not([open])::details-content { block-size: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .way::details-content { transition: block-size .2s ease, content-visibility .2s allow-discrete; }
+}
+
+/* where the extension is added from: the site's button made wide, with the browser's mark and a note under the label;
+   a browser it is not out for yet is dashed, takes no press and does not lift */
+.browsers { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 720px; margin: 0 0 22px; padding: 0; }
+.button.browser { width: 100%; justify-content: flex-start; gap: 14px; padding: 13px 28px 13px 22px; font-size: 18px; text-align: left; }
+.browser svg { flex: 0 0 auto; fill: currentColor; }
+.browser small { display: block; font-family: var(--font-body), sans-serif; font-weight: 400; font-size: 13.5px; }
+.button.browser.off { border-style: dashed; border-color: var(--line); background: none; color: var(--muted); box-shadow: none; transform: none; cursor: default; }
+/* the extension's own windows at their real size; they are light in either theme, so each keeps an edge */
+.shots { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px 24px; margin: 14px 0 0; }
+.shots figure { min-width: 0; max-width: 100%; margin: 0; }
+.shots img { display: block; box-sizing: content-box; max-width: calc(100% - 4px); height: auto; border: 2px solid var(--edge); border-radius: 10px; }
+/* no width of its own, so a caption wraps under its picture and never widens it */
+.shots figcaption { width: 0; min-width: 100%; margin-top: 8px; font-size: 13.5px; color: var(--muted); }
 .foot { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line); font-family: var(--font-mono), monospace; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; }
 
 .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
@@ -341,6 +388,11 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
   .seg button { flex: 1; padding: 11px 6px; }
   .card-row { grid-template-columns: 1fr; }
   .aside { padding: 16px; margin-top: 28px; }
+  .way > summary { padding: 14px 16px; font-size: 18px; }
+  .way-body { padding: 0 16px 16px; }
+  /* a card is narrower than the page was, and the gateway's host does not fit a phone on one line inside it */
+  .way .howto code { white-space: normal; overflow-wrap: anywhere; }
+  .browsers { grid-template-columns: minmax(0, 1fr); }
   .doc { margin-top: 28px; }
   .doc h2 { margin-top: 28px; }
   .doc-grid { gap: 14px; margin-top: 20px; }

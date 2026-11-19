@@ -6,7 +6,7 @@ import { apiLimiter } from "@/lib/limiter";
 
 type Params = { params: Promise<{ key: string }> };
 
-// Rasmai's end of the Aime sign-in helper's link protocol (extension/README.md): a link, `/api/link/<login code>.<user>`, that
+// Rasmai's end of the Aime sign-in helper's link protocol (developers.rasmai.lol/docs/extension): a link, `/api/link/<login code>.<user>`, that
 // a person pastes into the extension. GET says the link is live; POST takes the gateway's sign-in as `clal` and links the
 // account, exactly as the connect page's paste does. The key is the login code itself (192 random bits, single use, ten
 // minutes) with the signed user id, so holding the link is the right to use it. No cookie of this site is read, which is why
@@ -30,12 +30,12 @@ export async function GET(request: Request, { params }: Params) {
   if ("refused" in key) return key.refused;
   try {
     const upstream = await internal("/internal/connect-info", { query: new URLSearchParams({ code: key.code, user: key.user }) });
-    const info = (await upstream.json()) as { ok?: boolean; method?: string; verified?: boolean };
+    const info = (await upstream.json()) as { ok?: boolean; method?: string; verified?: boolean; grant?: string };
     // a Japan code links with a SEGA ID on the connect page: there is no cookie to hand over
     if (!upstream.ok || !info.ok || info.method !== "cookie") {
       return open(json(404, { ok: false, error: "That link expired or was already used. Run /login in Discord for a new one." }));
     }
-    return open(json(200, { aimeLink: 1, ready: !turnstileReady() || Boolean(info.verified), wait: "Pass the check on your Rasmai link page first, then try again." }));
+    return open(json(200, { aimeLink: 1, grant: info.grant ?? "", ready: !turnstileReady() || Boolean(info.verified), wait: "Pass the check on your Rasmai link page first, then try again." }));
   } catch {
     return open(unavailable());
   }

@@ -35,8 +35,8 @@ def build_login_link_payload(opaque_user_id: str, code: str, region: str) -> Dic
     }
 
 
-def build_login_session_payload(user_id: str, region: str) -> Dict[str, str]:
-    return build_login_link_payload(create_opaque_user_id(user_id), issue_login_code(user_id, region), region)
+def build_login_session_payload(user_id: str, region: str, name: str = "") -> Dict[str, str]:
+    return build_login_link_payload(create_opaque_user_id(user_id), issue_login_code(user_id, region, name), region)
 
 
 # ---------------------------------------------------------------- pages on the site, for Discord embeds

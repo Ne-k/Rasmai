@@ -29,13 +29,15 @@ from rasmai.web.dashboard.imports import import_payload, kamaitachi_account
 from rasmai.storage.db import VERDICTS, set_beta_feedback
 from rasmai.web.dashboard.beta import FEATURES, beta_state, set_beta
 from rasmai.web.dashboard.public_profile import set_sharing
+from rasmai.web.dashboard.control import control_act, control_payload
+from rasmai.web.oauth import app_write, apps_payload
 
 logger = logging.getLogger(__name__)
 
 
 # reads that never look at the analysis, so never wait on one
 ANSWERED_WITHOUT_ANALYSIS = ("/internal/me/refresh", "/internal/me/beta", "/internal/me/admin", "/internal/me/titles", "/internal/me/session",
-                             "/internal/me/viewer", "/internal/me/track")
+                             "/internal/me/viewer", "/internal/me/track", "/internal/me/apps", "/internal/me/admin/control")
 # opened as a plain link: the browser cannot be told to come back, so these wait out the queue
 DOWNLOADS = ("/internal/me/export", "/internal/me/kamaitachi", "/internal/me/image")
 READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
@@ -43,7 +45,9 @@ READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
           "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/admin/delete-feedback",
-          "/internal/me/kamaitachi/import", "/internal/me/kamaitachi/unfollow", "/internal/me/settings")
+          "/internal/me/kamaitachi/import", "/internal/me/kamaitachi/unfollow", "/internal/me/settings",
+          "/internal/me/apps", "/internal/me/apps/update", "/internal/me/apps/secret", "/internal/me/apps/review", "/internal/me/apps/delete", "/internal/me/apps/icon",
+          "/internal/me/admin/control")
 
 
 def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[str, Any]) -> bool:
@@ -82,6 +86,18 @@ def handle_get(handler: Any, path: str, query: Dict[str, List[str]], user: Dict[
     if path == "/internal/me/beta":
         # the switches and how far chart reading has got: light enough for the page to poll while it runs
         handler._send_json(200, beta_state(user["id"]))
+        return True
+    if path == "/internal/me/apps":
+        # an app's developer need not have a maimai account of their own, so this is answered before the linked-account check
+        handler._send_json(200, apps_payload(user["id"]))
+        return True
+    if path == "/internal/me/admin/control":
+        # the controls on the dashboard's developer page: one account only, and anyone else is told the route does not exist
+        if not is_admin(user["id"]):
+            logger.warning("developer controls refused for %s", user["id"])
+            handler._send_json(404, {"ok": False, "error": "not_found"})
+            return True
+        handler._send_json(200, control_payload())
         return True
     if path == "/internal/me/admin":
         # one account only, and anyone else is told the route does not exist rather than that it is refused
@@ -260,6 +276,17 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         return True
     if path not in WRITES:
         return False
+    if path.startswith("/internal/me/apps"):
+        handler._send_json(*app_write(path, user, payload or {}))
+        return True
+    if path == "/internal/me/admin/control":
+        # the buttons on the dashboard's developer page: refused the same way the page itself is
+        if not is_admin(user["id"]):
+            logger.warning("developer action refused for %s", user["id"])
+            handler._send_json(404, {"ok": False, "error": "not_found"})
+            return True
+        handler._send_json(*control_act(payload or {}))
+        return True
     if path == "/internal/me/admin/update":
         # about the bot's own chart databases rather than about an account, so it is answered before
         # the linked-account check, and refused the same way the developer page itself is
@@ -281,8 +308,9 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         handler._send_json(200 if removed else 404, {"ok": removed} if removed else {"ok": False, "error": "no_such_answer"})
         return True
     if path == "/internal/me/unlink":
-        # also for an account with no maimai linked: that is how a site-only person deletes their sign-ins and record of agreement
-        delete_connected_account(user["id"])
+        # also for an account with no maimai linked: that is how a site-only person deletes their sign-ins and record of agreement.
+        # The Account tab's unlink asks for the maimai side only, and a developer's applications stay
+        delete_connected_account(user["id"], maimai_only=(payload or {}).get("maimaiOnly") is True)
         forget_user(user["id"])
         cohort.drop(user["id"])
         handler._send_json(200, {"ok": True})

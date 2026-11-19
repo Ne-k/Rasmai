@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: Params) {
   }
 }
 
-/** Refresh (start a score read), unlink, import (a file, or a Kamaitachi username), sharing, the chart speeds, beta switches, and the one account's
+/** Refresh (start a score read), unlink, import (a file, or a Kamaitachi username), sharing, the chart speeds, beta switches, a developer's apps, and the one account's
  *  chart-database updates. The bot refuses that last one to everyone else the same way it refuses
  *  the developer page itself, so nothing here has to know who is allowed. */
 export async function POST(request: Request, { params }: Params) {
@@ -37,14 +37,14 @@ export async function POST(request: Request, { params }: Params) {
   const user = currentUser(request);
   if (!user) return json(401, { ok: false, error: "signed_out" });
   const path = tail((await params).rest);
-  if (!path || !["refresh", "unlink", "import", "sharing", "settings", "beta", "beta/feedback", "admin/update", "admin/delete-feedback", "kamaitachi/import", "kamaitachi/unfollow"].includes(path))
+  if (!path || !["refresh", "unlink", "import", "sharing", "settings", "beta", "beta/feedback", "admin/update", "admin/delete-feedback", "kamaitachi/import", "kamaitachi/unfollow", "apps", "apps/update", "apps/secret", "apps/review", "apps/delete", "apps/icon", "admin/control"].includes(path))
     return json(404, { ok: false, error: "not_found" });
   let body: unknown = {};
-  if (path === "sharing" || path === "settings" || path === "beta" || path === "beta/feedback" || path === "admin/update" || path === "admin/delete-feedback" || path === "kamaitachi/import") {
+  if (path === "unlink" || path === "sharing" || path === "settings" || path === "beta" || path === "beta/feedback" || path === "admin/update" || path === "admin/delete-feedback" || path === "kamaitachi/import" || path === "admin/control" || path.startsWith("apps")) {
     try {
       const text = await request.text();
-      // the Kamaitachi import body is one username, so anything bigger is not from the page
-      if (path === "kamaitachi/import" && text.length > 1024) return json(413, { ok: false, error: "too_large" });
+      // the Kamaitachi import body is one username, an app is a few short fields and its picture is up to 256 KB as base64, so anything bigger is not from the page
+      if (text.length > (path === "apps/icon" ? 400_000 : (path.startsWith("apps") || path === "admin/control" || path === "unlink") ? 8192 : path === "kamaitachi/import" ? 1024 : Infinity)) return json(413, { ok: false, error: "too_large" });
       body = JSON.parse(text);
     } catch {
       return json(400, { ok: false, error: "bad_json" });

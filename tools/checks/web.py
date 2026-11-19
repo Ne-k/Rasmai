@@ -293,7 +293,7 @@ def _site_notice():
     return problems
 
 
-@check("the developer panel is one account's, in the control server only; maintenance and a switched-off command turn everyone else away, "
+@check("there is no developer command in Discord; maintenance and a switched-off command turn everyone but the developer away, "
        "the switches survive a restart, the presence says so, and held deletions move the deadlines instead of deleting")
 def _dev_panel():
     import asyncio, tempfile, pathlib
@@ -309,14 +309,11 @@ def _dev_panel():
     from rasmai.storage.db import connection as store, dev_flags_get, dev_flags_set, sources
 
     problems = []
-    if any(c.name == "dev" for c in bot.tree.get_commands()):
-        problems.append("/dev is registered globally, so everyone can see it")
-    if not any(c.name == "dev" for c in bot.tree.get_commands(guild=discord.Object(id=CONTROL_GUILD_ID))):
-        problems.append("/dev is not registered in the control guild, so nobody can reach it")
+    # what it did is on the dashboard's developer page, behind the same one account: a command left behind would be a second way in
+    if any(c.name == "dev" for c in [*bot.tree.get_commands(), *bot.tree.get_commands(guild=discord.Object(id=CONTROL_GUILD_ID))]):
+        problems.append("a /dev command is still registered in Discord")
     if bot.tree.interaction_check is not dev.gate:
         problems.append("the gate is not installed on the command tree")
-    if "ADMIN_USER_ID" not in (ROOT / "rasmai" / "bot" / "commands" / "dev.py").read_text(encoding="utf-8"):
-        problems.append("/dev does not check who is running it")
 
     said, views = [], []
 
@@ -396,33 +393,68 @@ def _dev_panel():
 
         dev_flags_set(deletions=False)
 
-        async def build():
-            return dev.DevView(1)
-        view = asyncio.run(build())
-        if len(view.children) != 11:
-            problems.append(f"the panel has {len(view.children)} controls, not 11")
-        if "Force read news" not in [getattr(c, "label", "") for c in view.children]:
-            problems.append("the panel has no Force read news button")
-        # pressed, not only drawn: the button reaches the bot's one news loop and says what it did
-        drawn, woken = [], []
-        kept_redraw, kept_read_now = dev.DevView.redraw, core.news_watch.read_now
-
-        async def redraw(self, interaction, note=""):
-            drawn.append(note)
-        dev.DevView.redraw, core.news_watch.read_now = redraw, lambda: woken.append(1) or True
+        bots, refused = dev.parse_bots("Example  https://Example.com/login\n\nBad http://example.com\nhttps://nameless.example\nLocal dev http://localhost:3000")
+        if bots != {"https://example.com": "Example", "http://localhost:3000": "Local dev"} or refused != ["Bad http://example.com", "https://nameless.example"]:
+            problems.append(f"the verified bots typed on the developer page were read as {bots}, refusing {refused}")
+        if "news" not in dev.switchable() or "dev" in dev.switchable():
+            problems.append(f"the commands that can be switched off are not the bot's own: {dev.switchable()}")
+        # pressed, not only drawn: Force read news reaches the bot's one news loop, on the bot's own loop, and says what it did
+        from rasmai.web.dashboard import control
+        woken = []
+        kept_on_loop, kept_read_now = control._on_loop, core.news_watch.read_now
+        control._on_loop = lambda work, wait=10: work()
         try:
-            asyncio.run(next(c for c in view.children if getattr(c, "label", "") == "Force read news").callback(None))
-        except Exception as error:
-            drawn.append(f"{type(error).__name__}: {error}")
+            core.news_watch.read_now = lambda: woken.append(1) or True
+            running = control.control_act({"action": "news"})
+            core.news_watch.read_now = lambda: False
+            stopped = control.control_act({"action": "news"})
         finally:
-            dev.DevView.redraw, core.news_watch.read_now = kept_redraw, kept_read_now
-        if woken != [1] or not drawn or "being read now" not in drawn[0]:
-            problems.append(f"pressing Force read news did not wake the news loop and say so: {drawn}")
-        options = [(o.value, o.default) for o in view.switches.options]
-        if options != [(name, name == "news") for name in dev.switchable()]:
-            problems.append(f"the select does not list the switchable commands with the off ones marked: {options}")
-        if view.deletions.label != "Resume deletions":
-            problems.append(f"the deletions button does not offer to resume while held: {view.deletions.label!r}")
+            control._on_loop, core.news_watch.read_now = kept_on_loop, kept_read_now
+        # the hop onto the bot's own loop, for real: it runs there and not here, a coroutine is awaited, and one that outlasts the wait says so
+        import threading
+        loop = asyncio.new_event_loop()
+        thread = threading.Thread(target=loop.run_forever, daemon=True)
+        thread.start()
+        kept_loop, kept_path, kept_sweep, kept_sync = bot.loop, core.DATABASE_PATH, core._expired_account_sweep, core.sync_commands_if_changed
+        bot.loop, bot.is_ready, core.DATABASE_PATH = loop, (lambda: True), store.DATABASE_PATH
+        marker = store.DATABASE_PATH.parent / "commands.sha256"
+        hops, swept, synced = [], [], []
+        try:
+            async def later():
+                return 8
+
+            async def slow():
+                await asyncio.sleep(2)
+            hops = [control._on_loop(threading.get_ident) == thread.ident, control._on_loop(later)]
+            try:
+                control._on_loop(slow, wait=0.05)
+                hops.append("no timeout")
+            except TimeoutError:
+                hops.append("timed out")
+            # a sweep that is running is restarted, and one that has died is started: restarting a dead one would do nothing
+            for alive in (True, False):
+                core._expired_account_sweep = SimpleNamespace(is_running=lambda alive=alive: alive, restart=lambda: swept.append("restart"), start=lambda: swept.append("start"))
+                swept.append(control.control_act({"action": "sweep"})[0])
+            # a sync Discord took is reported as done, and one it refused, which is only logged, as not
+            for through in (True, False):
+                async def sync(through=through):
+                    if through:
+                        marker.write_text("x", encoding="utf-8")
+                core.sync_commands_if_changed = sync
+                marker.write_text("stale", encoding="utf-8")
+                answer = control.control_act({"action": "resync"})
+                synced.append([answer[0], answer[1].get("ok"), marker.exists()])
+            saved = [control.control_act({"action": "commands", "disabled": ["news"]})[0], dev_flags_get()["disabled"]]
+            dev_flags_set(disabled=[])
+        finally:
+            bot.loop, core.DATABASE_PATH, core._expired_account_sweep, core.sync_commands_if_changed = kept_loop, kept_path, kept_sweep, kept_sync
+            del bot.is_ready
+            loop.call_soon_threadsafe(loop.stop)
+            thread.join(2)
+        if hops != [True, 8, "timed out"] or swept != ["restart", 200, "start", 200] or synced != [[200, True, True], [502, False, False]] or saved != [200, ["news"]]:
+            problems.append(f"an action on the bot did not run on its loop, or said it worked when it had not: {hops} {swept} {synced} {saved}")
+        if woken != [1] or running[0] != 200 or "being read now" not in running[1].get("said", "") or "not running" not in stopped[1].get("said", ""):
+            problems.append(f"Force read news did not wake the news loop and say so, or did not say when it is not running: {running} {stopped}")
         return problems
     finally:
         dev_flags_set(maintenance=False, disabled=[], deletions=True)
@@ -557,6 +589,573 @@ def _seam_live():
     finally:
         server.stop()
         web_server.INTERNAL_API_SECRET = kept
+    return problems
+
+
+@check("an app is handed a player's sign-in only through the whole OAuth flow, and every way around it is refused")
+def _oauth():
+    import base64, hashlib, pathlib, tempfile, time
+    import json as jsonlib
+    import urllib.error
+    import urllib.request
+    from urllib.parse import parse_qs, urlencode, urlsplit
+    import rasmai.storage.db as db
+    from rasmai.storage.db import connection as store, sources
+    from rasmai.web import web_server
+
+    problems = []
+    kept_secret, web_server.INTERNAL_API_SECRET = web_server.INTERNAL_API_SECRET, "check-only-secret"
+    # reviews ship switched off; what a review does is checked with them on, and the switch itself further down
+    from rasmai.web import oauth
+    shipped, oauth.REVIEW = oauth.REVIEW, True
+    # the check's own developer is the one the developer page answers to
+    from rasmai.web.dashboard import admin as admin_page
+    owner, admin_page.ADMIN_USER_ID = admin_page.ADMIN_USER_ID, "100000000000000051"
+    was, store.DATABASE_PATH = store.DATABASE_PATH, pathlib.Path(tempfile.mkdtemp()) / "oauth.sqlite3"
+    store._database_ready = False
+    sources._flags = None
+    server = web_server.InternalApiServer(host="127.0.0.1", port=0)
+    try:
+        server.start()
+        port = server.httpd.server_address[1]
+
+        def call(path, body=None, user=None, query=None):
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}{path}" + (f"?{urlencode(query)}" if query else ""), data=None if body is None else jsonlib.dumps(body).encode(),
+                headers={"X-Rasmai-Internal": "check-only-secret", "Content-Type": "application/json", **({"X-Rasmai-User": jsonlib.dumps(user)} if user else {})})
+            try:
+                with urllib.request.urlopen(request, timeout=10) as answer:
+                    return answer.status, jsonlib.loads(answer.read())
+            except urllib.error.HTTPError as error:
+                return error.code, jsonlib.loads(error.read() or b"{}")
+
+        def stored(sql, *values):
+            connection = store.get_database_connection()
+            try:
+                with connection:
+                    return [tuple(row) for row in connection.execute(sql, values)]
+            finally:
+                connection.close()
+
+        maker = {"id": "100000000000000051", "name": "Maker", "handle": "maker"}
+        other = {"id": "100000000000000052", "name": "Other", "handle": "other"}
+        local, remote = "http://localhost:8787/callback?from=rasmai", "https://app.example/callback"
+        verifier, clal = "v" * 43, "Ab3" * 21 + "x"
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+
+        # a developer makes an app and gives it a redirect on their own machine, with no maimai account of their own
+        if call("/internal/me/apps")[0] != 401:
+            problems.append("a developer's apps were answered to nobody signed in")
+        status, made = call("/internal/me/apps", {"name": "  Example   app "}, maker)
+        app = made.get("app") or {}
+        app_id = app.get("id", "")
+        if status != 200 or (app.get("name"), app.get("review"), app.get("hasSecret"), app.get("redirects"), len(app_id)) != ("Example app", "none", False, [], 24):
+            problems.append(f"making an app did not answer with a new, unreviewed app under a 24-character client id: {status} {made}")
+        status, changed = call("/internal/me/apps/update", {"id": app_id, "redirects": [local], "description": "For checks"}, maker)
+        if status != 200 or changed.get("app", {}).get("redirects") != [local] or changed["app"].get("description") != "For checks":
+            problems.append(f"a localhost redirect could not be added to an app: {status} {changed}")
+        refused = [call("/internal/me/apps/update", {"id": app_id, "redirects": [uri]}, maker)[1].get("error") for uri in (
+            "http://evil.example/callback", "https://app.example/callback#part", "ftp://app.example/", "https://someone@app.example/", "https://app.example/a b", 5)]
+        refused += [call("/internal/me/apps/update", {"id": app_id, **change}, maker)[1].get("error") for change in (
+            {"name": ""}, {"name": "n" * 41}, {"website": "http://app.example"}, {"privacy": "app.example"}, {"description": "d" * 201}, {"redirects": [local + str(n) for n in range(11)]})]
+        if refused != ["bad_redirect"] * 6 + ["bad_app"] * 5 + ["bad_redirect"]:
+            problems.append(f"a redirect that is not https or localhost, has a fragment or a sign-in in it, or details that are too long, were saved: {refused}")
+        if call("/internal/me/apps/update", {"id": app_id}, maker)[1].get("app", {}).get("redirects") != [local]:
+            problems.append("a refused update still changed the app")
+
+        # another developer's app is not theirs to see or touch, and is answered as one that does not exist
+        answers = [call(f"/internal/me/apps/{what}", {"id": app_id, "name": "Taken"}, other) for what in ("update", "secret", "review", "delete", "icon")]
+        if any(answer != (404, {"ok": False, "error": "no_such_app"}) for answer in answers) or call("/internal/me/apps", user=other)[1].get("apps") != []:
+            problems.append(f"another developer could read, change or delete an app that is not theirs: {answers}")
+        mine = call("/internal/me/apps", user=maker)[1]
+        if mine.get("max") != 10 or [(a["id"], a["name"], a["hasSecret"]) for a in mine.get("apps", [])] != [(app_id, "Example app", False)]:
+            problems.append(f"the developer's own list is not their one app, untouched by the other developer: {mine}")
+
+        def asking(**changes):
+            asked = {"response_type": "code", "client_id": app_id, "redirect_uri": local, "scope": "maimai:clal openid", "state": "st ate&1",
+                     "code_challenge": challenge, "code_challenge_method": "S256", **changes}
+            return {key: value for key, value in asked.items() if value is not None}
+
+        def begin(**changes):
+            return call("/internal/oauth/begin", query=asking(**changes))[1]
+
+        def approved(**changes):
+            """A fresh request, approved: the code the app would be sent back with."""
+            sent = call("/internal/oauth/approve", {"ticket": begin(**changes).get("ticket"), "clal": clal, "expires": "1790000000.5"})[1]
+            return (parse_qs(urlsplit(sent.get("redirect", "")).query).get("code") or [""])[0]
+
+        def exchange(code, **changes):
+            return call("/internal/oauth/token", {"grant_type": "authorization_code", "code": code, "redirect_uri": local, "client_id": app_id,
+                                                  "code_verifier": verifier, **changes})
+
+        # the authorize request: a good one gets a ticket, and one with no app or a redirect that is not the app's sends the player nowhere
+        begun = begin()
+        ticket = begun.get("ticket", "")
+        if (begun.get("ok"), len(ticket), begun.get("app"), begun.get("redirectHost"), begun.get("scopes"), begun.get("cancel")) != (
+                True, 32, {"name": "Example app", "by": "maker", "website": "", "privacy": "", "verified": False, "icon": ""}, "localhost:8787", ["maimai:clal", "openid"],
+                local + "&error=access_denied&state=st+ate%261"):
+            problems.append(f"a good authorize request was not given a ticket and what to show the player: {begun}")
+        for word, changes in (("invalid_client", {"client_id": "nobody"}), ("invalid_redirect", {"redirect_uri": local + "x"}), ("invalid_redirect", {"redirect_uri": remote})):
+            answer = begin(**changes)
+            if answer.get("ok") is not False or answer.get("error") != word or "redirect" in answer or "ticket" in answer:
+                problems.append(f"an authorize request for {changes} was not refused as {word} with nowhere to send the player: {answer}")
+        for word, changes in (("unsupported_response_type", {"response_type": "token"}), ("invalid_request", {"code_challenge": None}),
+                              ("invalid_request", {"code_challenge": "short"}), ("invalid_request", {"code_challenge_method": "plain"}),
+                              ("invalid_scope", {"scope": "maimai:clal email"}), ("invalid_scope", {"scope": "openid"}), ("invalid_request", {"state": "s" * 513})):
+            answer = begin(**changes)
+            back = parse_qs(urlsplit(answer.get("redirect", "")).query)
+            if answer.get("error") != word or "ticket" in answer or not answer.get("redirect", "").startswith(local + "&") or back.get("error") != [word] \
+                    or not back.get("error_description") or back.get("state") != (None if "state" in changes else ["st ate&1"]):
+                problems.append(f"an authorize request with {list(changes)} wrong was not sent back to the app as {word}: {answer}")
+
+        # the extension reads the request by its ticket, and the player's answer spends it
+        status, shown = call("/internal/oauth/request", query={"ticket": ticket})
+        if status != 200 or (shown.get("app"), shown.get("redirectHost"), shown.get("scopes")) != (begun.get("app"), "localhost:8787", ["maimai:clal", "openid"]):
+            problems.append(f"the approval window is not told what the ticket asks: {status} {shown}")
+        # and it is signed with the grant key under its own words, naming the ticket, so the window can tell it is this site's
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from rasmai.web import grants, oauth
+        note_body, _, signature = str(shown.get("signed", "")).partition(".")
+        key = Ed25519PublicKey.from_public_bytes(base64.urlsafe_b64decode(grants.public_key() + "==="))
+        try:
+            key.verify(base64.urlsafe_b64decode(signature + "==="), b"aime-oauth." + note_body.encode("ascii"))
+            noted = jsonlib.loads(base64.urlsafe_b64decode(note_body + "==="))
+        except (InvalidSignature, ValueError):
+            noted = None
+        wanted = {"v": 1, "ticket": ticket, "app": begun.get("app"), "redirectHost": "localhost:8787", "scopes": ["maimai:clal", "openid"], "reviews": True}
+        if not noted or {k: v for k, v in noted.items() if k != "exp"} != wanted or not 0 < noted.get("exp", 0) - time.time() <= oauth.TICKET_SECONDS:
+            problems.append(f"the request is not signed for its ticket: {noted}")
+        try:
+            key.verify(base64.urlsafe_b64decode(signature + "==="), b"aime-grant." + note_body.encode("ascii"))
+            problems.append("a signed request also passes as a grant")
+        except (InvalidSignature, ValueError):
+            pass
+        if call("/internal/oauth/request", query={"ticket": "nothing"}) != (404, {"ok": False, "error": "expired"}):
+            problems.append("a ticket nobody was given is not answered as expired")
+        if call("/internal/oauth/approve", {"ticket": ticket, "clal": "not-a-sign-in"}) != (400, {"ok": False, "error": "bad_clal"}):
+            problems.append("something that is not a clal was taken as a sign-in")
+        status, sent = call("/internal/oauth/approve", {"ticket": ticket, "clal": clal, "expires": 1790000000})
+        back = parse_qs(urlsplit(sent.get("redirect", "")).query)
+        code = (back.get("code") or [""])[0]
+        if status != 200 or not sent.get("redirect", "").startswith(local + "&code=") or back.get("state") != ["st ate&1"] or back.get("from") != ["rasmai"]:
+            problems.append(f"approving did not answer with the app's redirect carrying a code and the state: {status} {sent}")
+        again = [call(f"/internal/oauth/{what}", {"ticket": ticket, "clal": clal}) for what in ("approve", "deny")]
+        if again != [(400, {"ok": False, "error": "expired"})] * 2 or call("/internal/oauth/request", query={"ticket": ticket})[0] != 404:
+            problems.append(f"a ticket could be answered twice: {again}")
+        status, denied = call("/internal/oauth/deny", {"ticket": begin().get("ticket")})
+        if (status, denied) != (200, {"ok": True, "redirect": local + "&error=access_denied&state=st+ate%261"}):
+            problems.append(f"declining did not send the player back to the app with access_denied: {status} {denied}")
+
+        # the code is exchanged once, with the verifier the challenge was made from and the redirect it was issued for
+        status, stranger_app = call("/internal/me/apps", {"name": "Other app"}, other)
+        wrong = [exchange(code, code_verifier="w" * 43), exchange(code, code_verifier=""), exchange(code, redirect_uri=local + "x"),
+                 exchange(code, client_id=stranger_app.get("app", {}).get("id")), exchange(code + "x"), exchange(code, grant_type="password")]
+        if [status for status, _answer in wrong] != [400] * 6 or [answer.get("error") for _status, answer in wrong] != ["invalid_grant"] * 5 + ["unsupported_grant_type"]:
+            problems.append(f"a wrong verifier, redirect, client, code or grant type was not refused at the token endpoint: {wrong}")
+        if exchange(code, client_id="nobody") != (401, {"error": "invalid_client", "error_description": "Unknown client_id, or a missing or wrong client_secret."}):
+            problems.append("an unknown client was not refused with 401 at the token endpoint")
+        status, token = exchange(code)
+        access = token.get("access_token", "")
+        if status != 200 or len(access) < 40 or {**token, "access_token": ""} != {"access_token": "", "token_type": "Bearer", "expires_in": 3600, "scope": "maimai:clal openid"}:
+            problems.append(f"the right code and verifier were not given a bearer token for an hour: {status} {token}")
+        status, info = call("/internal/oauth/userinfo", {"token": access})
+        if status != 200 or (info.get("maimai_clal"), info.get("maimai_clal_expires_at"), len(info.get("sub", "")), len(info)) != (clal, 1790000000, 22, 3):
+            problems.append(f"the token did not read the player's sign-in back: {status} {info}")
+        if call("/internal/oauth/userinfo", {"token": access})[1].get("sub") != info.get("sub"):
+            problems.append("the same player is a different sub to the same app the second time it asks")
+        if call("/internal/oauth/userinfo", {"token": access + "x"}) != (401, {"error": "invalid_token"}):
+            problems.append("a token nobody was given is not refused with 401")
+        # nothing a thief of the database could use: the sign-in is sealed, and the code, token and ticket are kept as hashes
+        spare = begin().get("ticket", "")
+        kept = jsonlib.dumps([stored(f"SELECT * FROM {table}") for table in ("oauth_apps", "oauth_tickets", "oauth_codes", "oauth_tokens")])
+        if any(secret in kept for secret in (clal, code, access, spare)) or "enc2:" not in kept or len(spare) != 32:
+            problems.append("the database holds a sign-in, code, token or ticket as it was given out")
+        status, second = exchange(code)
+        if (status, second.get("error")) != (400, "invalid_grant") or call("/internal/oauth/userinfo", {"token": access})[0] != 401:
+            problems.append(f"a code was exchanged twice, or the token from its first use outlived the second: {status} {second}")
+
+        # each of the three runs out, and what has run out is deleted the next time anyone begins
+        late_ticket, late_code = begin().get("ticket"), approved()
+        status, live = exchange(approved())
+        stored("UPDATE oauth_tickets SET expires_at = expires_at - 601")
+        stored("UPDATE oauth_codes SET expires_at = expires_at - 301 WHERE used = 0")
+        stored("UPDATE oauth_tokens SET expires_at = expires_at - 3601")
+        late = [call("/internal/oauth/approve", {"ticket": late_ticket, "clal": clal})[1].get("error"), exchange(late_code)[1].get("error"),
+                call("/internal/oauth/userinfo", {"token": live.get("access_token")})[1].get("error")]
+        if status != 200 or late != ["expired", "invalid_grant", "invalid_token"]:
+            problems.append(f"a ticket after ten minutes, a code after five or a token after an hour still worked: {status} {late}")
+        begin(client_id="nobody")
+        left = [stored(f"SELECT COUNT(*) FROM {table} WHERE expires_at <= ?", int(time.time()))[0][0] for table in ("oauth_tickets", "oauth_codes", "oauth_tokens")]
+        if left != [0, 0, 0] or stored("SELECT COUNT(*) FROM oauth_tokens") != [(0,)]:
+            problems.append(f"tickets, codes and tokens that ran out were still stored after the next authorize request: {left}")
+
+        # once a secret is made the token endpoint wants it, and it is shown that once only
+        status, secreted = call("/internal/me/apps/secret", {"id": app_id}, maker)
+        secret = secreted.get("secret", "")
+        if status != 200 or len(secret) < 40 or secreted.get("app", {}).get("hasSecret") is not True or secret in jsonlib.dumps(stored("SELECT * FROM oauth_apps")) \
+                or "secret" in jsonlib.dumps(call("/internal/me/apps", user=maker)[1]).replace("hasSecret", ""):
+            problems.append(f"making a client secret did not show it once and keep only its hash: {status} {secreted}")
+        code = approved()
+        guarded = [exchange(code)[0], exchange(code, client_secret="wrong")[0], exchange(code, client_secret=secret)[0]]
+        if guarded != [401, 401, 200]:
+            problems.append(f"an app with a client secret was given a token without it, or refused with it: {guarded}")
+
+        # an app nobody has reviewed sends players to the developer's own machine only, until it is approved on the developer page
+        control = "/internal/me/admin/control"
+
+        def panel(choice=""):
+            """What the developer page offers to review, as ``verdict id stamp``, and what pressing ``choice`` said; ``panel.blocks`` is what it offers to block."""
+            listed = call(control, user=maker)[1].get("apps", [])
+            offered = [f"{verdict} {entry['id']} {entry['stamp']}" for entry in listed if oauth.REVIEW
+                       for verdict in {"pending": ("verified", "rejected"), "verified": ("none",)}.get(entry["review"], ())]
+            panel.blocks = [["unblock" if entry["blocked"] else "block", entry["id"]] for entry in listed if entry["blocked"] or entry["sites"]]
+            said = []
+            if choice:
+                verdict, app, *stamp = next((value for value in offered if value.startswith(choice)), choice).split(" ")
+                pressed = {"action": verdict, "id": app} if verdict in ("block", "unblock") else {"action": "review", "id": app, "verdict": verdict, "stamp": "".join(stamp)}
+                answer = call(control, pressed, maker)[1]
+                said.append(answer.get("said") or answer.get("error", ""))
+            return offered, said
+
+        def review():
+            return db.oauth_app_get(app_id)["review"]
+        if panel()[0]:
+            problems.append("the developer page offers a review with no app waiting")
+        status, changed = call("/internal/me/apps/update", {"id": app_id, "redirects": [local, remote]}, maker)
+        answer = begin(redirect_uri=remote)
+        if status != 200 or review() != "none" or answer.get("error") != "unauthorized_client" or not answer.get("redirect", "").startswith(remote + "?error=unauthorized_client&"):
+            problems.append(f"an app nobody has reviewed could send a player to a site that is not the developer's machine: {status} {answer}")
+        if call("/internal/me/apps/review", {"id": app_id}, maker) != (400, {"ok": False, "error": "bad_app"}):
+            problems.append("an app with no website or privacy policy could be put up for review")
+        call("/internal/me/apps/update", {"id": app_id, "website": "https://app.example", "privacy": "https://app.example/privacy"}, maker)
+        status, asked = call("/internal/me/apps/review", {"id": app_id}, maker)
+        offered, _said = panel()
+        if status != 200 or asked.get("app", {}).get("review") != "pending" or [value.split(" ")[:2] for value in offered] != [["verified", app_id], ["rejected", app_id]] \
+                or any(len(value.split(" ")[2]) != 32 or value.split(" ")[2] == hashlib.sha256(value.encode()).hexdigest()[:32] for value in offered):
+            problems.append(f"an app put up for review is not pending with approve and reject on the developer page: {status} {asked} {offered}")
+        entry = next((one for one in call(control, user=maker)[1].get("apps", []) if one["id"] == app_id), {})
+        if [entry.get(key) for key in ("name", "by", "userId", "privacy", "sites")] != ["Example app", "maker", maker["id"], "https://app.example/privacy", ["https://app.example"]]:
+            problems.append(f"the developer page does not show who asks for review and where the app sends players: {entry}")
+        _offered, said = panel(f"verified {app_id} 000000000000")
+        if review() != "pending" or said != ["changed"]:
+            problems.append(f"an app that changed after the page was drawn was approved unseen: {said}")
+        _offered, said = panel("verified")
+        answer = begin(redirect_uri=remote)
+        if review() != "verified" or "is verified" not in (said or [""])[0] or not answer.get("ok") or answer.get("app", {}).get("verified") is not True \
+                or answer.get("redirectHost") != "app.example":
+            problems.append(f"an app approved on the developer page still cannot send a player to its own site: {said} {answer}")
+        stale = approved(redirect_uri=remote)
+        held = begin(redirect_uri=remote).get("ticket")
+        offered, said = panel("none")
+        if [value.split(" ")[:2] for value in offered] != [["none", app_id]] or review() != "none" or "no longer verified" not in (said or [""])[0] \
+                or begin(redirect_uri=remote).get("error") != "unauthorized_client" or call("/internal/oauth/approve", {"ticket": held, "clal": clal})[1].get("error") != "expired":
+            problems.append(f"the developer page does not unverify a verified app, or the app kept sending players to its site after: {offered} {said}")
+        late = exchange(stale, redirect_uri=remote, client_secret=secret)
+        if late[0] != 400 or late[1].get("error") != "invalid_grant":
+            problems.append(f"a code a player approved before the app was unverified was still exchanged after: {late}")
+        # what a player is shown, or a new place their sign-in goes, is looked at again; a new redirect on the developer's machine is not
+        outcomes = []
+        for change in ({"redirects": [local, remote, "http://127.0.0.1/back"], "description": "New words"}, {"name": "Example two"}, {"website": "https://two.example"},
+                       {"privacy": "https://two.example/privacy"}, {"redirects": [local, remote, "https://two.example/back"]}):
+            db.oauth_app_set(app_id, review="verified")
+            outcomes.append(call("/internal/me/apps/update", {"id": app_id, **change}, maker)[1].get("app", {}).get("review"))
+        if outcomes != ["verified"] + ["pending"] * 4:
+            problems.append(f"a verified app changed its name, website, privacy policy or added a site to send players to and stayed verified, or lost it for less: {outcomes}")
+
+        # the maker's name players are shown is the one that was reviewed: a new handle waits for the next review
+        db.oauth_app_set(app_id, review="verified")
+        renamed = {**maker, "handle": "rasmai_official"}
+        call("/internal/me/apps/update", {"id": app_id, "description": "More words"}, renamed)
+        kept = db.oauth_app_get(app_id)
+        call("/internal/me/apps/update", {"id": app_id, "name": "Example three"}, renamed)
+        after = db.oauth_app_get(app_id)
+        if (kept["owner_name"], kept["review"], after["owner_name"], after["review"]) != ("maker", "verified", "rasmai_official", "pending"):
+            problems.append(f"a verified app took its developer's new handle without a review: {kept['owner_name']} {kept['review']} {after['owner_name']} {after['review']}")
+        # an app's picture: only a real PNG, JPEG or WebP is taken, and what is kept and served is this site's own redrawing of it
+        import io, re
+        from PIL import Image
+
+        def picture(kind="PNG", size=(300, 200), colour=(255, 79, 163), after=b"", **carried):
+            drawn = io.BytesIO()
+            Image.new("RGB", size, colour).save(drawn, kind, **carried)
+            return base64.b64encode(drawn.getvalue() + after).decode()
+
+        def served(app):
+            asked = urllib.request.Request(f"http://127.0.0.1:{port}/internal/oauth/icon/{app}", headers={"X-Rasmai-Internal": "check-only-secret"})
+            try:
+                with urllib.request.urlopen(asked, timeout=10) as answer:
+                    return answer.headers.get("Content-Type"), answer.read()
+            except urllib.error.HTTPError as error:
+                return error.code, b""
+
+        def kept():
+            return [bytes(row[0]) for row in stored("SELECT png FROM oauth_icons WHERE app_id = ?", app_id)]
+
+        script = b"<script>alert(1)</script>"
+        status, sent = call("/internal/me/apps/icon", {"id": app_id, "image": picture(after=script)}, maker)
+        path, png = sent.get("app", {}).get("icon", ""), (kept() or [b""])[0]
+        if status != 200 or not re.fullmatch(rf"/api/oauth/icon/{app_id}\?v=[0-9a-f]{{32}}", path) or path[-32:] != hashlib.sha256((kept() or [b""])[0]).hexdigest()[:32] or script in png or not png.startswith(b"\x89PNG\r\n\x1a\n") \
+                or Image.open(io.BytesIO(png)).size != (128, 128) or served(app_id) != ("image/png", png):
+            problems.append(f"an app's picture is not kept and served as this site's own 128-pixel PNG, or what came after it in the file was kept: {status} {path} {len(png)}")
+        hostile = {"an SVG that runs a script": base64.b64encode(b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>').decode(),
+                   "a GIF": picture("GIF"), "a page": base64.b64encode(b"<!doctype html><script>alert(1)</script>").decode(),
+                   "not base64": "not base64!", "a picture of 6 million pixels": picture(size=(2500, 2500)),
+                   "a file over the limit": picture(after=bytes(300_000)), "a PNG cut short": picture()[:200]}
+        taken = [what for what, image in hostile.items() if call("/internal/me/apps/icon", {"id": app_id, "image": image}, maker) != (400, {"ok": False, "error": "bad_icon"})]
+        if taken or kept() != [png]:
+            problems.append(f"something that is not a safe picture was taken as an app's picture, or replaced the one it had: {taken}")
+        # a colour profile is the one part of a file Pillow writes back out as it read it, so a file can hide anything there
+        hidden_in = b"HIDDEN-IN-THE-PROFILE-" * 12
+        for kind in ("PNG", "JPEG"):
+            call("/internal/me/apps/icon", {"id": app_id, "image": picture(kind, icc_profile=hidden_in)}, maker)
+            redrawn = Image.open(io.BytesIO((kept() or [picture()])[0]))
+            if redrawn.info or dict(redrawn.getexif()):
+                problems.append(f"an app's picture kept what its {kind} file carried beside the pixels: {sorted(redrawn.info)}")
+        status, sent = call("/internal/me/apps/icon", {"id": app_id, "image": picture(after=script)}, maker)
+        path, png = sent.get("app", {}).get("icon", ""), (kept() or [b""])[0]
+        # players see the picture only once it was reviewed, and a verified app's new picture is looked at again
+        hidden = begin().get("app", {}).get("icon")
+        db.oauth_app_set(app_id, review="verified")
+        shown = begin().get("app", {}).get("icon")
+        changed = call("/internal/me/apps/icon", {"id": app_id, "image": picture("JPEG", colour=(60, 200, 232))}, maker)[1].get("app", {})
+        if (hidden, shown) != ("", path) or changed.get("review") != "pending" or changed.get("icon") in ("", path):
+            problems.append(f"an unreviewed app's picture was shown to players, or a verified app changed its picture and stayed verified: {hidden!r} {shown!r} {changed}")
+        cleared = call("/internal/me/apps/icon", {"id": app_id, "image": ""}, maker)[1].get("app", {}).get("icon")
+        if cleared != "" or kept() or served(app_id)[0] != 404:
+            problems.append(f"an app's picture could not be removed: {cleared!r}")
+        call("/internal/me/apps/icon", {"id": app_id, "image": picture()}, maker)
+
+        # as it ships, reviews are off: a registered redirect works unreviewed with the app's picture shown, nobody can ask for a review, and the page offers none
+        oauth.REVIEW = False
+        db.oauth_app_set(app_id, review="none")
+        unreviewed = begin(redirect_uri=remote)
+        asked = call("/internal/me/apps/review", {"id": app_id}, maker)
+        offered, _said = panel()
+        told = call("/internal/me/apps", user=maker)[1].get("reviews")
+        oauth.REVIEW = True
+        if not unreviewed.get("ok") or unreviewed.get("reviews") is not False or begun.get("reviews") is not True or not unreviewed.get("app", {}).get("icon") or asked[0] != 404 or db.oauth_app_get(app_id)["review"] != "none" or offered \
+                or told is not False:
+            problems.append(f"with reviews switched off an app still needs one, or one can still be asked for: {unreviewed} {asked} {offered} {told}")
+
+        # an app can be blocked from the developer page: nobody can approve it, what it held is deleted, its code and token stop, and its developer is told; unblocking brings it back
+        waiting, late = begin().get("ticket"), approved()
+        token_status, live = exchange(approved(), client_secret=secret)
+        panel()
+        offered_block = panel.blocks
+        _offered, said = panel(f"block {app_id}")
+        left = [stored(f"SELECT COUNT(*) FROM {table} WHERE client_id = ?", app_id)[0][0] for table in ("oauth_tickets", "oauth_codes", "oauth_tokens")]
+        refused = begin()
+        after = [call("/internal/oauth/approve", {"ticket": waiting, "clal": clal})[1].get("error"), exchange(late, client_secret=secret)[0],
+                 call("/internal/oauth/userinfo", {"token": live.get("access_token")})[0], call("/internal/me/apps", user=maker)[1]["apps"][0].get("blocked")]
+        panel()
+        if token_status != 200 or offered_block != [["block", app_id]] or "is blocked" not in (said or [""])[0] or left != [0, 0, 0] or refused.get("error") != "invalid_client" \
+                or "redirect" in refused or "ticket" in refused or after != ["expired", 400, 401, True] or panel.blocks != [["unblock", app_id]]:
+            problems.append(f"an app blocked from the developer page kept working, or kept what it held: {offered_block} {said} {left} {refused} {after} {panel.blocks}")
+        _offered, said = panel(f"unblock {app_id}")
+        if not begin().get("ok") or "is unblocked" not in (said or [""])[0] or call("/internal/me/apps", user=maker)[1]["apps"][0].get("blocked") is not False:
+            problems.append(f"an unblocked app did not come back: {said}")
+
+        # the controls on the dashboard's developer page are the developer's alone: anyone else is told they do not exist, and each action does what /dev's button does
+        if True:
+            strangers = [call(control, user=other)[0], call(control, {"action": "maintenance", "on": True}, other)[0], db.dev_flags_get()["maintenance"]]
+            status, shown = call(control, user=maker)
+            listed = {entry["id"]: entry for entry in shown.get("apps", [])}
+            done = []
+            for action, more, read, back in (
+                    ("maintenance", {"on": True}, lambda: db.dev_flags_get()["maintenance"], {"on": False}),
+                    ("deletions", {"on": False}, lambda: db.dev_flags_get()["deletions"], {"on": True}),
+                    ("bots", {"bots": "Example https://example.com\nnot one"}, lambda: db.link_bots_get(), {"bots": ""}),
+                    ("block", {"id": app_id}, lambda: db.oauth_app_get(app_id)["blocked"], None)):
+                answer = call(control, {"action": action, **more}, maker)
+                done.append([answer[0], bool(answer[1].get("said")), read()])
+                call(control, {"action": "unblock" if back is None else action, **(back or more)}, maker)
+            refused = [call(control, {"action": "commands", "disabled": ["not-a-command"]}, maker)[0], call(control, {"action": "nothing"}, maker)[0],
+                       call(control, {"action": "deletions"}, maker)[0], call(control, {"action": "maintenance", "on": "yes"}, maker)[0],
+                       call(control, {"action": "block", "id": "x" * 24}, maker)[0]]
+            # with no bot running, the actions that act on the bot say so and do nothing else
+            down = [call(control, {"action": action}, maker) for action in ("news", "sweep", "resync", "restart_bot")]
+            after = [db.dev_flags_get()["maintenance"], db.dev_flags_get()["deletions"], db.link_bots_get(), db.oauth_app_get(app_id)["blocked"]]
+            if strangers != [404, 404, False] or status != 200 or app_id not in listed or listed[app_id].get("sites") != ["https://app.example", "https://two.example"] \
+                    or not shown.get("grantKey") or shown.get("flags", {}).get("maintenance") is not False \
+                    or done != [[200, True, True], [200, True, False], [200, True, {"https://example.com": "Example"}], [200, True, 1]] \
+                    or refused != [400, 400, 400, 400, 404] or down != [(503, {"ok": False, "error": "bot_down"})] * 4 or after != [False, True, {}, 0]:
+                problems.append(f"the developer's controls answered a stranger, or an action did not do what it says: {strangers} {status} {sorted(listed)} {done} {refused} {down} {after}")
+
+        # a developer with no Discord handle is not named by what their Google account calls itself, which could be anyone's name
+        nameless = {"id": "100000000000000053", "name": "Rasmai official", "handle": ""}
+        theirs = call("/internal/me/apps", {"name": "Named"}, nameless)[1].get("app", {}).get("id", "")
+        owner_name = (db.oauth_app_get(theirs) or {}).get("owner_name")
+        call("/internal/me/apps/delete", {"id": theirs}, nameless)
+        if owner_name != "a Google account":
+            problems.append(f"an app's maker is shown as whatever a Google account is named: {owner_name!r}")
+
+        # an app with no website, a Discord bot say, starts each player's request itself, with its secret, saying who it is for. The
+        # player ends on this site's own done page, no code goes anywhere, and the app asks the token endpoint until they have answered
+        oauth.REVIEW = False
+        ends_at = oauth.done_page()
+        bot_id = call("/internal/me/apps", {"name": "Example bot"}, maker)[1].get("app", {}).get("id", "")
+        status, listed = call("/internal/me/apps/update", {"id": bot_id, "redirects": [ends_at]}, maker)
+        near = [call("/internal/me/apps/update", {"id": bot_id, "redirects": [uri]}, maker)[1].get("error") for uri in (ends_at + "/", ends_at + "?x=1", ends_at.rsplit("/", 2)[0] + "/me/")]
+        bot_secret = ""
+
+        def start(**changes):
+            """The bot starting a request for one player: the status and the answer."""
+            return call("/internal/oauth/link", {"client_id": bot_id, "client_secret": bot_secret, "code_challenge": challenge, "code_challenge_method": "S256",
+                                                 "for": "  maker   on Discord ", **changes})
+
+        def asks(**changes):
+            """The bot asking for the player's answer: the status and the error word, or "" with a token."""
+            status, answer = exchange("", **{"client_id": bot_id, "redirect_uri": ends_at, "client_secret": bot_secret, **changes})
+            return [status, answer.get("error", "")]
+
+        def opened(ticket):
+            """What the consent page is told for a link."""
+            return call("/internal/oauth/begin", query={"ticket": ticket})[1]
+        direct = begin(client_id=bot_id, redirect_uri=ends_at)
+        if status != 200 or near != ["bad_redirect"] * 3 or call("/internal/me/apps", user=maker)[1].get("donePage") != ends_at \
+                or start()[0] != 401 or asks() != [400, "unauthorized_client"] \
+                or direct.get("error") != "invalid_request" or "ticket" in direct or "redirect" in direct:
+            problems.append(f"the done page was usable with no client secret or by a plain authorize link, or an address beside it on this site was saved: "
+                            f"{status} {listed} {near} {start()} {asks()} {direct}")
+        bot_secret = call("/internal/me/apps/secret", {"id": bot_id}, maker)[1].get("secret", "")
+        refused = [start(client_secret="wrong")[0], start(**{"for": ""})[1].get("error"), start(**{"for": "w" * 41})[1].get("error"), start(code_challenge="short")[1].get("error"),
+                   start(scope="openid")[1].get("error"), start(client_id=app_id, client_secret=secret)[1].get("error")]
+        status, started = start()
+        waiting = (parse_qs(urlsplit(started.get("link", "")).query).get("ticket") or [""])[0]
+        told = opened(waiting)
+        noted = jsonlib.loads(base64.urlsafe_b64decode(str(call("/internal/oauth/request", query={"ticket": waiting})[1].get("signed", "")).partition(".")[0] + "===") or b"{}")
+        if refused != [401, "invalid_request", "invalid_request", "invalid_request", "invalid_scope", "unauthorized_client"] or status != 200 \
+                or not started.get("link", "").startswith(ends_at.rsplit("/", 1)[0] + "/authorize?ticket=") or (len(waiting), started.get("expires_in"), started.get("interval")) != (32, 600, 5) \
+                or (told.get("ok"), told.get("ticket"), told.get("for"), told.get("cancel"), told.get("app", {}).get("name")) != (True, waiting, "maker on Discord", "", "Example bot") \
+                or noted.get("for") != "maker on Discord" or noted.get("ticket") != waiting:
+            problems.append(f"a link was started without the app's secret or without saying who it is for, or the player is not told who, signed: {refused} {status} {started} {told} {noted}")
+        early = asks()
+        landed = call("/internal/oauth/approve", {"ticket": waiting, "clal": clal})[1].get("redirect", "")
+        wrong = [asks(client_secret=""), asks(code_verifier="w" * 43), asks(code_verifier="short"), exchange("", redirect_uri=ends_at, client_secret=secret)[1].get("error")]
+        status, given = exchange("", client_id=bot_id, redirect_uri=ends_at, client_secret=bot_secret)
+        read = call("/internal/oauth/userinfo", {"token": given.get("access_token")})[1].get("maimai_clal")
+        if early != [400, "authorization_pending"] or landed != ends_at or wrong != [[401, "invalid_client"], [400, "authorization_pending"], [400, "invalid_grant"], "unauthorized_client"] \
+                or (status, read) != (200, clal) or asks() != [400, "authorization_pending"] or opened(waiting).get("ok") is not False:
+            problems.append(f"an app with no website was not given the player's sign-in for asking, once, with its secret and verifier alone, or its link worked twice: "
+                            f"{early} {landed} {wrong} {status} {asks()} {opened(waiting)}")
+        again = (parse_qs(urlsplit(start()[1].get("link", "")).query).get("ticket") or [""])[0]
+        declined = call("/internal/oauth/deny", {"ticket": again})[1].get("redirect", "")
+        if declined != ends_at + "?error=access_denied" or asks() != [400, "access_denied"] \
+                or jsonlib.dumps(stored("SELECT clal FROM oauth_codes WHERE client_id = ? AND used = 0", bot_id)) != '[[""]]':
+            problems.append(f"an app with no website is not told its player declined, or who the link was for went into an address: {declined} {asks()}")
+        late = (parse_qs(urlsplit(start()[1].get("link", "")).query).get("ticket") or [""])[0]
+        live = opened(late).get("ok")
+        stored("UPDATE oauth_tickets SET expires_at = expires_at - 601 WHERE client_id = ?", bot_id)
+        if live is not True or opened(late).get("error") != "invalid_request" or "ticket" in opened(late):
+            problems.append(f"a link still opens after its ten minutes: {live} {opened(late)}")
+        call("/internal/me/apps/delete", {"id": bot_id}, maker)
+        oauth.REVIEW = True
+
+        # ten apps a developer, and an app deleted takes its codes and tokens with it
+        made = [call("/internal/me/apps", {"name": f"App {number}"}, other) for number in range(10)]
+        if [status for status, _answer in made] != [200] * 9 + [409] or made[-1][1] != {"ok": False, "error": "too_many"}:
+            problems.append(f"a developer with ten apps could make another: {[status for status, _answer in made]}")
+        approved()
+        status, live = exchange(approved(), client_secret=secret)
+        gone = call("/internal/me/apps/delete", {"id": app_id}, maker)
+        left = [stored(f"SELECT COUNT(*) FROM {table} WHERE client_id = ?", app_id)[0][0] for table in ("oauth_tickets", "oauth_codes", "oauth_tokens")]
+        left.append(stored("SELECT COUNT(*) FROM oauth_icons")[0][0])
+        if status != 200 or gone != (200, {"ok": True}) or left != [0, 0, 0, 0] or call("/internal/oauth/userinfo", {"token": live.get("access_token")})[0] != 401 \
+                or call("/internal/me/apps", user=maker)[1].get("apps") != [] or begin().get("error") != "invalid_client":
+            problems.append(f"a deleted app left its codes, tokens or picture behind, or still answers: {gone} {left}")
+        # a developer who unlinks maimai on the Account tab keeps their apps; one who deletes the account takes them
+        kept_apps = call("/internal/me/apps", user=other)[1].get("apps", [])
+        unlinked = call("/internal/me/unlink", {"maimaiOnly": True}, other)
+        if unlinked != (200, {"ok": True}) or not kept_apps or call("/internal/me/apps", user=other)[1].get("apps") != kept_apps:
+            problems.append(f"unlinking maimai alone deleted a developer's apps: {unlinked} {len(kept_apps)}")
+        db.delete_connected_account(other["id"])
+        if call("/internal/me/apps", user=other)[1].get("apps") != []:
+            problems.append("a deleted account's apps are still there")
+
+        # this site has an application of its own, made by nobody, for linking a Rasmai account with the extension: a player's link
+        # page starts its request under their login code, and approving hands the site that code to link with, and keeps nothing
+        from rasmai.security import create_opaque_user_id
+        player = "100000000000000061"
+        opaque, code = create_opaque_user_id(player), db.issue_login_code(player, "intl")
+        own = "/internal/oauth/rasmai"
+        refused = [call(own, {"code": code, "user": "nobody"})[1].get("kind"), call(own, {"code": "c" * 32, "user": opaque})[1].get("kind"),
+                   call(own, {"code": db.issue_login_code("100000000000000062", "intl"), "user": opaque})[1].get("kind"),
+                   call(own, {"code": db.issue_login_code(player, "jp"), "user": opaque})[1].get("kind"),
+                   call(own, {"code": code, "user": opaque, "requireVerified": True})[1].get("kind")]
+        code = db.issue_login_code(player, "intl", "  player   on Discord ")
+
+        def started():
+            """A request started from the link page: its ticket."""
+            return (parse_qs(urlsplit(call(own, {"code": code, "user": opaque})[1].get("link", "")).query).get("ticket") or [""])[0]
+        status = call(own, {"code": code, "user": opaque})[0]
+        own_ticket = started()
+        told = call("/internal/oauth/begin", query={"ticket": own_ticket})[1]
+        signed_for = jsonlib.loads(base64.urlsafe_b64decode(str(call("/internal/oauth/request", query={"ticket": own_ticket})[1].get("signed", "")).partition(".")[0] + "===") or b"{}")
+        link_page = f"https://rasmai.lol/connect/?{urlencode({'code': code, 'user': opaque})}"
+        made_by = stored("SELECT user_id, review, secret_hash != '' FROM oauth_apps WHERE id = ?", oauth.RASMAI_APP)
+        at_rest = jsonlib.dumps(stored("SELECT * FROM oauth_tickets WHERE client_id = ?", oauth.RASMAI_APP))
+        if refused != ["invalid_user", "expired", "expired", "region", "verify"] or status != 200 or len(own_ticket) != 32 \
+                or (told.get("ok"), told.get("app", {}).get("name"), told.get("app", {}).get("verified"), told.get("for"), told.get("cancel")) != (True, "Rasmai", True, "player on Discord", link_page) \
+                or signed_for.get("for") != "player on Discord" or code in jsonlib.dumps(signed_for) or made_by != [("", "verified", 1)] \
+                or code in at_rest or opaque in at_rest or "enc2:" not in at_rest or call("/internal/me/apps", user=maker)[1].get("apps") != []:
+            problems.append(f"this site's own application did not start a request under the player's own live login code alone, did not say whose account it is for, "
+                            f"or showed or stored the code: {refused} {status} {told} {signed_for} {made_by}")
+        # approving links the account inside the bot, under that login code, with the sign-in the approval carried, and answers with
+        # where to send the player. maimai DX NET is stood in for: no made-up sign-in is sent to SEGA
+        from rasmai.scraping.scraper import SessionRejected
+        from rasmai.storage.models import PlayerInfo
+        kept_bot = (web_server.MaimaiRatingAnalyzer.fetch_official_player_profile, web_server.dashboard.servers_down_note, web_server.dashboard.refresh_jobs.start,
+                    web_server.login_attempt_allowed)
+        maimai = {"accepts": False, "asked": []}
+
+        def profile(self, token, region="intl"):
+            maimai["asked"].append(token)
+            if not maimai["accepts"]:
+                raise SessionRejected("the session is not signed in")
+            return PlayerInfo(name="Checker", rating=12345)
+        web_server.MaimaiRatingAnalyzer.fetch_official_player_profile = profile
+        web_server.dashboard.servers_down_note = lambda region="intl": ""
+        web_server.dashboard.refresh_jobs.start = lambda *given, **named: None
+        web_server.login_attempt_allowed = lambda client: True
+        try:
+            unchecked = call("/internal/oauth/approve", {"ticket": own_ticket, "clal": clal, "requireVerified": True})
+            turned_down = call("/internal/oauth/approve", {"ticket": own_ticket, "clal": clal})
+            maimai["accepts"] = True
+            # a refusal did not spend the request: the same one is approved again
+            linked = call("/internal/oauth/approve", {"ticket": own_ticket, "clal": clal})
+            account = db.get_connected_account(player) or {}
+            again = call("/internal/oauth/approve", {"ticket": own_ticket, "clal": clal})
+            if unchecked != (403, {"ok": False, "error": "Pass the check on your Rasmai link page first."}) \
+                    or turned_down[0] != 401 or "press Approve again" not in turned_down[1].get("error", "") or turned_down[1].get("ok") is not False \
+                    or linked != (200, {"ok": True, "redirect": "https://rasmai.lol/connected/?player=Checker&region=intl&rating=12345"}) \
+                    or [clal in token for token in maimai["asked"]] != [True, True] or (account.get("region"), (account.get("officialProfile") or {}).get("name")) != ("intl", "Checker") \
+                    or not db.login_code_used(code, player) or again != (401, {"ok": False, "error": "expired"}) \
+                    or stored("SELECT COUNT(*) FROM oauth_codes WHERE client_id = ?", oauth.RASMAI_APP) != [(0,)] or clal in jsonlib.dumps(stored("SELECT * FROM oauth_tickets")):
+                problems.append(f"approving this site's own request did not link the account under its login code, a refusal spent the request, or the sign-in was kept: "
+                                f"{unchecked} {turned_down} {linked} {again} {len(maimai['asked'])} {account.get('region')}")
+            # declining ends the request and sends the player back to their link page
+            code = db.issue_login_code(player, "intl")
+            link_page = f"https://rasmai.lol/connect/?{urlencode({'code': code, 'user': opaque})}"
+            declined_ticket = started()
+            declined_own = call("/internal/oauth/deny", {"ticket": declined_ticket})
+            outside = [call("/internal/oauth/link", {"client_id": oauth.RASMAI_APP, "client_secret": "guess", "code_challenge": challenge, "code_challenge_method": "S256", "for": "x"})[0],
+                       call("/internal/oauth/begin", query=asking(client_id=oauth.RASMAI_APP, redirect_uri=oauth.done_page()))[1].get("error"),
+                       call("/internal/me/apps/update", {"id": oauth.RASMAI_APP, "name": "Taken"}, maker)[0]]
+            if declined_own != (200, {"ok": True, "redirect": link_page}) or call("/internal/oauth/approve", {"ticket": declined_ticket, "clal": clal})[0] != 400 \
+                    or len(maimai["asked"]) != 2 or outside != [401, "invalid_request", 404]:
+                problems.append(f"declining this site's own request did not end it, or the application could be used from outside: {declined_own} {outside}")
+        finally:
+            (web_server.MaimaiRatingAnalyzer.fetch_official_player_profile, web_server.dashboard.servers_down_note, web_server.dashboard.refresh_jobs.start,
+             web_server.login_attempt_allowed) = kept_bot
+    finally:
+        server.stop()
+        web_server.INTERNAL_API_SECRET = kept_secret
+        oauth.REVIEW = shipped
+        admin_page.ADMIN_USER_ID = owner
+        sources._flags = None
+        store.DATABASE_PATH = was
+        store._database_ready = False
     return problems
 
 
@@ -1465,6 +2064,49 @@ def _regions():
         route_key = re.search(r"const KEY = /(.+)/;", (ROOT / "web" / "app" / "api" / "link" / "[key]" / "route.ts").read_text(encoding="utf-8"))
         if not helper.endswith(f"/api/link/{code}.{opaque}") or not route_key or not re.search(route_key.group(1), helper.rsplit("/", 1)[-1]):
             problems.append(f"an International code's helper link is not one the site's /api/link route accepts: {helper}")
+        # a grant is this site's signed word that a site is a verified bot. It is read here the way the Aime sign-in helper reads it:
+        # signed by the key, for that origin, not past its date
+        import base64
+        import time
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from rasmai.storage.db import link_bots_get, link_bots_set
+        from rasmai.web import grants
+
+        def unpacked(text):
+            return base64.urlsafe_b64decode(text + "===")
+
+        def bot_named(grant, origin):
+            try:
+                grant_body, signature = str(grant).split(".")
+                Ed25519PublicKey.from_public_bytes(unpacked(grants.public_key())).verify(unpacked(signature), b"aime-grant." + grant_body.encode("ascii"))
+                held = jsonlib.loads(unpacked(grant_body))
+                return held["name"] if held["v"] == 1 and held["origin"] == origin and held["exp"] > time.time() else ""
+            except Exception:
+                return ""
+        own = grants.clean_origin(config.get_public_base_url())
+        if not own or bot_named(body.get("grant"), own) != "Rasmai":
+            problems.append(f"the connect page is not given a grant naming this site as a verified bot: {own!r} {body.get('grant')!r}")
+        kept_bots = link_bots_get()
+        try:
+            link_bots_set({"https://example.com": "Example"})
+            status, granted = ask("/internal/grant?origin=https://example.com/any/page")
+            grant = str(granted.get("grant"))
+            if status != 200 or bot_named(grant, "https://example.com") != "Example" or granted.get("exp", 0) - time.time() > grants.GRANT_SECONDS:
+                problems.append(f"a listed bot was not given a grant for its origin that lasts a day at most: {status} {granted}")
+            if bot_named(grant, "https://evil.example"):
+                problems.append("a grant issued for one site reads as good on another")
+            forged = base64.urlsafe_b64encode(jsonlib.dumps({"v": 1, "name": "Example", "origin": "https://evil.example", "exp": int(time.time()) + 60}).encode()).decode().rstrip("=")
+            if bot_named(f"{forged}.{grant.split('.')[1]}", "https://evil.example"):
+                problems.append("a grant whose words were changed still reads as signed")
+            if ask("/internal/grant?origin=https://evil.example")[0] != 404 or ask("/internal/grant?origin=http://example.com")[0] != 404:
+                problems.append("a site that is not listed, or a listed one over plain http, was given a grant")
+            link_bots_set({})
+            if ask("/internal/grant?origin=https://example.com")[0] != 404:
+                problems.append("a bot taken off the list is still given grants")
+        finally:
+            link_bots_set(kept_bots)
+        if [grants.clean_origin(a) for a in ("https://A.example:443/x", "https://a.example:8443", "http://example.com", "https://u:p@x.example", "")] != ["https://a.example", "https://a.example:8443", "", "", ""]:
+            problems.append("an address is not cut down to the origin a browser would give, or one a sign-in must not go to is let through")
         if jp_info["helperLink"] != "":
             problems.append(f"a Japan code was given a helper link, though it has no cookie to hand over: {jp_info['helperLink']}")
         def card(region):
@@ -1474,7 +2116,7 @@ def _regions():
         if not any(f"`{helper}`" in words for words in card("intl")):
             problems.append("the International /login card does not carry the helper link")
         # the instructions say where the extension is added from: the site's short address, which the site sends on to the store
-        sent_on = re.search(r'source: "/:name\(chromeextension\|extension\)", destination: "(https://chromewebstore\.google\.com/detail/[a-z-]+/[a-p]{32})", permanent: false',
+        sent_on = re.search(r'source: "/chromeextension", destination: "(https://chromewebstore\.google\.com/detail/[a-z-]+/[a-p]{32})", permanent: false',
                             (ROOT / "web" / "next.config.ts").read_text(encoding="utf-8"))
         if not intl_info["helperInstall"].endswith("/chromeextension") or not sent_on:
             problems.append(f"the extension's short address is not one the site sends on to its store page: {intl_info['helperInstall']}")

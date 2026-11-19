@@ -63,13 +63,14 @@ type ShellProps = {
   done?: boolean;
   footLeft?: string;
   footRight?: string;
+  steps?: readonly string[];
   children: React.ReactNode;
 };
 
 const STEPS = ["link", "signIn", "connect"] as const;
 
-export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", children }: ShellProps) {
-  const steps = useTranslations("shell.steps");
+export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", steps, children }: ShellProps) {
+  const linkSteps = useTranslations("shell.steps");
   const footer = useTranslations("footer");
   return (
     <div className="frame">
@@ -86,9 +87,8 @@ export function Shell({ tag, lit, done = false, footLeft = "", footRight = "", c
         <aside className="rail">
           <Ring lit={lit} size={200} done={done} />
           <ol className="rail-steps">
-            {STEPS.map((step, i) => {
+            {(steps ?? STEPS.map((step) => linkSteps(step))).map((label, i) => {
               const n = i + 1;
-              const label = steps(step);
               const cls = done || n < lit ? "did" : n === lit ? "on" : "";
               return (
                 <li key={label} className={cls}>

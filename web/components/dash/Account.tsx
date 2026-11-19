@@ -55,7 +55,7 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
   };
   const unlink = () => {
     setBusy(true);
-    postJSON("/api/me/unlink")
+    postJSON("/api/me/unlink", { maimaiOnly: true })
       .then(() => window.location.reload())
       .catch((e: Error) => setNote(e.message))
       .finally(() => setBusy(false));

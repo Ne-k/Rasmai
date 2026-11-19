@@ -120,6 +120,15 @@ def _merge_needs_choice():
             web = create_person([_google()], "2026-10-02")["userId"]
             _link_maimai(web, "web player", "b" * 64)
             _link_maimai(DISCORD, "discord player", "c" * 64)
+            # each side is also a developer: an application is other people's way in, and is never thrown away with the side that is not kept
+            from rasmai.storage.db import get_database_connection
+            connection = get_database_connection()
+            try:
+                with connection:
+                    for app, owner in (("app-of-web", web), ("app-of-discord", DISCORD)):
+                        connection.execute("INSERT INTO oauth_apps (id, user_id, name, created_at) VALUES (?, ?, 'An app', '2026-09-01T00:00:00')", (app, owner))
+            finally:
+                connection.close()
             asked = merge_accounts(web, DISCORD)
             if asked.get("status") != "needs_choice" or asked.get("fromSummary", {}).get("player") != "web player" \
                     or asked.get("toSummary", {}).get("player") != "discord player" or asked["toSummary"].get("rating") != 12000:
@@ -140,6 +149,8 @@ def _merge_needs_choice():
                 problems.append(f"keep={keep} kept {(survivor.get('officialProfile') or {}).get('name')!r}, expected {wanted!r}")
             if get_connected_account(web) is not None or _count(store, "people", "user_id = ?", web) or _count(store, "identities", "user_id = ?", web):
                 problems.append(f"keep={keep} left rows under the site id")
+            if _count(store, "oauth_apps", "user_id = ?", DISCORD) != 2 or _count(store, "oauth_apps", "user_id = ?", web):
+                problems.append(f"keep={keep} deleted an application with the side that was not kept, or left one behind")
             if _count(store, "identities", "user_id = ? AND provider = 'google'", DISCORD) != 1:
                 problems.append(f"keep={keep} lost the Google sign-in on the way")
     return problems

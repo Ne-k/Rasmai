@@ -57,10 +57,24 @@ const nextConfig: NextConfig = {
   // named here, so this follows the domain wherever it moves and stays out of the way in development.
   async redirects() {
     return [
-      // the short addresses the link instructions give for the Aime sign-in helper, one a browser. /extension is the first one
-      // given out and is in /login cards already sent. Firefox's is in review: until it is listed, its address opens the link page
-      { source: "/:name(chromeextension|extension)", destination: "https://chromewebstore.google.com/detail/aime-sign-in-helper/neekcgoeopejbnccgepdbakgojojicpm", permanent: false },
-      { source: "/firefoxextension", destination: "/link/", permanent: false },
+      // the short addresses the link instructions give for the Aime sign-in helper, one a browser. /extension, the first one given
+      // out and in /login cards already sent, is a page of its own that lists both. Firefox's is in review: until it is listed,
+      // its address opens that page, which says so
+      { source: "/chromeextension", destination: "https://chromewebstore.google.com/detail/aime-sign-in-helper/neekcgoeopejbnccgepdbakgojojicpm", permanent: false },
+      { source: "/firefoxextension", destination: "/extension/", permanent: false },
+      { source: "/extensions", destination: "/extension/", permanent: false },
+      // the portal's host serves the portal: the site's own pages, its sign-in (whose cookies are the site host's) and the
+      // consent page (the only place the extension acts) are passed on to the site, query and all
+      ...[
+        "/:section(c|commands|connect|connected|error|extension|feedback|invite|link|me|merge|p|play|privacy|support|terms|welcome)/:rest*",
+        "/:section(auth)/:rest(accept|callback|discord|google|merge)/:more*",
+        "/:section(oauth)/:rest(authorize|done)/:more*",
+      ].map((source) => ({
+        source,
+        has: [{ type: "host" as const, value: "developers\\.(?<site>.+)" }],
+        destination: `https://:site${source.replace(/\([^)]*\)/g, "")}`,
+        permanent: false,
+      })),
       {
         source: "/:path*",
         has: [{ type: "host", value: "www\.(?<bare>.+)" }],
@@ -68,6 +82,19 @@ const nextConfig: NextConfig = {
         statusCode: 301,
       },
     ];
+  },
+  // the developer portal has a host of its own, developers.<the site>, where its pages sit at the root. Before the files,
+  // because / is a page of the site's own; /api, /auth, /oauth and the rest are the same on both hosts
+  async rewrites() {
+    const has = [{ type: "host" as const, value: "developers\\..+" }];
+    return {
+      beforeFiles: [
+        { source: "/", has, destination: "/developers/" },
+        { source: "/applications/:id", has, destination: "/developers/applications/:id/" },
+        { source: "/docs", has, destination: "/developers/docs/" },
+        { source: "/docs/:page", has, destination: "/developers/docs/:page/" },
+      ],
+    };
   },
   async headers() {
     return [

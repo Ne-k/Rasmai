@@ -43,7 +43,7 @@
     "gatePrivacyLabel": "What we read",
     "gateTitle": "Your scores, <em>on the web</em>.",
     "hAgo": "{n} h ago",
-    "howLinking": "how linking works →",
+    "howLinking": "how linking works",
     "imageFailed": "couldn't make the image",
     "images": {
       "analyze": "what to play",
@@ -224,7 +224,7 @@
     "settings": "bot settings",
     "settingsInfo": "Your defaults for the Discord commands.",
     "speeds": "chart speeds",
-    "speedsInfo": "The note and touch speed chart videos and the chart viewer play at, as maimai shows them. Saved as you pick; /settings in Discord changes the same two.",
+    "speedsInfo": "Note and touch speed for chart videos and the chart viewer, in maimai's numbers. Saved as you pick. /settings in Discord changes the same two.",
     "takes": "Takes about a minute. Your picks update after.",
     "takesKamai": "Reads your Kamaitachi profile again. Your picks update after.",
     "targets": "default targets",
@@ -590,7 +590,7 @@
     },
     "cohort": {
       "title": "Count my scores in anonymous statistics",
-      "hint": "Your best scores and rating are counted with everyone else's, anonymously, to work out how often players clear each chart. Others only see totals. Turn it off and you're left out of the next count."
+      "hint": "Rasmai counts your best scores and rating with everyone else's, anonymously, to work out how often players clear each chart. Others only see totals. Turn it off and you're left out of the next count."
     }
   },
   "embedCard": {
@@ -782,7 +782,7 @@
     "poolRating": "{n} rating",
     "emptyPool": "Nothing in this pool yet.",
     "goneLede": "The link may have been turned off or replaced. Ask whoever sent it for the current one.",
-    "whatRasmai": "what Rasmai does →",
+    "whatRasmai": "what Rasmai does",
     "shared": "shared profile",
     "sub": "{titles} · {plays} plays · read {read}",
     "charts": "charts",
@@ -881,19 +881,19 @@
   "docs": {
     "contact": "<mail>{email}</mail>, or <b>{discord}</b> on Discord",
     "glossary": {
-      "rating": "The number next to your name in maimai, which is the total of your best 50 charts.",
+      "rating": "The number next to your name in maimai, the total of your best 50 charts.",
       "odds": "Your chance of hitting the target in one play, based on how much your scores vary.",
-      "constant": "The exact difficulty behind a level like 13+, such as 13.2, which rating is calculated from.",
+      "constant": "The exact difficulty behind a level, like 13.2 for a 13+. Rating is calculated from it.",
       "trait": "A kind of pattern in a chart, like streams, jacks, slide chains or tempo changes.",
       "newpool": "Charts from the current version, where 15 count toward your rating.",
       "oldpool": "Charts from older versions, where 35 count toward your rating.",
       "judgement": "How each note was hit: critical perfect, perfect, great, good or miss.",
-      "dxscore": "A separate score for how many notes you hit with the best timing, which doesn't affect rating.",
+      "dxscore": "A separate score for how many notes you hit with the best timing. It doesn't affect rating.",
       "curve": "Your scores plotted against chart constant, with a line showing what you'd be expected to score.",
       "confirmed": "Shuffled tags beat it less than 1 time in 50, and it held up in both halves of your charts.",
       "mainotes": "A community site where people tag charts by pattern, covering about 1 in 10 charts, mostly Master and up.",
       "notation": "The chart file itself, note by note.",
-      "region": "The version of the game you play, where International is usually about a version behind Japan.",
+      "region": "The version of the game you play. International is usually about a version behind Japan.",
       "sss": "An achievement of 100.0% or more, one rank below SSS+ at 100.5%."
     },
     "commands": {
@@ -902,7 +902,7 @@
         "c01": {
           "c01_login": {
             "name": "/login",
-            "what": "Links your maimai account. Every other command needs it, and you only do it once. You get a link to a setup page, about a minute. International accounts link on a computer: with the Aime sign-in helper extension, or by pasting one value from the Aime gateway. For a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. For Kamaitachi scores, run <code>/login region:Kamaitachi username:yourname</code>. Chinese version accounts can't be linked yet."
+            "what": "Links your maimai account. Every other command needs it, and you only do it once. You get a link to a setup page, and it takes about a minute. International accounts link on a computer: with the Aime sign-in helper extension, or by pasting one value from the Aime gateway. For a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. For Kamaitachi scores, run <code>/login region:Kamaitachi username:yourname</code>. Chinese version accounts can't be linked yet."
           },
           "c02_help": {
             "name": "/help",
@@ -1023,7 +1023,7 @@
           "c05_news": {
             "name": "/news",
             "args": "subscribe · unsubscribe",
-            "what": "For server managers. Posts maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai, KING of Performai and ALL.Net on X. A post on both sites comes through once. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there and hit Save. <code>previous</code> also sends that many older posts from the accounts you just ticked (0 by default). In the menu, Maimai posts only picks which accounts send just their maimai posts (Preformai International starts that way), Add an account takes any Bluesky handle, X username or link, Remove an added account takes one out of every channel here, and Send a test post sends up to 10 of an account's latest posts. <code>/news manage</code> lists the channels that get news: pick one to change its accounts, send a test post or stop it. <code>/news unsubscribe</code> lists every channel and what it gets, and stops the ones you pick. You need Manage Webhooks for all three, and if I'm missing it you get a link to add it."
+            "what": "For server managers. Posts maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai, KING of Performai and ALL.Net on X. A post on both sites comes through once. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there and hit Save. <code>previous</code> also sends that many older posts from the accounts you just ticked (0 by default). In the menu, Maimai posts only picks which accounts send just their maimai posts (Preformai International starts that way), Add an account takes any Bluesky handle, X username or link, Remove an added account takes one out of every channel here, and Send a test post sends up to 10 of an account's latest posts. <code>/news manage</code> lists the channels that get news: pick one to change its accounts, send a test post or stop it. <code>/news unsubscribe</code> lists every channel and what it gets, and stops the ones you pick. You need Manage Webhooks for all three, and if Rasmai is missing it you get a link to add it."
           }
         }
       },
@@ -1081,31 +1081,32 @@
           "i01b": "<b>Your sign-ins.</b> For each way you sign in (Discord or Google): the provider, the stable ID that provider gives you, and a one-way hash of your verified email address, made with a secret that lives only on the server. The hash lets Rasmai recognise you if you later sign in the other way, so one person ends up with one account, and signing in with both Discord and Google joins them into one account. The email address itself is never stored, and an address the provider has not verified is not used at all.",
           "i01c": "<b>When you agreed.</b> When you create an account you agree to this policy and the terms. Rasmai records the date and the version (a date) of the documents you agreed to.",
           "i02": "<b>Your maimai region</b> (international, Japan or China).",
-          "i03": "<b>International accounts: a maimai DX NET session key.</b> This is the <code>clal</code> cookie the official site issues after you sign in on SEGA's page. It is <b>not your password</b>, and for an International account Rasmai never sees your SEGA ID or password. The key is encrypted with AES-256-GCM before it is written to disk.",
-          "i04": "<b>Japan accounts: your SEGA ID, password and Aime card number.</b> Japan's maimai DX NET has no session key Rasmai can borrow, so you enter these on Rasmai's connect page and Rasmai signs in to maimaidx.jp with them each time it reads your scores. They are encrypted with AES-256-GCM before they are written to disk, are only ever sent to maimaidx.jp, and are never shown, logged or included in an export.",
+          "i03": "<b>International accounts: a maimai DX NET session key.</b> This is the <code>clal</code> cookie the official site issues after you sign in on SEGA's page. It is <b>not your password</b>, and for an International account Rasmai never sees your SEGA ID or password. Rasmai encrypts the key with AES-256-GCM before writing it to disk.",
+          "i04": "<b>Japan accounts: your SEGA ID, password and Aime card number.</b> Japan's maimai DX NET has no session key Rasmai can borrow, so you enter these on Rasmai's connect page and Rasmai signs in to maimaidx.jp with them each time it reads your scores. Rasmai encrypts them with AES-256-GCM before writing them to disk, only ever sends them to maimaidx.jp, and never shows them, logs them or includes them in an export.",
           "i05": "<b>Your player profile</b> as shown on maimai DX NET: player name, rating, title, dan and avatar, refreshed each time your scores are read.",
-          "i06": "<b>A compact copy of your scores</b> (chart, achievement, rank, rating, lamps and DX score) from your most recent read. It powers the dashboard, <code>/compare</code> and <code>/export</code> without re-reading the official site, and is replaced on every read.",
+          "i06": "<b>A compact copy of your scores</b> (chart, achievement, rank, rating, lamps and DX score) from your most recent read. The dashboard, <code>/compare</code> and <code>/export</code> use it so they don't have to re-read the official site. Each read replaces it.",
           "i07": "<b>Your play history.</b> Every play Rasmai finds on the recent-plays page (chart, achievement, DX score, lamps, track and the time it was played), and each new best it finds on a read. maimai DX NET only shows your last 50 plays, so this copy lets the score graphs, <code>/progress</code>, the dashboard's Recent tab and the prediction accuracy check look further back. It grows for as long as your account is linked and is not trimmed.",
           "i08": "<b>Rating readings over time</b> (rating, best-50 totals, chart and play counts, timestamp), one per read where something moved, so <code>/progress</code> can draw your rating over time.",
           "i09": "<b>Per-chart play counts</b>, cached for 12 hours, or until you play the chart again, so Rasmai doesn't have to re-load hundreds of pages every time.",
           "i10": "<b>Judgement details and area progress.</b> For plays whose judgement page Rasmai reads, the note counts and the fast/late split. For your map areas, how far you have got and when it was recorded.",
           "i11": "<b>Beta feedback.</b> If you tell Rasmai whether a beta feature was better, the same or worse, it keeps that answer and the short note you may add (500 characters at most). The site's owner can read it, and it is not shown to anyone else.",
           "i12": "<b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, the note and touch speeds for chart videos, and opt-ins that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below), a daily read of your recent-plays page (below) and a Discord message about what that read found. With the compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai.",
-          "i13": "<b>One-time login codes</b>, stored only as hashes. They work once, expire after 10 minutes and are deleted within a day.",
-          "i07b": "<b>Scores from Kamaitachi.</b> If you follow a Kamaitachi profile, from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>import from Kamaitachi</b> box, the username you type is sent to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores, then and each time your scores are refreshed. Nothing else about you is sent. Rasmai keeps the username with your account and records the bests and plays in your history. All of it is deleted with your account.",
-          "i06b": "<b>Anonymous statistics.</b> Your best score on each chart and your rating are counted together with every other linked account's to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. It is not a separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. What is shown, on a chart's page on the site and in the bot, is only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. It never shows a name, an account ID or any one person's score, and nothing at all for a chart too few players have played to hide who they are. It changes no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results.",
-          "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. The webhook URL is encrypted in the database and only opened to post. It's all deleted when the channel is stopped with <code>/news unsubscribe</code> or <code>/news manage</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept."
+          "i13": "<b>One-time login codes</b>, stored only as hashes, with the name of the account they were made for (such as your Discord name), which the extension's approval window shows. They work once, expire after 10 minutes and are deleted within a day.",
+          "i07b": "<b>Scores from Kamaitachi.</b> If you follow a Kamaitachi profile (from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>import from Kamaitachi</b> box), Rasmai sends the username you type to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores, at that point and each time your scores are refreshed. Nothing else about you is sent. Rasmai keeps the username with your account and records the bests and plays in your history. All of it is deleted with your account.",
+          "i06b": "<b>Anonymous statistics.</b> Rasmai counts your best score on each chart and your rating together with every other linked account's, to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. There is no separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. A chart's page on the site and the bot show only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. They never show a name, an account ID or any one person's score, and show nothing at all for a chart too few players have played to hide who they are. The statistics change no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results.",
+          "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. Rasmai encrypts the webhook URL in the database and only decrypts it to post. Rasmai deletes all of it when the channel is stopped with <code>/news unsubscribe</code> or <code>/news manage</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept.",
+          "i15": "<b>Apps you register.</b> If you make an app on developers.{site}, Rasmai keeps its name, description, website and privacy policy addresses, redirect addresses and picture, a one-way hash of its client secret, and your Discord handle, which players see as the app's maker. They stay until you delete the app or your account. Unlinking only maimai on the dashboard's Account tab keeps them."
         },
         "p02": "Scores are read when you run a command, press the read-now button on the dashboard, or, if you turned on <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key (for a Japan account, your stored SEGA ID) and loads only the recent-plays page, so plays aren't lost between commands. <code>/settings</code> shows when it last ran and how many plays it found."
       },
       "profile": {
         "title": "Public profile",
-        "p01": "Only if you turn it on in the dashboard's Account tab, Rasmai gives you a link to a page at <code>{site}/p/…</code> that anyone holding the link can open. The link is a random code, not your Discord ID, and nothing on the page identifies your Discord account. It always shows your maimai player name, title, dan, name plate, region, rating, play count and rating history. Your best 50, recent plays, play style and area progress appear only if you switch each one on. The link also produces a preview picture and Discord embed built from the same data. Turning the profile off makes the link stop working, and asking for a new link replaces the old one at once. The name plate image is copied from maimai DX NET and cached on the server."
+        "p01": "Rasmai gives you a link to a page at <code>{site}/p/…</code> only if you turn this on in the dashboard's Account tab. Anyone holding the link can open the page. The link is a random code, not your Discord ID, and nothing on the page identifies your Discord account. It always shows your maimai player name, title, dan, name plate, region, rating, play count and rating history. Your best 50, recent plays, play style and area progress appear only if you switch each one on. The link also produces a preview picture and Discord embed built from the same data. Turning the profile off makes the link stop working, and asking for a new link replaces the old one at once. Rasmai copies the name plate image from maimai DX NET and caches it on the server."
       },
       "website": {
         "title": "The website",
         "u01": {
-          "i01": "<b>Dashboard sign-in.</b> Signing in with Discord sets one cookie holding a signed copy of your Discord ID, name and avatar address, valid for 30 days, plus a short-lived cookie during the sign-in handshake. Only your Discord ID and name are requested. Rasmai doesn't ask for your server list and doesn't post anything. Signing out clears the cookie.",
+          "i01": "<b>Dashboard sign-in.</b> Signing in with Discord sets one cookie holding a signed copy of your Discord ID, name and avatar address, valid for 30 days, plus a short-lived cookie during the sign-in handshake. Rasmai requests only your Discord ID and name. It doesn't ask for your server list and doesn't post anything. Signing out clears the cookie.",
           "i01b": "<b>Signing in with Google.</b> Your browser goes to Google's sign-in page, and then Rasmai's server asks Google once for your name, your email address and the stable ID Google gives you. It does not ask for your avatar, contacts or anything else, uses no Google service after you are signed in, and keeps no Google token. Google learns that you signed in to Rasmai and is covered by <google>Google's privacy policy</google>.",
           "i01c": "<b>While you create an account.</b> If you are new, the sign-in details the provider sent (including your email address) wait in a short-lived cookie in your browser for up to 10 minutes while you read the welcome page. It is deleted when you agree or after 10 minutes, and nothing is saved on the server until you agree.",
           "i02": "<b>Human check.</b> The sign-in and account-connect pages show a Cloudflare Turnstile check, which loads a script from Cloudflare. Cloudflare also fronts this site, so it handles requests to it the way any content network does. Both are covered by <cloudflare>Cloudflare's privacy policy</cloudflare>.",
@@ -1120,9 +1121,10 @@
         "title": "The Aime sign-in helper extension",
         "p01": "Aime sign-in helper is an optional browser extension for Chrome, Edge and Firefox. It links an International account without you opening your browser's developer tools. You don't need it to use Rasmai.",
         "u01": {
-          "i01": "<b>What it reads.</b> One cookie, <code>clal</code>, from SEGA's sign-in site (lng-tgk-aime-gw.am-all.net). That's the same session key described above. It reads nothing else from your browser.",
-          "i02": "<b>Where it goes.</b> Only where you send it, and only when you click: into the box on the page you're on, to a link your bot gave you, or to your clipboard. If you send it to Rasmai, Rasmai keeps it exactly like one you pasted, as described above.",
-          "i03": "<b>What it keeps.</b> Nothing. It has no server of its own, doesn't run in the background, and has no analytics.",
+          "i01": "<b>What it reads.</b> One cookie, <code>clal</code>, from SEGA's sign-in site (lng-tgk-aime-gw.am-all.net). That's the same session key described above. When you press its button, it also looks at the page you're on for a box or form to put it in. It reads nothing else from your browser.",
+          "i02": "<b>Where it goes.</b> Only where you send it, and only when you click: into the box on the page you're on, to a link your bot gave you, to an app you approve in the extension's approval window, or to your clipboard. If you send it to Rasmai, Rasmai keeps it exactly like one you pasted, as described above. When you approve an app, Rasmai holds your sign-in encrypted until the app collects it (five minutes at most), then for an hour so the app can read it. After that the app can't read it any more, and Rasmai deletes it.",
+          "i03": "<b>What it keeps.</b> Nothing. It has no server of its own and no analytics, and it only acts when you click.",
+          "i03b": "<b>What it asks Rasmai.</b> Before you approve an app, it fetches the request and the app's picture from {site} to show you who is asking. Those requests carry nothing about you.",
           "i04": "<b>Other bots.</b> The extension works with other bots too. What a bot other than Rasmai does with your sign-in is up to that bot and its own policy."
         }
       },
@@ -1143,11 +1145,12 @@
         "title": "Who else sees it",
         "u01": {
           "i01": "<b>SEGA (maimai DX NET).</b> Rasmai uses your session key, or for a Japan account your SEGA ID, to load your score pages from the official site, the same pages you see when you sign in yourself.",
-          "i02": "<b>Discord.</b> Rasmai's replies, including the images it makes from your scores, are posted to Discord in the channel where you ran the command, and are subject to <discord>Discord's privacy policy</discord>. Use commands in a private channel if you would rather other members did not see your results.",
+          "i02": "<b>Discord.</b> Rasmai posts its replies, including the images it makes from your scores, in the Discord channel where you ran the command, and they are subject to <discord>Discord's privacy policy</discord>. Use commands in a private channel if you would rather other members did not see your results.",
           "i02b": "<b>Google</b>, if you sign in with it. Google sees that you signed in to Rasmai, under <google>Google's privacy policy</google>. Rasmai sends it nothing else about you.",
           "i03": "<b>Cloudflare</b>, as the network in front of the website and the provider of the human check and the page counts, as described above.",
-          "i04": "<b>Nobody else.</b> Data is not sold, shared or used for advertising, and there is no analytics or telemetry.",
+          "i04": "<b>Nobody else.</b> Rasmai does not sell your data or use it for advertising, and shares it only as listed here. There is no other analytics or telemetry.",
           "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you.",
+          "i03c": "<b>Apps you approve.</b> When you approve an app in the extension's approval window, the app gets your maimai sign-in and can use it as you on maimai DX NET. What it does with it is up to the app and its own privacy policy, which the window links to when the app has one. Rasmai sends it only the sign-in, when that runs out, and an ID that is different for every app.",
           "i02c": "<b>Kamaitachi</b>, only if you use its import or upload its file yourself. The username you import is sent to <kamaitachi>kamai.tachi.ac</kamaitachi>. Scores you upload there are under Kamaitachi's own policy, not this one.",
           "i02d": "<b>The news sources.</b> <code>/news</code> reads public posts from Bluesky, and from X through public Nitter mirrors. Japanese posts are translated by a model running on the bot's own machine if one is set up, or by Google Translate if not. Nothing about you or your server is sent to any of them."
         }
@@ -1158,8 +1161,8 @@
         "title": "How long it is kept, and how to delete it",
         "u01": {
           "i01": "<b>Yourself, at once.</b> Run <code>/delete-account</code> in Discord, or press <b>unlink</b> on the dashboard's Account tab. Either deletes your session key or SEGA ID sign-in, profile, profile link, stored scores, play history, judgement details, area progress, rating readings, settings, beta feedback, play-count cache and any login codes immediately. Your dashboard sign-in cookie stays until you sign out or it expires, and it only holds your Discord ID and name.",
-          "i02": "<b>How it is deleted.</b> The same way however it happens: by you, by the operator, or automatically after 30 days. Every row stored under your Discord account is removed and its space in the database file is overwritten, so it can't be read back out of the file, and the database's change log is written back and emptied straight after. Any copy the bot is holding in memory is dropped at the same moment, and so is your data in the one backup copy the server keeps from a past database upgrade, and in any debugging copies the operator has switched on. Once it is gone it can't be restored.",
-          "i03": "<b>By contact.</b> If you cannot use either, for example because you no longer have access to the Discord account, or you want everything about you removed including any record that you were ever linked, write to {contact}. Say which Discord account or maimai player name the data belongs to. It's deleted by hand, normally within a few days, and you get a reply when it is done. The same address handles a request for a copy of what is stored, though <code>/export</code> and the dashboard's <b>download JSON</b> button give you that at any time."
+          "i02": "<b>How it is deleted.</b> The same way however it happens: by you, by the operator, or automatically after 30 days. Rasmai removes every row stored under your Discord account and overwrites its space in the database file, so it can't be read back out of the file, then writes back and empties the database's change log straight after. Any copy the bot is holding in memory is dropped at the same moment, and so is your data in the one backup copy the server keeps from a past database upgrade, and in any debugging copies the operator has switched on. Once it is gone it can't be restored.",
+          "i03": "<b>By contact.</b> If you cannot use either, for example because you no longer have access to the Discord account, or you want everything about you removed including any record that you were ever linked, write to {contact}. Say which Discord account or maimai player name the data belongs to. The operator deletes it by hand, normally within a few days, and replies when it is done. The same address handles a request for a copy of what is stored, though <code>/export</code> and the dashboard's <b>download JSON</b> button give you that at any time."
         }
       },
       "security": {
@@ -1199,7 +1202,7 @@
         }
       },
       "changes": {
-        "p01": "These terms may be updated. The effective date above marks the current version. Continued use after a change means you accept it. Questions go to {contact}.",
+        "p01": "The operator may update these terms. The effective date above marks the current version. Continued use after a change means you accept it. Questions go to {contact}.",
         "title": "Changes and contact"
       },
       "fairUse": {
@@ -1222,7 +1225,7 @@
         "title": "What you share",
         "u01": {
           "i01": "If you turn on a public profile, <code>/compare</code> or <code>/leaderboard</code>, you choose what other people can see. Anyone with your profile link can see it, so only share the link with people you are happy to show it to.",
-          "i02": "Beta feedback you send is kept with your account and read by the operator to improve Rasmai. Keep notes free of anything you would not want read.",
+          "i02": "Rasmai keeps beta feedback you send with your account, and the operator reads it to improve Rasmai. Keep notes free of anything you would not want read.",
           "i03": "A file you download for Kamaitachi is yours to do with as you like. Once you upload it to Kamaitachi, or import a Kamaitachi profile into Rasmai, that service's own rules apply to its side. Only import a profile you are entitled to use.",
           "i04": "Unless you switch off <b>Count my scores in anonymous statistics</b> on the dashboard, your best scores and rating are counted, without your name, with other players' to work out how often charts get cleared. Other people see only totals from them, never your scores or who you are. The <privacy>privacy page</privacy> says exactly what is used and shown."
         }
@@ -1255,7 +1258,7 @@
       "hint": "Run /login in Discord and use the link it gives you as-is."
     },
     "maintenance": {
-      "detail": "Your Aime sign-in worked, but maimai DX NET is down, so your session can't be checked yet.",
+      "detail": "Your Aime sign-in worked, but maimai DX NET is down, so Rasmai can't check your session yet.",
       "headline": "maimai DX NET is <em>down</em>",
       "hint": "Your login link still works. Paste the value again once the servers are back. The bar at the top shows when."
     },
@@ -1280,7 +1283,7 @@
       "hint": "Run /login in Discord to start over."
     },
     "upstream": {
-      "detail": "The value was read correctly, but the maimai site rejected it.",
+      "detail": "Rasmai read the value fine, but the maimai site rejected it.",
       "headline": "maimai said <em>no</em>",
       "hint": "It has probably expired. Your login link still works: sign in to the gateway again with auto login ticked, copy the new value and paste it."
     },
@@ -1304,7 +1307,7 @@
       "5": "love it"
     },
     "likedLabel": "What do you like most?",
-    "likedHint": "A command, the dashboard, something small - anything.",
+    "likedHint": "A command, the dashboard, anything small.",
     "annoyedLabel": "Is there anything that turns you off?",
     "annoyedHint": "Bugs, things that confuse you, anything slow or annoying.",
     "wishLabel": "Any suggestions?",
@@ -1338,7 +1341,7 @@
     "dismiss": "Dismiss",
     "more": "more",
     "period": ".",
-    "relink": "Your maimai account needs to be relinked, so Rasmai can't fetch anything new.",
+    "relink": "Rasmai can't fetch anything new until you link your maimai account again.",
     "relinkLink": "Link it again",
     "switchLanguage": "日本語に切り替え",
     "themeTitle": "Light / dark",
@@ -1421,7 +1424,7 @@
     },
     "commandsTitle": "Commands",
     "dashboard": "Sign in with Discord to see your rating over time, how you play, your best 50, all your scores with filters, the same picks as the bot, and 40 unplayed charts to try.",
-    "dashboardButton": "open the dashboard →",
+    "dashboardButton": "open the dashboard",
     "dashboardTitle": "The dashboard",
     "demoEyebrow": "what to play next",
     "demoFoot": "example · yours uses your scores",
@@ -1469,13 +1472,13 @@
     },
     "lede": "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating. You get the results as images in Discord or on the web dashboard.",
     "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at SEGA's Aime gateway and paste one value from your browser: Rasmai gets only that value, never your password. A Japan account links with its SEGA ID and password, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
-    "linkingButton": "how linking works →",
+    "linkingButton": "how linking works",
     "linkingTitle": "Linking your account",
     "metaTitle": "maimai DX rating bot for Discord",
     "openDashboard": "open your dashboard",
     "phoneHint": "On a phone, add the dashboard to your home screen and it opens like an app.",
     "signInButton": "sign in or sign up",
-    "signInMore": "sign in or sign up →",
+    "signInMore": "sign in or sign up",
     "title": "See which charts to <em>play next</em>."
   },
   "link": {
@@ -1486,12 +1489,33 @@
     "step1Title": "Get your link",
     "step1": "Run <code>/login</code> in Discord. It gives you a private link to this site.",
     "step2Title": "Sign in and link",
-    "step2": "Open your link on a computer. With the <b>Aime sign-in helper</b> it's one press: add it to <chrome>Chrome</chrome> (Firefox version in review), sign in at the gateway with <b>auto login</b> ticked, and paste your link into it. Without it, you copy one value from your browser's developer tools. The page shows where.",
+    "step2": "Open your link on a computer. There are three ways to link, quickest first.",
+    "oneBody": "Add the <b>Aime sign-in helper</b> to <chrome>Chrome</chrome> (Firefox version in review) and <gw>sign in at the gateway</gw> with <b>auto login</b> ticked. On your link's page, press <b>link with the extension</b> and approve.",
+    "twoBody": "Add the <b>Aime sign-in helper</b> to <chrome>Chrome</chrome> and <gw>sign in at the gateway</gw> with <b>auto login</b> ticked. On your link's page, press <b>copy my link</b>, then open the helper and paste it in.",
+    "hand1": "<gw>Sign in at the gateway</gw> with <b>auto login</b> ticked.",
+    "hand2": "Copy the cookie called <code>clal</code> from your browser's developer tools. The page shows where.",
+    "hand3": "Paste it into the page.",
     "step3Title": "Start grinding",
     "step3": "Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.",
     "japan": "<b>Japan account?</b> Run <code>/login region:Japan</code> and sign in with your SEGA ID.",
     "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi username:yourname</code>, or pick Kamaitachi on <dash>your dashboard</dash>.",
     "already": "<b>Already linked?</b> <dash>Open your dashboard</dash> and sign in with Discord."
+  },
+  "extension": {
+    "metaTitle": "Aime sign-in helper",
+    "metaDescription": "The browser extension that hands your maimai sign-in to Rasmai. Add it to Chrome or Edge.",
+    "title": "The <em>Aime sign-in helper</em>.",
+    "lede": "A browser extension that hands your maimai sign-in to Rasmai, so you never copy it by hand.",
+    "chrome": "Add to Chrome",
+    "chromeNote": "works in Edge too",
+    "firefox": "Firefox",
+    "firefoxNote": "in review",
+    "how": "Then <link>link your maimai account</link>.",
+    "steps": {"add": "Add the extension", "signIn": "Sign in on the maimai site", "link": "Link your account"},
+    "shotsTitle": "What it looks like",
+    "shotPage": "The popup on your Rasmai link page",
+    "shotLinked": "After you paste your link into it",
+    "shotApproval": "Its approval window, when Rasmai asks"
   },
   "flow": {
     "aimeCard": "Aime card",
@@ -1531,7 +1555,7 @@
     "period": ".",
     "rating": "rating",
     "remember": "Save my login for next time",
-    "rememberHint": "Remembers your SEGA ID and card on this device only. Never your password.",
+    "rememberHint": "Remembers your SEGA ID and card on this device only, never your password.",
     "segaId": "SEGA ID",
     "segaIdEncrypted": "your SEGA ID is stored encrypted",
     "signedInAs": "Signed in as <b>{name}</b>. Rasmai can check your scores now.",
@@ -1542,28 +1566,33 @@
     "usingBot": "Using the bot too? Try these in Discord",
     "validUntil": "link valid until {time}",
     "waiting": "Waiting for the sign-in…",
-    "titleIntl": "Sign in, then <em>paste</em> one value.",
-    "ledeIntl": "Takes a minute on a computer. Rasmai never sees your password.",
+    "titleIntl": "Link your <em>International</em> account.",
+    "ledeIntl": "Three ways, quickest first.",
+    "wayOne": "Approve in the extension",
+    "wayTwo": "Paste your link into the extension",
+    "wayThree": "By hand, from the developer tools",
+    "oneBody": "Add the <b>Aime sign-in helper</b> to <chrome>Chrome</chrome> (Firefox version in review) and <gw>sign in at the gateway</gw> with <b>auto login</b> ticked.",
+    "oneButton": "link with the extension",
+    "twoBody": "Add the <b>Aime sign-in helper</b> to <chrome>Chrome</chrome> and <gw>sign in at the gateway</gw> with <b>auto login</b> ticked. Then open the helper and paste your link into it.",
     "gwTitle": "Sign in at the Aime gateway",
     "gwBody": "Sign in with the account you play on and leave <b>auto login</b> ticked.",
-    "gwButton": "1 · sign in at the gateway →",
+    "gwButton": "sign in at the gateway",
     "copyTitle": "Copy your login value",
     "copyBody": "Open the gateway page below (it says <em>Not found</em>, which is fine) and copy the cookie called <code>clal</code> from your browser's developer tools.",
-    "gwPageButton": "2 · open the gateway page →",
-    "copyChrome": "<b>Chrome, Edge:</b> press <code>F12</code> (<code>⌥⌘I</code> on a Mac) → the <b>Application</b> tab → <b>Cookies</b> → <code>https://lng-tgk-aime-gw.am-all.net</code> → click the <code>clal</code> row → double-click its value in the box at the bottom and copy it.",
-    "copyFirefox": "<b>Firefox:</b> <code>F12</code> → <b>Storage</b> → <b>Cookies</b> → the same row. <b>Safari:</b> turn on the Develop menu under Settings → Advanced, then <b>Develop</b> → <b>Show Web Inspector</b> → <b>Storage</b> → <b>Cookies</b>.",
+    "gwPageButton": "open the gateway page",
+    "copyChrome": "<b>Chrome, Edge:</b> press <code>F12</code> (<code>⌥⌘I</code> on a Mac), open the <b>Application</b> tab, then <b>Cookies</b> > <code>https://lng-tgk-aime-gw.am-all.net</code>. Click the <code>clal</code> row, then double-click its value in the box at the bottom and copy it.",
+    "copyFirefox": "<b>Firefox:</b> <code>F12</code>, then <b>Storage</b> > <b>Cookies</b> and the same row. <b>Safari:</b> turn on the Develop menu under Settings > Advanced, then <b>Develop</b> > <b>Show Web Inspector</b> > <b>Storage</b> > <b>Cookies</b>.",
     "pasteTitle": "Paste it here",
     "pasteLabel": "clal value",
     "pasteHint": "64 letters and digits.",
-    "pasteBad": "That doesn't look like the value: it is 64 letters and digits with no spaces. Copy the <code>clal</code> row's value again.",
+    "pasteBad": "That doesn't look right. The value is 64 letters and digits with no spaces. Copy the <code>clal</code> row's value again.",
     "linkButton": "link my account",
     "linking": "checking the sign-in…",
     "refusedIntl": "maimai didn't accept that value. Sign out of the gateway, sign in again with auto login ticked, and copy the new value. Your login link still works.",
     "unreachableIntl": "Rasmai couldn't reach maimai DX NET just now. Try again in a few minutes. Your login link still works.",
-    "phones": "<b>On a phone?</b> Do this on a computer. Your login link opens there too.",
-    "keepsIntl": "<b>What Rasmai keeps.</b> Only this value, encrypted. <code>/logout</code> or <code>/delete-account</code> deletes it.",
+    "phones": "<b>On a phone?</b> iPhone and iPad can't link yet. On Android, use the extension in the Lemur browser, or in Firefox once its version is approved. Or open your link on a computer.",
+    "keepsIntl": "<b>What Rasmai keeps.</b> Only your sign-in value, encrypted. <code>/logout</code> or <code>/delete-account</code> deletes it.",
     "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> again. A Japan account uses <code>/login region:Japan</code>. Chinese-version accounts can't be linked yet.",
-    "helper": "<b>Fastest: the Aime sign-in helper.</b> Add it to <chrome>Chrome</chrome> (Firefox version in review), do step 1 below with <b>auto login</b> ticked, then paste your link into it. That replaces steps 2 and 3.",
     "helperCopy": "copy my link",
     "helperCopied": "✓ copied"
   },
@@ -1634,7 +1663,7 @@
     "metaTitle": "Privacy",
     "metaDescription": "What Rasmai stores about you and how to delete it.",
     "title": "What Rasmai <em>stores</em> about you.",
-    "intro": "This page lists what Rasmai stores, how long it keeps it and how to delete it. No ads, no tracking: the only analytics is Cloudflare's cookie-less page count, described below."
+    "intro": "What Rasmai stores, how long it keeps it and how to delete it. There are no ads or tracking, and the only analytics is Cloudflare's cookie-less page count, described below."
   },
   "terms": {
     "intro": "Rasmai is a free, fan-made tool. By using the bot or this site you agree to the terms below.",
@@ -1743,7 +1772,7 @@
       "easier": "easier than its level",
       "same": "about its level"
     },
-    "observedInfo": "A rough guide, not hard data. It's how the players who picked this chart did on it, next to how players of the same rating do on charts of the same level. Who plays it, how long it's been out and how often people retry all skew it."
+    "observedInfo": "A rough guide. It compares how the players who picked this chart did on it with how players of the same rating do on charts of the same level. Who plays it, how long it's been out and how often people retry all skew it."
   },
   "play": {
     "metaTitle": "Chart player",
@@ -1836,5 +1865,134 @@
   "tutorial": {
     "label": "Linking an International account in Firefox, start to finish",
     "helperLabel": "Linking an International account with the Aime sign-in helper extension, start to finish"
+  },
+  "oauth": {
+    "steps": {"check": "Check the app", "approve": "Approve in the extension", "return": "Back to the app"},
+    "title": "{name} wants to use your maimai sign-in",
+    "by": "By {by} · sends you to {host}",
+    "for": "For {who}",
+    "website": "Website",
+    "privacy": "Privacy policy",
+    "receives": "If you approve, the app gets your maimai sign-in and can act as you on maimai DX NET until you sign out there.",
+    "unverified": "Rasmai hasn't reviewed this app. Only continue if you trust it.",
+    "trust": "Only continue if you trust this app.",
+    "continue": "Continue with extension",
+    "waiting": "Waiting for the approval window. Approve or decline there.",
+    "cancel": "Cancel and return to {name}",
+    "needHelper": "This needs the Aime sign-in helper extension.",
+    "addChrome": "Add to Chrome",
+    "added": "I've added it",
+    "firefoxSoon": "Firefox version in review.",
+    "failedTitle": "This request can't continue",
+    "unreachable": "Couldn't reach Rasmai. Try again in a moment.",
+    "back": "Back to the app",
+    "doneTitle": "Approved",
+    "doneLede": "Go back to the app. You can close this page.",
+    "declinedTitle": "Nothing was shared",
+    "declinedLede": "You can close this page."
+  },
+  "developers": {
+    "metaTitle": "Developers",
+    "metaDescription": "Register an application that uses Rasmai's maimai sign-in.",
+    "portal": "developers",
+    "navApplications": "Applications",
+    "navDocs": "Docs",
+    "loading": "Loading…",
+    "signedOutTitle": "Sign in to manage your applications",
+    "signedOut": "Applications belong to a Rasmai account. If you aren't signed in on the main site yet, sign in there, then press this again.",
+    "signOut": "Sign out",
+    "signIn": "Sign in",
+    "applications": "Applications",
+    "lede": "An application asks a player for their maimai sign-in through Rasmai, with OAuth 2.0 and PKCE.",
+    "new": "New application",
+    "none": "No applications yet.",
+    "full": "You can have up to {max} applications.",
+    "name": "Name",
+    "nameHint": "Players see this when they approve.",
+    "blocked": "Rasmai has blocked this application. Players can't approve it, and its codes and tokens no longer work.",
+    "blockedTag": "blocked",
+    "icon": "Icon",
+    "iconHint": "PNG, JPEG or WebP, up to 256 KB.",
+    "iconUpload": "Upload",
+    "iconChange": "Change",
+    "create": "Create",
+    "cancel": "Cancel",
+    "copy": "Copy",
+    "copied": "Copied",
+    "back": "All applications",
+    "sections": "Sections",
+    "section": {
+      "general": "General information",
+      "oauth2": "OAuth2"
+    },
+    "missing": "That application isn't on your list.",
+    "description": "Description",
+    "website": "Website",
+    "privacy": "Privacy policy URL",
+    "applicationId": "Application ID",
+    "verification": "Verification",
+    "review": {
+      "none": "Not reviewed",
+      "pending": "In review",
+      "verified": "Verified",
+      "rejected": "Rejected"
+    },
+    "reviewNote": {
+      "none": "Until Rasmai has reviewed the app, it works only with localhost redirects.",
+      "pending": "Waiting for a review. Until then the app works only with localhost redirects.",
+      "verified": "Changing the name, website or privacy policy, or adding a redirect that isn't local, sends the app back to review.",
+      "rejected": "Fix what was wrong, then request a review again. Until then the app works only with localhost redirects."
+    },
+    "needs": "A review needs:",
+    "need": {
+      "name": "A name",
+      "website": "An https website",
+      "privacy": "An https privacy policy URL",
+      "redirect": "A redirect that isn't localhost"
+    },
+    "met": "done",
+    "unmet": "missing",
+    "requestReview": "Request review",
+    "saveFirst": "Save your changes first.",
+    "delete": "Delete application",
+    "deleteNote": "Its codes and tokens stop working at once.",
+    "deleteConfirm": "Delete {name}?",
+    "deleteWarning": "Its codes and tokens stop working at once. This can't be undone.",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "secretSet": "A secret is set. The token endpoint requires it.",
+    "secretNone": "No secret. The app is a public client and uses PKCE alone.",
+    "resetSecret": "Reset secret",
+    "secretConfirm": "Reset the client secret?",
+    "secretWarning": "Any old secret stops working at once, and the token endpoint will require the new one.",
+    "secretOnce": "Copy it now. It won't be shown again.",
+    "redirects": "Redirects",
+    "redirectsNote": "Where players are sent back. Use https, or http://localhost or http://127.0.0.1 while testing. The address must match exactly.",
+    "redirect": "Redirect {n}",
+    "addRedirect": "Add redirect",
+    "donePageNote": "No website? Add the done page, then start each player's link at /oauth/link. Needs a client secret.",
+    "donePageAdd": "Use the done page",
+    "remove": "Remove",
+    "endpoints": "Endpoints",
+    "authorize": "Authorize",
+    "token": "Token",
+    "userinfo": "User info",
+    "scope": "Scope",
+    "example": "Example authorize URL",
+    "exampleNote": "Replace STATE and CODE_CHALLENGE with your own values.",
+    "exampleNone": "Add a redirect to see an example.",
+    "unsaved": "You have unsaved changes.",
+    "reset": "Reset",
+    "save": "Save changes",
+    "problems": {
+      "bad_app": "Check the fields. A name is needed, and the website and privacy policy must be https addresses.",
+      "bad_redirect": "A redirect isn't valid. Use https, or http://localhost or http://127.0.0.1, with no # part.",
+      "bad_icon": "That picture can't be used. It must be a PNG, JPEG or WebP under 256 KB.",
+      "too_many": "You've reached the limit of applications.",
+      "no_such_app": "That application isn't on your list any more.",
+      "rate_limited": "Too many tries. Wait a minute.",
+      "offline": "Couldn't reach Rasmai. Try again in a moment.",
+      "other": "That didn't work. Try again in a moment."
+    }
   }
 }
