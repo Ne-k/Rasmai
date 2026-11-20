@@ -1471,7 +1471,7 @@
       }
     },
     "lede": "Rasmai は maimaiでらっくすNET のスコアを読み取り、レーティングを上げるために遊ぶべき譜面を教えてくれます。結果は Discord の画像やWebダッシュボードで確認できます。",
-    "linking": "Discord で <code>/login</code> を実行し、表示されたリンクを開きます。海外版アカウントは SEGA の Aime ゲートウェイにログインし、ブラウザから値を1つ貼り付けます。Rasmai が受け取るのはその値だけで、パスワードは見ません。日本版アカウントは SEGA ID とパスワードで連携し、暗号化して保存します。<code>/delete-account</code> で Rasmai が持つあなたのデータをすべて削除できます。",
+    "linking": "Discord で <code>/login</code> を実行し、表示されたリンクを開きます。海外版アカウントは SEGA の Aime ゲートウェイにログインし、Aime sign-in helper 拡張機能で承認するか、ブラウザから値を1つ貼り付けます。Rasmai が受け取るのはその値だけで、パスワードは見ません。日本版アカウントは SEGA ID とパスワードで連携し、暗号化して保存します。<code>/delete-account</code> で Rasmai が持つあなたのデータをすべて削除できます。",
     "linkingButton": "連携のしくみ",
     "linkingTitle": "アカウントの連携",
     "metaTitle": "Discord で使える maimai DX レーティングbot",
@@ -1535,7 +1535,7 @@
     "jpStep": "<jp>maimaidx.jp</jp> で使っている SEGA ID とパスワードを入力してください。",
     "jpStepTitle": "maimaidx.jp のログイン情報",
     "jpTitle": "<em>SEGA ID</em> でログイン。",
-    "keeps": "<b>Rasmai が保存するもの。</b> SEGA ID とパスワードを暗号化して保存し、スコアの読み取りにだけ使います。<code>/logout</code> または <code>/delete-account</code> で削除されます。パスワードを変更したら、もう一度 <code>/login</code> を実行してください。",
+    "keeps": "<b>Rasmai が保存するもの。</b> SEGA ID とパスワードを暗号化して保存し、スコアの読み取りにだけ使います。<code>/delete-account</code> で削除されます。パスワードを変更したら、もう一度 <code>/login</code> を実行してください。",
     "labelRegion": "地域",
     "labelValidUntil": "有効期限",
     "linkedGeneric": "maimai アカウントが Discord アカウントに連携されました。",
@@ -1591,7 +1591,7 @@
     "refusedIntl": "maimai がこの値を受け付けませんでした。ゲートウェイからログアウトし、自動ログインにチェックを入れて再度ログインしてから、新しい値をコピーしてください。ログインリンクはまだ使えます。",
     "unreachableIntl": "現在 maimaiでらっくすNET に接続できませんでした。数分後にもう一度お試しください。ログインリンクはまだ使えます。",
     "phones": "<b>スマホの場合</b> iPhone と iPad ではまだ連携できません。Android では Lemur ブラウザで拡張機能を使えます。Firefox 版も承認後に使えるようになります。パソコンでリンクを開いてもかまいません。",
-    "keepsIntl": "<b>Rasmai が保存するもの。</b> ログインの値だけを暗号化して保存します。<code>/logout</code> または <code>/delete-account</code> で削除されます。",
+    "keepsIntl": "<b>Rasmai が保存するもの。</b> ログインの値だけを暗号化して保存します。<code>/delete-account</code> で削除されます。",
     "stuckIntl": "<b>うまくいかない？</b> リンクの期限が切れたら <code>/login</code> をもう一度実行してください。日本版アカウントは <code>/login region:Japan</code> を使います。中国版のアカウントはまだ連携できません。",
     "helperCopy": "リンクをコピー",
     "helperCopied": "✓ コピーしました"

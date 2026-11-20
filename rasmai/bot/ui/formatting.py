@@ -298,7 +298,7 @@ def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> Li
              "2. Enter the SEGA ID and password you use on [maimaidx.jp](https://maimaidx.jp/maimai-mobile/)\n"
              "3. That's it: Rasmai signs in and links the account"),
             ("Your SEGA ID",
-             "Rasmai keeps your SEGA ID and password, encrypted, and uses them only to read your scores. `/logout` deletes them."),
+             "Rasmai keeps your SEGA ID and password, encrypted, and uses them only to read your scores. `/delete-account` deletes them."),
         )]
     by_hand = page(
         "By hand, from the developer tools",
@@ -335,7 +335,9 @@ def build_login_done_embed(name: str, region: str) -> discord.Embed:
         color=palette.OK,
     )
     embed.add_field(name="Next", value="`/analyze` for what to play, `/plan` for the route to your next thousand, `/chart` to look anything up.", inline=False)
-    embed.set_footer(text="Your password never reached the bot; /delete-account removes everything at any time")
+    # a Japan account is the one that gives its password: it is what Rasmai signs in with
+    kept = "Your SEGA ID and password are kept encrypted" if region == "jp" else "Your password never reached the bot"
+    embed.set_footer(text=f"{kept}; /delete-account removes everything at any time")
     return embed
 
 

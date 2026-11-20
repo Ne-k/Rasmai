@@ -1471,7 +1471,7 @@
       }
     },
     "lede": "Rasmai looks at your maimai DX NET scores and tells you which charts to play to raise your rating. You get the results as images in Discord or on the web dashboard.",
-    "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at SEGA's Aime gateway and paste one value from your browser: Rasmai gets only that value, never your password. A Japan account links with its SEGA ID and password, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
+    "linking": "Run <code>/login</code> in Discord and follow the link. For an International account you sign in at SEGA's Aime gateway, then approve in the Aime sign-in helper extension or paste one value from your browser. Rasmai gets only that value, never your password. A Japan account links with its SEGA ID and password, kept encrypted. <code>/delete-account</code> deletes everything Rasmai has on you.",
     "linkingButton": "how linking works",
     "linkingTitle": "Linking your account",
     "metaTitle": "maimai DX rating bot for Discord",
@@ -1535,7 +1535,7 @@
     "jpStep": "The SEGA ID and password you use on <jp>maimaidx.jp</jp>.",
     "jpStepTitle": "Your maimaidx.jp sign-in",
     "jpTitle": "Sign in with your <em>SEGA ID</em>.",
-    "keeps": "<b>What Rasmai keeps.</b> Your SEGA ID and password, encrypted, used only to read your scores. <code>/logout</code> or <code>/delete-account</code> deletes them. If you change the password, run <code>/login</code> again.",
+    "keeps": "<b>What Rasmai keeps.</b> Your SEGA ID and password, encrypted, used only to read your scores. <code>/delete-account</code> deletes them. If you change the password, run <code>/login</code> again.",
     "labelRegion": "region",
     "labelValidUntil": "link valid until",
     "linkedGeneric": "Your maimai account is now linked to your Discord account.",
@@ -1591,7 +1591,7 @@
     "refusedIntl": "maimai didn't accept that value. Sign out of the gateway, sign in again with auto login ticked, and copy the new value. Your login link still works.",
     "unreachableIntl": "Rasmai couldn't reach maimai DX NET just now. Try again in a few minutes. Your login link still works.",
     "phones": "<b>On a phone?</b> iPhone and iPad can't link yet. On Android, use the extension in the Lemur browser, or in Firefox once its version is approved. Or open your link on a computer.",
-    "keepsIntl": "<b>What Rasmai keeps.</b> Only your sign-in value, encrypted. <code>/logout</code> or <code>/delete-account</code> deletes it.",
+    "keepsIntl": "<b>What Rasmai keeps.</b> Only your sign-in value, encrypted. <code>/delete-account</code> deletes it.",
     "stuckIntl": "<b>Stuck?</b> If the link expired, run <code>/login</code> again. A Japan account uses <code>/login region:Japan</code>. Chinese-version accounts can't be linked yet.",
     "helperCopy": "copy my link",
     "helperCopied": "✓ copied"

@@ -2160,6 +2160,11 @@ def _regions():
         # the Japan card stays without it even when handed a payload that has one
         if any("/api/link/" in words for words in card("jp")):
             problems.append("the Japan /login card carries a helper link")
+        # a Japan account gives Rasmai its password, and the command that deletes it is /delete-account: there is no /logout
+        from rasmai.bot.ui.formatting import build_login_done_embed
+        if "never reached" in build_login_done_embed("x", "jp").footer.text or "never reached" not in build_login_done_embed("x", "intl").footer.text \
+                or any("/logout" in words for words in card("jp") + card("intl")):
+            problems.append("a login card says a Japan account's password never reached the bot, or names /logout, a command there is none of")
         # the value pasted with its label, or with spaces around it, is the value
         status, body = ask("/internal/login", {"code": code, "user": opaque, "token": " clal=" + "b" * 64 + " "})
         if status == 400 and body.get("kind") == "no_login":
