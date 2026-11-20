@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   }
   const note = verify(query.get("t") ?? "");
   const asked = readCookies(request)[ASKED_COOKIE] ?? "";
-  const response = redirect("/");
+  const response = redirect("/applications/");
   response.headers.append("Set-Cookie", cookieHeader(ASKED_COOKIE, "", 0));
   const who = (note?.who ?? {}) as Record<string, unknown>;
   if (note?.aud === "portal" && typeof who.id === "string" && asked && same(String(note.n ?? ""), asked)) {

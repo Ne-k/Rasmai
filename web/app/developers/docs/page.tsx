@@ -27,7 +27,7 @@ export default async function GettingStarted() {
       <h2 id="quick-start">Quick start</h2>
       <ol>
         <li>
-          <a href={`${base}/`}>Create an application</a>. It gets a client ID.
+          <a href={`${base}/applications/`}>Create an application</a>. It gets a client ID.
         </li>
         <li>
           On its OAuth2 page, add the redirect <code>http://localhost:8080/callback</code>.

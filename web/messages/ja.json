@@ -1119,7 +1119,7 @@
       },
       "extension": {
         "title": "Aime sign-in helper 拡張機能",
-        "p01": "Aime sign-in helper は Chrome・Edge・Firefox 用の任意のブラウザ拡張機能です。ブラウザの開発者ツールを開かずに海外版アカウントを連携できます。Rasmai を使うのに必須ではありません。",
+        "p01": "Aime sign-in helper は Chrome・Edge 用の任意のブラウザ拡張機能です。Firefox 版は審査中です。ブラウザの開発者ツールを開かずに海外版アカウントを連携できます。Rasmai を使うのに必須ではありません。",
         "u01": {
           "i01": "<b>読み取るもの。</b> SEGA のログインサイト（lng-tgk-aime-gw.am-all.net）の <code>clal</code> という Cookie ひとつだけです。上で説明したセッションキーと同じものです。ボタンを押したときは、入れる先の入力欄やフォームを探すために、開いているページも確認します。ブラウザのほかの情報は読み取りません。",
           "i02": "<b>送り先。</b> あなたが送ると決めた場所だけに、クリックしたときだけ送ります。開いているページの入力欄、bot から受け取ったリンク、拡張機能の承認ウィンドウで承認したアプリ、またはクリップボードです。Rasmai に送った場合は、上で説明したとおり、貼り付けたものと同じように保存されます。アプリを承認した場合、Rasmai はアプリが受け取るまで（最長5分）ログイン情報を暗号化して保持し、その後アプリが読み取れるよう1時間保持します。それを過ぎるとアプリは読み取れなくなり、Rasmai が削除します。",
@@ -1898,6 +1898,43 @@
     "portal": "開発者",
     "navApplications": "アプリケーション",
     "navDocs": "ドキュメント",
+    "home": {
+      "metaDescription": "プレイヤーの maimai DX ログイン情報を、Rasmai と OAuth 2.0 を通して自分のアプリや bot で使えます。",
+      "title": "開発者向け Rasmai",
+      "lede": "Rasmai は、プレイヤーの maimai DX ログイン情報だけを扱う OAuth 2.0 プロバイダーです。アプリが求め、プレイヤーがブラウザ拡張機能で承認すると、アプリがログイン情報を受け取ります。",
+      "apps": "自分のアプリケーション",
+      "docs": "ドキュメントを読む",
+      "shot": "プレイヤーに表示される、拡張機能の承認ウィンドウです。",
+      "stepsTitle": "流れ",
+      "step1": "アプリがクライアント ID を付けて、プレイヤーを Rasmai に送ります。",
+      "step2": "Aime sign-in helper が、アプリの名前を表示したウィンドウを開きます。プレイヤーは承認または拒否します。",
+      "step3": "Rasmai が1回限りのコードを付けて、プレイヤーをアプリに戻します。",
+      "step4": "アプリがコードをトークンに交換し、そのトークンでログイン情報を読み取ります。",
+      "flow": "PKCE を使った認可コードフローで、Discord や Google でのログインと同じ仕組みです。",
+      "docsTitle": "ドキュメント",
+      "start": {
+        "name": "Getting started",
+        "about": "アプリケーションを作成し、1つのページでフロー全体を動かします。"
+      },
+      "oauth2": {
+        "name": "OAuth2 reference",
+        "about": "エンドポイントと、そのパラメーター、エラーです。"
+      },
+      "bots": {
+        "name": "Apps with no website",
+        "about": "Discord bot 向けです。プレイヤーごとにリンクを作成し、承認されたらログイン情報を受け取ります。"
+      },
+      "signIn": {
+        "name": "Using the sign-in",
+        "about": "受け取れる内容と、それを使って maimai DX NET にログインする方法です。"
+      },
+      "extension": {
+        "name": "Linking without OAuth",
+        "about": "拡張機能から、あなたのサイトにログイン情報を直接渡せます。"
+      },
+      "needsTitle": "プレイヤーに必要なもの",
+      "needs": "プレイヤーには <ext>Aime sign-in helper</ext> 拡張機能が必要です。パソコンの Chrome と Edge で動き、Firefox 版は審査中です。Safari、iPhone、Android の Chrome では使えません。対応しているのは海外版アカウントだけです。"
+    },
     "loading": "読み込み中…",
     "signedOutTitle": "アプリケーションを管理するにはログインしてください",
     "signedOut": "アプリケーションは Rasmai アカウントに属します。メインサイトでまだログインしていない場合は、そこでログインしてから、もう一度これを押してください。",

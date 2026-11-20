@@ -53,8 +53,8 @@ body:has(.dp)::before {
 .dp-apps a { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 14px; padding: 12px 8px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
 /* with reviews on, a lamp before the picture and the state after the id */
 .dp-apps[data-reviews] a { grid-template-columns: 12px 28px minmax(0, 1fr) minmax(0, 1fr) 96px; }
-.dp-apps a:hover { background: var(--paper-2); }
-.dp-apps a:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
+.dp-apps a:hover, .dp-pages a:hover { background: var(--paper-2); }
+.dp-apps a:focus-visible, .dp-pages a:focus-visible { outline: 3px solid var(--cyan); outline-offset: -3px; }
 .dp-apps b { overflow-wrap: anywhere; }
 .dp-apps b small { font-weight: 500; font-size: 13px; color: var(--link); }
 .dp-id { font-family: var(--font-mono), monospace; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -96,6 +96,17 @@ body:has(.dp)::before {
 .dp-table thead th { border-bottom: 2px solid var(--edge); font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .dp-table tbody th { width: 1%; font-weight: 500; white-space: nowrap; }
 
+/* the front page: what the portal is beside what a player is shown, then the steps and the documentation as ruled rows */
+.dp-home { margin-top: 26px; }
+.dp-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 44px; align-items: start; }
+.dp-top .dp-doc { max-width: 560px; }
+.dp-top .btn-row { margin-top: 18px; }
+.dp-top .shots { margin: 0; }
+.dp-doc .dp-pages { list-style: none; margin: 16px 0 12px; padding: 0; border-top: 1px solid var(--line); }
+.dp-doc .dp-pages li { margin: 0; }
+.dp-pages a { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 0 20px; padding: 12px 8px; border-bottom: 1px solid var(--line); color: var(--ink-2); text-decoration: none; }
+.dp-pages b { color: var(--ink); }
+
 .dp-sec { padding: 18px 0 22px; border-top: 1px solid var(--line); }
 .dp-sec:first-of-type { border-top: 0; padding-top: 14px; }
 .dp-field { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 4px 20px; align-items: start; padding: 7px 0; }
@@ -130,11 +141,16 @@ form > .hint.bad { margin-top: 12px; }
 .dp dialog .hint.bad { margin-top: 10px; color: var(--link); }
 .dp dialog .btn-row { justify-content: flex-end; margin-top: 18px; }
 
+/* the picture keeps its width, so beside it the words run out of room before the sidebar pages do */
+@media (max-width: 960px) {
+  .dp-top { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 780px) {
   .dp-body { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 16px; }
   .dp-side { position: static; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .dp-side a, .dp-side strong { flex-basis: 100%; margin: 0; }
   .dp-field { grid-template-columns: minmax(0, 1fr); }
+  .dp-pages a { grid-template-columns: minmax(0, 1fr); }
   .dp-field > label, .dp-field > span { padding-top: 0; }
   .dp-field > div { min-height: 0; }
   .dp-apps a { grid-template-columns: 28px minmax(0, 1fr); }

@@ -52,7 +52,7 @@ export function Application({ id }: { id: string }) {
         {apps && (
           <section className="dp-gate">
             <p className="dp-note">{t("missing")}</p>
-            <a href={`${home()}/`}>{t("back")}</a>
+            <a href={`${home()}/applications/`}>{t("back")}</a>
           </section>
         )}
       </Gate>
@@ -97,7 +97,7 @@ export function Application({ id }: { id: string }) {
   };
   const confirmed = async () => {
     if (asking === "delete") {
-      if (await call("/delete", { id })) window.location.assign(`${home()}/`);
+      if (await call("/delete", { id })) window.location.assign(`${home()}/applications/`);
       return;
     }
     const made = await call("/secret", { id });
@@ -122,7 +122,7 @@ export function Application({ id }: { id: string }) {
   return (
     <div className="dp-body">
       <nav className="dp-side" aria-label={t("sections")}>
-        <a href={`${home()}/`}>{t("back")}</a>
+        <a href={`${home()}/applications/`}>{t("back")}</a>
         <strong>{app.name}</strong>
         {(["general", "oauth2"] as const).map((key) => (
           <button type="button" key={key} aria-current={section === key ? "page" : undefined} onClick={() => setSection(key)}>

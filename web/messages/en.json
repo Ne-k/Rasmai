@@ -1119,7 +1119,7 @@
       },
       "extension": {
         "title": "The Aime sign-in helper extension",
-        "p01": "Aime sign-in helper is an optional browser extension for Chrome, Edge and Firefox. It links an International account without you opening your browser's developer tools. You don't need it to use Rasmai.",
+        "p01": "Aime sign-in helper is an optional browser extension for Chrome and Edge. A Firefox version is in review. It links an International account without you opening your browser's developer tools. You don't need it to use Rasmai.",
         "u01": {
           "i01": "<b>What it reads.</b> One cookie, <code>clal</code>, from SEGA's sign-in site (lng-tgk-aime-gw.am-all.net). That's the same session key described above. When you press its button, it also looks at the page you're on for a box or form to put it in. It reads nothing else from your browser.",
           "i02": "<b>Where it goes.</b> Only where you send it, and only when you click: into the box on the page you're on, to a link your bot gave you, to an app you approve in the extension's approval window, or to your clipboard. If you send it to Rasmai, Rasmai keeps it exactly like one you pasted, as described above. When you approve an app, Rasmai holds your sign-in encrypted until the app collects it (five minutes at most), then for an hour so the app can read it. After that the app can't read it any more, and Rasmai deletes it.",
@@ -1898,6 +1898,43 @@
     "portal": "developers",
     "navApplications": "Applications",
     "navDocs": "Docs",
+    "home": {
+      "metaDescription": "Use a player's maimai DX sign-in in your own app or bot, through Rasmai and OAuth 2.0.",
+      "title": "Rasmai for developers",
+      "lede": "Rasmai is an OAuth 2.0 provider for one thing: a player's maimai DX sign-in. Your app asks for it, the player approves in a browser extension, and your app gets it.",
+      "apps": "Your applications",
+      "docs": "Read the docs",
+      "shot": "The extension's approval window, as the player sees it.",
+      "stepsTitle": "How it goes",
+      "step1": "Your app sends the player to Rasmai with your client ID.",
+      "step2": "The Aime sign-in helper opens a window that names your app. The player approves or declines.",
+      "step3": "Rasmai sends the player back to your app with a one-time code.",
+      "step4": "Your app trades the code for a token and reads the sign-in with it.",
+      "flow": "This is the authorization code flow with PKCE, like signing in with Discord or Google.",
+      "docsTitle": "Docs",
+      "start": {
+        "name": "Getting started",
+        "about": "Create an application and run the whole flow from one page."
+      },
+      "oauth2": {
+        "name": "OAuth2 reference",
+        "about": "The endpoints, their parameters and their errors."
+      },
+      "bots": {
+        "name": "Apps with no website",
+        "about": "For Discord bots. Start a link for a player and collect the sign-in once they approve."
+      },
+      "signIn": {
+        "name": "Using the sign-in",
+        "about": "What you get back, and how to sign in to maimai DX NET with it."
+      },
+      "extension": {
+        "name": "Linking without OAuth",
+        "about": "Have the extension hand a sign-in straight to your own site."
+      },
+      "needsTitle": "What players need",
+      "needs": "Players need the <ext>Aime sign-in helper</ext>. It runs in Chrome and Edge on a computer, and a Firefox version is in review. Safari, iPhone and Chrome on Android can't run it. Only International accounts work."
+    },
     "loading": "Loading…",
     "signedOutTitle": "Sign in to manage your applications",
     "signedOut": "Applications belong to a Rasmai account. If you aren't signed in on the main site yet, sign in there, then press this again.",

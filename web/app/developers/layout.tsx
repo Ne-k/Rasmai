@@ -15,6 +15,11 @@ export async function generateMetadata(): Promise<Metadata> {
     robots: { index: false, follow: false },
     title: t("metaTitle"),
     description: t("metaDescription"),
+    // the site's layout gives every page the site's own front page as its address and its card: neither is the portal's
+    alternates: {},
+    openGraph: { type: "website", siteName: "Rasmai", title: t("home.title"), description: t("home.metaDescription") },
+    // no picture: the site's card art is the bot's
+    twitter: { card: "summary", title: t("home.title"), description: t("home.metaDescription") },
   };
 }
 
@@ -31,7 +36,7 @@ export default async function DevelopersLayout({ children }: { children: React.R
         </a>
         <a className="dp-here" href={ownHost ? "/" : "/developers/"}>{t("portal")}</a>
         <nav className="dp-nav" aria-label={t("portal")}>
-          <a href={ownHost ? "/" : "/developers/"}>{t("navApplications")}</a>
+          <a href={ownHost ? "/applications/" : "/developers/applications/"}>{t("navApplications")}</a>
           <a href={ownHost ? "/docs/" : "/developers/docs/"}>{t("navDocs")}</a>
         </nav>
         <div className="dp-tools">

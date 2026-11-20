@@ -90,6 +90,7 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: [
         { source: "/", has, destination: "/developers/" },
+        { source: "/applications", has, destination: "/developers/applications/" },
         { source: "/applications/:id", has, destination: "/developers/applications/:id/" },
         { source: "/docs", has, destination: "/developers/docs/" },
         { source: "/docs/:page", has, destination: "/developers/docs/:page/" },
