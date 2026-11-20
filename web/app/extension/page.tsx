@@ -37,6 +37,7 @@ export default async function ExtensionPage() {
   const footer = await getTranslations("footer");
   const tags = {
     em: (c: React.ReactNode) => <em>{c}</em>,
+    b: (c: React.ReactNode) => <b>{c}</b>,
     link: (c: React.ReactNode) => <a href="/link/">{c}</a>,
   };
   return (
@@ -65,6 +66,7 @@ export default async function ExtensionPage() {
           </a>
         </li>
       </ul>
+      <div className="aside">{t.rich("android", tags)}</div>
 
       <p>{t.rich("how", tags)}</p>
 

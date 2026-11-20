@@ -1510,6 +1510,7 @@
     "chromeNote": "works in Edge too",
     "firefox": "Firefox",
     "firefoxNote": "in review",
+    "android": "<b>On Android?</b> Add it in the Lemur browser, or any other browser that runs Chrome extensions. Chrome on Android can't.",
     "how": "Then <link>link your maimai account</link>.",
     "steps": {"add": "Add the extension", "signIn": "Sign in on the maimai site", "link": "Link your account"},
     "shotsTitle": "What it looks like",

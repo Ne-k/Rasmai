@@ -1510,6 +1510,7 @@
     "chromeNote": "Edge でも使えます",
     "firefox": "Firefox",
     "firefoxNote": "審査中",
+    "android": "<b>Android の場合</b> Lemur ブラウザなど、Chrome 拡張機能に対応したブラウザに追加してください。Android 版 Chrome では使えません。",
     "how": "追加したら、<link>maimai アカウントを連携</link>しましょう。",
     "steps": {"add": "拡張機能を追加", "signIn": "maimai のサイトにログイン", "link": "アカウントを連携"},
     "shotsTitle": "画面のようす",
