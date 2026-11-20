@@ -21,6 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DevelopersHome() {
   const t = await getTranslations("developers.home");
   const { site, base } = await places();
+  const ext = (c: React.ReactNode) => <a href={`${site}/extension/`}>{c}</a>;
   return (
     <main className="dp-home">
       <div className="dp-top">
@@ -35,7 +36,7 @@ export default async function DevelopersHome() {
         <div className="shots">
           <figure>
             <img src="/helper/approval.png" width={420} height={340} alt="" decoding="async" />
-            <figcaption>{t("shot")}</figcaption>
+            <figcaption>{t.rich("shot", { ext })}</figcaption>
           </figure>
         </div>
       </div>
@@ -61,7 +62,7 @@ export default async function DevelopersHome() {
         </ul>
 
         <h2>{t("needsTitle")}</h2>
-        <p>{t.rich("needs", { ext: (c) => <a href={`${site}/extension/`}>{c}</a> })}</p>
+        <p>{t.rich("needs", { ext })}</p>
       </div>
     </main>
   );

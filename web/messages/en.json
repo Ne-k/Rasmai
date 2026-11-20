@@ -1370,7 +1370,7 @@
     "invite": "invite the bot",
     "notAffiliated": "not affiliated with SEGA",
     "privacy": "privacy",
-    "status": "status",
+    "developers": "developers",
     "support": "support",
     "terms": "terms",
     "translate": "improve the translation"
@@ -1904,7 +1904,7 @@
       "lede": "Rasmai is an OAuth 2.0 provider for one thing: a player's maimai DX sign-in. Your app asks for it, the player approves in a browser extension, and your app gets it.",
       "apps": "Your applications",
       "docs": "Read the docs",
-      "shot": "The extension's approval window, as the player sees it.",
+      "shot": "The <ext>Aime sign-in helper</ext>'s approval window, as the player sees it.",
       "stepsTitle": "How it goes",
       "step1": "Your app sends the player to Rasmai with your client ID.",
       "step2": "The Aime sign-in helper opens a window that names your app. The player approves or declines.",

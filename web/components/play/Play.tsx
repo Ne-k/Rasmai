@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Ring } from "@/components/Ring";
 import { MastheadNav } from "@/components/Shell";
 import { ThemeToggle } from "@/components/Theme";
-import { STATUS_URL } from "@/components/Contact";
+import { DEVELOPERS_URL } from "@/components/Contact";
 import { buildChart } from "@/lib/chart/build.mjs";
 import { K, BOX, convertJudge } from "@/lib/chart/engine/timing.mjs";
 import { COMBO_NAMES } from "@/lib/chart/engine/score.mjs";
@@ -73,7 +73,7 @@ export function Play() {
       )}
       <footer className="foot">
         <span>
-          {f.rich("createdBy", { b: (c) => <b>{c}</b> })} · {f("notAffiliated")} · {t("privacy")} · <a href="/privacy/">{f("privacy")}</a> · <a href="/terms/">{f("terms")}</a> · <a href="/support">{f("support")}</a> · <a href={STATUS_URL} target="_blank" rel="noopener noreferrer">{f("status")}</a>
+          {f.rich("createdBy", { b: (c) => <b>{c}</b> })} · {f("notAffiliated")} · {t("privacy")} · <a href="/privacy/">{f("privacy")}</a> · <a href="/terms/">{f("terms")}</a> · <a href="/support">{f("support")}</a> · <a href={DEVELOPERS_URL}>{f("developers")}</a>
         </span>
       </footer>
     </div>
