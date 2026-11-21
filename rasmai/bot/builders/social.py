@@ -12,7 +12,7 @@ from rasmai.bot.ui import palette
 from rasmai.engine.analysis import rank_for
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, level_text, message_files, chart_link, today
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, add_link_run, level_text, message_files, chart_link, today
 from rasmai.bot.state.prefs import NOTE_SPEEDS, TOUCH_SPEEDS, get_prefs, speed_label
 from rasmai.bot.state.snapshots import compact_snapshot, snapshot_charts
 from rasmai.bot.core import try_render
@@ -32,6 +32,8 @@ def _level_bucket(level: str) -> str:
 # ---------------------------------------------------------------- /compare
 
 async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tuple[discord.Embed, List[discord.File], None]:
+    """Two players side by side. With the card drawn, the embed keeps the link to each chart the card lists as a lead;
+    without it, every figure."""
     a = cached.analyzer
     me = a.player
     files, avatar_url = message_files(me, None, "")
@@ -92,11 +94,12 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
     if level_lines:
         embed.add_field(name="Average on shared charts", value="\n".join(level_lines), inline=False)
 
-    def gaps(items: List[Tuple[float, Any]], source: Dict[Any, Dict[str, Any]]) -> str:
+    def gaps(items: List[Tuple[float, Any]], source: Dict[Any, Dict[str, Any]], drawn: bool = False) -> str:
         items.sort(reverse=True)
         return _fit([
-            f"{chart_link(source[k]['name'], k[1], k[2], source[k].get('cover', ''))} {TIER_SHORT.get(k[2], '')} {level_text(source[k]['level'], source[k].get('constant'))} · +{gap:.2f}"
-            for gap, k in items[:5]
+            f"{chart_link(source[k]['name'], k[1], k[2], source[k].get('cover') or getattr(a.chart_index.get(k), 'cover', ''))} {TIER_SHORT.get(k[2], '')} {level_text(source[k]['level'], source[k].get('constant'))}"
+            + ("" if drawn else f" · +{gap:.2f}")
+            for gap, k in items[:6 if drawn else 5]
         ]) if items else "-"
 
     embed.add_field(name="Your biggest leads", value=gaps(my_leads, mine), inline=True)
@@ -115,7 +118,7 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
         out = []
         for gap, k in sorted(items, reverse=True)[:6]:
             ref = a.chart_index.get(k)
-            out.append({"title": source[k]["name"], "difficulty": k[2], "level": source[k]["level"], "gap": gap,
+            out.append({"title": source[k]["name"], "difficulty": k[2], "level": level_text(source[k]["level"], source[k].get("constant")), "gap": gap,
                         "mine": mine[k]["accuracy"], "theirs": them[k]["accuracy"], "cover": ref.cover if ref else ""})
         return out
 
@@ -134,6 +137,12 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
         ))
     files, avatar_url = message_files(me, cached.images[image_key], "rasmai-compare.png")
     embed.set_author(name=me.name, icon_url=avatar_url)
+    if cached.images[image_key] is not None:
+        # the card shows every figure and six leads a side; the embed keeps the link to each of them
+        embed.description = None
+        embed.clear_fields()
+        add_link_run(embed, "Your biggest leads", gaps(my_leads, mine, drawn=True).split("\n"))
+        add_link_run(embed, "Their biggest leads", gaps(their_leads, them, drawn=True).split("\n"))
     try:
         recorded = datetime.fromisoformat(str(snapshot.get("recordedAt")))
         embed.timestamp = recorded if recorded.tzinfo else recorded.astimezone()
@@ -150,6 +159,8 @@ LEADERBOARD_PAGE = 20
 
 async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None, page: int = 0
                             ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
+    """The server's board, a page at a time. The image draws the page the reply is on, so with it drawn the embed keeps
+    only where the ratings come from; without it, the page as a list."""
     embed = discord.Embed(title=f"Rating leaderboard · {guild.name}", color=palette.RATING)
     accounts = accounts_with_setting("leaderboard")
     if not accounts:
@@ -186,8 +197,11 @@ async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None
         lines.append(f"{tag} {who} · **{rating}**" + (f" ({region.upper()})" if region != "intl" else ""))
     embed.description = "\n".join(lines)
     embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{len(rows)} opted-in players in this server · ratings from each player's last /analyze")
-    shot = await try_render(leaderboard_image_html(guild.name, rows[:20], date_text=today()))
+    shot = await try_render(leaderboard_image_html(guild.name, rows, date_text=today(), start=start, size=LEADERBOARD_PAGE))
     files = [discord.File(io.BytesIO(shot), filename="rasmai-leaderboard.png")] if shot else []
+    if shot:
+        embed.description = None
+        embed.set_footer(text="ratings from each player's last /analyze")
     from rasmai.bot.ui.views import PagedView
 
     async def draw(wanted: int):

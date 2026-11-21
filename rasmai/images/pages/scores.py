@@ -51,6 +51,8 @@ def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequen
     <div class="b50-grid">{cards(old_entries, 35)}</div>"""
     counters = [("New", str(new_total)), ("Old", str(old_total)),
                 ("Lowest", f"{min([e['rating'] for e in new_entries] or [0])} / {min([e['rating'] for e in old_entries] or [0])}")]
+    if len(everything) < 50:
+        counters.append(("Open slots", str(50 - len(everything))))
     return _image("Best 50", player_name, avatar_b64, counters, rating_plate(new_total + old_total), "best-50 total", body, date_text)
 
 
@@ -81,16 +83,20 @@ def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], play
                 extra=_esc(" · " + " · ".join(extras)) if extras else "",
                 chart_rating=p["chart_rating"] or "",
             )
-    total = sum(len(p) for _d, p in days)
+    plays = [p for _d, group in days for p in group]
+    scored = [p["achievement"] for p in plays if p.get("achievement") is not None]
     # the image is a picture, so its clock faces cannot follow the reader: say which zone they are
-    counters = [("Days", str(len(days))), ("Plays", str(total)), ("New bests", str(pbs)), ("Times", "JST")]
+    counters = [("Days", str(len(days))), ("Plays", str(len(plays))), ("New bests", str(pbs)),
+                ("On best 50", str(sum(1 for p in plays if p.get("in_b50")))),
+                ("Average", f"{sum(scored) / len(scored) if scored else 0.0:.2f}%"), ("Times", "JST")]
+    legend = '<div class="section-label">PB matches your current best &middot; B50 counts toward your rating</div>'
     return _image("Recent plays", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}",
-                  render("recent-body", items=items), date_text)
+                  render("recent-body", items=items) + legend, date_text)
 
 
 def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_label: str, player_name: str,
                      rating: int, avatar_b64: str, cover_html: CoverFn, total: int, played: int,
-                     start: int = 1, date_text: str = "") -> str:
+                     start: int = 1, date_text: str = "", page: int = 1, pages: int = 1) -> str:
     """One page of a level as a poster: a dozen big cards, the way /analyze draws its picks.
 
     A table of sixty rows was legible only at full size; Discord's preview shrinks the image
@@ -118,6 +124,10 @@ def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_labe
     :type level_label: str
     :param sort_label: The chosen order, as it is shown.
     :type sort_label: str
+    :param page: Which page this is, from 1.
+    :type page: int
+    :param pages: How many pages the level has.
+    :type pages: int
     :rtype: str
     """
     cards = ""
@@ -145,9 +155,9 @@ def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_labe
         </div>"""
     last = start + len(rows) - 1
     body = f"""
-    <div class="section-label">Level {_esc(level_label)} &middot; {sort_label} &middot; charts {start}&ndash;{last} of {total} &middot; {played} played</div>
+    <div class="section-label">Level {_esc(level_label)} &middot; {sort_label} &middot; charts {start}&ndash;{last} of {total} &middot; {played} played{f" &middot; {total - played} never played" if total > played else ""}</div>
     <div class="grid level-grid">{cards}</div>"""
-    counters = [("Charts", str(total)), ("Played", str(played)), ("Page", f"{(start - 1) // max(1, len(rows)) + 1 if rows else 1}")]
+    counters = [("Charts", str(total)), ("Played", str(played)), ("Page", f"{page} / {pages}")]
     return _image(f"Level {level_label}", player_name, avatar_b64, counters, rating_plate(rating), f"rating · {rating_band(rating)[0]}", body, date_text)
 
 
@@ -182,8 +192,10 @@ def star_marks(stars: int) -> str:
 
 def dxscore_image_html(tiles: Dict[int, int], rows: Sequence[Dict[str, Any]], player_name: str, rating: int,
                        avatar_b64: str, cover_html: CoverFn, average: float, date_text: str = "") -> str:
+    floors = {count: threshold for threshold, count in STAR_STEPS}
     tile_html = "".join(
-        f'<div class="tile"><div class="k">{star_marks(s)}</div><div class="v">{tiles.get(s, 0)}<small>charts</small></div></div>'
+        f'<div class="tile"><div class="k">{star_marks(s)}</div><div class="v">{tiles.get(s, 0)}<small>charts</small></div>'
+        f'<div class="s">{f"from {floors[s] * 100:.0f}% of max" if s else f"under {floors[1] * 100:.0f}% of max"}</div></div>'
         for s in (5, 4, 3, 2, 1, 0)
     )
     head = """<thead><tr><th></th><th></th><th>Chart</th><th>DX score</th><th>Now</th><th>Next</th><th style="text-align:right">Points short</th></tr></thead>"""

@@ -105,7 +105,7 @@ def _radar_svg(axes: Sequence[Dict[str, Any]], width: int = 680, height: int = 5
                          f'font-family="Segoe UI,Inter,sans-serif" font-size="16" fill="{colour}">{_esc(line)}</text>')
         value_y = first_y + block
         parts.append(f'<text x="{label_x:.1f}" y="{value_y:.1f}" text-anchor="{anchor}" dominant-baseline="middle" '
-                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="13" fill="#9b968a">{float(axis["offset"]):+.2f}</text>')
+                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="15" fill="#9b968a">{float(axis["offset"]):+.2f}</text>')
     parts.append(f'<polygon points="{" ".join(shape)}" fill="rgba(92,211,232,0.22)" stroke="#5cd3e8" stroke-width="3" stroke-linejoin="round"/>')
     for point, lean in zip(shape, hollow):
         x, y = point.split(",")
@@ -117,7 +117,8 @@ def _radar_svg(axes: Sequence[Dict[str, Any]], width: int = 680, height: int = 5
 
 
 def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, Any]], strong: Sequence[Dict[str, Any]],
-                      player_name: str, rating: int, avatar_b64: str, charts: int, date_text: str = "") -> str:
+                      player_name: str, rating: int, avatar_b64: str, charts: int, date_text: str = "",
+                      summary: str = "", judgements: Sequence[str] = ()) -> str:
     """The radar beside the two lists: what the player loses points on and what they shine at.
 
     :param axes: The traits the wheel is drawn on.
@@ -136,6 +137,10 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
     :type weak: Sequence[Dict[str, Any]]
     :param strong: The traits the player gains on.
     :type strong: Sequence[Dict[str, Any]]
+    :param summary: How many traits are confirmed, leaning and level, as the embed words it.
+    :type summary: str
+    :param judgements: What the judgement pages say, a line each, as the embed words it.
+    :type judgements: Sequence[str]
     :rtype: str
     """
     def rows(items: Sequence[Dict[str, Any]], tone: str) -> str:
@@ -144,8 +149,13 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
             label = _esc(english_label(str(item["label"])))
             mark = "" if item.get("verified") else (" · leaning" if item.get("leaning") else " · watching")
             out += (f'<div class="trait-row"><span class="trait-off {tone}">{float(item["offset"]):+.2f}</span>'
-                    f'<span class="trait-name">{label}</span><span class="trait-n">{item["count"]} chart{"" if item["count"] == 1 else "s"}{mark}</span></div>')
+                    f'<span class="trait-name">{label}</span><span class="trait-n">{item["count"]} '
+                    f'{"play" if item.get("dimension") == "judgement" else "chart"}{"" if item["count"] == 1 else "s"}{mark}</span></div>')
         return out or '<div class="trait-none">nothing stands out yet</div>'
+
+    def line(text: str) -> str:
+        # the embed's own wording, its bold kept: escaped first, so only our own marks become tags
+        return '<div class="session-line">' + re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", _esc(text)) + "</div>"
 
     body = f"""
     <div class="two-col">
@@ -153,10 +163,12 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
         <div class="legend"><span>middle ring = your own average</span><span>outward = stronger</span><span>hollow point = leaning or level with the rest, not confirmed</span></div>
       </div>
       <div>
+        {line(summary) if summary else ""}
         <div class="section-label">Where you lose points</div>
         {rows(weak, "down")}
         <div class="section-label">Where you're strong</div>
         {rows(strong, "up")}
+        {'<div class="section-label">Judgements, measured</div>' + "".join(map(line, judgements)) if judgements else ""}
       </div>
     </div>"""
     counters = [("Charts", str(charts)), ("Weak spots", str(len(weak))), ("Strengths", str(len(strong)))]

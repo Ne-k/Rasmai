@@ -675,25 +675,150 @@ def _site_queues_behind_discord():
     return problems
 
 
-@check("the profile's quick wins, stretch goals and new charts link each chart to its page")
-def _profile_lists_link():
+def _export_analyzer():
+    """A real account, analysed, from a debug export on this machine; None where there is none to build from."""
     import json
 
-    from rasmai.bot.builders.results import embeds
     from rasmai.scraping.scraper import MaimaiRatingAnalyzer
     from rasmai.storage.models import PlayerInfo, SongInfo
     from tools.checks import ROOT
 
-    problems = []
-    exports = sorted((ROOT / "debug").glob("*.json"), key=lambda p: p.stat().st_size)
-    # the folder also holds caches and other checks' leftovers: an export is the one with a player and their songs
+    # where the bot writes its exports, and the two folders they have been kept in by hand
+    exports = sorted((p for folder in ("debug", "debug/maimai-exports", "data") for p in (ROOT / folder).glob("*.json")), key=lambda p: p.stat().st_size)
+    # the folders also hold caches and other checks' leftovers: an export is the one with a player and their songs
     data = next((d for d in (json.loads(p.read_text(encoding="utf-8")) for p in exports) if isinstance(d, dict) and d.get("songs") and d.get("player")), None)
     if data is None:
-        return []      # no export on this machine to build from
+        return None
     a = MaimaiRatingAnalyzer()
     a.player = PlayerInfo(**{k: v for k, v in data["player"].items() if k in PlayerInfo.__dataclass_fields__})
     a.songs = [SongInfo(**{k: v for k, v in r.items() if k in SongInfo.__dataclass_fields__}) for r in data["songs"]]
-    a.generate_recommendations()
+    a.recent_songs = data.get("recentSongsData") or []
+    a.found = a.generate_recommendations()
+    return a
+
+
+@check("with its image drawn a reply's embed keeps the links to its charts and leaves the figures to the image; without one it carries them")
+def _embeds_lean_on_the_image():
+    import asyncio, pathlib, re, sys, tempfile
+
+    from rasmai.bot.builders.charts import level, scores
+    from rasmai.bot.builders.history import recent
+    from rasmai.bot.builders.results import embeds
+    from rasmai.bot.state.cache import CachedAnalysis
+    from rasmai.bot.ui import formatting
+    from rasmai.storage.db import connection as store
+
+    a = _export_analyzer()
+    if a is None:
+        return []
+    LONG = ("analyze", "dxscore, past the image's rows")
+    # the five that can be asked for as text alone, then the lists, which have no image only when the render fails
+    results = {
+        "analyze": lambda c, t: embeds.build_analyze(c, text_only=t),
+        "plan": lambda c, t: embeds.build_plan(c, None, False, 0, text_only=t),
+        "session": lambda c, t: embeds.build_session(c, embeds.SESSION_DEFAULT, text_only=t),
+        "new": lambda c, t: embeds.build_new(c, None, text_only=t),
+        "profile": lambda c, t: embeds.build_profile(c, text_only=t),
+    }
+    lists = {
+        "b50": lambda c, t: scores.build_b50(c, 1, 0),
+        "dxscore": lambda c, t: scores.build_dxscore(c, 1, 0),
+        "dxscore, past the image's rows": lambda c, t: scores.build_dxscore(c, 1, 4),
+        "charts level": lambda c, t: level.build_level(c, 1, "13", "weakest", 0),
+        "recent": lambda c, t: recent.build_recent(c, 1, 0),
+    }
+    pages = {}
+    patched = [m for name, m in list(sys.modules.items()) if name.startswith("rasmai.bot.builders") and hasattr(m, "try_render")]
+    kept = [m.try_render for m in patched]
+    was = store.DATABASE_PATH
+
+    async def run():
+        out = {}
+        for name, build in {**results, **lists}.items():
+            for bare in (False, True):
+                async def drawn(html, name=name, bare=bare):
+                    pages[name] = html or ""
+                    return None if bare and name in lists else b"png"
+                for module in patched:
+                    module.try_render = drawn
+                cached = CachedAnalysis(user_id="1", region="intl", analyzer=a, recommendations=a.found[0], value_charts=a.found[1])
+                out[name, bare] = (await build(cached, bare))[0]
+        # a render that fails is the other way to have no image: asked for with its picture, answered without
+        async def failed(html):
+            return None
+        for module in patched:
+            module.try_render = failed
+        for name, build in results.items():
+            cached = CachedAnalysis(user_id="1", region="intl", analyzer=a, recommendations=a.found[0], value_charts=a.found[1])
+            out[name, "failed"] = (await build(cached, False))[0]
+        # the bot's own lines are longer than these: its tier marks are custom emoji, and a link with no cover spells out a whole
+        # title. Every link is stretched until eight lines cannot share a field, to see that none is then dropped
+        async def png(html):
+            return b"png"
+        for module in patched:
+            module.try_render = png
+        real = formatting.chart_link
+        formatting.chart_link = scores.chart_link = lambda *args, **kwargs: real(*args, **kwargs)[:-1] + "?" + "x" * 60 + ")"
+        try:
+            for name in LONG:
+                cached = CachedAnalysis(user_id="1", region="intl", analyzer=a, recommendations=a.found[0], value_charts=a.found[1])
+                out[name, "long"] = (await {**results, **lists}[name](cached, False))[0]
+        finally:
+            formatting.chart_link = scores.chart_link = real
+        return out
+
+    store.DATABASE_PATH, store._database_ready = pathlib.Path(tempfile.mkdtemp()) / "embeds.sqlite3", False
+    try:
+        made = asyncio.run(run())
+    finally:
+        store.DATABASE_PATH, store._database_ready = was, False
+        for module, own in zip(patched, kept):
+            module.try_render = own
+    problems = []
+    said = lambda e: (e.description or "") + "".join(f.name + f.value for f in e.fields)
+    # a figure is a percentage or a score's move to its target; a link's address is long but says nothing
+    figures = lambda e: said(e).count("%") + said(e).count("→")
+    for name in {**results, **lists}:
+        lean, full = made[name, False], made[name, True]
+        if figures(lean) > figures(full) or (name in results and figures(lean) == figures(full)):
+            problems.append(f"/{name}: the embed beside its image repeats the figures the image shows ({figures(lean)} of the {figures(full)} it has with no image)")
+        if "](http" in said(full) and "](http" not in said(lean):
+            problems.append(f"/{name}: the embed beside its image lost the links to its charts")
+        if name in results and said(made[name, "failed"]) != said(full):
+            problems.append(f"/{name}: when its image fails to render the embed is not the one that carries every figure")
+        for embed in (lean, full):
+            broken = [f.name for f in embed.fields if not f.name or not 0 < len(f.value) <= 1024]
+            if broken or len(embed) > 6000 or len(embed.fields) > 25 or len(embed.description or "") > 4096:
+                problems.append(f"/{name}: Discord would refuse this embed: {len(embed)} characters, {len(embed.fields)} fields, bad fields {broken}")
+    # a run of links, or a field of them, ends where the next would not fit: the numbers go on without a gap
+    for name in LONG:
+        numbers = [int(n) for n in re.findall(r"` *(\d+)`", said(made[name, "long"]))]
+        runs = [numbers[i] for i in range(1, len(numbers)) if numbers[i] not in (numbers[i - 1] + 1, 1)]
+        if not numbers or runs:
+            problems.append(f"/{name}: the links beside the image skip a number, so a chart on the image has no link: {numbers}")
+    # a page past the image's rows says how many it holds: each has its line, none dropped at a field's cap
+    late = made["dxscore, past the image's rows", "long"]
+    span = re.search(r"(\d+)-(\d+) of", late.fields[0].name) if late.fields else None
+    held = sum(len(re.findall(r"^` *\d+`", f.value, re.M)) for f in late.fields)
+    if span and held != int(span[2]) - int(span[1]) + 1:
+        problems.append(f"/dxscore: a page past the image's rows names {span[0][:-3]} and links {held} of them")
+    # what the /analyze embed gave up is on its poster: how the player plays, and the best-50 cutoffs
+    profile = (a.analysis_summary or {}).get("profile", {})
+    if any(f.name == "Style" for f in made["analyze", False].fields) or not any(f.name == "Style" for f in made["analyze", True].fields):
+        problems.append("/analyze: the Style, Levels and Best-50 fields are not left to the poster when there is one, or are missing when there is none")
+    if str(profile.get("comfortConstant")) not in pages.get("analyze", "") or "cutoffs" not in pages.get("analyze", ""):
+        problems.append("/analyze: the poster does not show the comfort level and best-50 cutoffs its embed no longer does")
+    return problems
+
+
+@check("the profile's quick wins, stretch goals and new charts link each chart to its page")
+def _profile_lists_link():
+    from rasmai.bot.builders.results import embeds
+
+    problems = []
+    a = _export_analyzer()
+    if a is None:
+        return []      # no export on this machine to build from
     shown = [c for key in ("quickWins", "stretchGoals", "newChartsToTry") for c in (a.analysis_summary or {}).get(key) or []]
     if not shown:
         problems.append("the profile's lists came out empty for a real export")

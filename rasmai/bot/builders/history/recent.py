@@ -5,7 +5,7 @@ import discord
 from rasmai.bot.ui import palette
 
 from rasmai.bot.state.cache import CachedAnalysis, cache_get
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, level_text, message_files, stamp, today
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, add_link_run, chart_link, level_text, message_files, stamp, today
 from rasmai.bot.ui import emoji
 from rasmai.bot.ui.views import PagedView, from_cache
 from rasmai.security import public_reason
@@ -41,6 +41,7 @@ async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None, p
             labelled, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path), pbs, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-recent.png")
+    drawn = shot is not None
     embed = discord.Embed(title="Recent plays", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     if not plays:
@@ -49,8 +50,9 @@ async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None, p
     scored = [p["achievement"] for p in plays if p["achievement"] is not None]
     average = sum(scored) / len(scored) if scored else 0.0
     b50_hits = sum(1 for p in plays if p["in_b50"])
-    embed.description = (f"**{len(plays)}** plays across **{len(days)}** day{'s' if len(days) != 1 else ''} · "
-                         f"**{pbs}** new best{'s' if pbs != 1 else ''} · {b50_hits} on best-50 charts · average **{average:.2f}%**")
+    if not drawn:
+        embed.description = (f"**{len(plays)}** plays across **{len(days)}** day{'s' if len(days) != 1 else ''} · "
+                             f"**{pbs}** new best{'s' if pbs != 1 else ''} · {b50_hits} on best-50 charts · average **{average:.2f}%**")
     pages = max(1, (len(plays) + PAGE - 1) // PAGE)
     page = max(0, min(page, pages - 1))
     shown = plays[page * PAGE:(page + 1) * PAGE]
@@ -68,11 +70,19 @@ async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None, p
             score = f"{p['achievement']:.4f} {emoji.rank(p['rank'], p['rank'])}" if p["achievement"] is not None else "—"
             flags = " ".join(tag for tag in ("`PB`" if p["pb"] else "", "`B50`" if p["in_b50"] else "") if tag)
             clock = stamp(p["when"], "t") if p["when"] else f"`{p['time']}`"
+            if drawn:
+                # the image has the play's figures and flags; the clock stays, since only here does it follow the reader's zone
+                lines.append(f"{clock} {chart_link(p['title'], p['chart_type'], p['difficulty'], p.get('cover', ''), limit=16)} {short}")
+                continue
             lines.append(f"{clock} {chart_link(p['title'], p['chart_type'], p['difficulty'], p.get('cover', ''), limit=16)} {flags}\n-# {short} {level_text(p['level'], p.get('constant'))} · {score}")
-        embed.add_field(name=f"{_short_day(_day_label(day))} · {len(group)}", value=_fit(lines), inline=True)
+        if drawn:
+            add_link_run(embed, f"{_short_day(_day_label(day))} · {len(group)}", lines)
+        else:
+            embed.add_field(name=f"{_short_day(_day_label(day))} · {len(group)}", value=_fit(lines), inline=True)
     stored = count_play_history(cached.user_id)
     kept = f" · {stored} plays kept in your history" if stored else ""
-    embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"PB = matches your current best · B50 = counts toward your rating · days are JST · every play in the image{kept}")
+    legend = "" if drawn else "PB = matches your current best · B50 = counts toward your rating · "
+    embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{legend}days are JST · every play in the image{kept}")
     view = RecentView(owner_id, shown, page, pages, from_cache(owner_id, lambda c, p: build_recent(c, owner_id, p))) if owner_id is not None else None
     return embed, files, view
 

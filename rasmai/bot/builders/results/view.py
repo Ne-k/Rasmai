@@ -304,18 +304,19 @@ async def show_results(interaction: discord.Interaction, cached: CachedAnalysis,
                        level: Optional[str] = None) -> None:
     if mode not in ("profile", "traits"):
         await ensure_target_play_counts(interaction, cached, challenge)
+    text_only = output == "embed"
     if mode == "traits":
-        embed, files, _view = await build_traits(cached)
+        embed, files, _view = await build_traits(cached, text_only=text_only)
     elif mode == "plan":
-        embed, files, page = await build_plan(cached, target, stretch, page, challenge, difficulty, min_level)
+        embed, files, page = await build_plan(cached, target, stretch, page, challenge, difficulty, min_level, text_only=text_only)
     elif mode == "session":
-        embed, files = await build_session(cached, credits, challenge, difficulty)
+        embed, files = await build_session(cached, credits, challenge, difficulty, text_only=text_only)
     elif mode == "new":
-        embed, files, page = await build_new(cached, difficulty, challenge, focus, level, page)
+        embed, files, page = await build_new(cached, difficulty, challenge, focus, level, page, text_only=text_only)
     elif mode == "profile":
-        embed, files = await build_profile(cached)
+        embed, files = await build_profile(cached, text_only=text_only)
     else:
-        embed, files = await build_analyze(cached, challenge, level)
+        embed, files = await build_analyze(cached, challenge, level, text_only=text_only)
     note_read_age(embed, cached)
     image_files = [f for f in files if f.filename != "avatar.png"]
     if output == "image" and not image_files:

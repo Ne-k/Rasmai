@@ -90,7 +90,8 @@ def cover_html_factory(jacket_path: str):
 def generate_poster_html(recommendations: List[Recommendation], player_name: str, player_rating: int,
                          fc: int, fc_plus: int, clears: int, avatar_base64: str = "",
                          jacket_path: str = "otoge_cache/jackets/",
-                         plan: Optional["analysis.Plan"] = None, image_gain: Optional[int] = None, scope: str = "") -> str:
+                         plan: Optional["analysis.Plan"] = None, image_gain: Optional[int] = None, scope: str = "",
+                         summary: Optional[Dict[str, Any]] = None, counts: str = "") -> str:
     movers = [r for r in recommendations if r.category not in ("near", "try")]
     scope_html = f" &middot; {scope}" if scope else ""       # our own wording ("level 13+"), never the player's text
     near = [r for r in recommendations if r.category == "near"]
@@ -187,12 +188,19 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
             f"covers the full +{plan.needed}" if plan.reached
             else f"+{plan.total} of the +{plan.needed} needed &middot; {plan.shortfall} short"
         )
+        fresh = plan.gap_steps
+        notes = [f"worth about +{plan.expected_gain:.0f} by odds"]
+        if fresh:
+            notes.append(f"{len(fresh)} never played, worth +{plan.gap_gain}")
+        elif not plan.reached:
+            notes.append("no unplayed chart would clear your best 50 on a first pass")
         road_html = f"""
         <section class="road">
             <div class="road-head">
                 <div>
                     <div class="section-label">Road to {plan.goal_rating}</div>
                     <div class="road-verdict">{verdict}</div>
+                    <div class="road-note">{" &middot; ".join(notes)}</div>
                 </div>
                 <div class="road-stretch">
                     <div class="value">{plan.average_stretch:+.1f}%</div>
@@ -227,6 +235,25 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
         for label, value in (("FC", fc), ("FC+", fc_plus), ("Clears", clears))
         if value
     )
+
+    tiles_html = ""
+    if summary:
+        profile, best50 = summary.get("profile", {}), summary.get("best50", {})
+        open_slots = best50.get("newSlotsOpen", 0) + best50.get("oldSlotsOpen", 0)
+        tiles = (
+            ("Style", html_escape(str(profile.get("style", "unknown")).title()),
+             f"{profile.get('fcRate', 0) * 100:.0f}% FC &middot; {profile.get('apRate', 0) * 100:.0f}% AP &middot; "
+             f"{profile.get('dxScoreRate', 0) * 100:.0f}% DX score<br>leans {html_escape(str(profile.get('favoriteChartType', '?')).upper())}"),
+            ("Levels", f"{profile.get('comfortConstant', 0)}<small>comfort</small>",
+             f"reach {profile.get('reachConstant', 0)} &middot; hardest S {profile.get('hardestS', 0)}<br>"
+             f"{profile.get('expectedAt13', 0)}% on 13s &middot; {profile.get('expectedAt14', 0)}% on 14s"),
+            ("Best 50", str(best50.get("total", 0)),
+             f"{best50.get('newTotal', 0)} new + {best50.get('oldTotal', 0)} old<br>cutoffs {best50.get('newCutoff', 0)} / {best50.get('oldCutoff', 0)}"
+             + (f" &middot; {open_slots} slots empty" if open_slots else "")),
+        )
+        tiles_html = '<section class="tiles">' + "".join(
+            f'<div class="tile"><div class="k">{label}</div><div class="v">{value}</div><div class="s">{detail}</div></div>'
+            for label, value, detail in tiles) + "</section>"
 
     poster_css = styleimage()
     return f"""<!DOCTYPE html>
@@ -271,13 +298,14 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
   </div>
   <div class="col">
   {road_html}
+  {tiles_html}
   </div>
   </div>
 
   {near_html}
 
   <footer>
-    <span>Rasmai &middot; {html_escape(site_label())} &middot; maimai DX</span>
+    <span>Rasmai &middot; {html_escape(site_label())} &middot; maimai DX{" &middot; " + html_escape(counts) if counts else ""}</span>
     <span>{datetime.now().strftime('%d %B %Y')}</span>
   </footer>
 </div>

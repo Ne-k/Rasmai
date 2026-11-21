@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple, Any
 import base64
+import re
 import discord
 from rasmai.bot.ui import palette
 import io
@@ -124,8 +125,9 @@ def chart_link(title: str, chart_type: str = "", difficulty: str = "", cover: st
     return f"[**{label}**]({chart_url(title, chart_type, difficulty, cover)})"
 
 
-def format_picks_markdown(recommendations: List[Recommendation], limit: int = 8) -> str:
-    """The 'play these now' list, one line per chart.
+def format_picks_markdown(recommendations: List[Recommendation], limit: int = 8, start: int = 1, stats: bool = True) -> str:
+    """The 'play these now' list, one line per chart, numbered from `start` as the image numbers them. Without `stats` a line
+    is the chart's link alone, for a reply whose image already shows the figures, and every line is returned for add_link_run.
 
     :param recommendations: The charts worth playing, best first.
     :type recommendations: List[Recommendation]
@@ -134,17 +136,46 @@ def format_picks_markdown(recommendations: List[Recommendation], limit: int = 8)
     :rtype: str
     """
     lines: List[str] = []
-    movers = [r for r in recommendations if r.category not in ("near", "try")][:limit]
-    for index, rec in enumerate(movers, 1):
+    movers = [r for r in recommendations if r.category not in ("near", "try")][start - 1:start - 1 + limit]
+    for index, rec in enumerate(movers, start):
         tier = emoji.difficulty(rec.difficulty_type) or TIER_SHORT.get(rec.difficulty_type, rec.difficulty_type[:3].upper())
         played = "new" if rec.is_unplayed else f"{rec.current_accuracy:.2f}"
+        name = f"`{index:>2}` {chart_link(rec.song, rec.chart_type, rec.difficulty_type, rec.cover_url)} {tier} {level_text(rec.level, rec.difficulty)}"
+        if not stats:
+            lines.append(name)
+            continue
         lines.append(
-            f"`{index:>2}` {chart_link(rec.song, rec.chart_type, rec.difficulty_type, rec.cover_url)} {tier} {level_text(rec.level, rec.difficulty)}\n"
+            f"{name}\n"
             f"-# {played} → **{rec.target_accuracy:.2f}** · **+{rec.potential_gain}** · {rec.feasibility * 100:.0f}%"
             + (" · constant estimated, not in the database yet" if getattr(rec, "estimated", False) else "")
             + (" · one run, far under your usual here" if "one run" in str(rec.value_chart_reason or "") else "")
         )
-    return _fit(lines)
+    return _fit(lines) if stats else "\n".join(lines)
+
+
+def add_link_run(embed: discord.Embed, name: str, lines: List[str]) -> None:
+    """Link lines as one run under a heading in the description, each cut back to what leads up to its link: its number, or a
+    play's time. Beside an image that shows the rest, a column of link lines wraps at every title; a run reads across the embed.
+
+    :param embed: The embed being built.
+    :type embed: discord.Embed
+    :param name: The heading over the run.
+    :type name: str
+    :param lines: The link lines, as a field would have listed them.
+    :type lines: List[str]
+    """
+    # a number padded to line up down a column has nothing to line up with in a run
+    links = [re.sub(r"^` +", "`", match.group(0)) for match in (re.match(r".*?\]\([^)]*\)", line) for line in lines) if match]
+    if not links:
+        return
+    said = embed.description or ""
+    block = f"**{name}**\n"
+    for at, link in enumerate(links):
+        # Discord's cap on a description: a link that would cross it is left off whole, never cut in two
+        if len(said) + len(block) + len(link) + 4 > 4096:
+            break
+        block += (" · " if at else "") + link
+    embed.description = "\n".join(part for part in (said, block) if part)
 
 
 def format_try_markdown(recommendations: List[Recommendation], limit: int = 6) -> str:
@@ -167,7 +198,7 @@ def format_try_markdown(recommendations: List[Recommendation], limit: int = 6) -
     return _fit(lines)
 
 
-def format_plan_markdown(plan: Optional["analysis.Plan"], limit: int = 12, start: int = 1) -> str:
+def format_plan_markdown(plan: Optional["analysis.Plan"], limit: int = 12, start: int = 1, stats: bool = True) -> str:
     """Compact route: one line per step with a running total, numbered from `start`.
 
     :param plan: The route to a rating target.
@@ -187,10 +218,10 @@ def format_plan_markdown(plan: Optional["analysis.Plan"], limit: int = 12, start
         mark = emoji.emoji("new")
         flag = (f" {mark} **NEW**" if mark else " **NEW**") if option.is_unplayed else ""
         lines.append(
-            f"`{index:>2}` {chart_link(option.title, option.chart_type, option.difficulty_type, option.cover)}{flag} {tier} {level_text(option.level, option.constant)}\n"
-            f"-# → **{option.target_accuracy:.2f}** · +{step.gain} · {option.feasibility * 100:.0f}% · Σ **{step.cumulative}**"
+            f"`{index:>2}` {chart_link(option.title, option.chart_type, option.difficulty_type, option.cover)}{flag} {tier} {level_text(option.level, option.constant)}"
+            + (f"\n-# → **{option.target_accuracy:.2f}** · +{step.gain} · {option.feasibility * 100:.0f}% · Σ **{step.cumulative}**" if stats else "")
         )
-    return _fit(lines)
+    return _fit(lines) if stats else "\n".join(lines)
 
 
 def add_profile_fields(embed: discord.Embed, summary: Dict[str, Any]) -> None:

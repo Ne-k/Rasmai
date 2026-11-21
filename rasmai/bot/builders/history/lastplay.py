@@ -93,6 +93,8 @@ def _sign_in(cached: CachedAnalysis) -> None:
 
 
 async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
+    """One play off the recent list. With its card drawn, the embed keeps the chart's link, when it was played in the reader's
+    own zone and its place in the list; without it, every figure and the judgement table."""
     a = cached.analyzer
     player = a.player
     plays = recent_plays(cached)
@@ -108,13 +110,16 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
         cached.images[card_key] = await try_render(play_card_html(
             play, detail, cover_html_factory(a.jacket_path), player.name, cached.start_rating, player.avatar_base64, date_text=today(),
         ))
+    drawn = cached.images[card_key] is not None
     files, avatar_url = message_files(player, cached.images[card_key], "rasmai-play.png")
+    when = stamp(play["when"], "f") if play["when"] else ""
     embed = discord.Embed(
         title=f"{play['title']}",
         url=chart_url(play["title"], play["chart_type"], play["difficulty"], play.get("cover", "")),
-        description=(f"**{TIER_NAMES.get(play['difficulty'], play['difficulty'].upper())} {play['level']}** · "
-                     f"{play['chart_type'].upper()} · {detail.get('track') or play['track']} · "
-                     + (stamp(play["when"], "f") if play["when"] else str(detail.get("played_at") or play["day"]))),
+        description=(when or None) if drawn else (
+            f"**{TIER_NAMES.get(play['difficulty'], play['difficulty'].upper())} {play['level']}** · "
+            f"{play['chart_type'].upper()} · {detail.get('track') or play['track']} · "
+            + (when or str(detail.get("played_at") or play["day"]))),
         color=palette.PLAYER,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
@@ -122,6 +127,11 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
     if thumb:
         files.append(thumb)
         embed.set_thumbnail(url=f"attachment://{thumb.filename}")
+    embed.set_footer(text=f"play {position} of {len(plays)} · newest first")
+    refs = charts_for(play["title"], a.chart_index)
+    view = LastPlayView(owner_id, position, len(plays), play["title"], page_index(refs, play["chart_type"], play["difficulty"]))
+    if drawn:
+        return embed, files, view
     achievement = detail.get("achievement") or play["achievement"] or 0.0
     lamp = emoji.lamps(play["fc"], play["fs"])
     shown_rank = rank_for(achievement)
@@ -152,9 +162,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
         rows.append(f"{'ALL':7s}{totals['critical']:>6}{totals['perfect']:>6}{totals['great']:>6}{totals['good']:>6}{totals['miss']:>6}")
         cost = lost_text(detail)
         embed.add_field(name="Judgements", value="```\n" + "\n".join(rows) + "\n```" + (f"\n-# lost to {cost}" if cost else ""), inline=False)
-    embed.set_footer(text=f"play {position} of {len(plays)} · newest first")
-    refs = charts_for(play["title"], a.chart_index)
-    return embed, files, LastPlayView(owner_id, position, len(plays), play["title"], page_index(refs, play["chart_type"], play["difficulty"]))
+    return embed, files, view
 
 
 class LastPlayView(OwnerOnlyView):

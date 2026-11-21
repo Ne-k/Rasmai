@@ -21,7 +21,10 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
     table = ""
     for r in rows:
         label, ink = tier(r["difficulty"])
-        cls = ' class="pick"' if highlight and r["difficulty"] == highlight else ""
+        cls = ' class="pick"' if highlight and f'{r["chart_type"]} {r["difficulty"]}' == highlight else ""
+        notes = f'{r["notes"]:,}' if r.get("notes") else "—"
+        if r.get("designer"):
+            notes += f'<br />{_esc(r["designer"])}'
         if r.get("played"):
             score = f'<span class="big">{r["accuracy"]:.4f}<small>{_esc(r["rank"])}</small></span>'
             rate = f'<span class="big">{r["rating"]}</span>'
@@ -40,6 +43,7 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
         <tr style="--tier:{ink};"{cls}>
           <td><span class="badge">{label} {_esc(r["level"])}<small>{_esc(r["chart_type"].upper())}</small></span></td>
           <td class="num">{r["constant"]:.1f}</td>
+          <td class="num">{notes}</td>
           <td>{score}</td>
           <td>{rate}</td>
           <td class="num">{lamp}</td>
@@ -47,16 +51,19 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
           <td class="num">{plays}</td>
           <td class="num">{_esc(r.get("note", ""))}</td>
         </tr>"""
+    # what the reply's text used to say about the chart it opened on, under the song's own lines, the chart's name first
+    about = "".join("<br />" + (f"<b>{_esc(line)}</b>" if index == 0 else _esc(line))
+                    for r in rows for index, line in enumerate(r.get("about", ())))
     body = f"""
     <div class="card-head">
       {cover_html(cover, "song-cover")}
       <div>
         <div class="card-title">{_esc(title)}</div>
-        <div class="card-sub">{_esc(artist)}<br />{" · ".join(_esc(f) for f in ([genre, version_label] + list(facts)) if f)}<br />your best-50 cutoffs: <b>{_esc(cutoffs)}</b></div>
+        <div class="card-sub">{_esc(artist)}<br />{" · ".join(_esc(f) for f in ([genre, version_label] + list(facts)) if f)}<br />your best-50 cutoffs: <b>{_esc(cutoffs)}</b>{about}</div>
       </div>
     </div>
     <table class="difftable">
-      <thead><tr><th>Chart</th><th>Const</th><th>Your score</th><th>Rating</th><th>Lamp</th><th>DX score</th><th>Plays</th><th>Best-50</th></tr></thead>
+      <thead><tr><th>Chart</th><th>Const</th><th>Notes</th><th>Your score</th><th>Rating</th><th>Lamp</th><th>DX score</th><th>Plays</th><th>Best-50</th></tr></thead>
       <tbody>{table}</tbody>
     </table>"""
     if ladder:
@@ -81,8 +88,9 @@ RANK_LINES = ((80.0, "A"), (90.0, "AA"), (94.0, "AAA"), (97.0, "S"), (98.0, "S+"
 
 def history_card_html(title: str, difficulty: str, level: str, chart_type: str, cover: str, cover_html: CoverFn,
                       points: Sequence[Dict[str, Any]], player_name: str, rating: int, avatar_b64: str,
-                      date_text: str = "") -> str:
-    """Achievement over time for one chart: every recorded play as a dot, the best so far as a line.
+                      date_text: str = "", constant: float = 0.0) -> str:
+    """Achievement over time for one chart: every recorded play as a dot, the best so far as a line, and the figures
+    the reply's text used to carry as tiles beside the jacket.
 
     :param title: The song title.
     :type title: str
@@ -106,8 +114,11 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
     :type avatar_b64: str
     :param date_text: The date to print on the image.
     :type date_text: str
+    :param constant: The chart's internal difficulty constant, as it stands today.
+    :type constant: float
     :rtype: str
     """
+    from rasmai.engine.analysis import rank_for
     label, ink = tier(difficulty)
     width, height = 1480, 520
     left, right, top, bottom = 124, 36, 28, 60
@@ -165,7 +176,7 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
         last_x = -1e9
         for index in labels:
             x = x_at(points[index]["when"], index)
-            if x - last_x < 120:
+            if x - last_x < 160:
                 continue
             last_x = x
             anchor = "start" if index == 0 else "end" if index == len(points) - 1 else "middle"
@@ -180,6 +191,18 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
                    'no scores recorded yet - they build up from each analysis and your recent plays</text>')
 
     plays = [p for p in points if p.get("source") != "best"]
+    tiles = []
+    if points:
+        tiles = [("Best", f"{high:.4f}<small>%</small>", rank_for(high)),
+                 ("Latest", f"{values[-1]:.4f}<small>%</small>", points[-1]["when"].strftime("%d %b %Y")),
+                 ("First", f"{values[0]:.4f}<small>%</small>", f"{high - values[0]:+.4f} to your best")]
+    if plays:
+        recent = [float(p["achievement"]) for p in plays[-5:]]
+        tiles.append((f"Last {len(recent)} seen", f"{sum(recent) / len(recent):.4f}<small>%</small>", "average"))
+    was = float(points[0].get("constant") or constant) if points else constant
+    if constant:
+        tiles.append(("Constant", f"{constant:.1f}", f"{was:.1f} when first recorded" if abs(was - constant) >= 0.05 else "&nbsp;"))
+    tile_html = "".join(f'<div class="tile"><div class="k">{k}</div><div class="v">{v}</div><div class="s">{s}</div></div>' for k, v, s in tiles)
     body = f"""
     <div class="card-head hist-head">
       {cover_html(cover, "song-cover")}
@@ -187,6 +210,7 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
         <div class="card-title">{_esc(title)}</div>
         <div class="card-sub" style="--tier:{ink};"><span class="badge">{label} {_esc(level)}<small>{_esc(chart_type.upper())}</small></span></div>
         <div class="hist-legend"><span class="sw best"></span>best so far <span class="sw play"></span>play seen in your recent list <span class="sw mark"></span>best read from your scores</div>
+        <div class="stat-row">{tile_html}</div>
       </div>
     </div>
     <svg class="hist" viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(svg)}</svg>"""
@@ -229,12 +253,14 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
     </table>""" if judge_rows else ""
     change = int(detail.get("rating_change") or 0)
     tiles = [
-        ("Achievement", f"{achievement:.4f}<small>%</small>", play.get("rank", "")),
-        ("DX score", f"{dx:,}<small>/ {max_dx:,}</small>", star_marks(stars)),
+        ("Achievement", f"{achievement:.4f}<small>%</small>",
+         str(play.get("rank", "")) + (f" · rating {play['chart_rating']}" if play.get("chart_rating") else "")),
+        ("DX score", f"{dx:,}<small>/ {max_dx:,}</small>", star_marks(stars) + (f" {100.0 * dx / max_dx:.1f}%" if max_dx else "")),
         ("Combo", f"{int(detail.get('combo') or 0):,}<small>/ {int(detail.get('max_combo') or 0):,}</small>",
          f"sync {int(detail.get('sync') or 0):,} / {int(detail.get('max_sync') or 0):,}" if detail.get("max_sync") else "&nbsp;"),
         ("Timing", f"{int(detail.get('fast') or 0)}<small>fast</small> {int(detail.get('late') or 0)}<small>late</small>", "&nbsp;"),
-        ("Rating after", f"{int(detail.get('rating') or rating)}<small>{change:+d}</small>", "in best-50" if play.get("in_b50") else ("new best" if play.get("pb") else "&nbsp;")),
+        ("Rating after", f"{int(detail.get('rating') or rating)}<small>{change:+d}</small>",
+         " · ".join(text for flag, text in ((play.get("in_b50"), "in best-50"), (play.get("pb"), "new best")) if flag) or "&nbsp;"),
     ]
     tile_html = "".join(f'<div class="tile"><div class="k">{_esc(k)}</div><div class="v">{v}</div><div class="s">{s}</div></div>' for k, v, s in tiles)
     lamp = _fc(play.get("fc"), play.get("fs"))
@@ -284,25 +310,28 @@ def compare_image_html(me: Dict[str, Any], them: Dict[str, Any], levels: Sequenc
       <div class="side"><h3>{_esc(them["name"])}</h3>{side(them)}</div>
     </div>
     <div class="section-label">Average on shared charts · {common} in common</div>
-    <div class="vs-row" style="border-top:none;color:var(--paper-dim);font-size:12px"><span style="text-align:right">{_esc(me["name"])}</span><span class="lv">level</span><span>{_esc(them["name"])}</span></div>
+    <div class="vs-row" style="border-top:none;color:var(--paper-dim);font-size:14px"><span style="text-align:right">{_esc(me["name"])}</span><span class="lv">level</span><span>{_esc(them["name"])}</span></div>
     {level_rows}
     <div class="two">
       <div class="side"><h3>Your biggest leads</h3>{leads(my_leads)}</div>
       <div class="side"><h3>Their biggest leads</h3>{leads(their_leads)}</div>
     </div>"""
-    counters = [("Common", str(common)), ("You lead", str(me["leads"])), ("They lead", str(them["leads"]))]
+    counters = [("Common", str(common)), ("You lead", str(me["leads"])), ("They lead", str(them["leads"])),
+                ("Tied", str(common - me["leads"] - them["leads"]))]
     diff = int(me["rating"]) - int(them["rating"])
     return _card(f"vs {them['name']}", me["name"], avatar_b64, counters, f"{diff:+d}", "rating difference", body, date_text)
 
 
 # ---------------------------------------------------------------- /leaderboard
 
-def leaderboard_image_html(guild_name: str, rows: Sequence[Tuple[int, str, str, str]], date_text: str = "") -> str:
+def leaderboard_image_html(guild_name: str, rows: Sequence[Tuple[int, str, str, str]], date_text: str = "",
+                           start: int = 0, size: int = 20) -> str:
+    """The board, `size` players from `start`: the page the reply is on, under the count and the top rating of the whole board."""
     table = "".join(
-        f'<tr><td class="pos">{position}</td><td>{_esc(display)}{(" <span class=dim>· " + _esc(maimai) + "</span>") if maimai and maimai != display else ""}</td>'
+        f'<tr{" class=top" if position <= 3 else ""}><td class="pos">{position}</td><td>{_esc(display)}{(" <span class=dim>· " + _esc(maimai) + "</span>") if maimai and maimai != display else ""}</td>'
         f'<td class="dim">{_esc(region.upper()) if region != "intl" else ""}</td><td class="rt">{rating}</td></tr>'
-        for position, (rating, display, maimai, region) in enumerate(rows, 1)
+        for position, (rating, display, maimai, region) in enumerate(rows[start:start + size], start + 1)
     )
     body = f'<table class="board"><tbody>{table}</tbody></table>'
-    counters = [("Players", str(len(rows)))]
+    counters = [("Opted in", str(len(rows)))]
     return _card("Rating leaderboard", guild_name, "", counters, str(rows[0][0]) if rows else "—", "top rating", body, date_text)

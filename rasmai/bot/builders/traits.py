@@ -38,7 +38,7 @@ def _practice_lines(axis: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[st
     return lines
 
 
-async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[discord.File], None]:
+async def build_traits(cached: CachedAnalysis, text_only: bool = False) -> Tuple[discord.Embed, List[discord.File], None]:
     """Where the player loses points and where they shine, what to practice, and what they play like everything else.
 
     Three tiers of trait are shown. Confirmed traits beat shuffled tags and keep their sign in
@@ -47,8 +47,13 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     hints and marked. Even traits sit inside the noise: knowing that streams are not a weakness
     is information too.
 
+    With the picture drawn, the embed leaves to it what it shows: the counts, the two lists and the judgements. Without one
+    (`text_only`, or a render that failed) the embed carries every figure.
+
     :param cached: The player's analysis, held in memory.
     :type cached: CachedAnalysis
+    :param text_only: Leave the picture out, and say everything in the embed.
+    :type text_only: bool
     :rtype: Tuple[discord.Embed, List[discord.File], None]
     """
     from rasmai.bot.builders.results import _image
@@ -63,15 +68,24 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
     # the lists and the wheel are picked the way the dashboard picks them, so the picture and the page name the same traits
     weak, strong = insights.two_sides(confirmed, axes)
 
+    level = [english_label(str(t["label"])) for t in even[:2]]
+    among = f", {' and '.join(level)} among them" if level else ""
+    counted = (f"**{len(confirmed)}** confirmed · **{len(leaning)}** leaning · **{len(even)}** level with your usual score{among} · "
+               f"from **{sample}** scored charts and every recorded play") if weak or strong else ""
+    judged = judgement_profile(load_judgements(cached.user_id))
     shot = None
     families = [{"dimension": "family", "label": f["label"], "offset": f["offset"], "count": f["charts"], "verified": f["verified"], "leaning": not f["verified"]}
                 for f in insights.family_axes(axes)]
     wheel = families if len(families) >= 3 else insights.radar_axes(axes)
-    if len(wheel) >= 3:
-        shot = await _image(cached, "traits", lambda: traits_image_html(
+    if len(wheel) >= 3 and not text_only:
+        # the judgement pages arrive in the background after the first reply, so a picture made before them is not kept for after
+        shot = await _image(cached, f"traits:{judged['plays'] if judged else 0}", lambda: traits_image_html(
             wheel, weak, strong, player.name, cached.start_rating, player.avatar_base64, sample, date_text=cached.extras.get("date", ""),
+            summary=counted,
+            judgements=[*_judgement_lines(judged).split("\n"), f"read from **{judged['plays']}** plays' judgement pages"] if judged else (),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-traits.png")
+    drawn = shot is not None
     embed = discord.Embed(title="Your traits", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
 
@@ -90,11 +104,8 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
 
             embed.add_field(name="Largest measured, none confirmed",
                             value=_fit([_measured(t) for t in largest]), inline=False)
-    else:
-        level = [english_label(str(t["label"])) for t in even[:2]]
-        among = f", {' and '.join(level)} among them" if level else ""
-        embed.description = (f"**{len(confirmed)}** confirmed · **{len(leaning)}** leaning · **{len(even)}** level with your usual score{among} · "
-                             f"from **{sample}** scored charts and every recorded play")
+    elif not drawn:
+        embed.description = counted
         if weak:
             embed.add_field(name="Where you lose points", value=_lines(weak), inline=True)
         if strong:
@@ -107,13 +118,12 @@ async def build_traits(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disc
             practice.extend(_practice_lines(axis, rows))
     if practice:
         embed.add_field(name="Work on", value=_fit(practice), inline=False)
-    judged = judgement_profile(load_judgements(cached.user_id))
-    if judged:
+    if judged and not drawn:
         embed.add_field(name="Judgements, measured", value=_judgement_lines(judged), inline=False)
     footer = "against your own curve · confirmed beats shuffled tags, leaning is a hint · tags via maiノーツ"
     if any(t["dimension"] == "judgement" for t in weak + strong):
         footer += " · note types measured from your judgement pages"
-    if judged:
+    if judged and not drawn:
         footer += f" · judgements from {judged['plays']} plays"
     embed.set_footer(text=footer)
     return embed, files, None
@@ -127,7 +137,7 @@ def judgement_summary(judged: Dict[str, Any]) -> str:
     :rtype: str
     """
     top = max(judged["types"], key=lambda t: t["lossShare"])
-    parts = [f"**{top['kind']}s** carry {top['lossShare'] * 100:.0f}% of what you lose on {top['share'] * 100:.0f}% of the notes"]
+    parts = [f"**{top['kind']}{'es' if top['kind'] == 'touch' else 's'}** carry {top['lossShare'] * 100:.0f}% of what you lose on {top['share'] * 100:.0f}% of the notes"]
     share = judged.get("lateShare")
     if share is not None and (share >= 0.6 or share <= 0.4):
         parts.append(f"hits land **{'late' if share >= 0.6 else 'early'} {max(share, 1 - share) * 100:.0f}%** of the time")

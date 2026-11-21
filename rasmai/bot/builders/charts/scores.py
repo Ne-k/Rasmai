@@ -5,7 +5,7 @@ from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import rank_for
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, level_text, message_files, today
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, add_link_run, chart_link, level_text, message_files, today
 from rasmai.bot.state.snapshots import chart_key
 from rasmai.images.render import cover_html_factory
 from rasmai.bot.ui.emoji import dx_stars
@@ -14,6 +14,7 @@ from rasmai.bot.builders.charts.index import songs_by_key
 from rasmai.bot.ui.views import PagedView, from_cache
 
 PAGE = 8          # two-line entries per field: eight sit inside Discord's field cap
+DRAWN = 30        # rows of /dxscore's table in the image
 
 
 def dxscore_rows(cached: CachedAnalysis) -> Tuple[Dict[int, int], List[Dict[str, Any]], float]:
@@ -61,22 +62,37 @@ async def build_dxscore(cached: CachedAnalysis, owner_id: Optional[int] = None, 
     shot = None
     if rows or any(tiles.values()):
         shot = await _image(cached, "dxscore", lambda: dxscore_image_html(
-            tiles, rows[:30], player.name, cached.start_rating, player.avatar_base64,
+            tiles, rows[:DRAWN], player.name, cached.start_rating, player.avatar_base64,
             cover_html_factory(a.jacket_path), average, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-dxscore.png")
+    drawn = shot is not None
     embed = discord.Embed(title="DX score", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     total = sum(tiles.values())
-    embed.description = (f"**{tiles[5]}** five-star charts of **{total}** · average **{average * 100:.1f}%** of max DX score\n"
-                         f"-# {dx_stars(5)} 97% · {dx_stars(4)} 95% · {dx_stars(3)} 93% · {dx_stars(2)} 90% · {dx_stars(1)} 85%")
-    embed.add_field(name="By star", value="\n".join(f"{dx_stars(s)} **{tiles[s]}**" for s in (5, 4, 3, 2, 1, 0)), inline=True)
-    lines = [
-        f"`{r['short']:>4}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {TIER_SHORT.get(r['difficulty'], '')} {level_text(r['level'], r.get('constant'))}\n-# {r['dx']:,}/{r['max_dx']:,} · {dx_stars(r['stars'])} → {dx_stars(r['stars'] + 1)}"
-        for r in rows[page * PAGE:(page + 1) * PAGE]
-    ]
-    embed.add_field(name="Points short of the next star" + (f" · {page * PAGE + 1}-{min((page + 1) * PAGE, len(rows))} of {len(rows)}" if len(rows) > PAGE else ""),
-                    value=_fit(lines) if lines else "Every chart is already five stars.", inline=True)
+    if not drawn:
+        embed.description = (f"**{tiles[5]}** five-star charts of **{total}** · average **{average * 100:.1f}%** of max DX score\n"
+                             f"-# {dx_stars(5)} 97% · {dx_stars(4)} 95% · {dx_stars(3)} 93% · {dx_stars(2)} 90% · {dx_stars(1)} 85%")
+        embed.add_field(name="By star", value="\n".join(f"{dx_stars(s)} **{tiles[s]}**" for s in (5, 4, 3, 2, 1, 0)), inline=True)
+
+    def line(index: int, r: Dict[str, Any]) -> str:
+        name = f"{chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {TIER_SHORT.get(r['difficulty'], '')} {level_text(r['level'], r.get('constant'))}"
+        figures = f"{r['dx']:,}/{r['max_dx']:,} · {dx_stars(r['stars'])} → {dx_stars(r['stars'] + 1)}"
+        if not drawn:
+            return f"`{r['short']:>4}` {name}\n-# {figures}"
+        # numbered as the image's table numbers them; past its last row a line still carries its figures, the stars as digits
+        # because five star emoji a side would not leave room for the page
+        return f"`{index:>2}` {name}" + (f"\n-# {r['short']} short · {r['dx']:,}/{r['max_dx']:,} · {r['stars']}★ → {r['stars'] + 1}★" if index > DRAWN else "")
+
+    lines = [line(index, r) for index, r in enumerate(rows[page * PAGE:(page + 1) * PAGE], page * PAGE + 1)]
+    name = ("Closest to the next star" if drawn else "Points short of the next star") + (f" · {page * PAGE + 1}-{min((page + 1) * PAGE, len(rows))} of {len(rows)}" if len(rows) > PAGE else "")
+    if drawn and lines and page * PAGE + len(lines) <= DRAWN:
+        add_link_run(embed, name, lines)
+    else:
+        # lines with figures are twice the length, so a page of them is two fields
+        halves = [lines[:PAGE // 2], lines[PAGE // 2:]] if drawn and lines else [lines]
+        for at, half in enumerate([h for h in halves if h] or [[]]):
+            embed.add_field(name="\u200b" if at else name, value=_fit(half) if half else "Every chart is already five stars.", inline=True)
     embed.set_footer(text="max DX score = notes × 3, from otoge-db" + (f" · page {page + 1}/{pages}" if pages > 1 else "") + " · closest thirty in the image, forty-eight in the text")
     view = PagedView(owner_id, page, pages, from_cache(owner_id, lambda c, p: build_dxscore(c, owner_id, p))) if owner_id is not None and pages > 1 else None
     return embed, files, view
@@ -121,26 +137,33 @@ async def build_b50(cached: CachedAnalysis, owner_id: Optional[int] = None, page
         cover_html_factory(a.jacket_path), b50.new_pool.total, b50.old_pool.total, date_text=today(),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-b50.png")
+    drawn = shot is not None
     embed = discord.Embed(title=f"Best 50 · {b50.total}", color=palette.RATING)
     embed.set_author(name=player.name, icon_url=avatar_url)
-    embed.description = (f"**{b50.new_pool.total}** from {len(new_entries)} current-version charts · "
-                         f"**{b50.old_pool.total}** from {len(old_entries)} older charts\n"
-                         f"-# cutoffs {b50.new_pool.cutoff} / {b50.old_pool.cutoff}"
-                         + (f" · {b50.new_pool.headroom() + b50.old_pool.headroom()} slots open" if b50.new_pool.headroom() + b50.old_pool.headroom() else ""))
+    if not drawn:
+        embed.description = (f"**{b50.new_pool.total}** from {len(new_entries)} current-version charts · "
+                             f"**{b50.old_pool.total}** from {len(old_entries)} older charts\n"
+                             f"-# cutoffs {b50.new_pool.cutoff} / {b50.old_pool.cutoff}"
+                             + (f" · {b50.new_pool.headroom() + b50.old_pool.headroom()} slots open" if b50.new_pool.headroom() + b50.old_pool.headroom() else ""))
 
     start = page * PAGE
 
     def lines(entries: List[Dict[str, Any]]) -> str:
+        # the image's cards carry each chart's figures under the same number
         return _fit([
-            f"`{i:>2}` {chart_link(e['title'], e['chart_type'], e['difficulty'], e.get('cover', ''))} {TIER_SHORT.get(e['difficulty'], '')} {level_text(e['level'], e.get('constant'))}\n-# {e['accuracy']:.4f} {e['rank']} · **{e['rating']}**"
+            f"`{i:>2}` {chart_link(e['title'], e['chart_type'], e['difficulty'], e.get('cover', ''))} {TIER_SHORT.get(e['difficulty'], '')} {level_text(e['level'], e.get('constant'))}"
+            + ("" if drawn else f"\n-# {e['accuracy']:.4f} {e['rank']} · **{e['rating']}**")
             for i, e in enumerate(entries[start:start + PAGE], start + 1)
         ]) if len(entries) > start else "-# no more on this page"
 
     def span(entries: List[Dict[str, Any]]) -> str:
         return f" · {start + 1}-{min(start + PAGE, len(entries))} of {len(entries)}" if len(entries) > PAGE and len(entries) > start else ""
 
-    embed.add_field(name="New version" + span(new_entries), value=lines(new_entries), inline=True)
-    embed.add_field(name="Older versions" + span(old_entries), value=lines(old_entries), inline=True)
+    for name, entries in (("New version", new_entries), ("Older versions", old_entries)):
+        if drawn:
+            add_link_run(embed, name + span(entries), lines(entries).split("\n"))
+        else:
+            embed.add_field(name=name + span(entries), value=lines(entries), inline=True)
     embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + "all 50 in the image")
     view = PagedView(owner_id, page, pages, from_cache(owner_id, lambda c, p: build_b50(c, owner_id, p))) if owner_id is not None and pages > 1 else None
     return embed, files, view

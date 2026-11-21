@@ -60,7 +60,8 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
                      ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
     """One page per chart of the song, with buttons to move between them; the card image shows them all.
 
-    `difficulty` opens straight at that tier; otherwise the page is the chart that matters most.
+    `difficulty` opens straight at that tier; otherwise the page is the chart that matters most. With the card drawn, the
+    embed keeps what the card does not show: the last play, the patterns, the unlock notes; without it, every figure.
 
     :param cached: The player's analysis, held in memory.
     :type cached: Optional[CachedAnalysis]
@@ -96,43 +97,55 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
 
     # how often players clear it, once enough have played it; the first call after a restart builds the cohort, so not on the loop
     observed = await asyncio.to_thread(cohort_state.observed_line, ref.key)
-    embed = discord.Embed(
-        title=f"{title}",
-        description=f"{ref.artist}\n-# {ref.genre} · {_version_label(cached, ref)}",
-        color=palette.difficulty(ref.difficulty),
-    )
-    # embeds do not render markdown headings, so the chart name is a field title
-    embed.add_field(
-        name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
-        value=f"const **{ref.constant:.1f}**" + (f" · {ref.notes:,} notes" if ref.notes else "")
-              + ("" if ref.intl else " · **Japan only**") + (" · **removed from the game**" if ref.deleted else "")
-              + _note_split(ref) + _chart_credit(ref) + (f"\n-# {observed}" if observed else ""), inline=False,
-    )
-    _page_fields(embed, cached, ref, row, play, detail)
-    _pattern_field(embed, cached, ref)
+    tier = TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())
+    name = f"{tier} {ref.level} · {ref.chart_type.upper()}"
+    flags = ("" if ref.intl else " · **Japan only**") + (" · **removed from the game**" if ref.deleted else "")
+    extra = _note_split(ref) + _chart_credit(ref) + (f"\n-# {observed}" if observed else "")
+    # the card's own lines about the chart it opens on, and a note count on every row
+    row["about"] = (name + flags + extra).replace("**", "").split("\n-# ")
+    if cached and not row["played"] and cached.analyzer.play_profile:
+        usual = cached.analyzer.play_profile.expected_for(ref.constant, ref.difficulty)
+        if usual:
+            row["about"].append(f"you'd usually land ~{usual:.1f}% here")
+    for other, shown in zip(refs, rows):
+        shown["notes"] = other.notes
 
-    files: List[discord.File] = []
     forecast = prediction_for(cached, ref, row)
     if forecast:
-        forecast_text = f"a good run lands ~{forecast['expected']:.2f}% ({forecast['low']:.1f} to {forecast['high']:.1f})"
+        forecast_text = f"a good run lands ~{forecast['expected']:.2f}% {forecast['rank']} ({forecast['low']:.1f} to {forecast['high']:.1f})"
         if forecast.get("new_best") is not None:
             forecast_text += f" · {forecast['new_best'] * 100:.0f}% chance of a new best next time"
         else:
-            forecast_text += " · first pass"
+            forecast_text += " · first pass, judged from how you play this level"
+        if abs(forecast.get("tier_offset", 0.0)) >= 0.5:
+            forecast_text += f" · your {tier.title()} runs sit {forecast['tier_offset']:+.1f} against your curve"
     else:
         forecast_text = ""
-    shot = await _song_card(cached, title, refs, rows, highlight=ref.difficulty,
-                            ladder=chart_ladder(cached, ref, row),
-                            ladder_label=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level}",
+    shot = await _song_card(cached, title, refs, rows, highlight=f"{ref.chart_type} {ref.difficulty}",
+                            ladder=chart_ladder(cached, ref, row), ladder_label=f"{tier} {ref.level}",
                             forecast=forecast_text)
+    drawn = shot is not None
+    embed = discord.Embed(
+        title=f"{title}",
+        description=None if drawn else f"{ref.artist}\n-# {ref.genre} · {_version_label(cached, ref)}",
+        color=palette.difficulty(ref.difficulty),
+    )
+    if not drawn:
+        # embeds do not render markdown headings, so the chart name is a field title
+        embed.add_field(name=name, value=f"const **{ref.constant:.1f}**" + (f" · {ref.notes:,} notes" if ref.notes else "") + flags + extra,
+                        inline=False)
+    _page_fields(embed, cached, ref, row, play, detail, drawn)
+    _pattern_field(embed, cached, ref)
+
+    files: List[discord.File] = []
     if shot:
         files.append(discord.File(io.BytesIO(shot), filename="rasmai-song.png"))
     thumb = jacket_file(cached, ref.cover)
     if thumb:
         files.append(thumb)
         embed.set_thumbnail(url=f"attachment://{thumb.filename}")
-    footer = f"chart {page + 1} of {len(refs)} · constants from otoge-db"
-    if cached:
+    footer = "constants from otoge-db" if drawn else f"chart {page + 1} of {len(refs)} · constants from otoge-db"
+    if cached and not drawn:
         footer += f" · your cutoffs {_cutoffs(cached)}"
     embed.url = chart_url(title, ref.chart_type, ref.difficulty, ref.cover)
     page_info = await song_page(title, refs)
@@ -179,7 +192,8 @@ async def song_videos(title: str, refs: List[ChartRef]) -> Dict[Tuple[str, str],
 
 async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner_id: Optional[int] = None
                              ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
-    """The song itself: who made it, when it landed, and every chart it has, with your scores where they exist.
+    """The song itself: who made it, when it landed, and every chart it has, with your scores where they exist. With the
+    card drawn, the embed is the link to each chart and the unlock notes; without it, every figure.
 
     :param cached: The player's analysis, held in memory.
     :type cached: Optional[CachedAnalysis]
@@ -216,18 +230,26 @@ async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner
     if first.deleted:
         facts.append("removed from the game")
     played = [r for r in rows if r.get("played")]
+    for ref, row in zip(refs, rows):
+        row.update(notes=ref.notes, designer=chart_designer(record, ref))
+    # the card takes what the description says, less the genre and version it prints already
+    shot = await _song_card(cached, title, refs, rows, eyebrow="Song lookup", version=version_name(record),
+                            facts=[f for f in facts if f not in (first.genre or "genre unknown", version)])
+    drawn = shot is not None
     embed = discord.Embed(
         title=title,
-        description=f"{first.artist or 'artist unknown'}\n-# {' · '.join(facts)}",
+        description=None if drawn else f"{first.artist or 'artist unknown'}\n-# {' · '.join(facts)}",
         color=palette.difficulty(max(refs, key=lambda r: r.constant).difficulty),
     )
     for chart_type in ("std", "dx"):
         group = [(ref, row) for ref, row in zip(refs, rows) if ref.chart_type == chart_type]
         if not group:
             continue
-        lines = [_song_chart_line(ref, row, chart_designer(record, ref)) for ref, row in group]
-        embed.add_field(name=f"{'Standard' if chart_type == 'std' else 'DX'} charts", value=_fit(lines), inline=False)
-    if cached:
+        lines = [_song_chart_line(ref, row, chart_designer(record, ref), stats=not drawn) for ref, row in group]
+        embed.add_field(name=f"{'Standard' if chart_type == 'std' else 'DX'} charts", value=_fit(lines), inline=drawn)
+    if not cached:
+        embed.add_field(name="You", value="-# /login to see your scores here", inline=False)
+    elif not drawn:     # the card's header counts the charts played and names the best rating
         if played:
             best = max(played, key=lambda r: r["rating"])
             summary = f"**{len(played)}** of {len(rows)} charts played · best rating **{best['rating']}** on {TIER_NAMES.get(best['difficulty'], best['difficulty'].upper())}"
@@ -238,17 +260,11 @@ async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner
         else:
             summary = "none of its charts played yet"
         embed.add_field(name="You", value=summary, inline=False)
-    else:
-        embed.add_field(name="You", value="-# /login to see your scores here", inline=False)
     wiki_url = str(record.get("wiki_url", "") or "").strip()
     footer = "levels, constants and note counts from otoge-db · title links to the dashboard"
     embed.set_footer(text=footer)
 
     files: List[discord.File] = []
-    card_facts = [f"BPM {bpm}"] if bpm else []
-    if reading and loose_title(reading) != loose_title(title):
-        card_facts.insert(0, reading)
-    shot = await _song_card(cached, title, refs, rows, eyebrow="Song lookup", version=version_name(record), facts=card_facts)
     if shot:
         files.append(discord.File(io.BytesIO(shot), filename="rasmai-song.png"))
     thumb = jacket_file(cached, first.cover)

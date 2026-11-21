@@ -123,16 +123,23 @@ def _heading(area: Dict[str, Any], *extra: str) -> str:
     return " · ".join(parts)
 
 
-def _travel_lines(area: Dict[str, Any]) -> List[str]:
+def _travel_lines(area: Dict[str, Any], drawn: bool = False) -> List[str]:
     """One area under way in one or two lines: the heading, then the bar to the next reward and what it is.
 
-    An area the site names no reward for keeps to a single line with its distance.
+    An area the site names no reward for keeps to a single line with its distance. One `drawn` as a card
+    keeps to its links, since the card carries the figures.
 
     :param area: One area from the map.
     :type area: Dict[str, Any]
+    :param drawn: Whether the image shows this area as a card.
+    :type drawn: bool
     :rtype: List[str]
     """
     reward = area.get("nextReward")
+    if drawn:
+        # a reward that is a song comes back as a link to its page; any other is only a name, which the card has
+        name = _reward_name(reward) if reward and reward.get("name") else ""
+        return [_heading(area, *([name] if name.startswith("[") else []))]
     if not reward and not area.get("milestone"):
         return [_heading(area, _km(area["distance"]))]
     bits: List[str] = []
@@ -212,6 +219,7 @@ async def build_areas(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disco
     history = await asyncio.to_thread(load_area_progress, cached.user_id)
     summary = area_summary(cached, history)
     shot = None
+    pictured_areas: List[Dict[str, Any]] = []
     if any(x["state"] == "in_progress" for x in summary["areas"] + summary["events"]):
         read_stamp = getattr(a, "events_read_at", None)
         key = f"areas:{read_stamp.isoformat(timespec='minutes') if isinstance(read_stamp, datetime) else 'stored'}"
@@ -222,7 +230,7 @@ async def build_areas(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disco
             area["artUri"] = area_art_uri(area)
         shot = await _image(cached, key, lambda: area_image_html(
             pictured_areas, player.name, cached.start_rating, player.avatar_base64, summary["counts"], summary.get("pace"),
-            date_text=today(),
+            date_text=today(), readings=summary["readings"],
         ))
     files, avatar_url = message_files(player, shot, "rasmai-area.png")
     embed = discord.Embed(title="Area travel", url=area_url(), color=palette.LOOKUP)
@@ -243,13 +251,18 @@ async def build_areas(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disco
     else:
         note = "plays-to-go appear once the map moves between two reads"
     embed.description = f"{head}\n-# {note}"
+    # with the image drawn its header has the counts and the pace, and an area on a card keeps only its links here
+    drawn = shot is not None
+    cards = pictured_areas if drawn else []
+    if drawn:
+        embed.description = None if summary.get("pace") else f"-# {note}"
 
     travelling = [x for x in areas if x["state"] == "in_progress"]
     if travelling:
-        _add_packed(embed, "Under way", [_travel_lines(x) for x in travelling])
+        _add_packed(embed, "Under way", [_travel_lines(x, x in cards) for x in travelling])
     live_events = [x for x in events if x["state"] == "in_progress"]
     if live_events:
-        _add_packed(embed, "Events", [_travel_lines(x) for x in live_events])
+        _add_packed(embed, "Events", [_travel_lines(x, x in cards) for x in live_events])
 
     done = [x for x in areas + events if x["state"] == "completed"]
     if done:

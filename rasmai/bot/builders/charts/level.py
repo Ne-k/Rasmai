@@ -6,7 +6,7 @@ from rasmai.bot.ui import palette
 
 from rasmai.engine.analysis import DIFFICULTY_ORDER, rank_for
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, message_files, today
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, add_link_run, chart_link, message_files, today
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.images.render import cover_html_factory
 from rasmai.images.pages import level_image_html
@@ -89,26 +89,37 @@ async def build_level(cached: CachedAnalysis, owner_id: int, level: str, sort: s
         shot = await _image(cached, f"level:{level}:{sort}:{page}", lambda: level_image_html(
             rows[page * LEVEL_PAGE:(page + 1) * LEVEL_PAGE], level, LEVEL_SORTS[sort], player.name, cached.start_rating,
             player.avatar_base64, cover_html_factory(a.jacket_path), len(rows), played, start=page * LEVEL_PAGE + 1, date_text=today(),
+            page=page + 1, pages=pages,
         ))
     files, avatar_url = message_files(player, shot, "rasmai-level.png")
+    drawn = shot is not None
     embed = discord.Embed(title=f"{'Constant' if is_constant(level) else 'Level'} {level} · {LEVEL_SORTS[sort]}", color=palette.LOOKUP)
     embed.set_author(name=player.name, icon_url=avatar_url)
     if not rows:
         embed.description = f"No charts at {level} in the database. Levels look like `13` or `13+`, constants like `13.8`."
         return embed, files, None
-    embed.description = f"**{played}** of **{len(rows)}** charts played" + (f" · {len(rows) - played} never played" if len(rows) > played else "")
+    if not drawn:
+        embed.description = f"**{played}** of **{len(rows)}** charts played" + (f" · {len(rows) - played} never played" if len(rows) > played else "")
     lines: List[str] = []
     for index, r in enumerate(rows[page * LEVEL_PAGE:(page + 1) * LEVEL_PAGE], page * LEVEL_PAGE + 1):
         short = TIER_SHORT.get(r["difficulty"], r["difficulty"][:3].upper())
-        if r["unplayed"]:
+        # the image's cards carry each chart's figures under the same number
+        if drawn:
+            lines.append(f"`{index:>3}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {short} {r['chart_type'].upper()}")
+        elif r["unplayed"]:
             lines.append(f"`{index:>3}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {short} {r['chart_type'].upper()}\n-# never played · const {r['constant']:.1f}")
         else:
             lines.append(f"`{index:>3}` {chart_link(r['title'], r['chart_type'], r['difficulty'], r.get('cover', ''))} {short} {r['chart_type'].upper()}\n-# {r['constant']:.1f} · **{r['accuracy']:.4f}** {r['rank']} · {r['rating']} · {r['note']}")
-    half = math.ceil(len(lines) / 2)
-    embed.add_field(name=f"Charts {page * LEVEL_PAGE + 1}-{min((page + 1) * LEVEL_PAGE, len(rows))}", value=_fit(lines[:half]), inline=True)
-    if lines[half:]:
-        embed.add_field(name="​", value=_fit(lines[half:]), inline=True)
-    embed.set_footer(text=f"page {page + 1}/{pages} · the image shows this page's charts")
+    name = f"Charts {page * LEVEL_PAGE + 1}-{min((page + 1) * LEVEL_PAGE, len(rows))}"
+    if drawn:
+        add_link_run(embed, name, lines)
+    else:
+        half = math.ceil(len(lines) / 2)
+        embed.add_field(name=name, value=_fit(lines[:half]), inline=True)
+        if lines[half:]:
+            embed.add_field(name="​", value=_fit(lines[half:]), inline=True)
+    if not drawn:
+        embed.set_footer(text=f"page {page + 1}/{pages} · the image shows this page's charts")
     return embed, files, LevelView(owner_id, level, sort, page, pages)
 
 

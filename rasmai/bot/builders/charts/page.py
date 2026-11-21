@@ -129,8 +129,9 @@ def last_play(cached: Optional[CachedAnalysis], ref: ChartRef) -> Optional[Dict[
 
 
 def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: ChartRef, row: Dict[str, Any],
-                 play: Optional[Dict[str, Any]] = None, detail: Optional[Dict[str, Any]] = None) -> None:
-    """One chart, laid out as inline fields.
+                 play: Optional[Dict[str, Any]] = None, detail: Optional[Dict[str, Any]] = None, drawn: bool = False) -> None:
+    """One chart, laid out as inline fields. With the card `drawn`, only what the card does not show: the last play, and
+    the prediction when there is no ladder for the card to print it over.
 
     :param embed: The embed being built.
     :type embed: discord.Embed
@@ -144,42 +145,45 @@ def _page_fields(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: Ch
     if not cached:
         embed.add_field(name="Your score", value="-# /login to see it here", inline=True)
         return
+    ladder = chart_ladder(cached, ref, row)
+    # the card prints the ladder with the prediction over it, so neither is said again beside one
+    prediction = None if drawn and ladder else prediction_for(cached, ref, row)
+    if drawn:
+        ladder = []
     if not row["played"]:
-        expected = cached.analyzer.play_profile.expected_for(ref.constant, ref.difficulty) if cached.analyzer.play_profile else 0.0
-        estimate = f"\n-# you'd usually land ~{expected:.1f}% here" if expected else ""
-        embed.add_field(name="Your score", value="never played" + estimate, inline=True)
-        embed.add_field(name="Best-50", value=row.get("note") or "-", inline=True)
-        prediction = prediction_for(cached, ref, row)
+        if not drawn:
+            expected = cached.analyzer.play_profile.expected_for(ref.constant, ref.difficulty) if cached.analyzer.play_profile else 0.0
+            estimate = f"\n-# you'd usually land ~{expected:.1f}% here" if expected else ""
+            embed.add_field(name="Your score", value="never played" + estimate, inline=True)
+            embed.add_field(name="Best-50", value=row.get("note") or "-", inline=True)
         if prediction:
             prediction["tier"] = TIER_NAMES.get(ref.difficulty, ref.difficulty.upper()).title()
             embed.add_field(name="Prediction", value=format_prediction(prediction, played=False), inline=False)
-        ladder = chart_ladder(cached, ref, row)
         if ladder:
             embed.add_field(name="What each rank would be worth",
                             value=format_ladder(ladder) + "\n-# odds are for a first pass, judged from how you play this level",
                             inline=False)
         return
-    embed.add_field(name="Your score", value=f"**{row['accuracy']:.4f}%** {emoji.rank(row['rank'], row['rank'])}\n-# rating **{row['rating']}**", inline=True)
-    lamp = emoji.lamps(row.get("fc"), row.get("fs"))
-    embed.add_field(name="Lamp", value=lamp or "-# none yet", inline=True)
-    if row.get("max_dx"):
-        embed.add_field(name="DX score", value=f"**{row['dx']:,}** / {row['max_dx']:,}\n-# {emoji.dx_stars(row['stars'])}", inline=True)
-    elif row.get("dx"):
-        embed.add_field(name="DX score", value=f"**{row['dx']:,}**\n-# max unknown for this chart", inline=True)
-    plays = row.get("plays") or 0
-    embed.add_field(name="Plays", value=str(plays) if plays else "-# unknown", inline=True)
-    embed.add_field(name="Best-50", value=row.get("note") or "-", inline=True)
+    if not drawn:
+        embed.add_field(name="Your score", value=f"**{row['accuracy']:.4f}%** {emoji.rank(row['rank'], row['rank'])}\n-# rating **{row['rating']}**", inline=True)
+        lamp = emoji.lamps(row.get("fc"), row.get("fs"))
+        embed.add_field(name="Lamp", value=lamp or "-# none yet", inline=True)
+        if row.get("max_dx"):
+            embed.add_field(name="DX score", value=f"**{row['dx']:,}** / {row['max_dx']:,}\n-# {emoji.dx_stars(row['stars'])}", inline=True)
+        elif row.get("dx"):
+            embed.add_field(name="DX score", value=f"**{row['dx']:,}**\n-# max unknown for this chart", inline=True)
+        plays = row.get("plays") or 0
+        embed.add_field(name="Plays", value=str(plays) if plays else "-# unknown", inline=True)
+        embed.add_field(name="Best-50", value=row.get("note") or "-", inline=True)
     if play:
         from rasmai.bot.builders.history import lost_text
         when = stamp(play["when"], "R") if play.get("when") else play["day"]
         score = f"**{play['achievement']:.4f}%** {emoji.rank(play['rank'], play['rank'])}" if play.get("achievement") is not None else "—"
         cost = lost_text(detail) if detail else ""
         embed.add_field(name="Last play", value=f"{score} · {when}" + (f"\n-# lost to {cost}" if cost else ""), inline=True)
-    prediction = prediction_for(cached, ref, row)
     if prediction:
         prediction["tier"] = TIER_NAMES.get(ref.difficulty, ref.difficulty.upper()).title()
         embed.add_field(name="Prediction", value=format_prediction(prediction, played=True), inline=False)
-    ladder = chart_ladder(cached, ref, row)
     if ladder:
         embed.add_field(name="What each rank is worth",
                         value=format_ladder(ladder) + "\n-# gain is what it adds to your best-50 · odds are how often you score like that here",

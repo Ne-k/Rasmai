@@ -11,7 +11,7 @@ from rasmai.bot.state.snapshots import moved_by_recent
 from rasmai.bot.core import try_render
 from rasmai.bot.ui.formatting import (
     stamp, today,
-    chart_link, TIER_NAMES, TIER_SHORT, _fit, add_profile_fields, add_row_break, format_picks_markdown,
+    add_link_run, chart_link, TIER_NAMES, TIER_SHORT, _fit, add_profile_fields, add_row_break, format_picks_markdown,
     format_plan_markdown, format_plan_verdict, format_try_markdown, level_text, message_files, progress_bar,
 )
 from rasmai.images.render import cover_html_factory, generate_poster_html
@@ -52,18 +52,23 @@ def since_last_line(cached: CachedAnalysis) -> str:
     return f"\n-# since {when}: " + " · ".join(bits)
 
 
-async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", level: Optional[str] = None) -> Tuple[discord.Embed, List[discord.File]]:
+async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", level: Optional[str] = None,
+                        text_only: bool = False) -> Tuple[discord.Embed, List[discord.File]]:
+    """The picks, as a poster and the embed beside it. With the poster drawn, the embed keeps what an image cannot do, the link
+    to each chart, and what only it says; without one (`text_only`, or a render that failed) it carries every figure."""
     a = cached.analyzer
     player = a.player
     scope = analysis.describe_span(level) if level else ""
     recs, summary = cached.analysis_for(challenge, level if scope else None)
     summary = summary or {}
     plan = cached.plan_for(None, False, challenge)
+    counts = f"{len(a.songs)} charts · {len(a.recent_songs)} recent plays"
     shot = None
-    if recs:
+    if recs and not text_only:
         shot = await _image(cached, f"analyze:{challenge}:{scope}", lambda: generate_poster_html(
             recs, player.name, player.rating, player.fc, player.fc_plus, player.clears,
             player.avatar_base64, a.jacket_path, plan=plan, image_gain=summary.get("reachableGain"), scope=scope,
+            summary=summary, counts=counts,
         ))
     files, avatar_url = message_files(player, shot, "rasmai.png")
 
@@ -80,9 +85,10 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
 
     movers = summary.get("ratingMoves", 0)
     reachable = summary.get("reachableGain", 0)
+    drawn = shot is not None
     embed = discord.Embed(
         title=f"Rating {player.rating}",
-        description=(
+        description="" if drawn else (
             f"**+{reachable}** within reach today across **{movers}** charts"
             + (f" · **+{plan.total}** on the road to **{plan.goal_rating}**" if plan and plan.steps else "")
         ),
@@ -91,10 +97,18 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
     embed.set_author(name=player.name, icon_url=avatar_url)
     if summary.get("fallbackFrom"):
         embed.description += "\n-# no easier step moves your best-50 right now, so these are the balanced targets"
-    embed.description += since_last_line(cached)
-    embed.add_field(name=f"Play these now · {analysis.challenge_for(challenge).label.lower()}" + (f" · {scope}" if scope else ""),
-                    value=format_picks_markdown(recs, limit=6), inline=True)
+    embed.description = (embed.description + since_last_line(cached)).strip() or None
+    picks = f"Play these now · {analysis.challenge_for(challenge).label.lower()}" + (f" · {scope}" if scope else "")
     to_try = format_try_markdown(recs, limit=4) if any(r.category == "try" for r in recs) else ""
+    if drawn:
+        # the poster numbers its fifteen picks and its sixteen steps; the links carry the same numbers
+        add_link_run(embed, picks, format_picks_markdown(recs, limit=15, stats=False).split("\n"))
+        if plan and plan.steps:
+            add_link_run(embed, f"Road to {plan.goal_rating}", format_plan_markdown(plan, limit=16, stats=False).split("\n"))
+        if to_try:
+            embed.add_field(name="Worth a first run · more in /new", value=to_try, inline=False)
+        return embed, files
+    embed.add_field(name=picks, value=format_picks_markdown(recs, limit=6), inline=True)
     if to_try:
         embed.add_field(name="Worth a first run · more in /new", value=to_try, inline=True)
     if plan and plan.steps:
@@ -102,10 +116,7 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
                         value=_fit([format_plan_verdict(plan), format_plan_markdown(plan, limit=6)]), inline=True)
     add_row_break(embed)
     add_profile_fields(embed, summary)
-    footer = f"{len(a.songs)} charts · {len(a.recent_songs)} recent plays"
-    if shot is None:
-        footer += " · poster unavailable right now"
-    embed.set_footer(text=footer)
+    embed.set_footer(text=counts + ("" if text_only else " · poster unavailable right now"))
     return embed, files
 
 
@@ -114,7 +125,9 @@ PLAN_PAGE = 12
 
 async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: bool, page: int,
                      challenge: str = "balanced", difficulty: Optional[str] = None,
-                     min_level: Optional[str] = None) -> Tuple[discord.Embed, List[discord.File], int]:
+                     min_level: Optional[str] = None, text_only: bool = False) -> Tuple[discord.Embed, List[discord.File], int]:
+    """The route to a rating, a page of it at a time. With the poster drawn the embed is the page's links, numbered as the poster's
+    rows are, and what only it says; without one (`text_only`, or a render that failed) it carries every figure."""
     a = cached.analyzer
     player = a.player
     plan = cached.plan_for(target, stretch, challenge, difficulty, min_level)
@@ -128,19 +141,22 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
     steps = plan.steps
     pages = max(1, (len(steps) + PLAN_PAGE - 1) // PLAN_PAGE)
     page = max(0, min(page, pages - 1))
-    shot = await _image(cached, f"plan:{target}:{stretch}:{challenge}:{difficulty or ''}:{min_level or ''}",
-                        lambda: posters.plan_poster_html(
-                            plan, player.name, cached.start_rating, player.avatar_base64,
-                            cover_html_factory(a.jacket_path), stretch=stretch, date_text=today(),
-                            bolder_label=bolder_label, limit_label=limit_label,
-                        ))
+    credits = insights.plan_credits(plan) if steps else 0
+    shot = None if text_only else await _image(
+        cached, f"plan:{target}:{stretch}:{challenge}:{difficulty or ''}:{min_level or ''}",
+        lambda: posters.plan_poster_html(
+            plan, player.name, cached.start_rating, player.avatar_base64,
+            cover_html_factory(a.jacket_path), stretch=stretch, date_text=today(),
+            bolder_label=bolder_label, limit_label=limit_label, credits=credits,
+        ))
     files, avatar_url = message_files(player, shot, "rasmai-route.png")
+    drawn = shot is not None
 
     bar = progress_bar(plan.total, plan.needed)
     pct = 100 if plan.reached else (100 * plan.total // max(1, plan.needed))
     embed = discord.Embed(
         title=f"Road to {plan.goal_rating}",
-        description=(
+        description="" if drawn else (
             f"`{bar}` **{pct}%**\n"
             f"**+{plan.total}** of **+{plan.needed}** across **{len(steps)}** charts"
             + ("" if plan.reached else f" · **{plan.shortfall}** short")
@@ -153,9 +169,13 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
     embed.set_author(name=player.name, icon_url=avatar_url)
     if steps:
         start = page * PLAN_PAGE + 1
-        embed.add_field(name=f"Steps {start}-{min(start + 5, len(steps))}", value=format_plan_markdown(plan, limit=6, start=start), inline=True)
-        if len(steps) >= start + 6:
-            embed.add_field(name=f"Steps {start + 6}-{min(start + 11, len(steps))}", value=format_plan_markdown(plan, limit=6, start=start + 6), inline=True)
+        if drawn:
+            add_link_run(embed, f"Steps {start}-{min(start + PLAN_PAGE - 1, len(steps))}",
+                         format_plan_markdown(plan, limit=PLAN_PAGE, start=start, stats=False).split("\n"))
+        else:
+            embed.add_field(name=f"Steps {start}-{min(start + 5, len(steps))}", value=format_plan_markdown(plan, limit=6, start=start), inline=True)
+            if len(steps) >= start + 6:
+                embed.add_field(name=f"Steps {start + 6}-{min(start + 11, len(steps))}", value=format_plan_markdown(plan, limit=6, start=start + 6), inline=True)
     elif limit_label:
         embed.add_field(name="Nothing on the route yet",
                         value=f"No **{limit_label}** chart moves your best-50 at this level. Widen the filter or pick bolder targets.",
@@ -165,10 +185,14 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
     if getattr(plan, "fallback_from", None):
         embed.description += "\n-# no easier step moves your best-50 right now, so this is the balanced route"
     if bolder_label:
-        embed.description += (f"\n-# **{bolder_label}** targets cover the full **+{plan.needed}** on charts you"
+        embed.description += (f"\n-# switch to **{bolder_label}** targets with the Targets menu below" if drawn else
+                              f"\n-# **{bolder_label}** targets cover the full **+{plan.needed}** on charts you"
                               f" already play · switch with the Targets menu below")
-    credits = insights.plan_credits(plan) if steps else 0
-    embed.set_footer(text=f"Σ = running total · page {page + 1}/{pages}" + (f" · about {credits} credits at these odds" if credits else "") + " · full route in the image")
+    embed.description = embed.description.strip() or None
+    if not drawn:
+        embed.set_footer(text=f"Σ = running total · page {page + 1}/{pages}" + (f" · about {credits} credits at these odds" if credits else "") + " · full route in the image")
+    elif pages > 1:
+        embed.set_footer(text=f"page {page + 1}/{pages}")
     return embed, files, page
 
 
@@ -180,7 +204,10 @@ NEW_PAGES = 3
 
 
 async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge: str = "balanced",
-                    focus: Optional[str] = None, level: Optional[str] = None, page: int = 0) -> Tuple[discord.Embed, List[discord.File], int]:
+                    focus: Optional[str] = None, level: Optional[str] = None, page: int = 0,
+                    text_only: bool = False) -> Tuple[discord.Embed, List[discord.File], int]:
+    """Charts never played, a page of twelve at a time. With the poster drawn, which shows that page, the embed is its links and what
+    only it says; without one (`text_only`, or a render that failed) it carries every figure."""
     a = cached.analyzer
     player = a.player
     profile = a.play_profile
@@ -198,17 +225,24 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
     if focus:
         label += f" · {FOCUS_LABELS[focus].upper()}"
     lower, upper = level_span if level_span else analysis.unplayed_window(profile, mode.key)
+    leaning = ""
+    if focus:
+        traits = [tr for tr in (profile.traits or []) if (float(tr["offset"]) < 0) == (focus == "weak")]
+        if traits:
+            leaning = f"leaning into {FOCUS_LABELS[focus]}: " + ", ".join(f"{tr['label']} ({float(tr['offset']):+.1f})" for tr in traits[:3])
     shot = None
-    if picks:
-        shot = await _image(cached, f"new:{difficulty}:{level or ''}:{challenge}:{focus or ''}", lambda: posters.new_poster_html(
-            picks[:NEW_PAGE], player.name, cached.start_rating, player.avatar_base64,
+    if picks and not text_only:
+        shot = await _image(cached, f"new:{difficulty}:{level or ''}:{challenge}:{focus or ''}:{page}", lambda: posters.new_poster_html(
+            picks[page * NEW_PAGE:(page + 1) * NEW_PAGE], player.name, cached.start_rating, player.avatar_base64,
             cover_html_factory(a.jacket_path), label, lower, upper, date_text=today(),
+            start=page * NEW_PAGE + 1, note=leaning, known=len(a.songs),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-new.png")
+    drawn = shot is not None
 
     embed = discord.Embed(
         title=f"New charts to try · {label}",
-        description=(
+        description=None if drawn else (
             (f"Never played · level **{level}** ({lower:.1f} to {upper:.1f}) · first-pass estimates\n" if level else
              f"Never played · lv **{lower:.1f}** to **{upper:.1f}** · first pass should land AAA or better\n")
             + "-# charts that would enter your best-50 come first"
@@ -216,11 +250,8 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
         color=palette.LOOKUP,
     )
     embed.set_author(name=player.name, icon_url=avatar_url)
-    if focus:
-        traits = [tr for tr in (profile.traits or []) if (float(tr["offset"]) < 0) == (focus == "weak")]
-        if traits:
-            named = ", ".join(f"{tr['label']} ({float(tr['offset']):+.1f})" for tr in traits[:3])
-            embed.description += f"\n-# leaning into {FOCUS_LABELS[focus]}: {named}"
+    if leaning and not drawn:
+        embed.description += f"\n-# {leaning}"
     if not picks and focus:
         embed.add_field(name="Nothing fits this focus", value="No unplayed chart in your range carries the traits you " + ("lose" if focus == "weak" else "gain") + " points on. Try without a focus, or another difficulty.", inline=False)
     elif not picks and level:
@@ -233,13 +264,19 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
             short = TIER_SHORT.get(pick.difficulty, pick.difficulty[:3].upper())
             worth = f"**+{pick.rating_gain}**" if pick.rating_gain > 0 else "banks"
             lines.append(
-                f"`{index:>2}` {chart_link(pick.title, pick.chart_type, pick.difficulty, pick.cover)} {short} {level_text(pick.level, pick.constant)} {pick.chart_type.upper()}\n"
-                f"-# ~{pick.expected_accuracy:.1f}% {pick.expected_rank} · {worth} · {pick.odds_of_s * 100:.0f}% S"
+                f"`{index:>2}` {chart_link(pick.title, pick.chart_type, pick.difficulty, pick.cover)} {short} {level_text(pick.level, pick.constant)} {pick.chart_type.upper()}"
+                + ("" if drawn else f"\n-# ~{pick.expected_accuracy:.1f}% {pick.expected_rank} · {worth} · {pick.odds_of_s * 100:.0f}% S")
             )
-        embed.add_field(name="Start with these", value=_fit(lines[:6]), inline=True)
-        if len(lines) > 6:
-            embed.add_field(name="Then", value=_fit(lines[6:12]), inline=True)
-    embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{len(a.songs)} charts known · first-pass estimates · the first twelve have jackets in the image")
+        if drawn:
+            add_link_run(embed, "Start with these", lines)
+        else:
+            embed.add_field(name="Start with these", value=_fit(lines[:6]), inline=True)
+            if len(lines) > 6:
+                embed.add_field(name="Then", value=_fit(lines[6:12]), inline=True)
+    if not drawn:
+        embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{len(a.songs)} charts known · first-pass estimates · the first twelve have jackets in the image")
+    elif pages > 1:
+        embed.set_footer(text=f"page {page + 1}/{pages}")
     return embed, files, page
 
 
@@ -251,35 +288,45 @@ def _highlight(chart) -> str:
             f"{TIER_SHORT.get(chart['difficulty'], '')} {level_text(chart.get('level', ''), chart.get('constant'))}")
 
 
-async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[discord.File]]:
+async def build_profile(cached: CachedAnalysis, text_only: bool = False) -> Tuple[discord.Embed, List[discord.File]]:
+    """How the player plays. With the poster drawn the embed is the charts worth a look, linked, and the commands that go further;
+    without one (`text_only`, or a render that failed) it carries every figure."""
     a = cached.analyzer
     player = a.player
     summary = a.analysis_summary or {}
-    shot = await _image(cached, "profile", lambda: posters.profile_poster_html(
+    judged = judgement_profile(load_judgements(cached.user_id))
+    # keyed by the judgement pages read so far: they arrive in the background, after a poster may already have been made
+    shot = None if text_only else await _image(cached, f"profile:{judged['plays'] if judged else 0}", lambda: posters.profile_poster_html(
         summary, a.play_profile, a.songs, player.name, cached.start_rating, player.avatar_base64,
-        len(a.recent_songs), date_text=today(), moved=moved_by_recent(a),
+        len(a.recent_songs), date_text=today(), moved=moved_by_recent(a), judged=judged,
     ))
     files, avatar_url = message_files(player, shot, "rasmai-profile.png")
+    drawn = shot is not None
     embed = discord.Embed(title="Play profile", color=palette.PLAYER)
     embed.set_author(name=player.name, icon_url=avatar_url)
-    add_profile_fields(embed, summary)
-    add_row_break(embed)
     traits = (summary.get("profile") or {}).get("traits") or []
     weak = [tr for tr in traits if float(tr["offset"]) < 0][:4]
     strong = [tr for tr in reversed(traits) if float(tr["offset"]) > 0][:4]
-    if weak:
+    if drawn:
+        hints = ["`/new focus` picks charts to work on where you lose points"] if weak else []
+        if judged:
+            hints.append("the Traits button has the full judgement table")
+        embed.description = "-# " + " · ".join(hints) if hints else None
+    else:
+        add_profile_fields(embed, summary)
+        add_row_break(embed)
+    if weak and not drawn:
         embed.add_field(name="Where you lose points",
                         value="\n".join(f"- **{float(tr['offset']):+.1f}** on {tr['label']} · {tr['count']} charts" for tr in weak)
                         + "\n-# against your own curve · `/new focus` picks charts to work on them",
                         inline=False)
-    if strong:
+    if strong and not drawn:
         embed.add_field(name="Where you shine",
                         value="\n".join(f"- **{float(tr['offset']):+.1f}** on {tr['label']} · {tr['count']} charts" for tr in strong), inline=False)
-    judged = judgement_profile(load_judgements(cached.user_id))
-    if judged:
+    if judged and not drawn:
         embed.add_field(name="Judgements, measured", value=judgement_summary(judged), inline=False)
     calibration = (summary.get("profile") or {}).get("calibration") or {}
-    if calibration.get("plays", 0) >= 15:
+    if calibration.get("plays", 0) >= 15 and not drawn:
         predicted = calibration.get("newBestPredicted")
         actual = calibration.get("newBestActual")
         odds_line = (f" · new-best odds said **{predicted * 100:.0f}%**, **{actual * 100:.0f}%** happened"
@@ -299,7 +346,8 @@ async def build_profile(cached: CachedAnalysis) -> Tuple[discord.Embed, List[dis
         embed.add_field(name="Never played, worth a shot", value=_fit([f"- {_highlight(c)}" for c in unplayed[:6]]), inline=False)
     if not (quick_wins or stretch or unplayed):
         embed.add_field(name="Nothing easy left", value="Every chart in your best-50 is already near your ceiling. Pushing your skill curve up is the only way forward.", inline=False)
-    embed.set_footer(text=f"Based on {len(a.songs)} charts and {len(a.recent_songs)} recent plays · skill curve in the image")
+    if not drawn:
+        embed.set_footer(text=f"Based on {len(a.songs)} charts and {len(a.recent_songs)} recent plays · skill curve in the image")
     return embed, files
 
 
@@ -318,8 +366,9 @@ def session_for(cached: CachedAnalysis, credits: int, challenge: str, difficulty
 
 
 async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "balanced",
-                        difficulty: Optional[str] = None) -> Tuple[discord.Embed, List[discord.File]]:
-    """Tonight's credits, each spent where it is worth the most rating.
+                        difficulty: Optional[str] = None, text_only: bool = False) -> Tuple[discord.Embed, List[discord.File]]:
+    """Tonight's credits, each spent where it is worth the most rating. With the poster drawn the embed is the links to its charts, in
+    its order; without one (`text_only`, or a render that failed) it carries every figure.
 
     :param cached: The player's analysis, held in memory.
     :type cached: CachedAnalysis
@@ -329,6 +378,8 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
     :type challenge: str
     :param difficulty: The difficulty tier, such as ``"master"``.
     :type difficulty: Optional[str]
+    :param text_only: Leave the poster out, and say everything in the embed.
+    :type text_only: bool
     :rtype: Tuple[discord.Embed, List[discord.File]]
     """
     a = cached.analyzer
@@ -339,15 +390,16 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
     limit_label = TIER_NAMES.get(difficulty, str(difficulty).title()) if difficulty else ""
     target_kind = f"{mode.label.lower()} targets"
     shot = None
-    if session.plays:
+    if session.plays and not text_only:
         shot = await _image(cached, f"session:{credits}:{challenge}:{difficulty or ''}", lambda: posters.session_poster_html(
             session, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path),
             date_text=today(), target_kind=target_kind, limit_label=limit_label,
         ))
     files, avatar_url = message_files(player, shot, "rasmai-session.png")
+    drawn = shot is not None
     embed = discord.Embed(
         title=f"Tonight's session · {credits} credit{'s' if credits != 1 else ''}",
-        description=(
+        description=None if drawn else (
             f"Worth about **+{session.expected_total:.0f}** rating · **{session.any_lands * 100:.0f}%** chance at least one target lands"
             f" · {session.distinct_charts} chart{'s' if session.distinct_charts != 1 else ''}"
             + (f"\n-# only **{limit_label}**" if limit_label else "")
@@ -366,13 +418,18 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
             now = "new" if o.is_unplayed else f"{o.current_accuracy:.2f}"
             retry = f" · try {play.attempt}" if play.attempt > 1 else ""
             lines.append(
-                f"`{index:>2}` {chart_link(o.title, o.chart_type, o.difficulty_type, o.cover)} {short} {level_text(o.level, o.constant)}{retry}\n"
-                f"-# {now} → **{o.target_accuracy:.2f}** {o.target_rank} · {o.feasibility * 100:.0f}% · **+{play.gain}** if it lands · worth +{play.expected:.1f}"
+                f"`{index:>2}` {chart_link(o.title, o.chart_type, o.difficulty_type, o.cover)} {short} {level_text(o.level, o.constant)}"
+                + ("" if drawn else f"{retry}\n-# {now} → **{o.target_accuracy:.2f}** {o.target_rank} · {o.feasibility * 100:.0f}% · "
+                                    f"**+{play.gain}** if it lands · worth +{play.expected:.1f}")
             )
-        embed.add_field(name="Play order", value=_fit(lines[:7]), inline=True)
-        if len(lines) > 7:
-            embed.add_field(name="Then", value=_fit(lines[7:14]), inline=True)
-        if len(lines) > 14:
-            embed.add_field(name="And", value=_fit(lines[14:20]), inline=True)
-    embed.set_footer(text=f"{target_kind} · odds from your own history · full list in the image")
+        if drawn:
+            add_link_run(embed, "Play order", lines)
+        else:
+            embed.add_field(name="Play order", value=_fit(lines[:7]), inline=True)
+            if len(lines) > 7:
+                embed.add_field(name="Then", value=_fit(lines[7:14]), inline=True)
+            if len(lines) > 14:
+                embed.add_field(name="And", value=_fit(lines[14:20]), inline=True)
+    if not drawn:
+        embed.set_footer(text=f"{target_kind} · odds from your own history · full list in the image")
     return embed, files

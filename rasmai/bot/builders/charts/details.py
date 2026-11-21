@@ -197,8 +197,9 @@ def _pattern_field(embed: discord.Embed, cached: Optional[CachedAnalysis], ref: 
     embed.add_field(name="What it asks of you", value=_fit(lines), inline=False)
 
 
-def _song_chart_line(ref: ChartRef, row: Dict[str, Any], designer: str) -> str:
-    """One chart of the song, as a line of the /song embed.
+def _song_chart_line(ref: ChartRef, row: Dict[str, Any], designer: str, stats: bool = True) -> str:
+    """One chart of the song, as a line of the /song embed. Without `stats` it is the chart's link alone, for a reply whose
+    card already shows the figures.
 
     :param ref: The chart being shown.
     :type ref: ChartRef
@@ -207,6 +208,8 @@ def _song_chart_line(ref: ChartRef, row: Dict[str, Any], designer: str) -> str:
     :rtype: str
     """
     head = f"{emoji.difficulty(ref.difficulty)} [**{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level}**]({chart_url(ref.title, ref.chart_type, ref.difficulty, ref.cover)})".strip()
+    if not stats:
+        return head
     facts = [f"const {ref.constant:.1f}"]
     if ref.notes:
         facts.append(f"{ref.notes:,} notes")

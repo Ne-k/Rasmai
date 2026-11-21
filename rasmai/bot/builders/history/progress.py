@@ -68,6 +68,8 @@ async def build_progress(cached: CachedAnalysis) -> Tuple[discord.Embed, List[di
         credits = plan_credits(plan)
         forecast_lines.append(f"the balanced route to **{plan.goal_rating}** is about **{credits}** credits at its odds"
                               + ("" if plan.reached else f", and covers +{plan.total} of the +{plan.needed}"))
+        outlook.append((f"Road to {plan.goal_rating}", f"~{credits} credits", "the balanced route at its odds"
+                        + ("" if plan.reached else f", covers +{plan.total} of the +{plan.needed}")))
     shot = await _image(cached, "progress", lambda: progress_image_html(
         points, deltas, player.name, cached.start_rating, player.avatar_base64, date_text=today(), forecast=outlook,
     ))
@@ -77,8 +79,16 @@ async def build_progress(cached: CachedAnalysis) -> Tuple[discord.Embed, List[di
     try:
         since = stamp(datetime.fromisoformat(str(first["recorded_at"])), "D")
     except ValueError:
-        since = "the first reading"
-    embed.description = (f"**{latest['rating']}** now · **{int(latest['rating']) - int(first['rating']):+d}** since {since} "
+        since = ""
+    if shot is not None:
+        # the image has the line, the changes and the outlook; the reply keeps the live date and where to go from flat
+        lines = [f"First reading {since}"] if since else []
+        if forecast and forecast.get("flat"):
+            lines.append("`/session` or `/plan` is where the next points are.")
+        embed.description = "\n".join(lines) or None
+        embed.set_footer(text="a reading is taken on every /analyze")
+        return embed, files, None
+    embed.description = (f"**{latest['rating']}** now · **{int(latest['rating']) - int(first['rating']):+d}** since {since or 'the first reading'} "
                          f"over **{max(0, int(latest['plays']) - int(first['plays']))}** plays · {len(points)} readings")
     for label, value in deltas:
         embed.add_field(name=label, value=f"**{value}**", inline=True)

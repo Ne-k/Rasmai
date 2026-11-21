@@ -1,6 +1,6 @@
 import math
 from html import escape
-from typing import Any, Callable, Dict, List, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from rasmai.config import site_label
 from rasmai.engine.analysis.rating import rating_band, rating_step
@@ -119,7 +119,7 @@ def _plays(plays: int, unplayed: bool = False) -> str:
 
 def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64: str,
                      cover_html: CoverFn, stretch: bool = False, date_text: str = "",
-                     bolder_label: str = "", limit_label: str = "") -> str:
+                     bolder_label: str = "", limit_label: str = "", credits: int = 0) -> str:
     steps = list(plan.steps)
     fill = min(100.0, 100.0 * plan.total / max(1, plan.needed))
 
@@ -161,7 +161,7 @@ def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64
         fill=fill,
         start_rating=player_rating,
         verdict=_esc(f"covers the full +{plan.needed}" if plan.reached
-                     else f"+{plan.total} of +{plan.needed} · {plan.shortfall} short"),
+                     else f"+{plan.total} of +{plan.needed} · {100 * plan.total // max(1, plan.needed)}% · {plan.shortfall} short"),
         goal_rating=plan.goal_rating,
         step_count=len(steps),
         target_kind="stretch targets" if stretch else "grind targets, 25% odds or better",
@@ -172,7 +172,7 @@ def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64
         ("Steps", str(len(steps))),
         ("By odds", f"~+{plan.expected_gain:.0f}"),
         ("Above usual", f"{plan.average_stretch:+.1f}%"),
-    ]
+    ] + ([("Credits", f"~{credits}")] if credits else [])
     return _page(f"Road to {plan.goal_rating}", player_name, avatar_b64, counters,
                  f"+{plan.total}", f"of +{plan.needed} needed", body,
                  f"Rasmai · {site_label()} · maimai DX", date_text)
@@ -222,13 +222,15 @@ def session_poster_html(session: Any, player_name: str, player_rating: int, avat
     counters = [("Credits", str(session.credits)), ("Charts", str(session.distinct_charts)),
                 ("Any lands", f"{session.any_lands * 100:.0f}%")]
     return _page("Tonight's session", player_name, avatar_b64, counters, f"+{session.expected_total:.0f}",
-                 "rating expected from these credits", body, f"Rasmai · {site_label()} · maimai DX", date_text)
+                 "rating expected from these credits", body,
+                 f"Rasmai · {site_label()} · maimai DX · odds from your own history", date_text)
 
 
 # ---------------------------------------------------------------- /new
 
 def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, avatar_b64: str,
-                    cover_html: CoverFn, label: str, lower: float, upper: float, date_text: str = "") -> str:
+                    cover_html: CoverFn, label: str, lower: float, upper: float, date_text: str = "",
+                    start: int = 1, note: str = "", known: int = 0) -> str:
     cards = render_each("new-card", [
         {
             "ink": tier(pick.difficulty)[1],
@@ -244,15 +246,17 @@ def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, 
             "worth": render("new-worth", gain=pick.rating_gain) if pick.rating_gain > 0 else template("new-worth-none"),
             "genre": _esc(pick.genre),
         }
-        for position, pick in enumerate(picks, 1)
+        for position, pick in enumerate(picks, start)
     ])
     if not cards:
         cards = render("empty-note", message="Nothing unplayed in range at this difficulty.")
-    body = render("new-body", lower=lower, upper=upper, cards=cards)
+    body = render("new-body", lower=lower, upper=upper, cards=cards,
+                  note=f'<div class="session-line">{_esc(note)}</div>' if note else "")
     counters = [("Rating", str(player_rating)), ("Range", f"{lower:.1f}–{upper:.1f}")]
     return _page(f"New charts · {label}", player_name, avatar_b64, counters,
                  str(len(picks)), "charts to try", body,
-                 f"Rasmai · {site_label()} · maimai DX · estimates are for a first pass", date_text)
+                 f"Rasmai · {site_label()} · maimai DX · estimates are for a first pass"
+                 + (f" · {known} charts known" if known else ""), date_text)
 
 
 # ---------------------------------------------------------------- /profile
@@ -298,16 +302,16 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
     for a, name in ((97.0, "S"), (98.0, "S+"), (99.0, "SS"), (99.5, "SS+"), (100.0, "SSS"), (100.5, "SSS+")):
         y = Y(a)
         parts.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{width - mr}" y2="{y:.1f}" stroke="#2b2924" stroke-width="1"/>')
-        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#9b968a">{a:g} {name}</text>')
+        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{a:g} {name}</text>')
     for a in (90.0, 95.0):
         y = Y(a)
         parts.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{width - mr}" y2="{y:.1f}" stroke="#1f1d18" stroke-width="1"/>')
-        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#5f5b52">{a:g}</text>')
+        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#5f5b52">{a:g}</text>')
     c = math.ceil(x0)
     while c <= x1:
         x = X(c)
         parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#1f1d18" stroke-width="1"/>')
-        parts.append(f'<text x="{x:.1f}" y="{height - mb + 22}" text-anchor="middle" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#9b968a">{c}</text>')
+        parts.append(f'<text x="{x:.1f}" y="{height - mb + 22}" text-anchor="middle" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{c}</text>')
         c += 1
 
     sigma = max(0.3, float(getattr(profile, "consistency", 0.8)))
@@ -340,7 +344,7 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
         near = x > width - mr - 130
         parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#5cd3e8" stroke-width="1.5" stroke-dasharray="6 6"/>')
         parts.append(f'<text x="{x - 6 if near else x + 6:.1f}" y="{height - mb - 10 - row * 18}" text-anchor="{"end" if near else "start"}" '
-                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#5cd3e8" '
+                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#5cd3e8" '
                      f'stroke="#0d0c0b" stroke-width="4" paint-order="stroke">{name} {value:.1f}</text>')
 
     return f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(parts)}</svg>'
@@ -348,7 +352,7 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
 
 def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[Any], player_name: str,
                         player_rating: int, avatar_b64: str, recent_count: int, date_text: str = "",
-                        moved: Sequence[Any] = ()) -> str:
+                        moved: Sequence[Any] = (), judged: Optional[Dict[str, Any]] = None) -> str:
     p = summary.get("profile", {})
     b = summary.get("best50", {})
 
@@ -366,10 +370,12 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
             for key, value in items
         ])
 
-    def trait_bars(traits: Sequence[Dict[str, Any]], limit: int = 8) -> str:
+    def trait_bars(traits: Sequence[Dict[str, Any]]) -> str:
         if not traits:
             return render("bar-empty").replace("not enough recent plays", "no trait stands out yet")
-        ordered = sorted(traits, key=lambda t: abs(float(t["offset"])), reverse=True)[:limit]
+        # the four each way the reply's text names when there is no image, so neither says more than the other
+        ordered = ([t for t in traits if float(t["offset"]) < 0][:4]
+                   + [t for t in reversed(traits) if float(t["offset"]) > 0][:4])
         ordered.sort(key=lambda t: float(t["offset"]))
         return render_each("trait-row", [
             {
@@ -377,6 +383,7 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
                 "negative": "neg" if float(t["offset"]) < 0 else "",
                 "width": min(100.0, abs(float(t["offset"])) * 30),
                 "value": float(t["offset"]),
+                "count": f"{t['count']} {'plays' if t.get('dimension') == 'judgement' else 'charts'}",
             }
             for t in ordered
         ])
@@ -402,6 +409,17 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
                      f"across {int(rerates['charts'])} charts" if rerates.get("charts") else ""),
             notes=(f" &middot; {int(notes['notes']):,} notes hit" if notes.get("notes") else "")
                   + _warm_up_line(habits.get("warmUp") or {}),
+        )
+
+    judged_tile = ""
+    if judged:
+        top = max(judged["types"], key=lambda t: t["lossShare"])
+        late = judged.get("lateShare")
+        judged_tile = render(
+            "profile-judged", plays=judged["plays"], kind=_esc(str(top["kind"]).title() + ("es" if top["kind"] == "touch" else "s")), loss=top["lossShare"] * 100,
+            share=top["share"] * 100,
+            timing=(f'<div class="s">hits land {"late" if late >= 0.6 else "early"} {max(late, 1 - late) * 100:.0f}% of the time</div>'
+                    if late is not None and (late >= 0.6 or late <= 0.4) else ""),
         )
 
     open_slots = int(b.get("newSlotsOpen", 0)) + int(b.get("oldSlotsOpen", 0))
@@ -442,6 +460,7 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
         trait_bars=trait_bars(p.get("traits") or []),
         model_tile=model_tile,
         habits_tile=habits_tile,
+        judged_tile=judged_tile,
     )
     counters = [
         ("FC", f"{p.get('fcRate', 0) * 100:.0f}%"),
@@ -450,4 +469,4 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
     ]
     return _page("Play profile", player_name, avatar_b64, counters, rating_plate(player_rating),
                  f"rating · {rating_band(player_rating)[0]}", body,
-                 f"Rasmai · {site_label()} · maimai DX", date_text)
+                 f"Rasmai · {site_label()} · maimai DX · {len(songs)} charts · {recent_count} recent plays", date_text)

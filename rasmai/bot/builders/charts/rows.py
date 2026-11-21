@@ -60,7 +60,8 @@ async def _song_card(cached: Optional[CachedAnalysis], title: str, refs: List[Ch
         player.avatar_base64 if player else "", _cutoffs(cached), date_text=today(), highlight=highlight,
         ladder=ladder or (), ladder_label=ladder_label, forecast=forecast, eyebrow=eyebrow, facts=facts,
     )
-    key = f"song:{title}:{highlight or ''}:{'l' if ladder else ''}:{eyebrow}"
+    # the play counts are on the card and are read later than the scores: a card made without them is not kept for after
+    key = f"song:{title}:{highlight or ''}:{'l' if ladder else ''}:{eyebrow}:{sum(r.get('plays') or 0 for r in rows)}"
     if cached is None:
         return await try_render(html)
     if key not in cached.images:

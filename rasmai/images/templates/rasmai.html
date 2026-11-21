@@ -28,141 +28,6 @@
 <!-- @empty-note -->  <!-- stands in for a section with nothing to show -->
 <div class="section-label">{message}</div>
 
-<!-- @poster -->  <!-- /analyze - its own full page, two columns -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<style>{css}</style>
-</head>
-<body>
-<div class="image">
-  <header>
-    {avatar}
-    <div class="who">
-      <div class="eyebrow">What to play next</div>
-      <h1>{name}</h1>
-    </div>
-    <div class="counters">
-      <div class="counter"><dt>Rating</dt><dd>{rating}</dd></div>
-      {counters}
-    </div>
-    <div class="headline-figure">
-      <div class="value">+{total_gain}</div>
-      <div class="caption">rating on this image</div>
-    </div>
-  </header>
-
-  <div class="columns">
-  <div class="col">
-  <div class="section-label">Grind these &middot; {chart_count} charts &middot; +{total_gain}</div>
-  <div class="heroes">{heroes}</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
-        <th style="text-align:right">Gain</th>
-      </tr>
-    </thead>
-    <tbody>{rows}</tbody>
-  </table>
-
-  </div>
-  <div class="col">
-  {road}
-  </div>
-  </div>
-  {near}
-  <footer><span>{foot_left}</span><span>{foot_right}</span></footer>
-</div>
-</body>
-</html>
-
-<!-- @poster-hero -->
-<article class="hero" style="--tier:{ink}; --wash:{wash};">
-    <div class="hero-rank">{position}</div>
-    {cover}
-    <div class="hero-body">
-        <div class="tier">{tier_label} <span class="lv">{level}</span></div>
-        <h2 class="hero-title">{title}</h2>
-        <div class="hero-move">
-            <span class="from">{current:.2f}%</span>
-            <span class="arrow">&rarr;</span>
-            <span class="to">{target:.2f}%</span>
-            <span class="ranks">{current_rank} &rarr; {target_rank}</span>
-        </div>
-        <div class="hero-meta">{plays} &middot; you usually score ~{expected:.1f}% here</div>
-    </div>
-    <div class="hero-gain">
-        <div class="plus">+{gain}</div>
-        <div class="unit">rating</div>
-        <div class="odds">{odds:.0f}% likely</div>
-    </div>
-</article>
-
-<!-- @poster-row -->
-<tr style="--tier:{ink};">
-    <td class="c-rank">{position}</td>
-    <td class="c-cover">{cover}</td>
-    <td class="c-song">
-        <span class="row-title">{title}</span>
-        <span class="row-tier">{tier_label} {level}</span>
-        <span class="row-meta">{plays}</span>
-    </td>
-    <td class="c-acc">{current:.2f} <span class="arrow">&rarr;</span> <b>{target:.2f}</b></td>
-    <td class="c-rank-move">{current_rank} <span class="arrow">&rarr;</span> <b>{target_rank}</b></td>
-    <td class="c-odds">{odds:.0f}%</td>
-    <td class="c-gain">+{gain}</td>
-</tr>
-
-<!-- @poster-road -->
-<section class="road">
-    <div class="road-head">
-        <div>
-            <div class="section-label">Road to {goal_rating}</div>
-            <div class="road-verdict">{verdict}</div>
-        </div>
-        <div class="road-stretch">
-            <div class="value">{stretch:+.1f}%</div>
-            <div class="caption">above your usual score</div>
-        </div>
-    </div>
-    <table>
-        <thead><tr>
-            <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
-            <th style="text-align:right">Gain</th><th style="text-align:right">Total</th>
-        </tr></thead>
-        <tbody>{rows}</tbody>
-    </table>
-</section>
-
-<!-- @poster-road-row -->
-<tr style="--tier:{ink};">
-    <td class="c-rank">{position}</td>
-    <td class="c-cover">{cover}</td>
-    <td class="c-song">
-        <span class="row-title">{title}</span>
-        <span class="row-tier">{tier_label} {level}</span>
-        <span class="row-meta">{plays}</span>
-    </td>
-    <td class="c-acc">{now} <span class="arrow">&rarr;</span> <b>{target:.2f}</b></td>
-    <td class="c-rank-move">{current_rank} <span class="arrow">&rarr;</span> <b>{target_rank}</b></td>
-    <td class="c-odds">{odds:.0f}%</td>
-    <td class="c-gain">+{gain}</td>
-    <td class="c-cum">{cumulative}</td>
-</tr>
-
-<!-- @poster-near -->
-<section class="near">
-    <h3>Just outside your best 50</h3>
-    <p>These pay nothing yet. Reach the score shown and they start counting.</p>
-    <ul>{items}</ul>
-</section>
-
-<!-- @poster-near-item -->
-<li><span class="near-name">{title}</span><span class="near-need">{needed:.2f}%</span></li>
-
 <!-- @recent-body -->  <!-- /recent: plays flow down columns so the image stays wide -->
 <div class="recent-flow">{items}</div>
 
@@ -219,7 +84,7 @@
 
 <!-- @session-body -->  <!-- /session: tonight's credits, best use first -->
 <div class="session-line"><b>{credits}</b> credits &middot; worth about <b>+{expected:.0f}</b> rating &middot; <b>{any_lands:.0f}%</b> chance at least one target lands{limit_note}</div>
-<div class="section-label">Play order &middot; warm-ups first &middot; {target_kind}</div>
+<div class="section-label">Play order &middot; warm-ups first &middot; {target_kind} &middot; each credit goes where gain &times; odds is highest &middot; a repeat is worth it only if the first try missed</div>
 {columns}
 
 <!-- @session-head -->
@@ -230,7 +95,8 @@
 <span class="retry-flag">try {attempt}</span>
 
 <!-- @new-body -->  <!-- /new -->
-<div class="section-label">Never played &middot; lv {lower:.1f} to {upper:.1f} &middot; first pass should land AAA or better</div>
+{note}
+<div class="section-label">Never played &middot; lv {lower:.1f} to {upper:.1f} &middot; first pass should land AAA or better &middot; charts that would enter your best-50 come first</div>
 <div class="grid">{cards}</div>
 
 <!-- @new-card -->
@@ -252,7 +118,7 @@
 {forecast}
 <table class="ladder">
   <thead><tr><th>Rank</th><th>Need</th><th>Rating</th>
-  <th>Best-50</th><th>Odds</th></tr></thead>
+  <th>Adds to best-50</th><th>Your odds</th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 
@@ -293,6 +159,7 @@
       <div class="tile wide"><div class="k">Best-50</div><div class="v">{best50}<small>{new_total} new + {old_total} old</small></div>
         <div class="s">cutoffs {new_cutoff} / {old_cutoff}{slots}</div></div>
       {habits_tile}
+      {judged_tile}
       {model_tile}
     </div>
     <div class="section-label">Where you lose and gain points &middot; vs your own curve, in points</div>
@@ -305,7 +172,11 @@
 <!-- @profile-model -->  <!-- the model's check of itself against recorded plays -->
 <div class="tile wide"><div class="k">Model check &middot; {plays} recorded plays</div>
   <div class="v">{coverage:.0f}%<small>of plays inside the predicted range</small></div>
-  <div class="s">new-best odds said {predicted:.0f}%, {actual:.0f}% happened &middot; spread scaled &times;{scale:.2f} &middot; centre shifted {shift:+.2f}</div></div>
+  <div class="s">new-best odds said {predicted:.0f}%, {actual:.0f}% happened &middot; spread scaled &times;{scale:.2f} &middot; centre shifted {shift:+.2f}, already in the odds you see</div></div>
+
+<!-- @profile-judged -->  <!-- what the judgement pages say: the note type the points go to, and early or late -->
+<div class="tile wide"><div class="k">Judgements &middot; {plays} plays' judgement pages</div>
+  <div class="v">{kind}<small>carry {loss:.0f}% of what you lose on {share:.0f}% of the notes</small></div>{timing}</div>
 
 <!-- @profile-habits -->  <!-- what the chart database says about the charts they choose -->
 <div class="tile wide"><div class="k">How you pick</div>
@@ -319,7 +190,7 @@
 <div class="barrow"><span>{label}</span><span class="track"><i class="{negative}" style="width:{width:.0f}%"></i></span><span class="pct">{percent:+.0f}%</span></div>
 
 <!-- @trait-row -->  <!-- a chart trait the player scores above or below their own curve on, in points -->
-<div class="barrow"><span>{label}</span><span class="track"><i class="pts {negative}" style="width:{width:.0f}%"></i></span><span class="pct">{value:+.1f}</span></div>
+<div class="barrow counted"><span>{label}</span><span class="track"><i class="pts {negative}" style="width:{width:.0f}%"></i></span><span class="pct">{count} &middot; {value:+.1f}</span></div>
 
 <!-- @bar-empty -->
 <div class="barrow"><span>not enough recent plays</span><span></span><span></span></div>

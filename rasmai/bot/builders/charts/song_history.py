@@ -59,7 +59,8 @@ def _history_points(cached: CachedAnalysis, ref: ChartRef) -> List[Dict[str, Any
 
 async def build_song_history(cached: Optional[CachedAnalysis], title: str, page: int, owner_id: Optional[int]
                              ) -> Tuple[discord.Embed, List[discord.File], Optional[discord.ui.View]]:
-    """Every score the bot has seen for one chart of a song, as a graph and a few numbers.
+    """Every score the bot has seen for one chart of a song, as a graph and a few numbers. With the graph drawn its tiles
+    carry the numbers, and the embed keeps how long ago the newest score landed; without it, every figure.
 
     :param cached: The player's analysis, held in memory.
     :type cached: Optional[CachedAnalysis]
@@ -85,16 +86,28 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
     points = await asyncio.to_thread(_history_points, cached, ref)
     player = cached.analyzer.player
 
+    key = f"history:{title}:{page}:{len(points)}"
+    if key not in cached.images:
+        html = await asyncio.to_thread(history_card_html, title, ref.difficulty, ref.level, ref.chart_type, ref.cover,
+                                       cover_html_factory(cached.analyzer.jacket_path), points, player.name,
+                                       cached.start_rating, player.avatar_base64, today(), ref.constant)
+        cached.images[key] = await try_render(html)
+    shot = cached.images.get(key)
+
     embed = discord.Embed(
         title=f"{title} · score history",
         color=palette.difficulty(ref.difficulty),
         url=chart_url(title, ref.chart_type, ref.difficulty, ref.cover),
     )
     was = points[0]["constant"] if points else ref.constant
-    embed.add_field(name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
-                    value=f"const **{ref.constant:.1f}**" + (f" · {was:.1f} when first recorded" if abs(was - ref.constant) >= 0.05 else ""),
-                    inline=False)
-    if points:
+    if not shot:
+        embed.add_field(name=f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}",
+                        value=f"const **{ref.constant:.1f}**" + (f" · {was:.1f} when first recorded" if abs(was - ref.constant) >= 0.05 else ""),
+                        inline=False)
+    if points and shot:
+        # the card's tiles carry the figures; how long ago is the one thing only Discord can say
+        embed.description = f"latest score {stamp(points[-1]['when'], 'R')}"
+    elif points:
         values = [p["achievement"] for p in points]
         best = max(values)
         plays = [p for p in points if p["source"] != "best"]
@@ -113,13 +126,6 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
                              "the plays in your recent list, so it fills in as you play and run commands.")
 
     files: List[discord.File] = []
-    key = f"history:{title}:{page}:{len(points)}"
-    if key not in cached.images:
-        html = await asyncio.to_thread(history_card_html, title, ref.difficulty, ref.level, ref.chart_type, ref.cover,
-                                       cover_html_factory(cached.analyzer.jacket_path), points, player.name,
-                                       cached.start_rating, player.avatar_base64, today())
-        cached.images[key] = await try_render(html)
-    shot = cached.images.get(key)
     if shot:
         files.append(discord.File(io.BytesIO(shot), filename="rasmai-history.png"))
         embed.set_image(url="attachment://rasmai-history.png")
@@ -127,7 +133,8 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
     if thumb:
         files.append(thumb)
         embed.set_thumbnail(url=f"attachment://{thumb.filename}")
-    embed.set_footer(text=f"chart {page + 1} of {len(refs)} · a point per play seen and per best that moved")
+    if not shot:
+        embed.set_footer(text=f"chart {page + 1} of {len(refs)} · a point per play seen and per best that moved")
     newest = last_play(cached, ref)
     view = SongView(owner_id, title, refs, rows, page, history=True, videos=await song_videos(title, refs),
                     last_play=newest["position"] if newest else None, region=getattr(cached, "region", "intl")) if owner_id is not None else None

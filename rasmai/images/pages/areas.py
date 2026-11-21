@@ -13,7 +13,7 @@ def _reward_text(step: Optional[Dict[str, Any]]) -> str:
 
 
 def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: int, avatar_b64: str,
-                    counts: Dict[str, int], pace: Optional[float], date_text: str = "") -> str:
+                    counts: Dict[str, int], pace: Optional[float], date_text: str = "", readings: int = 0) -> str:
     """Every area as a card: the artwork, the name on a banner, the distance in a dark readout, the next reward in gold.
 
     :param player_name: The player's name on maimai DX NET.
@@ -30,6 +30,8 @@ def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: i
     :type areas: Sequence[Dict[str, Any]]
     :param pace: How far a play carries the player, in kilometres.
     :type pace: Optional[float]
+    :param readings: How many stored readings the pace comes from.
+    :type readings: int
     :rtype: str
     """
     cards = ""
@@ -43,7 +45,8 @@ def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: i
         if state == "in_progress" and next_reward:
             to_go = int(next_reward.get("toGo") or 0)
             plays = next_reward.get("playsToGo")
-            when = "ready to collect" if to_go == 0 else f"{to_go:,} km to go" + (f" &middot; ~{plays} plays" if plays is not None else "")
+            mark = f" &middot; at {int(area['milestone']):,} km" if area.get("milestone") else ""
+            when = "ready to collect" if to_go == 0 else f"{to_go:,} km to go{mark}" + (f" &middot; ~{plays} plays" if plays is not None else "")
             reward = f'<div class="area-next"><span class="k">Next reward</span><span class="v">{_reward_text(next_reward) or "&mdash;"}</span><span class="w">{when}</span></div>'
         elif state == "in_progress":
             reward = '<div class="area-next"><span class="k">Next reward</span><span class="w">not listed for this area</span></div>'
@@ -72,4 +75,5 @@ def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: i
     body = f'<div class="section-label">Areas &middot; {counts.get("travelling", 0)} travelling &middot; {counts.get("completed", 0)} completed &middot; {counts.get("untouched", 0)} not started</div><div class="area-grid">{cards}</div>'
     counters = [("Travelling", str(counts.get("travelling", 0))), ("Completed", str(counts.get("completed", 0))), ("Not started", str(counts.get("untouched", 0)))]
     headline = f"{pace:g}" if pace else "&mdash;"
-    return _image("Area travel", player_name, avatar_b64, counters, headline, "km per play, from your reads", body, date_text)
+    caption = f"km per play, from {readings} reading{'s' if readings != 1 else ''}" if pace and readings else "km per play, from your reads"
+    return _image("Area travel", player_name, avatar_b64, counters, headline, caption, body, date_text)

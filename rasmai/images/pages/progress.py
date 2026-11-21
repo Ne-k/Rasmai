@@ -34,14 +34,14 @@ def _progress_svg(points: Sequence[Dict[str, Any]], width: int = 2296, height: i
     v = (y0 // step + 1) * step
     while v < y1:
         parts.append(f'<line x1="{ml}" y1="{Y(v):.1f}" x2="{width - mr}" y2="{Y(v):.1f}" stroke="#2b2924"/>')
-        parts.append(f'<text x="{ml - 10}" y="{Y(v) + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#9b968a">{v}</text>')
+        parts.append(f'<text x="{ml - 10}" y="{Y(v) + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{v}</text>')
         v += step
     for milestone in range((y0 // 1000 + 1) * 1000, y1, 1000):
         parts.append(f'<line x1="{ml}" y1="{Y(milestone):.1f}" x2="{width - mr}" y2="{Y(milestone):.1f}" stroke="#5cd3e8" stroke-dasharray="6 6" opacity="0.6"/>')
     labels = min(8, len(points))
     for i in range(labels):
         t = stamps[int(i * (len(points) - 1) / max(1, labels - 1))]
-        parts.append(f'<text x="{X(t):.1f}" y="{height - mb + 24}" text-anchor="middle" font-family="Cascadia Mono,Consolas,monospace" font-size="12" fill="#9b968a">{t.strftime("%d %b")}</text>')
+        parts.append(f'<text x="{X(t):.1f}" y="{height - mb + 24}" text-anchor="middle" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{t.strftime("%d %b")}</text>')
     total_line = " ".join(f"{X(t):.1f},{Y(v):.1f}" for t, v in zip(stamps, totals))
     rating_line = " ".join(f"{X(t):.1f},{Y(v):.1f}" for t, v in zip(stamps, ratings))
     parts.append(f'<polyline points="{total_line}" fill="none" stroke="#9b968a" stroke-width="2" stroke-dasharray="4 5"/>')
@@ -71,5 +71,7 @@ def progress_image_html(points: Sequence[Dict[str, Any]], deltas: Sequence[Tuple
     <div class="section-label">Change</div>
     <div class="tiles" style="grid-template-columns: repeat({max(1, len(deltas))}, 1fr)">{tiles}</div>{outlook}"""
     first = points[0]
-    counters = [("First reading", str(first["rating"])), ("Plays since", str(int(points[-1]["plays"]) - int(first["plays"])))]
+    last = points[-1]
+    counters = [("Rating", str(last["rating"])), ("First reading", str(first["rating"])), ("Plays since", str(int(last["plays"]) - int(first["plays"]))),
+                ("Best 50", str(last["best50"])), ("New + old", f"{last['new_total']} + {last['old_total']}")]
     return _image("Progress", player_name, avatar_b64, counters, f"{int(points[-1]['rating']) - int(first['rating']):+d}", "since first reading", body, date_text)
