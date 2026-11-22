@@ -339,7 +339,7 @@ def build_login_walkthrough_pages(region: str, login_info: Dict[str, str]) -> Li
     )
     if not login_info.get("helperLink"):
         return [by_hand]
-    extension = (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) (Firefox version in review)\n"
+    extension = (f"1. Add the extension to [Chrome]({login_info['helperInstall']}) or [Firefox]({login_info['helperFirefox']})\n"
                  "2. Sign in at the Aime gateway with **auto login** ticked\n")
     return [
         page("Approve in the extension",

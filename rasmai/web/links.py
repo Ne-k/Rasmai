@@ -32,6 +32,7 @@ def build_login_link_payload(opaque_user_id: str, code: str, region: str) -> Dic
         # what the Aime sign-in helper extension is given: the connect page's own credential, in the shape /api/link reads
         "helperLink": "" if region == "jp" else f"{base_url}/api/link/{code}.{opaque_user_id}",
         "helperInstall": f"{base_url}/chromeextension",       # where the extension is added from; the site sends it on to the store
+        "helperFirefox": f"{base_url}/firefoxextension",
     }
 
 

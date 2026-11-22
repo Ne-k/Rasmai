@@ -29,6 +29,11 @@ const tags = {
       {c}
     </a>
   ),
+  firefox: (c: React.ReactNode) => (
+    <a href="/firefoxextension" target="_blank" rel="noopener noreferrer">
+      {c}
+    </a>
+  ),
   b: (c: React.ReactNode) => <b>{c}</b>,
   em: (c: React.ReactNode) => <em>{c}</em>,
   code: (c: React.ReactNode) => <code>{c}</code>,

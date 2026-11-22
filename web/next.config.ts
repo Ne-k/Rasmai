@@ -58,10 +58,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       // the short addresses the link instructions give for the Aime sign-in helper, one a browser. /extension, the first one given
-      // out and in /login cards already sent, is a page of its own that lists both. Firefox's is in review: until it is listed,
-      // its address opens that page, which says so
+      // out and in /login cards already sent, is a page of its own that lists both
       { source: "/chromeextension", destination: "https://chromewebstore.google.com/detail/aime-sign-in-helper/neekcgoeopejbnccgepdbakgojojicpm", permanent: false },
-      { source: "/firefoxextension", destination: "/extension/", permanent: false },
+      { source: "/firefoxextension", destination: "https://addons.mozilla.org/firefox/addon/aime-sign-in-helper/", permanent: false },
       { source: "/extensions", destination: "/extension/", permanent: false },
       // the portal's host serves the portal: the site's own pages, its sign-in (whose cookies are the site host's) and the
       // consent page (the only place the extension acts) are passed on to the site, query and all

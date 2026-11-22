@@ -2120,6 +2120,11 @@ def _regions():
                             (ROOT / "web" / "next.config.ts").read_text(encoding="utf-8"))
         if not intl_info["helperInstall"].endswith("/chromeextension") or not sent_on:
             problems.append(f"the extension's short address is not one the site sends on to its store page: {intl_info['helperInstall']}")
+        # and the Firefox one to its listing on addons.mozilla.org
+        if not intl_info["helperFirefox"].endswith("/firefoxextension") or not re.search(
+                r'source: "/firefoxextension", destination: "https://addons\.mozilla\.org/firefox/addon/[a-z-]+/", permanent: false',
+                (ROOT / "web" / "next.config.ts").read_text(encoding="utf-8")) or not any(intl_info["helperFirefox"] in words for words in card("intl")):
+            problems.append(f"the International /login card does not send Firefox players to the Firefox listing: {intl_info.get('helperFirefox')}")
         if not any(intl_info["helperInstall"] in words for words in card("intl")):
             problems.append("the International /login card does not say where to add the extension from")
         # the card is a page a way of linking, as the site's link page has a card a way: a button a way shows its page in the one

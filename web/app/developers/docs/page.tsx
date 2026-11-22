@@ -20,8 +20,8 @@ export default async function GettingStarted() {
       </ol>
       <p>This is the authorization code flow with PKCE, like signing in with Discord or Google.</p>
       <p>
-        The player needs the Aime sign-in helper, which runs in Chrome or Edge on a computer today. A Firefox version is in
-        review. Safari, iPhone and Chrome on Android cannot run it.
+        The player needs the Aime sign-in helper, which runs in Chrome, Edge and Firefox on a computer, and in Firefox on Android.
+        Safari and iPhone cannot run it.
       </p>
 
       <h2 id="quick-start">Quick start</h2>

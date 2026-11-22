@@ -27,6 +27,7 @@ export default async function LinkPage() {
     aime: (c: React.ReactNode) => <a href="https://my-aime.net/en/">{c}</a>,
     dash: (c: React.ReactNode) => <a href="/me/">{c}</a>,
     chrome: (c: React.ReactNode) => <a href="/chromeextension">{c}</a>,
+    firefox: (c: React.ReactNode) => <a href="/firefoxextension">{c}</a>,
     // the gateway's sign-in is the same address for everyone, so this page can link it without a login link of its own
     gw: (c: React.ReactNode) => <a href={GATEWAY_LOGIN} target="_blank" rel="noopener noreferrer">{c}</a>,
   };

@@ -266,7 +266,6 @@ code { font-family: var(--font-mono), monospace; font-size: 13px; padding: 2px 6
 .button.browser { width: 100%; justify-content: flex-start; gap: 14px; padding: 13px 28px 13px 22px; font-size: 18px; text-align: left; }
 .browser svg { flex: 0 0 auto; fill: currentColor; }
 .browser small { display: block; font-family: var(--font-body), sans-serif; font-weight: 400; font-size: 13.5px; }
-.button.browser.off { border-style: dashed; border-color: var(--line); background: none; color: var(--muted); box-shadow: none; transform: none; cursor: default; }
 /* the extension's own windows at their real size; they are light in either theme, so each keeps an edge */
 .shots { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 22px 24px; margin: 14px 0 0; }
 .shots figure { min-width: 0; max-width: 100%; margin: 0; }

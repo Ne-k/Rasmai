@@ -3,6 +3,7 @@ import { Shell } from "@/components/Shell";
 import { getTranslations } from "next-intl/server";
 
 const CHROME_STORE = "https://chromewebstore.google.com/detail/aime-sign-in-helper/neekcgoeopejbnccgepdbakgojojicpm";
+const FIREFOX_STORE = "https://addons.mozilla.org/firefox/addon/aime-sign-in-helper/";
 
 // the browsers' marks from Simple Icons, one path each, drawn in the text's colour so they follow the theme and the greyed button
 const CHROME_MARK =
@@ -56,8 +57,7 @@ export default async function ExtensionPage() {
           </a>
         </li>
         <li>
-          {/* no href: it takes no focus and no press, and the role lets a screen reader say it is unavailable */}
-          <a className="button browser off" role="link" aria-disabled="true">
+          <a className="button browser" href={FIREFOX_STORE} target="_blank" rel="noopener noreferrer">
             <Mark d={FIREFOX_MARK} />
             <span>
               {t("firefox")}

@@ -110,9 +110,9 @@ function Authorize() {
           <p>{t("needHelper")}</p>
           <div className="btn-row">
             <a className="button" href="/chromeextension" target="_blank" rel="noopener noreferrer">{t("addChrome")}</a>
+            <a className="button" href="/firefoxextension" target="_blank" rel="noopener noreferrer">{t("addFirefox")}</a>
             <button type="button" className="button ghost" onClick={() => window.location.reload()}>{t("added")}</button>
           </div>
-          <p className="hint">{t("firefoxSoon")}</p>
         </>
       )}
       {web(begin.cancel) && (
