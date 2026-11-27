@@ -12,6 +12,9 @@ blitz-dom = "=0.3.0-beta.6"
 blitz-html = "=0.3.0-beta.6"
 blitz-paint = "=0.3.0-beta.6"
 blitz-traits = "=0.3.0-beta.6"
+# open fontconfig at run time rather than link it, so the Docker image cross-compiles with no target libraries; fontique's
+# own feature, which switches both it and the bindings it uses
+fontique = { version = "0.13.0", default-features = false, features = ["fontconfig-dlopen"] }
 percent-encoding = "2.3.2"
 png = "0.18.1"
 stylo_static_prefs = "=0.24.0"

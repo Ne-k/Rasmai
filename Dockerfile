@@ -34,11 +34,12 @@ CMD ["node", "server.js"]
 # Builds blitz/ (Blitz plus the patched crates in blitz/vendor) into the blitz binary, which draws most images in place of
 # Chromium. It builds on the runner's own platform and cross-compiles for the target, since compiling Stylo under
 # emulation takes hours.
-# fontconfig is opened at run time rather than linked, so the cross build needs no target libraries: the bot image has
-# fontconfig, with Playwright's CJK fonts for the characters the site's typefaces lack.
+# fontconfig is opened at run time rather than linked (blitz/Cargo.toml turns that on), so the cross build needs no
+# target libraries: the bot image has fontconfig, with Playwright's CJK fonts for the characters the site's typefaces lack.
+# Stylo's build script generates its property code with Python, so python3 must be there.
 FROM --platform=$BUILDPLATFORM rust:1.98-bookworm AS blitz
 ARG TARGETARCH
-ENV RUST_FONTCONFIG_DLOPEN=1
+RUN command -v python3 >/dev/null || (apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*)
 RUN case "$TARGETARCH" in \
       amd64) target=x86_64-unknown-linux-gnu; gnu=x86_64-linux-gnu ;; \
       arm64) target=aarch64-unknown-linux-gnu; gnu=aarch64-linux-gnu ;; \
