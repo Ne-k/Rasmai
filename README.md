@@ -31,7 +31,7 @@ Any play opens what it actually cost, note by note:
 - `/plan [target] [difficulty] [min_level]` full route to a rating target
 - `/session [credits]` where to spend tonight's credits
 - `/new [difficulty] [level] [focus]` unplayed charts around your level
-- `/b50` the 50 charts that make your rating
+- `/b50` or `/top` the 50 charts that make your rating
 - `/chart <title> [difficulty]` your score, the prediction, what each rank is worth, what the chart asks of you, unlock info, video; a Song button opens the whole song
 - `/charts [pattern] [level] [difficulty]` browse by pattern tag (streams, hand swaps, slow rotations, in Japanese or English) or by level, your scores beside each chart
 - `/random [level] [difficulty] [unplayed]` pick something

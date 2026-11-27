@@ -50,7 +50,7 @@ async def help_command(interaction: discord.Interaction):
         name="Your scores",
         value=(
             "**`/profile`** - how you play, and how well the model has predicted you; the Traits button shows what your own scores confirm\n"
-            "**`/b50`** - the 50 charts that make up your rating\n"
+            "**`/b50`** or **`/top`** - the 50 charts that make up your rating\n"
             "**`/chart`** - one chart: your score, the prediction, what each rank is worth, and what the chart asks of you; the Song button opens the whole song, Last play your newest run of it with its judgements\n"
             "**`/charts`** - browse by pattern (streams, hand swaps, slow rotations) or by level, with your scores beside each chart\n"
             "**`/dxscore`** - DX stars and the charts closest to the next one\n"

@@ -111,6 +111,12 @@ async def b50(interaction: discord.Interaction):
     await run_simple_command(interaction, "Something went wrong building your best-50.", lambda cached: build_b50(cached, interaction.user.id))
 
 
+@bot.tree.command(name="top", description="Your best 50: the charts that make up your rating (same as /b50)")
+@heavy_cooldown
+async def top(interaction: discord.Interaction):
+    await run_simple_command(interaction, "Something went wrong building your best-50.", lambda cached: build_b50(cached, interaction.user.id))
+
+
 @bot.tree.command(name="recent", description="Your last sessions: every play, new bests and what counted; or one play in full")
 @heavy_cooldown
 @app_commands.describe(play="Show one play in full with its judgements: 1 = newest, 2 = the one before, and so on")
