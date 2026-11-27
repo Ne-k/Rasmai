@@ -13,7 +13,7 @@ def _reward_text(step: Optional[Dict[str, Any]]) -> str:
 
 
 def _rows(cards: Sequence[str], across: int) -> str:
-    """Lay tickets in rows of at most `across`, split evenly, so no row ends short of the panel's edge.
+    """Lay tiles in rows of at most `across`, split evenly, so no row ends short of the section's edge.
 
     :param cards: The tickets' markup.
     :type cards: Sequence[str]
@@ -34,11 +34,12 @@ def _rows(cards: Sequence[str], across: int) -> str:
 
 
 def _ticket(area: Dict[str, Any], state: str) -> str:
-    """One area as a ticket: the distance on the stub in its run's colour, the names over the large artwork on the paper, and the prize on a tag.
+    """One area as a tile: the distance on the stub in its run's colour and the names over the artwork, with the next reward in a box
+    beside the artwork on a full tile and a short note on a small one.
 
     :param area: The area to draw.
     :type area: Dict[str, Any]
-    :param state: ``"in_progress"`` for the full ticket; ``"completed"`` or anything else for the small one.
+    :param state: ``"in_progress"`` for the full tile; ``"completed"`` or anything else for the small one.
     :type state: str
     :rtype: str
     """
@@ -78,7 +79,7 @@ def _ticket(area: Dict[str, Any], state: str) -> str:
 
 def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: int, avatar_b64: str,
                     counts: Dict[str, int], pace: Optional[float], date_text: str = "", readings: int = 0) -> str:
-    """The map as a board of tickets: the areas under way large, the finished and the untouched small, a panel to a state.
+    """The map as a board of tiles: the areas under way large, the finished and the untouched small, a section to a state.
 
     :param player_name: The player's name on maimai DX NET.
     :type player_name: str
@@ -86,7 +87,7 @@ def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: i
     :type rating: int
     :param avatar_b64: The player's avatar, base64 encoded.
     :type avatar_b64: str
-    :param counts: How often each value was played.
+    :param counts: How many areas the player has in each state (``travelling``, ``completed``, ``untouched``).
     :type counts: Dict[str, int]
     :param date_text: The date to print on the image.
     :type date_text: str
@@ -103,7 +104,7 @@ def area_image_html(areas: Sequence[Dict[str, Any]], player_name: str, rating: i
         state = str(area.get("state") or "")
         groups[state if state in groups else "not_started"].append(_ticket(area, state))
     going, done, fresh = groups["in_progress"], groups["completed"], groups["not_started"]
-    # a few areas make a card two thirds as wide, two tickets to a row, so the tickets keep their size; three fill one row of the wide board
+    # a few areas make the card narrower, two tiles to a row, so the tiles keep their size; three fill one row of the wide board
     narrow = len(going) <= 4 and len(going) != 3
     small = 3 if narrow else 6
     total = int(counts.get("travelling", 0))

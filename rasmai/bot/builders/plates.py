@@ -10,6 +10,7 @@ from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.engine.plates import GOAL_LABELS, ORDERS, PLATE_KEYS, chance_text, plate_choices, plate_missing, plate_overview, plate_standing
 from rasmai.images.pages import plate_detail_image_html, plates_image_html
 from rasmai.images.render import cover_html_factory
+from rasmai.images.themes import IMAGES
 
 # missing charts listed in one reply; the rest are counted
 SHOWN = 20
@@ -50,7 +51,7 @@ async def build_plates(cached: CachedAnalysis, owner_id: int, plate: Optional[st
         return embed, files, PlatesView(owner_id, plate, goal, order)
     from rasmai.bot.builders.results import _image
     player = a.player
-    shot = await _image(cached, "plates", lambda: plates_image_html(plates, player.name, player.avatar_base64, date_text=today()))
+    shot = await _image(cached, "plates", lambda: plates_image_html(plates, player.name, player.avatar_base64, date_text=today())) if _drawn(cached) else None
     files, avatar_url = message_files(player, shot, "rasmai-plates.png")
     embed = discord.Embed(title="Version plates", color=palette.RATING)
     embed.set_author(name=player.name, icon_url=avatar_url)
@@ -70,6 +71,12 @@ async def build_plates(cached: CachedAnalysis, owner_id: int, plate: Optional[st
     return embed, files, PlatesView(owner_id, None, None, order)
 
 
+def _drawn(cached: CachedAnalysis) -> bool:
+    # the plates have no classic look, so an account without the new-look switch gets the text-only reply, which lists what the image would show
+    from rasmai.web.dashboard.beta import wants
+    return bool(cached.user_id) and wants(str(cached.user_id), IMAGES)
+
+
 async def _detail(cached: CachedAnalysis, plates: List[Dict[str, Any]], key: str,
                   goal: Optional[str], order: str) -> Tuple[discord.Embed, List[discord.File], str]:
     a = cached.analyzer
@@ -83,7 +90,7 @@ async def _detail(cached: CachedAnalysis, plates: List[Dict[str, Any]], key: str
     rows = detail["missing"]
     heading = ORDER_LABELS[order] if detail["odds"] else "Closest first"
     shot = None
-    if detail["required"]:
+    if detail["required"] and _drawn(cached):
         from rasmai.bot.builders.results import _image
         shot = await _image(cached, f"plate:{key}:{goal}:{order}", lambda: plate_detail_image_html(
             detail, a.player.name, a.player.avatar_base64, rows[:SHOWN], heading, date_text=today(), cover_html=cover_html_factory(a.jacket_path)))

@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Sequence
 
 from rasmai.engine.plates import GOALS, HUES, PLATE_KEYS, chance_text, plate_standing
-from rasmai.images.posters import CoverFn, _esc, kind_mark, mark, panel, stats, tier, tier_mark
+from rasmai.images.posters import CoverFn, _esc, fit_across, kind_mark, mark, panel, stats, tier, tier_mark
 from rasmai.images.pages.common import _image
 
 # an earned condition is stamped with the mark the bot gives that lamp or rank; Clear has none, so its ring fills
@@ -46,9 +46,10 @@ def _labels(group: Sequence[Dict[str, Any]]) -> list:
 
 
 def plates_image_html(plates: Sequence[Dict[str, Any]], player_name: str, avatar_b64: str, date_text: str = "") -> str:
-    """The prize wall: every plate as a ticket stood on end in its version's two colours, the kanji on the face and a ring per
-    condition below the tear, an earned condition stamped with its lamp or rank mark. A banner holds the count, the earned marks
-    and the nearest plate's nameplate; under it the plates up to FiNALE, Mai and the DX plates each lie on a sheet of their own.
+    """The prize wall: every plate as a tile framed in its version's colour, its kanji (or the version's name while it has none) on a
+    face in its two colours, and a ring per condition under it. An earned condition is stamped with its lamp or rank mark, and Clear
+    fills its ring. A banner holds the count, the earned marks and the nearest plate's nameplate; under it the plates up to FiNALE,
+    Mai and the DX plates each have a section.
 
     :param plates: The plates as ``plate_overview`` describes them.
     :type plates: Sequence[Dict[str, Any]]
@@ -133,9 +134,8 @@ def plate_art(key: str, name: str, goal: str, label: str, earned: bool, caption:
 
 def plate_detail_image_html(detail: Dict[str, Any], player_name: str, avatar_b64: str, rows: Sequence[Dict[str, Any]],
                             heading: str = "Closest first", date_text: str = "", cover_html: Optional[CoverFn] = None) -> str:
-    """One prize up close: a banner of how far along it is, then a sheet with its nameplate as the hero at the head of the rolls
-    of tickets it still needs, each with its difficulty's lantern and its chance on the stub, under the numbers the embed links
-    them by.
+    """One plate up close: a banner of how far along it is, then its nameplate as the hero at the head of the charts it still needs.
+    Each chart is a tile numbered as the embed links it, with its difficulty's lantern and, when known, its chance.
 
     :param detail: The plate as ``plate_missing`` describes it.
     :type detail: Dict[str, Any]
@@ -149,7 +149,7 @@ def plate_detail_image_html(detail: Dict[str, Any], player_name: str, avatar_b64
     :type heading: str
     :param date_text: The date to print on the image.
     :type date_text: str
-    :param cover_html: Draws a chart's jacket; without it the tickets carry no jacket.
+    :param cover_html: Draws a chart's jacket; without it the tiles carry no jacket.
     :type cover_html: Optional[CoverFn]
     :rtype: str
     """
@@ -166,15 +166,10 @@ def plate_detail_image_html(detail: Dict[str, Any], player_name: str, avatar_b64
         chance = f'<strong class="{r["band"]}">{chance_text(r["chance"])}</strong>' if r.get("chance") is not None else ""
         jacket = cover_html(r.get("cover", ""), "track-jacket") if cover_html else ""
         tickets += (
-            f'<div class="track pl-ticket{" pl-jacketed" if jacket else ""}" style="--tier:{ink}"><div class="track-stub"><b>{n}</b>{tier_mark(r["difficulty"])}<small>{r["constant"]:.1f}</small>{chance}</div>'
+            f'<div class="track pl-ticket" style="--tier:{ink}"><div class="track-stub"><b>{n}</b>{tier_mark(r["difficulty"])}<small>{r["constant"]:.1f}</small>{chance}</div>'
             f'<div class="track-body"><div class="track-name"><b>{_esc(r["title"])}</b>{kind_mark(r["type"])}</div>{jacket}'
             f'<div class="track-score"><b class="{"" if r["played"] else "dim"}">{_esc(r["need"]) if r["played"] else "never played"}</b><small>{_esc(name)} {_esc(r["level"])}</small></div></div></div>')
-    # the nameplate takes the first two places of the first roll, and a piece spanning the places a short last roll leaves closes it
-    spare = -(2 + len(rows)) % 4 if rows else 0
-    closer = ""
-    if spare:
-        closer = (f'<div class="pl-closer" style="grid-column:span {spare}"><p><b>Stub:</b> row, difficulty, constant'
-                  f'{", odds of " + label if odds else ""}</p></div>')
+    # the nameplate takes the first two places of the first roll
     hero = f'<div class="plate-hero pl-hero{"" if rows else " alone"}" style="grid-column:span {2 if rows else 1}">{art}</div>'
     banner = (f'<div class="banner"><div class="sum"><span><b>{met}</b><small>{label} met</small></span><i>+</i><span>{required - met}<small>to go</small></span>'
               f'<i>=</i><span>{required}<small>charts on the plate</small></span></div>'
@@ -183,7 +178,7 @@ def plate_detail_image_html(detail: Dict[str, Any], player_name: str, avatar_b64
                  '<span class="long">&lt;25%<small>long shot</small></span></div>' if odds else "")
               + "</div>")
     note = heading[:1].lower() + heading[1:] + (f" · {more} more after these" if more > 0 else "")
-    body = banner + panel("cyan run", "Still needed" if rows else "Earned", f'<div class="tracks pl-roll" style="--across:{4 if rows else 1}">{hero}{tickets}{closer}</div>',
+    body = banner + panel("cyan run", "Still needed" if rows else "Earned", f'<div class="tracks pl-roll" style="--across:{fit_across(2 + len(rows)) if rows else 1}">{hero}{tickets}</div>',
                           note if rows else f"every chart meets {detail['label']}")
     kanji = detail["key"] if len(detail["key"]) == 1 else ""
     # the plate as the game names it: 祭極, 覇者, or the version and condition while it has no kanji

@@ -697,68 +697,37 @@ def _export_analyzer():
     return a
 
 
-def _open_rolls(html):
-    """The rolls of tickets on a page whose pieces leave a row short, each as a line saying how many places it fills."""
-    import re
-    from html.parser import HTMLParser
+@check("a roll of 1 to 60 tiles, and /analyze's picks beside its road, keep to the 16:9 frame at the fewest tiles across that fit")
+def _rolls_fit_the_frame():
+    import dataclasses, re
 
-    class Rolls(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.open, self.rolls = [], []
-
-        def handle_starttag(self, tag, attrs):
-            style, classes = dict(attrs).get("style") or "", (dict(attrs).get("class") or "").split()
-            roll = self.open[-1][1] if self.open else None
-            if roll:
-                span = lambda axis: int((re.search(rf"grid-{axis}:span (\d+)", style) or (0, 1))[1])
-                roll[1] += span("column") * span("row")
-            if tag not in ("img", "br", "hr"):
-                across = re.search(r"--across:(\d+)", style)
-                self.open.append((tag, [int(across[1]), 0] if across and "tracks" in classes else None))
-                if self.open[-1][1]:
-                    self.rolls.append(self.open[-1][1])
-
-        def handle_endtag(self, tag):
-            while tag not in ("img", "br", "hr") and self.open and self.open.pop()[0] != tag:
-                pass
-
-    page = Rolls()
-    page.feed(html)
-    return [f"{places} places in rows of {across}" for across, places in page.rolls if places % across]
-
-
-@check("every roll of tickets on an image fills its rows, whatever the number of picks, steps, plays or charts")
-def _rolls_fill_their_rows():
-    import dataclasses
-
-    from rasmai.engine.plates import plate_missing, plate_overview
     from rasmai.images import posters
-    from rasmai.images.pages import plate_detail_image_html
     from rasmai.images.render import generate_poster_html
 
-    problems = []
-    for n in range(1, 61):
-        problems += [f"a roll of {n} tickets: {r}" for r in _open_rolls(posters._roll(["<div></div>"] * n, ""))]
-    if not _open_rolls('<div class="tracks" style="--across:3"><div></div><div style="grid-column:span 2;grid-row:span 2"></div></div>'):
-        problems.append("a roll two places short is not noticed, so this check sees nothing")
+    from tools.checks import ROOT
+
+    # fit_across and the /analyze board work the frame out from these, so each must still be what the stylesheet draws
+    css = (ROOT / "rasmai/images/templates/rasmai.css").read_text(encoding="utf-8")
+    problems = [f"rasmai.css no longer has {rule!r}, which the tile arithmetic assumes" for rule in (
+        "body { width: 2400px; min-height: 1350px;", "padding: 32px 40px 24px;", "aspect-ratio: 5 / 4;",
+        ".tracks { display: grid; grid-template-columns: repeat(var(--across, 5), minmax(0, 1fr)); gap: 14px; }",
+        ".an-board { --gap: 16px; --lane: 26px; display: grid; gap: 0 24px;", "minmax(0, 1fr)) 10px; gap: var(--gap) 52px; }") if rule not in css]
+    if (posters.fit_across(6), posters.fit_across(30), posters.fit_across(60)) != (6, 8, 12):
+        problems.append(f"6, 30 and 60 tiles go {posters.fit_across(6)}, {posters.fit_across(30)} and {posters.fit_across(60)} across, not 6, 8 and 12")
+    if "--across:8" not in posters._roll(["<div></div>"] * 30):
+        problems.append("a roll of 30 tiles is not laid the way fit_across says")
     a = _export_analyzer()
     if a is None:
         return problems
     movers = [r for r in a.found[0] if r.category not in ("near", "try")]
-    # the picks stand beside the road, so each length of one is tried against each length of the other
+    # the picks stand beside the road on one tile width, so each length of one is tried against each length of the other
     for picks in range(1, min(len(movers), 15) + 1):
         for steps in (0, 1, 4, 5, 9, 16):
             plan = dataclasses.replace(a.plan, steps=a.plan.steps[:steps]) if a.plan else None
             page = generate_poster_html(movers[:picks], "p", 14000, 0, 0, 0, plan=plan)
-            problems += [f"/analyze with {picks} picks and {len(plan.steps) if plan else 0} steps: {r}" for r in _open_rolls(page)]
-    plate = next((p for p in plate_overview(a.songs, a.chart_index) if any(g["met"] < g["required"] for g in p["goals"])), None)
-    if plate:
-        goal = next(g["goal"] for g in plate["goals"] if g["met"] < g["required"])
-        detail = plate_missing(a.songs, a.chart_index, plate["key"], goal, a.play_profile)
-        for rows in range(0, 21):
-            page = plate_detail_image_html(detail, "p", "", detail["missing"][:rows], cover_html=lambda cover, css: "")
-            problems += [f"a plate with {rows} charts listed: {r}" for r in _open_rolls(page)]
+            left = re.search(r'an-split" style="--left:(\d+)px', page)
+            if left and not 0 < int(left[1]) < 2296:
+                problems.append(f"/analyze with {picks} picks and {steps} steps gives the picks {left[1]}px beside the road")
     return problems[:8]
 
 
@@ -875,7 +844,6 @@ def _embeds_lean_on_the_image():
         problems.append("/analyze: the Style, Levels and Best-50 fields are not left to the poster when there is one, or are missing when there is none")
     if str(profile.get("comfortConstant")) not in pages.get("analyze", "") or "cutoffs" not in pages.get("analyze", "").lower():
         problems.append("/analyze: the poster does not show the comfort level and best-50 cutoffs its embed no longer does")
-    problems += [f"/{name}: {r}" for name, page in pages.items() for r in _open_rolls(page)]
     return problems
 
 
@@ -1197,6 +1165,27 @@ def _deleted_reply():
     return problems
 
 
+@check("each new-look image takes one of the background layouts the stylesheet draws, and over many images every layout comes up")
+def _backdrops_vary():
+    import re
+
+    from rasmai.images import posters
+
+    css = (ROOT / "rasmai/images/templates/rasmai.css").read_text(encoding="utf-8")
+    problems = [f"rasmai.css has no body.{c}::before for the {c} layout" for c in posters.BACKDROPS if c and f"body.{c}::before" not in css]
+    seen = set()
+    for _ in range(200):
+        page = posters._page("x", "p", "", "1", "", "", "", "", "narrow")
+        classes = re.search(r'<body class="([^"]*)"', page)[1].split()
+        if "narrow" not in classes:
+            problems.append("the page lost the class it was asked for when a layout was added")
+            break
+        seen.add(next((c for c in classes if c in posters.BACKDROPS), ""))
+    if seen != set(posters.BACKDROPS):
+        problems.append(f"200 images drew only the layouts {sorted(seen)} of {list(posters.BACKDROPS)}")
+    return problems
+
+
 @check("the images keep their classic look unless the account switched the new one on at the site, every image the bot draws goes through that switch, and switching drops the images already drawn")
 def _image_theme_switch():
     import pathlib, re, tempfile, types
@@ -1204,7 +1193,8 @@ def _image_theme_switch():
 
     from rasmai.bot.state.cache import cache_get, cache_put, forget_analysis
     from rasmai.images import cards, pages, posters, render
-    from rasmai.images.pages import best50_image_html, plates_image_html
+    from rasmai.bot.builders.plates import _drawn
+    from rasmai.images.pages import best50_image_html
     from rasmai.images.themes import themed
     from rasmai.storage.db import connection as store
     from rasmai.web.dashboard.beta import set_beta
@@ -1230,12 +1220,12 @@ def _image_theme_switch():
         for draw in drawn:
             if not themed("7", draw).__module__.startswith("rasmai.images.classic."):
                 problems.append(f"{draw.__name__} is not drawn classic for an account that never switched")
-        if themed("7", plates_image_html) is not plates_image_html:
-            problems.append("the plates, which have no classic look, are not drawn new for everyone")
+        if _drawn(types.SimpleNamespace(user_id="7")):
+            problems.append("the plates, which have no classic look, are drawn for an account that never switched")
         # the classic page takes the call the builders make for the new one, and still shows its own header
         page = themed("7", best50_image_html)([], [], "p", "", lambda cover, css: "", 14000, 302)
         if "14302" not in re.sub(r"<[^>]+>", "", page) or "rp-cells" not in page:
-            problems.append("the classic best 50 does not draw from the new look's call")
+            problems.append("the classic best 50 does not draw its header and cells from the call the builders make for the new look")
         cache_put(types.SimpleNamespace(user_id="7", created=datetime.now(), images={"b50": b"png"}))
         set_beta("7", {"patterns": True})
         if not cache_get("7").images:
@@ -1243,6 +1233,8 @@ def _image_theme_switch():
         set_beta("7", {"images": True})
         if [d for d in drawn if themed("7", d) is not d]:
             problems.append("an account that switched the new look on still gets the classic one")
+        if not _drawn(types.SimpleNamespace(user_id="7")):
+            problems.append("an account that switched the new look on gets no plates image")
         if cache_get("7").images:
             problems.append("switching the look keeps the images drawn in the old one")
         if themed(None, best50_image_html) is best50_image_html:

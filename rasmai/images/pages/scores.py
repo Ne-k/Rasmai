@@ -13,14 +13,13 @@ def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequen
         for position, e in enumerate(entries, 1):
             label, ink = tier(e["difficulty"])
             constant = f'<small>{e["constant"]:.1f}</small>' if e.get("constant") else ""
-            dx = (f'<small>DX {e["dx"]:,}' + (f' / {e["max_dx"]:,}' if e.get("max_dx") else "") + "</small>") if e.get("dx") else ""
             out += f"""
             <div class="track" style="--tier:{ink};">
               <div class="track-stub"><b>{position}</b>{tier_mark(e["difficulty"])}{constant}<strong>{e["rating"]}</strong></div>
               <div class="track-body">
                 <div class="track-name"><b title="{_esc(e["title"])}">{_esc(e["title"])}</b>{kind_mark(e["chart_type"])}</div>
                 {cover_html(e.get("cover", ""), "track-jacket")}
-                <div class="track-score"><b>{e["accuracy"]:.4f}%</b><small>{label} {_esc(e["level"])}</small>{dx}</div>
+                <div class="track-score"><b>{e["accuracy"]:.4f}%</b><small>{label} {_esc(e["level"])}</small></div>
                 <div class="track-foot"><span>{rank_mark(e["rank"])}{lamp_marks(e.get("fc"), e.get("fs"))}</span></div>
               </div>
             </div>"""
@@ -53,19 +52,12 @@ def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequen
       <div class="tally">{tally("rank", list(RANKS), rank_mark)}{"".join(f"<span>{tier_mark(name)}{tiers.count(name)}</span>" for name in sorted(set(tiers), key=tiers.count, reverse=True))}</div>
       <div class="tally">{tally("fc", ("AP+", "AP", "FC+", "FC"), lambda name: lamp_marks(name, None))}{tally("fs", ("FDX+", "FDX", "FS+", "FS", "SYNC"), lambda name: lamp_marks(None, name))}</div>
     </div>"""
-    # eight across: 15 charts and the stub's key fill two rolls, 35 charts and the marks' key five, so both sheets end square
-    stub_key = (f'<div class="b50-key b50-key-stub"><p><b>Stub:</b> place, difficulty, constant, rating</p>'
-                f'<p><span>{mark("type_dx")}DX</span><span>{mark("type_std")}Standard</span></p></div>')
-    marks_key = f"""<div class="b50-key" style="grid-column:span 5">
-      <p><span>{mark("diff_basic")}Basic</span><span>{mark("diff_advanced")}Advanced</span><span>{mark("diff_expert")}Expert</span><span>{mark("diff_master")}Master</span>
-         <span>{mark("diff_remaster")}Re:Master</span></p>
-      <p><span>{mark("rank_sssp")}rank</span><span>{mark("lamp_fc")}full combo</span><span>{mark("lamp_ap")}all perfect</span><span>{mark("lamp_fs")}full sync</span>
-         <span>{mark("lamp_fdx")}full sync DX</span><span>{mark("lamp_fcp")}a plus is the better one</span></p></div>"""
+    # side by side, as the community's boards lay them out: the 15 three across and the 35 seven across, both five rows deep
     body = (banner
-            + panel("pink run", "New charts", f'<div class="tracks" style="--across:8">{tickets(new_entries, 15)}{stub_key}</div>',
-                    "your best charts from the current version")
-            + panel("cyan run", "Old charts", f'<div class="tracks" style="--across:8">{tickets(old_entries, 35)}{marks_key}</div>',
-                    "your best charts from every earlier version"))
+            + '<div class="b50-pair">'
+            + panel("pink run", "New charts", f'<div class="tracks" style="--across:3">{tickets(new_entries, 15)}</div>', "this version")
+            + panel("cyan run", "Old charts", f'<div class="tracks" style="--across:7">{tickets(old_entries, 35)}</div>', "every earlier version")
+            + "</div>")
     return _image("Best 50", player_name, avatar_b64, rating_plate(new_total + old_total), "best-50 total", body, date_text)
 
 
@@ -91,6 +83,7 @@ def _tally(rows: Sequence[Dict[str, Any]]) -> str:
 
 
 _ACROSS = 8
+_DAY_ACROSS = 11
 _RUNS = ("pink", "cyan", "gold")
 
 
@@ -123,39 +116,31 @@ def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], play
         lines: List[List[List[int]]] = []
         for at, (_label, group) in enumerate(days):
             cells = len(group)
-            wide = min(cells, _ACROSS)
-            # each sheet's own edge takes room, so a line shared by several days holds seven tickets, not eight
-            if not lines or sum(day[1] for day in lines[-1]) + wide > _ACROSS - 1:
+            wide = min(cells, _DAY_ACROSS)
+            # the gap between days takes room, so a line shared by several days holds one tile fewer than _DAY_ACROSS
+            if not lines or sum(day[1] for day in lines[-1]) + wide > _DAY_ACROSS - 1:
                 lines.append([])
             lines[-1].append([at, wide, cells])
         for line in lines:
-            # the last day on a line takes the room the line leaves, so every line of sheets ends level
-            line[-1][1] += _ACROSS - (len(line) > 1) - sum(day[1] for day in line)
+            # the last day on a line takes the room the line leaves, so every line of days ends level
+            line[-1][1] += _DAY_ACROSS - (len(line) > 1) - sum(day[1] for day in line)
         return lines
 
     plays = [p for _d, group in days for p in group]
     lines = pack()
-    placed = [(at, wide, cells, -cells % wide, len(line)) for line in lines for at, wide, cells in line]
-    # the first ragged roll is closed by the key; any later one by the hours the day's plays span
-    keyed = next((at for at, _w, _c, spare, _n in placed if spare), None)
-    key = (f'<p>{mark("pb")}Matches your current best</p><p>{mark("best50")}Counts toward your rating</p>'
-           '<p><b>Stub:</b> time, difficulty, constant, rating</p><p>Times in JST</p>')
+    placed = [(at, wide, len(line)) for line in lines for at, wide, _cells in line]
     sheets = ""
-    for at, wide, cells, spare, shared in placed:
+    for at, wide, shared in placed:
         label, group = days[at]
         colour = _RUNS[at % len(_RUNS)]
         new = sum(1 for p in group if p.get("pb"))
-        piece = ""
-        if spare:
-            piece = (f'<div class="sc-key" style="grid-column:span {spare}">'
-                     + (key if at == keyed else f'<p><b>{_esc(group[-1]["time"])} – {_esc(group[0]["time"])}</b></p><p>First to last play</p>') + "</div>")
-        body = "".join(play(p) for p in group) + piece
-        # a day's figures ride its band: a sheet two tickets wide or less has room for the count alone
+        body = "".join(play(p) for p in group)
+        # a day's figures go in its heading's note: a day two tiles wide or less has room for the count alone
         figures = [count(len(group), "play"), count(new, "new best") if new else "", f"average {average(group)}"]
         note = ", ".join(f for f in figures if f) if wide > 2 else figures[0]
-        if keyed is None and at == 0:
+        if at == 0:
             note = ", ".join(n for n in (note, "times in JST") if n)
-        sheets += (f'<div class="sc-sheet" style="grid-column:span {wide * 56 // (_ACROSS - (shared > 1))}">'
+        sheets += (f'<div class="sc-sheet" style="grid-column:span {wide * 110 // (_DAY_ACROSS - (shared > 1))}">'
                    + panel(f"{colour} run sc-day", date(label, wide > 1), f'<div class="tracks" style="--across:{wide}">{body}</div>', note)
                    + "</div>")
     days_tally = ("".join(f"<span>{mark('plays')}{len(group)} on {_esc(date(label, False))}</span>" for label, group in days[:6])
@@ -170,7 +155,7 @@ def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], play
 def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_label: str, player_name: str,
                      rating: int, avatar_b64: str, cover_html: CoverFn, total: int, played: int,
                      start: int = 1, date_text: str = "", page: int = 1, pages: int = 1) -> str:
-    """One page of a level as a shelf: a dozen tickets stood on end, six across, the row's number on each stub.
+    """One page of a level: a dozen jacket tiles, six across, the row's number on each.
 
     A table of sixty rows was legible only at full size; Discord's preview shrinks the image
     to a few hundred pixels, so the image carries the same charts as the embed page, large.
@@ -206,28 +191,21 @@ def level_image_html(rows: Sequence[Dict[str, Any]], level_label: str, sort_labe
     def tag(number: int, r: Dict[str, Any]) -> str:
         label, ink = tier(r["difficulty"])
         if r.get("unplayed"):
-            marks, score = mark("unknown"), "<b>never played</b>"
+            score, marks = "<b>never played</b>", mark("unknown")
         else:
-            marks, score = rank_mark(r["rank"]) + lamp_marks(r.get("fc"), r.get("fs")), f'<b>{r["accuracy"]:.4f}%</b>'
-        return (f'<div class="sc-tag{" sc-unplayed" if r.get("unplayed") else ""}" style="--tier:{ink};">'
-                f'<div class="sc-tag-stub"><b>{number}</b>{tier_mark(r["difficulty"])}<span>{label} {_esc(r["level"])}<small>{r["constant"]:.1f}</small></span>'
-                f'<strong>{"" if r.get("unplayed") else r["rating"]}</strong></div>'
-                f'<div class="sc-tag-paper"><p class="sc-tag-name"><b>{_esc(r["title"])}</b>{kind_mark(r["chart_type"])}</p>'
-                f'{cover_html(r.get("cover", ""), "sc-tag-jacket")}<p class="sc-tag-score">{score}</p><div class="sc-tag-marks">{marks}</div>'
-                f'<p class="sc-tag-note">{_esc(r.get("note")) or "&nbsp;"}</p></div></div>')
+            score, marks = f'<b>{r["accuracy"]:.4f}%</b>', rank_mark(r["rank"]) + lamp_marks(r.get("fc"), r.get("fs"))
+        note = _esc(r.get("note")) or f"{label} {_esc(r['level'])}"
+        return _ticket(_stub(str(number), r, "" if r.get("unplayed") else r["rating"]), ink, r, cover_html, f"{score}<small>{note}</small>",
+                       f"<span>{marks}</span>", shape=" sc-unplayed" if r.get("unplayed") else "")
 
     scored = [r for r in rows if not r.get("unplayed")]
     shelf = "".join(tag(number, r) for number, r in enumerate(rows, start))
-    spare = 6 * (1 if len(rows) <= 6 else 2) - len(rows)
-    if spare:
-        shelf += (f'<div class="sc-key" style="grid-column:span {spare}"><p><b>Stub:</b> row, difficulty, level and constant, rating</p>'
-                  f'<p>{mark("unknown")}Never played</p><p>The last of {total} charts at this level</p></div>')
     figures = [("Charts", str(total)), ("Played", str(played)), ("Never played", str(total - played)), ("Page", f"{page} / {pages}")]
     if scored:
         figures.append(("Average", f"{sum(r['accuracy'] for r in scored) / len(scored):.4f}%"))
     banner = f'<div class="banner">{stats(figures)}' + (f'<div class="tally">{_tally(scored)}</div>' if scored else "") + "</div>"
     counted = f"{start}–{start + len(rows) - 1} of {total}"
-    body = (banner + panel("cyan run sc-day", sort_label[:1].upper() + sort_label[1:], f'<div class="sc-shelf">{shelf}</div>', counted)
+    body = (banner + panel("cyan run sc-day", sort_label[:1].upper() + sort_label[1:], f'<div class="tracks" style="--across:6">{shelf}</div>', counted)
             if rows else '<p class="sc-empty">No charts on this page.</p>')
     return _image(f"Level {level_label}", player_name, avatar_b64, rating_plate(rating), "rating", body, date_text)
 
@@ -273,17 +251,13 @@ def dxscore_image_html(tiles: Dict[int, int], rows: Sequence[Dict[str, Any]], pl
               f'<div class="tally sc-starcount">{stars}</div></div>')
 
     def ticket(number: int, r: Dict[str, Any]) -> str:
-        label, ink = tier(r["difficulty"])
+        _label, ink = tier(r["difficulty"])
         return _ticket(_stub(str(number), r, r["short"]), ink, r, cover_html,
-                       f'<b>{r["dx"]:,}</b><small>of {r["max_dx"]:,}</small><small>{r["ratio"] * 100:.2f}%</small><small>{label} {_esc(r["level"])}</small>',
+                       f'<b>{r["dx"]:,}</b><small>of {r["max_dx"]:,}, {r["ratio"] * 100:.2f}%</small>',
                        f'<span class="sc-next"><span class="stars">{star_marks(r["stars"])}</span>'
                        f'<span class="stars">{star_marks(min(5, r["stars"] + 1))}</span></span>', shape=" sc-near")
 
     tickets = "".join(ticket(number, r) for number, r in enumerate(rows, 1))
-    spare = -len(rows) % _ACROSS
-    if rows and spare:
-        tickets += (f'<div class="sc-key" style="grid-column:span {spare}"><p><b>Stub:</b> row, difficulty, constant, points to the next star</p>'
-                    f'<p><span class="stars">{star_marks(3)}</span><b>Stars:</b> now over next</p><p>Max DX score is notes × 3</p></div>')
-    body = banner + (panel("gold run sc-day", "Closest to the next star", f'<div class="tracks" style="--across:{_ACROSS}">{tickets}</div>', "points short of the next star" if spare else "stub: row, difficulty, constant, points to the next star")
+    body = banner + (panel("gold run sc-day", "Closest to the next star", f'<div class="tracks" style="--across:{_ACROSS}">{tickets}</div>', "points short of the next star")
                      if rows else '<p class="sc-empty">Every chart is already five stars.</p>')
     return _image("DX score", player_name, avatar_b64, str(tiles.get(5, 0)), "five-star charts", body, date_text)

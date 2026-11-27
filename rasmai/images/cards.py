@@ -35,8 +35,7 @@ def _sentences(parts: Sequence[str]) -> str:
 
 
 def _jacket(cover_html: CoverFn, cover: str, ink: str, title: str, under: str = "", foot: str = "") -> str:
-    """The chart's own ticket stood on end: the jacket large in a frame of the difficulty's colour with the title under it, and a
-    paper foot that tears off along the pink dashes.
+    """The chart's jacket large in a frame of the difficulty's colour, the title under it, and a foot under a hairline.
 
     :param cover_html: Renders a jacket as markup.
     :type cover_html: CoverFn
@@ -48,7 +47,7 @@ def _jacket(cover_html: CoverFn, cover: str, ink: str, title: str, under: str = 
     :type title: str
     :param under: Markup for the line under the title, already escaped.
     :type under: str
-    :param foot: Markup for the paper foot, already escaped.
+    :param foot: Markup for the foot, already escaped.
     :type foot: str
     :rtype: str
     """
@@ -104,11 +103,11 @@ def song_card_html(title: str, artist: str, genre: str, version_label: str, cove
     played = [r for r in rows if r.get("played")]
     best = max((r["rating"] for r in played), default=0)
     banner = _banner(stats([("Charts", str(len(rows))), ("Played", str(len(played))), ("Cutoffs", _esc(cutoffs))]))
-    # the song's own facts sit on the ticket under its jacket, so the ticket is full whatever the column beside it holds
+    # the song's own facts sit on the tile under its jacket, so the tile is full whatever the column beside it holds
     tags = "".join(f'<span class="cd-tag">{_esc(f)}</span>' for f in [genre or "genre unknown", version_label, *facts] if f)
     left = _jacket(cover_html, cover, frame, title, f'<span class="cd-jk-under">{_esc(artist)}</span>',
                    f'<div class="cd-tags">{tags}</div>' + (f'<div class="cd-about">{about}</div>' if about else ""))
-    # past five charts (a song with standard and DX charts) the tickets run in two columns so the card stays landscape
+    # past five charts (a song with standard and DX charts) the tiles run in two columns so the card stays landscape
     tall = len(rows) if len(rows) <= 5 else -(-len(rows) // 2)
     middle = panel("pink run cd-grow", "Difficulties",
                    f'<div class="cd-diffs{" two" if len(rows) > 5 else ""}" style="--rows:{max(1, tall)};">{tickets}</div>',
@@ -171,7 +170,7 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
     """
     from rasmai.engine.analysis import rank_for
     label, ink = tier(difficulty)
-    width, height = 1080, 600
+    width, height = 1440, 600
     left, right, top, bottom = 170, 40, 54, 62
     plot_w, plot_h = width - left - right, height - top - bottom
 
@@ -372,7 +371,7 @@ def compare_image_html(me: Dict[str, Any], them: Dict[str, Any], levels: Sequenc
         return f'<div class="tracks cd-leads">{out}</div>' if out else '<p class="cd-none">no leads</p>'
 
     def figures(p: Dict[str, Any]) -> str:
-        # the rating is on the side's own sheet; the best-50 total is said only where it differs from it
+        # the rating is in the side's own head; the best-50 total is said only where it differs from it
         best50 = [("Best-50", _esc(p["best50"]))] if str(p["best50"]) != str(p["rating"]) else []
         return stats(best50 + [("Charts", _esc(p["charts"])),
                        ("Plays", _esc(p["plays"] or "?")), ("SSS", _esc(p["sss"])), ("SS", _esc(p["ss"])), ("FC", _esc(p["fc"])),
@@ -421,7 +420,7 @@ def compare_image_html(me: Dict[str, Any], them: Dict[str, Any], levels: Sequenc
 def leaderboard_image_html(guild_name: str, rows: Sequence[Tuple[int, str, str, str]], date_text: str = "",
                            start: int = 0, size: int = 20) -> str:
     """The board, `size` players from `start`: the page the reply is on, under the count and the top rating of the whole board.
-    The first three take the prize tickets across the top and everyone after them runs below as a roll of numbered stubs."""
+    On the page that holds them, the top three take framed tiles across the top; everyone else runs below as a roll of numbered stubs."""
     def who(display: str, maimai: str, region: str) -> str:
         return (f'<div class="cd-seat-who"><b>{_esc(display)}</b>'
                 + (f'<small>{_esc(maimai)}</small>' if maimai and maimai != display else "") + "</div>"

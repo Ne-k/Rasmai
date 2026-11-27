@@ -88,8 +88,8 @@ def _radar_svg(axes: Sequence[Dict[str, Any]], width: int = 1000, height: int = 
     def ring(scale: float) -> str:
         return " ".join(f"{mid_x + radius * scale * math.sin(a):.1f},{mid_y - radius * scale * math.cos(a):.1f}" for a in angles)
 
-    # the rim is Rasmai's ring: a thick ink band with a line of paper run along it, round a plate the shape is drawn on
-    parts: List[str] = [f'<polygon points="{ring(1.0)}" class="pg-rim"/><polygon points="{ring(1.0)}" class="pg-rim-in"/>',
+    # the rim is Rasmai's ring, a line round the plate the shape is drawn on
+    parts: List[str] = [f'<polygon points="{ring(1.0)}" class="pg-rim"/>',
                         f'<polygon points="{ring(0.75)}" class="pg-ring"/><polygon points="{ring(0.25)}" class="pg-ring"/>',
                         f'<polygon points="{ring(0.5)}" class="pg-ring mid"/>']
     shape: List[str] = []
@@ -180,7 +180,7 @@ def traits_image_html(axes: Sequence[Dict[str, Any]], weak: Sequence[Dict[str, A
           <p>Stub: points under or over your curve <i class="pg-bar"><i></i></i>confirmed <i class="pg-bar unsure"><i></i></i>not sure yet</p></div>"""
     lose = panel("cyan run pg-list", "Where you lose points", rows(weak, "down"), "below your curve")
     gain = panel("pink run pg-list", "Where you're strong", rows(strong, "up"), "above your curve")
-    # a few traits in all stack both lists beside the wheel, so neither sheet is left mostly empty; more stand either side of it
+    # a few traits in all stack both lists beside the wheel, so neither section is left mostly empty; more stand either side of it
     if len(weak) + len(strong) <= 6:
         board = f'<div class="pg-traits pg-stacked">{panel("purple pg-wheel-panel", "Trait wheel", wheel, "points against your own curve")}<div class="pg-lists">{lose}{gain}</div></div>'
     else:

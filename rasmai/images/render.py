@@ -83,25 +83,20 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
     def move(current_rank: str, target_rank: str) -> str:
         return f'{rank_mark(current_rank)}<i class="an-to">&rarr;</i>{rank_mark(target_rank)}' if current_rank else rank_mark(target_rank)
 
-    def ticket(position: int, title: str, chart_type: str, difficulty: str, level: str, constant: float, unplayed: bool, plays: int,
-               current: float, target: float, current_rank: str, target_rank: str, odds: float, gain: int, cover_url: str,
+    def ticket(position: int, title: str, chart_type: str, difficulty: str, constant: float, unplayed: bool,
+               current: float, target: float, current_rank: str, target_rank: str, gain: int, cover_url: str,
                place: str = "", post: str = "") -> str:
-        label, ink = tier(difficulty)
-        count = "" if unplayed or plays <= 0 else f", {_plays(plays)}"
+        _label, ink = tier(difficulty)
         return f"""
         <div class="track" style="--tier:{ink};{place}">
           {stub(position, difficulty, constant, gain)}
           <div class="track-body">
             {name(title, unplayed, chart_type)}
             {cover(cover_url, "track-jacket")}
-            <div class="track-score"><b>{target:.2f}%</b><small>{"never played" if unplayed else f"from {current:.2f}%"}</small>
-              <small>{label.title()} {_esc(level)}</small><small>{odds * 100:.0f}% odds{count}</small></div>
+            <div class="track-score"><b>{target:.2f}%</b><small>{"never played" if unplayed else f"from {current:.2f}%"}</small></div>
             <div class="track-foot"><span>{move(current_rank, target_rank)}</span></div>
           </div>{post}
         </div>"""
-
-    def key(columns: int, lines: str, rows: int = 1) -> str:
-        return f'<div class="an-key" style="grid-column:span {columns};grid-row:span {rows}">{lines}</div>'
 
     picks = ""
     for position, rec in enumerate(featured, 1):
@@ -149,28 +144,24 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
 
     # the picks stand beside the road only when they run about as long; a short list goes above a full-width road
     split = bool(listed and steps) and math.ceil(len(listed) / 3) >= math.ceil(len(steps) / 4)
-    road_across = 4 if split else 6
+    across, road_across, left = 8, 8, 0
+    if split:
+        # picks and road share one tile width (5:4) so their rows line up; take the most rows that fit under the head at 16:9
+        # 2296px is the width less the gaps: 14px between picks, 52px per step for the road's lane, 10px at its end
+        room = 960 - (270 if picks else 0) - (120 if near else 0) - 170
+        for rows in range(2, 7):
+            a, b = math.ceil(len(listed) / rows), math.ceil(len(steps) / rows)
+            tile = (2296 - 14 * (a - 1) - 52 * b - 10) / (a + b)
+            if left and rows * (0.8 * tile + 16) > room:
+                break
+            across, road_across, left = a, b, round(a * tile + 14 * (a - 1))
     road_rows = math.ceil(len(steps) / road_across) + 1 if steps else 0
     board = ""
     if listed:
-        across = 3 if split else 6
-        rows = max(math.ceil(len(listed) / across), road_rows if split else 0)
         plates = "".join(
-            ticket(position, rec.song, rec.chart_type, rec.difficulty_type, rec.level, rec.difficulty, rec.is_unplayed, rec.plays,
-                   rec.current_accuracy, rec.target_accuracy, rec.current_rank, rec.target_rank, rec.feasibility,
-                   rec.potential_gain, rec.cover_url)
+            ticket(position, rec.song, rec.chart_type, rec.difficulty_type, rec.difficulty, rec.is_unplayed,
+                   rec.current_accuracy, rec.target_accuracy, rec.current_rank, rec.target_rank, rec.potential_gain, rec.cover_url)
             for position, rec in enumerate(listed, len(featured) + 1))
-        reading = "<p><b>Stub:</b> place, difficulty, constant, gain. <b>Ticket:</b> target, where you are now, odds.</p>"
-        marks = ("<p>" + "".join(f"<span>{mark(sign)}{words}</span>" for sign, words in (
-            ("diff_basic", "Basic"), ("diff_advanced", "Advanced"), ("diff_expert", "Expert"), ("diff_master", "Master"),
-            ("diff_remaster", "Re:Master"), ("type_dx", "DX chart"), ("type_std", "Standard chart"), ("new", "never played")))
-            + f'<span>{rank_mark("SSS")}<i class="an-to">&rarr;</i>{rank_mark("SSS+")}rank now, rank reached</span></p>')
-        ragged, whole = (rows * across - len(listed)) % across, (rows * across - len(listed)) // across
-        # the spare places close the roll: the ragged end of its last row, and whole rows when the road beside runs longer
-        if ragged and whole:
-            plates += key(ragged, reading) + key(across, marks, whole)
-        elif ragged or whole:
-            plates += key(ragged or across, reading + marks, whole or 1)
         board += panel("pink run an-next", "Next up", f'<div class="tracks" style="--across:{across}">{plates}</div>',
                        f"picks {len(featured) + 1} to {len(featured) + len(listed)}" if len(listed) > 1 else f"pick {len(featured) + 1}")
     if steps:
@@ -180,9 +171,8 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
         for index, step in enumerate(steps):
             row, column = divmod(index, road_across)
             option = step.option
-            plates += ticket(index + 1, option.title, option.chart_type, option.difficulty_type, option.level, option.constant,
-                             option.is_unplayed, option.plays, option.current_accuracy, option.target_accuracy, option.current_rank,
-                             option.target_rank, option.feasibility, step.gain, option.cover,
+            plates += ticket(index + 1, option.title, option.chart_type, option.difficulty_type, option.constant, option.is_unplayed,
+                             option.current_accuracy, option.target_accuracy, option.current_rank, option.target_rank, step.gain, option.cover,
                              f"grid-area:{row + 1}/{column + 1}", f'<em class="an-post">+{step.cumulative}</em>')
         verdict = (f"covers the full +{plan.needed}" if plan.reached
                    else f"+{plan.total} of +{plan.needed}, {plan.shortfall} short")
@@ -191,7 +181,7 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
                    f'<div class="track-stub">{mark("dxstar")}</div><div class="track-body">'
                    f'<b>Goal</b><strong>{plan.goal_rating}</strong>'
                    f'<span class="an-meter"><i style="width:{filled:.0f}%"></i></span>'
-                   f'<small>{_esc(verdict)}, from {plan.start_rating}<br>Play in order. The running total follows each step.</small></div></div>')
+                   f'<small>{_esc(verdict)}, from {plan.start_rating}. Play them in order. Each step shows your total after it.</small></div></div>')
         board += panel("cyan run an-road", f"Road to {plan.goal_rating}",
                        f'<div class="an-path" style="--across:{road_across}">{lanes}{plates}</div>',
                        f"{len(steps)} step{'' if len(steps) == 1 else 's'}")
@@ -202,7 +192,7 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
         body += panel("gold run", "Play these first", f'<div class="tracks an-picks" style="--across:{len(featured)}">{picks}</div>',
                       f"top {len(featured)} of {len(movers)}" + (f" · {scope}" if scope else ""))
     if board:
-        body += f'<div class="an-board{" an-split" if split else ""}">{board}</div>'
+        body += f'<div class="an-board{" an-split" if split else ""}" style="--left:{left}px">{board}</div>'
     if near:
         items = "".join(
             f'<div class="track an-near" style="--tier:{tier(r.difficulty_type)[1]}"><div class="track-stub">{tier_mark(r.difficulty_type)}</div>'

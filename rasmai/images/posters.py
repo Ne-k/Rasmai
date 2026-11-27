@@ -1,4 +1,5 @@
 import math
+import random
 from html import escape
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
@@ -27,16 +28,16 @@ CSS = styleimage()
 
 
 def panel(colour: str, title: str, body: str, note: str = "") -> str:
-    """A block of a board: a sheet of paper under a coloured band that carries its name and a note.
+    """A section of a board: its name and a note over a hairline, then what it holds.
 
-    :param colour: The band's colour (``"pink"``, ``"gold"``, ``"cyan"``, ``"mint"`` or ``"purple"``), with ``" bare"`` after it for a block of tickets
-        that lies on the sky under a label and not on a sheet of paper. Any other class the block needs can follow too.
+    :param colour: The section's colour, which the /area tiles and trait bars drawn in it take (``"pink"``, ``"gold"``, ``"cyan"``,
+        ``"mint"`` or ``"purple"``), followed by any other class the section needs.
     :type colour: str
-    :param title: The block's name, escaped here.
+    :param title: The section's name, escaped here.
     :type title: str
-    :param body: The block's markup, already escaped where it carries anyone's text.
+    :param body: The section's markup, already escaped where it carries anyone's text.
     :type body: str
-    :param note: A short line for the tag beside the name, escaped here.
+    :param note: A short line beside the name, escaped here.
     :type note: str
     :rtype: str
     """
@@ -55,7 +56,7 @@ def mark(name: str) -> str:
 
 
 def rank_mark(rank: Any) -> str:
-    """A rank as its ticket stub, the mark the bot's messages use for it.
+    """A rank as its mark, the one the bot's messages use for it.
 
     :param rank: The rank, such as ``"SSS+"``.
     :type rank: Any
@@ -125,12 +126,16 @@ def _warm_up_line(warm: dict) -> str:
     return f" &middot; your first track of a credit runs <b>{gap:.2f}%</b> over the rest"
 
 
+# the background layouts in rasmai.css; "" is the default body::before
+BACKDROPS = ("", "bg-chain", "bg-seal", "bg-ripple")
+
+
 def _page(eyebrow: str, name: str, avatar_b64: str, headline_value: str,
           headline_caption: str, body: str, foot_more: str, foot_right: str, body_class: str = "") -> str:
     return render(
         "page",
         css=CSS,
-        body_class=body_class,
+        body_class=" ".join(c for c in (body_class, random.choice(BACKDROPS)) if c),
         avatar=_avatar(avatar_b64),
         eyebrow=_esc(eyebrow),
         name=_esc(name),
@@ -185,25 +190,14 @@ def _plays(plays: int, unplayed: bool = False) -> str:
     return f"{plays} play" if plays == 1 else f"{plays} plays"
 
 
-# six tickets across leave room for a large jacket with the score lines beside it; a longer run goes eight across, as /b50 does
-ACROSS, ACROSS_LONG = 6, 8
+def fit_across(places: int, room: int = 960) -> int:
+    """The fewest jacket tiles across, six at least, whose rows of `places` fit in `room` pixels, so the page keeps to 16:9."""
+    # a tile is 4/5 as tall as wide, across a 2320px page with 14px between tiles (rasmai.css .tracks)
+    return next((a for a in range(6, 13) if -(-places // a) * (0.8 * (2320 - 14 * (a - 1)) / a + 14) <= room), 12)
 
 
-def _roll(plates: Sequence[str], key: str) -> str:
-    """A run of tickets in full rolls, one piece closing the spare places of the last roll.
-
-    :param plates: The run's tickets.
-    :type plates: Sequence[str]
-    :param key: What the closing piece says, already escaped.
-    :type key: str
-    :rtype: str
-    """
-    # a short run is drawn half as many across at twice the size, so a night of six credits is not one thin strip
-    across, zoom = (ACROSS // 2, 2) if len(plates) <= ACROSS else (ACROSS, 1) if len(plates) < 6 * ACROSS else (ACROSS_LONG, 1)
-    spare = -len(plates) % across
-    end = f'<div class="rs-key" style="grid-column:span {spare}">{key}</div>' if spare else ""
-    return (f'<div class="tracks rs-roll{" rs-long" if across == ACROSS_LONG else ""}" style="--across:{across};zoom:{zoom}">'
-            f'{"".join(plates)}{end}</div>')
+def _roll(plates: Sequence[str], room: int = 960) -> str:
+    return f'<div class="tracks" style="--across:{fit_across(len(plates), room)}">{"".join(plates)}</div>'
 
 
 def _lanterns(difficulties: Sequence[Any]) -> str:
@@ -212,12 +206,12 @@ def _lanterns(difficulties: Sequence[Any]) -> str:
     return '<div class="tally">' + "".join(f"<span>{tier_mark(d)}{held.count(d)}</span>" for d in sorted(set(held), key=held.count, reverse=True)) + "</div>"
 
 
-def _step(option: Any, position: int, cover_html: CoverFn, flags: str, gain: int, tally: str) -> str:
-    """One chart to push, on a ticket: a step of /plan's route, a credit of /session's running order.
+def _step(option: Any, position: int, cover_html: CoverFn, flags: str, gain: int) -> str:
+    """One chart to push, as a tile: a step of /plan's route, a credit of /session's running order.
 
     :param option: The chart and its target.
     :type option: Any
-    :param position: The ticket's number, which the embed's links share.
+    :param position: The tile's number, which the embed's links share.
     :type position: int
     :param cover_html: Draws a jacket.
     :type cover_html: CoverFn
@@ -225,34 +219,23 @@ def _step(option: Any, position: int, cover_html: CoverFn, flags: str, gain: int
     :type flags: str
     :param gain: What the target adds to the best-50, the stub's figure.
     :type gain: int
-    :param tally: The running figure, already worded.
-    :type tally: str
     :rtype: str
     """
     label, ink = tier(option.difficulty_type)
     constant = float(option.constant or 0)
     new = option.is_unplayed
     where = "never played" if new else f"from {option.current_accuracy:.2f}"
-    # a play count the site never gave says nothing, so only a known one is printed
-    last = f"{_plays(option.plays)}, {_esc(tally)}" if option.plays > 0 and not new else _esc(tally)
-    last = last[:1].upper() + last[1:]
     return f"""
     <div class="track" style="--tier:{ink};">
       <div class="track-stub"><b>{position}</b>{tier_mark(option.difficulty_type)}<small>{f"{constant:.1f}" if constant > 0 else ""}</small><strong>+{gain}</strong></div>
       <div class="track-body">
         <div class="track-name"><b>{_esc(option.title)}</b>{kind_mark(option.chart_type)}</div>
         {cover_html(option.cover, "track-jacket")}
-        <div class="track-score"><b>{option.target_accuracy:.2f}%</b><small>{label.title()} {_esc(option.level)}, {where}</small>
-          <small>Usually ~{option.expected:.1f}%, {option.feasibility * 100:.0f}% odds</small><small>{last}</small></div>
+        <div class="track-score"><b>{option.target_accuracy:.2f}%</b><small>{label.title()} {_esc(option.level)}, {where}</small></div>
         <div class="track-foot"><span>{mark("new") if new else rank_mark(option.current_rank)}<i class="rs-to"></i>{rank_mark(option.target_rank)}</span>{flags}</div>
       </div>
     </div>"""
 
-
-_STEP_KEY = ('<p><b>Stub:</b> place, difficulty, constant, gain</p>'
-             '<p><b>Ticket:</b> target, level, where you stand, your usual score, odds</p>'
-             f'<p><span>{mark("rank_sss")}<i class="rs-to"></i>{mark("rank_sssp")}rank now, rank reached</span>'
-             f'<span>{mark("new")}never played</span></p>')
 
 
 # ---------------------------------------------------------------- /plan
@@ -284,11 +267,11 @@ def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64
             f'<div class="rs-road-end"><small>goal</small><span class="rs-goal">{plan.goal_rating}</span></div></div>')
     kind = ("stretch targets" if stretch else "grind targets, 25% odds or better") + (f" · {limit_label} only" if limit_label else "")
     if steps:
-        route = _roll([_step(step.option, position, cover_html, "", step.gain, f"running total {step.cumulative}")
-                       for position, step in enumerate(steps, 1)], _STEP_KEY)
+        route = _roll([_step(step.option, position, cover_html, "", step.gain)
+                       for position, step in enumerate(steps, 1)], room=800)
     else:
         route = '<div class="rs-empty">No achievable steps yet - play a few more charts and try again.</div>'
-    body = (banner + panel("gold run", "The road", road, "one button per step")
+    body = (banner + panel("gold run", "The road", road, "one dot per step")
             + panel("cyan run", "Route", route, f"{len(steps)} step{'' if len(steps) == 1 else 's'} · {kind}"))
     return _page(f"Road to {plan.goal_rating}", player_name, avatar_b64,
                  f"+{plan.total}", f"of +{plan.needed}", body,
@@ -310,16 +293,12 @@ def session_poster_html(session: Any, player_name: str, avatar_b64: str,
               f'<span>{any_lands:.0f}%<small>odds one lands</small></span></div>{stats(figures)}'
               f'{_lanterns([play.option.difficulty_type for play in plays]) if plays else ""}</div>')
     if plays:
-        key = ('<p><b>Stub:</b> order, difficulty, constant, gain</p>'
-               '<p><span><span class="rs-tag rs-warm">warm-up</span>the surest plays come first</span>'
-               '<span><span class="rs-tag">try 2</span>a repeat, worth it if the first try missed</span></p>'
-               '<p>Each credit goes where gain × odds is highest.</p>')
         plates = [_step(play.option, position, cover_html,
                         ('<span class="rs-tag rs-warm">warm-up</span>' if position <= warm else "")
                         + (f'<span class="rs-tag">try {play.attempt}</span>' if play.attempt > 1 else ""),
-                        play.gain, f"worth +{play.expected:.1f}")
+                        play.gain)
                   for position, play in enumerate(plays, 1)]
-        order = _roll(plates, key)
+        order = _roll(plates)
     else:
         order = '<div class="rs-empty">Nothing tonight moves your best-50 at these odds. Try bolder targets.</div>'
     body = banner + panel("pink run", "Running order", order, "warm-ups first, then by difficulty")
@@ -350,7 +329,7 @@ def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, 
       </div>
     </div>"""
 
-    # the title ticket holds the difficulty; a level or a focus asked for goes in the banner, so the ticket never runs under the head's figure
+    # the head's title holds the difficulty; a level or a focus asked for goes in the banner, so the title never runs under the head's figure
     first, *rest = labels
     worth = sum(1 for pick in picks if pick.rating_gain > 0)
     figures = [("To try", str(len(picks))), ("Worth rating now", str(worth)), ("Rating", str(player_rating))]
@@ -364,11 +343,7 @@ def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, 
               f'{_lanterns([pick.difficulty for pick in picks]) if picks else ""}{asked}'
               f'{f"<p class='rs-note'>{banks}</p>" if banks and not asked else ""}</div>')
     if picks:
-        key = ('<p><b>Stub:</b> place, difficulty, constant, gain or odds of S</p>'
-               "<p><b>Ticket:</b> a first try's score, odds of S, genre</p>"
-               f'<p><span>{mark("rank_aaa")}rank a first try should reach</span><span>{mark("new")}never played</span></p>'
-               '<p>Charts that would enter your best 50 come first.</p>')
-        shelf = _roll([plate(position, pick) for position, pick in enumerate(picks, start)], key)
+        shelf = _roll([plate(position, pick) for position, pick in enumerate(picks, start)])
     else:
         shelf = '<div class="rs-empty">No chart you have never played is in range at this difficulty.</div>'
     body = banner + panel("cyan run", "Never played", shelf, "first-try estimates" + (f" · {banks}" if banks and asked else ""))

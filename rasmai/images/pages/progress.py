@@ -50,7 +50,7 @@ def _progress_svg(points: Sequence[Dict[str, Any]], width: int = 2290, height: i
     floor = height - mb
     parts.append(f'<polygon points="{ml},{floor} {rating_line} {X(t1):.1f},{floor}" class="ch-band"/>')
     for milestone in range((y0 // 1000 + 1) * 1000, y1, 1000):
-        # a thousand is a line across with its figure on a paper tag at the left
+        # a thousand is a line across with its figure on a gold tag at the left
         label = f"{milestone:,}"
         wide = 30 + 14 * len(label)
         parts.append(f'<line x1="{ml}" y1="{Y(milestone):.1f}" x2="{width - mr + 40}" y2="{Y(milestone):.1f}" class="pg-thousand"/>'

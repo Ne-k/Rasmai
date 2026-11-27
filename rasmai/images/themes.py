@@ -7,7 +7,7 @@ IMAGES = "images"       # the beta switch on the site that turns the new look on
 def themed(user_id: Any, draw: Callable[..., str]) -> Callable[..., str]:
     """``draw`` for an account that switched the new look on, otherwise its classic counterpart, the images as they were.
 
-    A page with no classic version (the plates) is drawn new for everyone.
+    A page with no classic version is drawn new for everyone; the plates are not drawn at all without the switch (builders/plates.py).
 
     :param user_id: Whose image it is, as the Discord user id; None draws the classic one.
     :type user_id: Any
