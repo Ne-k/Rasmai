@@ -10,6 +10,27 @@ from tools.checks import ROOT, check
 URL = "https://discord.com/api/webhooks/123456789012345678/SECRETTOKEN-abcdefghijklmnopqrstuvwxyz"
 
 
+class _Rounds:
+    """Stands in for the X loop's wake-up: the loop waits on it between rounds, so each wait is a round, and the last ends the loop.
+
+    The loop rests on ``_read_now`` rather than ``asyncio.sleep``, so a Force read can wake it; a check that stops the loop at a sleep never stops.
+    """
+
+    def __init__(self, rounds: int, stop: type):
+        self.rounds, self.stop, self.waited = rounds, stop, 0
+
+    def is_set(self) -> bool:
+        return False
+
+    def clear(self) -> None:
+        pass
+
+    async def wait(self) -> None:
+        self.waited += 1
+        if self.waited >= self.rounds:
+            raise self.stop
+
+
 @contextmanager
 def _no_session():
     """The watch makes its HTTP session on first use, and a check has no loop to keep one in: nothing here sends over a real one."""
@@ -1199,22 +1220,16 @@ def _once():
 
             class Stop(BaseException):
                 pass
-            rounds = {"n": 0}
-            kept_sleep = tasks.asyncio.sleep
-
-            async def fake_sleep(seconds):
-                rounds["n"] += 1
-                if rounds["n"] >= 2:
-                    raise Stop
             watch.poll = poll
-            tasks.asyncio.sleep = fake_sleep
+            watch._read_now = _Rounds(2, Stop)
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: the waits counted are the ones between rounds
             try:
                 try:
                     asyncio.run(watch._x_loop())
                 except Stop:
                     pass
             finally:
-                tasks.asyncio.sleep = kept_sleep
+                tasks.POLL_GAP_MAX = kept_gap
             if looked != ["maimai", "maimai"]:
                 problems.append(f"two rounds of the X loop looked at {looked}: once a round for the one account anybody follows, not once a channel and not for the ones nobody does")
 
@@ -1269,7 +1284,10 @@ def _once():
                     return Context()
             for number in range(5):
                 db.add_news_subscription(f"h{number}", f"d{number}", "preformai", URL + f"d{number}", maimai_only=True)
-            rounds["n"] = 1          # stop at the first pause, after the one connection closes: a second would be a reconnect, not a second connection
+            kept_sleep = tasks.asyncio.sleep
+
+            async def fake_sleep(seconds):
+                raise Stop          # the Bluesky loop does sleep before it reconnects: its first pause, after the one connection closes, ends it
             tasks.asyncio.sleep = fake_sleep
             watch = tasks.NewsWatch()
             kept_property = tasks.NewsWatch.session
@@ -1389,11 +1407,11 @@ def _command():
     group = command.news
     names = {c.name: c for c in group.commands}
     sent = group.to_dict(__import__("rasmai.bot.core", fromlist=["bot"]).bot.tree)
-    if set(names) != {"subscribe", "unsubscribe", "manage"} or sent["contexts"] != [0] or sent["integration_types"] != [0, 1]:
+    if set(names) != {"subscribe", "unsubscribe"} or sent["contexts"] != [0] or sent["integration_types"] != [0, 1]:
         problems.append(f"the group has {sorted(names)}, contexts {sent['contexts']}, installs {sent['integration_types']}: it must be for servers only, installed to a server or an account")
     if sent["default_member_permissions"] != discord.Permissions(manage_webhooks=True).value:
         problems.append("the picker is not limited to people who can manage webhooks")
-    subscribe, unsubscribe, manage = names.get("subscribe"), names.get("unsubscribe"), names.get("manage")
+    subscribe, unsubscribe = names.get("subscribe"), names.get("unsubscribe")
     options = {p.name: p for p in subscribe.parameters}
     if set(options) != {"previous"} or options["previous"].required or options["previous"].default != 0 \
             or (options["previous"].min_value, options["previous"].max_value) != (0, command.MAX_HISTORY):
@@ -1590,19 +1608,22 @@ def _command():
             db.add_news_subscription("77", "13", "maimai", URL + "13")
             listed = _Interaction(guild=_Guild(77, [_Channel(12), _Channel(13), _Channel(14, user_ok=False)]))
             db.add_news_subscription("77", "14", "maimai", URL + "14")
+            db.add_news_subscription("77", "15", "kop", URL + "15")      # its channel was deleted: this menu is the only way left to stop it
             asyncio.run(unsubscribe.callback(listed))
             menu = listed.sent[0].get("view") if listed.sent else None
             shown = listed.sent[0]["embed"].description if listed.sent and "embed" in listed.sent[0] else ""
             if not isinstance(menu, command.UnsubscribeMenu) or "<#12>: Laundromai, Maimai Official" not in shown and "<#12>: Maimai Official, Laundromai" not in shown or "<#13>: Maimai Official" not in shown:
                 problems.append(f"/news unsubscribe showed {shown!r}")
             else:
-                menu.which._values = ["13", "14"]
+                menu.which._values = ["13", "14", "15"]
                 asyncio.run(menu.pick(_Interaction()))
                 done = _Interaction()
                 asyncio.run(menu.submit(done))
                 note = done.drawn[-1]["embed"].description if done.drawn else ""
                 if db.channel_sources("13") or db.channel_sources("14") != ["maimai"] or ("deleted", URL + "13") not in fetched or "Manage Webhooks" not in note:
                     problems.append(f"stopping two channels, one the person may not manage, left {db.channel_sources('13')}, {db.channel_sources('14')} and said {note!r}")
+                if db.channel_sources("15"):
+                    problems.append("a deleted channel picked in /news unsubscribe kept its news")
                 if "13" in [option.value for option in menu.which.options]:
                     problems.append("a stopped channel stayed in the picker")
             nothing = _Interaction(guild_id=4040, guild=_Guild(4040))
@@ -1610,7 +1631,7 @@ def _command():
             if "No channels here" not in (nothing.said[0] if nothing.said else ""):
                 problems.append(f"a server following nothing was told {nothing.said}")
         # every command checks the person themselves: a server may open the commands to everyone in its settings
-        for command_ in (subscribe, unsubscribe, manage):
+        for command_ in (subscribe, unsubscribe):
             for allowed in (False, True):
                 said = _Interaction()
                 said.permissions = discord.Permissions(send_messages=True, manage_webhooks=allowed)
@@ -2064,20 +2085,15 @@ def _added():
 
             class Stop(BaseException):
                 pass
-
-            async def stop(seconds):
-                raise Stop
             watch = tasks.NewsWatch()
             watch.poll = poll
-            kept_sleep = tasks.asyncio.sleep
-            tasks.asyncio.sleep = stop
-            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
+            watch._read_now = _Rounds(1, Stop)
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: the waits counted are the ones between rounds
             try:
                 asyncio.run(watch._x_loop())
             except Stop:
                 pass
             finally:
-                tasks.asyncio.sleep = kept_sleep
                 tasks.POLL_GAP_MAX = kept_gap
             if fanx.key not in looked:
                 problems.append(f"the X loop looked at {looked}, not the added X account")
@@ -2188,20 +2204,15 @@ def _added_limits():
 
             class Stop(BaseException):
                 pass
-
-            async def stop(seconds):
-                raise Stop
             watch = tasks.NewsWatch()
             watch.poll = poll
-            kept_sleep = tasks.asyncio.sleep
-            tasks.asyncio.sleep = stop
-            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
+            watch._read_now = _Rounds(1, Stop)
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: the waits counted are the ones between rounds
             try:
                 asyncio.run(watch._x_loop())
             except Stop:
                 pass
             finally:
-                tasks.asyncio.sleep = kept_sleep
                 tasks.POLL_GAP_MAX = kept_gap
             if sorted(done) != sorted(["maimai", "preformai", fanx.key]):      # Preformai is read on X as well
                 problems.append(f"the X loop finished {done}: it reads one account at a time, or skipped one")
@@ -2342,24 +2353,16 @@ def _both_sites():
 
             class Stop(BaseException):
                 pass
-            rounds = {"n": 0}
-
-            async def stop(seconds):
-                rounds["n"] += 1
-                if rounds["n"] >= 2:
-                    raise Stop
             db.add_news_subscription("77", "61", "maimai", URL)
             loop = tasks.NewsWatch()
             loop.poll = poll
-            kept_sleep = tasks.asyncio.sleep
-            tasks.asyncio.sleep = stop
-            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: this check counts rounds by the sleep between them
+            loop._read_now = _Rounds(2, Stop)
+            kept_gap, tasks.POLL_GAP_MAX = tasks.POLL_GAP_MAX, 0         # no staggering: the waits counted are the ones between rounds
             try:
                 asyncio.run(loop._x_loop())
             except Stop:
                 pass
             finally:
-                tasks.asyncio.sleep = kept_sleep
                 tasks.POLL_GAP_MAX = kept_gap
             wanted = [("maimai", "maimai_official", False), ("preformai", "performaien", True), ("maimai", "maimai_official", False), ("preformai", "performaien", False)]
             if sorted(looked) != sorted(wanted):
@@ -2446,70 +2449,6 @@ def _burst():
                 problems.append("the posts cut from a backlog were not marked seen")
     finally:
         news.fetch_feed, news.build_x_post = kept
-    return problems
-
-
-@check("/news manage lists only the channels that get news, opens one to change or test it, stops one the person may manage, and clears a deleted one")
-def _manage():
-    from rasmai.bot.commands import news as command
-    from rasmai.storage import db
-
-    problems = []
-    dropped = []
-
-    async def drop(url):
-        dropped.append(url)
-    kept = command._drop_webhook
-    command._drop_webhook = drop
-    try:
-        with _scratch(), _no_session():
-            db.add_news_subscription("77", "80", "maimai", URL + "80")
-            db.add_news_subscription("77", "80", "laundromai", URL + "80")
-            db.add_news_subscription("77", "81", "preformai", URL + "81", maimai_only=True)
-            db.add_news_subscription("77", "82", "kop", URL + "82")       # its channel was deleted
-            guild = _Guild(77, [_Channel(80), _Channel(81, user_ok=False)])
-            opened = _Interaction(guild=guild)
-            asyncio.run(command.manage.callback(opened))
-            menu = opened.sent[0].get("view") if opened.sent else None
-            if not isinstance(menu, command.ManageMenu):
-                return [f"/news manage answered {opened.said}"]
-            listed = [(option.value, option.label, option.description) for option in menu.where.options]
-            if listed != [("80", "#chan80", "Maimai Official, Laundromai"), ("81", "#chan81", "Preformai International"), ("82", "A deleted channel", "KING of Performai")]:
-                problems.append(f"the channels listed were {listed}")
-            # opening one ticks what it gets; unticking one and saving stops only that one
-            menu.where._values = ["80"]
-            asyncio.run(menu.pick_channel(_Interaction(guild=guild)))
-            if menu.channel is None or menu.channel.id != 80 or menu.ticked != ["maimai", "laundromai"] or menu.stop_here.disabled or menu.save.disabled:
-                problems.append(f"opening a channel ticked {menu.ticked} with stop {'off' if menu.stop_here.disabled else 'on'}")
-            menu.which._values = ["maimai"]
-            asyncio.run(menu.pick_accounts(_Interaction(guild=guild)))
-            asyncio.run(menu.submit(_Interaction(guild=guild)))
-            if db.channel_sources("80") != ["maimai"]:
-                problems.append(f"saving a managed channel left {db.channel_sources('80')}")
-            # stopping it removes its news and its webhook, and it leaves the list
-            stopped = _Interaction(guild=guild)
-            asyncio.run(menu.stop_news(stopped))
-            if db.channel_sources("80") or [url for url in dropped if url] != [URL + "80"] or "80" in [option.value for option in menu.where.options] or menu.channel is not None:
-                problems.append(f"stopping a channel left {db.channel_sources('80')}, deleted {dropped}, and listed {[option.value for option in menu.where.options]}")
-            # one the person may not manage stays
-            menu.where._values = ["81"]
-            asyncio.run(menu.pick_channel(_Interaction(guild=guild)))
-            refused = _Interaction(guild=guild)
-            asyncio.run(menu.stop_news(refused))
-            if db.channel_sources("81") != ["preformai"] or not refused.said or "Manage Webhooks" not in refused.said[0]:
-                problems.append(f"stopping a channel the person may not manage left {db.channel_sources('81')} and said {refused.said}")
-            # a deleted one has nobody to ask, so picking it clears it
-            menu.where._values = ["82"]
-            gone = _Interaction(guild=guild)
-            asyncio.run(menu.pick_channel(gone))
-            if db.channel_sources("82") or not gone.drawn or "deleted" not in gone.drawn[-1]["embed"].description:
-                problems.append(f"picking a deleted channel left {db.channel_sources('82')}")
-            nothing = _Interaction(guild_id=4040, guild=_Guild(4040))
-            asyncio.run(command.manage.callback(nothing))
-            if "No channels here" not in (nothing.said[0] if nothing.said else ""):
-                problems.append(f"a server with no news was told {nothing.said}")
-    finally:
-        command._drop_webhook = kept
     return problems
 
 
