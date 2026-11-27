@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 200 200">
+  <g fill="none">
+    <circle r="97" stroke="#1fb77a" stroke-width="2"/>
+    <circle r="84" stroke="#1fb77a" stroke-width="1"/>
+    <circle r="90.5" stroke="#e8b422" stroke-width="6" stroke-dasharray="0.9 7"/>
+    <circle r="78" stroke="#14a9a0" stroke-width="1.4"/>
+    <g stroke="#1fb77a" stroke-width="1.1">
+      <circle cx="44" cy="0" r="34"/>
+      <circle cx="31.1" cy="31.1" r="34"/>
+      <circle cx="0" cy="44" r="34"/>
+      <circle cx="-31.1" cy="31.1" r="34"/>
+      <circle cx="-44" cy="0" r="34"/>
+      <circle cx="-31.1" cy="-31.1" r="34"/>
+      <circle cx="-0" cy="-44" r="34"/>
+      <circle cx="31.1" cy="-31.1" r="34"/>
+    </g>
+    <circle r="10" stroke="#e8b422" stroke-width="1.4"/>
+  </g>
+  <g fill="#e8b422">
+    <circle cx="78" cy="0" r="2.6"/>
+    <circle cx="55.2" cy="55.2" r="2.6"/>
+    <circle cx="0" cy="78" r="2.6"/>
+    <circle cx="-55.2" cy="55.2" r="2.6"/>
+    <circle cx="-78" cy="0" r="2.6"/>
+    <circle cx="-55.2" cy="-55.2" r="2.6"/>
+    <circle cx="-0" cy="-78" r="2.6"/>
+    <circle cx="55.2" cy="-55.2" r="2.6"/>
+  </g>
+</svg>
