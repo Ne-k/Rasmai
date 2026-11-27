@@ -285,3 +285,21 @@ it grows where it first shows, follow that project's player at its usual speeds 
 
 That project is licensed under the GNU General Public License v3.0, the same licence as Rasmai (see LICENSE). The pictures show the notes
 of a game owned by SEGA, which is not affiliated with this project and does not endorse it.
+
+## Blitz and the crates it draws with
+
+`blitz/vendor` holds seven crates as published on crates.io, changed so the bot's images draw as they do in Chromium. Each
+crate's folder holds its licence text (`LICENSE`, or `LICENSE-MIT` and `LICENSE-APACHE`), taken from its upstream repository
+at the commit it was published from. Stylo is under the Mozilla Public License 2.0 (`stylo/LICENSE`), and its changed files
+are here in source, as that licence asks.
+
+| Crate | Version | Licence | What changed |
+|---|---|---|---|
+| [blitz-paint](https://github.com/DioxusLabs/blitz) | 0.3.0-beta.6 | MIT or Apache-2.0 | gradient stop fixup and tile centring, tiled SVG backgrounds, text stroke, text-overflow ellipsis |
+| [blitz-dom](https://github.com/DioxusLabs/blitz) | 0.3.0-beta.6 | MIT or Apache-2.0 | page CSS and web fonts reach inline SVG |
+| [taffy](https://github.com/DioxusLabs/taffy) | 0.16.0 | MIT | aspect-ratio on grid containers, flex-wrap rounding |
+| [stylo](https://github.com/servo/stylo) | 0.24.0 | MPL-2.0 | `paint-order` and `-webkit-text-stroke` turned on for Servo |
+| [vello_common](https://github.com/linebender/vello) | 0.4.0 | Apache-2.0 or MIT | colour-matrix filters, chained filters' expansions add up |
+| [vello_cpu](https://github.com/linebender/vello) | 0.4.0 | Apache-2.0 or MIT | colour-matrix filters, filter lists run as a chain |
+| [anyrender_vello_cpu](https://github.com/DioxusLabs/anyrender) | 0.19.0 | MIT or Apache-2.0 | whole filter lists passed to Vello |
+

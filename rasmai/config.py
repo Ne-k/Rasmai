@@ -185,7 +185,10 @@ def public_url_is_shareable() -> bool:
 
 # ---- capacity. Scraping is thread-per-analysis on top of asyncio; these bound the process, not a server.
 MAX_CONCURRENT_SCRAPES = int(os.getenv("MAIMAI_MAX_CONCURRENT", "24"))     # full score reads running at once
-MAX_CONCURRENT_RENDERS = int(os.getenv("MAIMAI_MAX_RENDERS", "4"))          # Chromium pages open at once
+MAX_CONCURRENT_RENDERS = int(os.getenv("MAIMAI_MAX_RENDERS", "4"))          # images being drawn at once
+# path to the Blitz binary (blitz/; the Docker image sets /usr/local/bin/blitz). Empty or "chromium" draws every image
+# with Chromium. The bot runs only this path, never a "blitz" found on PATH, which could be another program
+RENDERER = os.getenv("RASMAI_RENDERER", "").strip()
 SCRAPE_WORKERS = MAX_CONCURRENT_SCRAPES + 16     # thread pool behind every blocking call
 REQUESTS_PER_SECOND = float(os.getenv("MAIMAI_REQUESTS_PER_SECOND", "25"))  # to maimai DX NET from this process, all users together
 PROGRESS_EDITS_PER_SECOND = float(os.getenv("MAIMAI_PROGRESS_EDITS_PER_SECOND", "8"))   # loading-bar edits, all users together
