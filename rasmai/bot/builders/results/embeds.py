@@ -15,6 +15,7 @@ from rasmai.bot.ui.formatting import (
     format_plan_markdown, format_plan_verdict, format_try_markdown, level_text, message_files, progress_bar,
 )
 from rasmai.images.render import cover_html_factory, generate_poster_html
+from rasmai.images.themes import themed
 from rasmai.storage.db import load_judgements, since_last_look
 from rasmai.engine.judgements import judgement_profile
 from rasmai.bot.builders.traits import judgement_summary
@@ -65,7 +66,7 @@ async def build_analyze(cached: CachedAnalysis, challenge: str = "balanced", lev
     counts = f"{len(a.songs)} charts · {len(a.recent_songs)} recent plays"
     shot = None
     if recs and not text_only:
-        shot = await _image(cached, f"analyze:{challenge}:{scope}", lambda: generate_poster_html(
+        shot = await _image(cached, f"analyze:{challenge}:{scope}", lambda: themed(cached.user_id, generate_poster_html)(
             recs, player.name, player.rating, player.fc, player.fc_plus, player.clears,
             player.avatar_base64, a.jacket_path, plan=plan, image_gain=summary.get("reachableGain"), scope=scope,
             summary=summary, counts=counts,
@@ -144,7 +145,7 @@ async def build_plan(cached: CachedAnalysis, target: Optional[int], stretch: boo
     credits = insights.plan_credits(plan) if steps else 0
     shot = None if text_only else await _image(
         cached, f"plan:{target}:{stretch}:{challenge}:{difficulty or ''}:{min_level or ''}",
-        lambda: posters.plan_poster_html(
+        lambda: themed(cached.user_id, posters.plan_poster_html)(
             plan, player.name, cached.start_rating, player.avatar_base64,
             cover_html_factory(a.jacket_path), stretch=stretch, date_text=today(),
             bolder_label=bolder_label, limit_label=limit_label, credits=credits,
@@ -219,11 +220,12 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
                                         difficulty=difficulty, limit=NEW_PAGE * NEW_PAGES, challenge=mode.key, focus=focus, level=level)
     pages = max(1, (len(picks) + NEW_PAGE - 1) // NEW_PAGE)
     page = max(0, min(page, pages - 1))
-    label = TIER_NAMES.get(difficulty, "EXPERT AND UP") if difficulty else "EXPERT AND UP"
+    labels = [TIER_NAMES.get(difficulty, "EXPERT AND UP") if difficulty else "EXPERT AND UP"]
     if level:
-        label += f" · LV {level}"
+        labels.append(f"LV {level}")
     if focus:
-        label += f" · {FOCUS_LABELS[focus].upper()}"
+        labels.append(FOCUS_LABELS[focus].upper())
+    label = " · ".join(labels)
     lower, upper = level_span if level_span else analysis.unplayed_window(profile, mode.key)
     leaning = ""
     if focus:
@@ -232,9 +234,9 @@ async def build_new(cached: CachedAnalysis, difficulty: Optional[str], challenge
             leaning = f"leaning into {FOCUS_LABELS[focus]}: " + ", ".join(f"{tr['label']} ({float(tr['offset']):+.1f})" for tr in traits[:3])
     shot = None
     if picks and not text_only:
-        shot = await _image(cached, f"new:{difficulty}:{level or ''}:{challenge}:{focus or ''}:{page}", lambda: posters.new_poster_html(
+        shot = await _image(cached, f"new:{difficulty}:{level or ''}:{challenge}:{focus or ''}:{page}", lambda: themed(cached.user_id, posters.new_poster_html)(
             picks[page * NEW_PAGE:(page + 1) * NEW_PAGE], player.name, cached.start_rating, player.avatar_base64,
-            cover_html_factory(a.jacket_path), label, lower, upper, date_text=today(),
+            cover_html_factory(a.jacket_path), labels, lower, upper, date_text=today(),
             start=page * NEW_PAGE + 1, note=leaning, known=len(a.songs),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-new.png")
@@ -296,7 +298,7 @@ async def build_profile(cached: CachedAnalysis, text_only: bool = False) -> Tupl
     summary = a.analysis_summary or {}
     judged = judgement_profile(load_judgements(cached.user_id))
     # keyed by the judgement pages read so far: they arrive in the background, after a poster may already have been made
-    shot = None if text_only else await _image(cached, f"profile:{judged['plays'] if judged else 0}", lambda: posters.profile_poster_html(
+    shot = None if text_only else await _image(cached, f"profile:{judged['plays'] if judged else 0}", lambda: themed(cached.user_id, posters.profile_poster_html)(
         summary, a.play_profile, a.songs, player.name, cached.start_rating, player.avatar_base64,
         len(a.recent_songs), date_text=today(), moved=moved_by_recent(a), judged=judged,
     ))
@@ -391,9 +393,9 @@ async def build_session(cached: CachedAnalysis, credits: int, challenge: str = "
     target_kind = f"{mode.label.lower()} targets"
     shot = None
     if session.plays and not text_only:
-        shot = await _image(cached, f"session:{credits}:{challenge}:{difficulty or ''}", lambda: posters.session_poster_html(
-            session, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path),
-            date_text=today(), target_kind=target_kind, limit_label=limit_label,
+        shot = await _image(cached, f"session:{credits}:{challenge}:{difficulty or ''}", lambda: themed(cached.user_id, posters.session_poster_html)(
+            session, player.name, player.avatar_base64, cover_html_factory(a.jacket_path),
+            date_text=today(), mix=mode.label.lower(), limit_label=limit_label,
         ))
     files, avatar_url = message_files(player, shot, "rasmai-session.png")
     drawn = shot is not None

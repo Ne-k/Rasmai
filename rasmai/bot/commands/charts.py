@@ -10,6 +10,7 @@ from rasmai.bot.builders.charts import (
 from rasmai.bot.builders.charts.level import is_constant
 from rasmai.bot.core import bot, heavy_cooldown, light_cooldown, private_only
 from rasmai.bot.builders.areas import build_areas
+from rasmai.bot.builders.plates import build_plates
 from rasmai.bot.builders.history import build_lastplay, build_progress, build_recent
 from rasmai.bot.builders.results import load_analysis, run_simple_command
 from rasmai.bot.builders.results.view import build_in_time, failure_reply
@@ -110,12 +111,6 @@ async def b50(interaction: discord.Interaction):
     await run_simple_command(interaction, "Something went wrong building your best-50.", lambda cached: build_b50(cached, interaction.user.id))
 
 
-@bot.tree.command(name="top", description="Your best 50: the charts that make up your rating (same as /b50)")
-@heavy_cooldown
-async def top(interaction: discord.Interaction):
-    await run_simple_command(interaction, "Something went wrong building your best-50.", lambda cached: build_b50(cached, interaction.user.id))
-
-
 @bot.tree.command(name="recent", description="Your last sessions: every play, new bests and what counted; or one play in full")
 @heavy_cooldown
 @app_commands.describe(play="Show one play in full with its judgements: 1 = newest, 2 = the one before, and so on")
@@ -131,6 +126,13 @@ async def recent(interaction: discord.Interaction, play: Optional[app_commands.R
 @heavy_cooldown
 async def area(interaction: discord.Interaction):
     await run_simple_command(interaction, "Something went wrong reading your areas.", build_areas)
+
+
+@bot.tree.command(name="plates", description="Version plates: FC, SSS, AP and FDX on every chart of a version, and what each still needs")
+@heavy_cooldown
+async def plates(interaction: discord.Interaction):
+    owner = interaction.user.id
+    await run_simple_command(interaction, "Something went wrong reading your plates.", lambda cached: build_plates(cached, owner))
 
 
 @bot.tree.command(name="progress", description="Your rating over time")

@@ -12,6 +12,7 @@ from rasmai.security import public_reason
 from rasmai.storage.db import count_play_history
 from rasmai.images.render import cover_html_factory
 from rasmai.images.pages import recent_image_html
+from rasmai.images.themes import themed
 from rasmai.bot.builders.history.lastplay import build_lastplay
 from rasmai.bot.builders.history.plays import _day_label, _short_day, recent_plays
 
@@ -37,7 +38,7 @@ async def build_recent(cached: CachedAnalysis, owner_id: Optional[int] = None, p
     labelled = [(_day_label(day), group) for day, group in days]
     shot = None
     if plays:
-        shot = await _image(cached, "recent", lambda: recent_image_html(
+        shot = await _image(cached, "recent", lambda: themed(cached.user_id, recent_image_html)(
             labelled, player.name, cached.start_rating, player.avatar_base64, cover_html_factory(a.jacket_path), pbs, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-recent.png")

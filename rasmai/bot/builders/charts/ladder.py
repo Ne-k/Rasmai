@@ -7,6 +7,9 @@ from rasmai.bot.state.snapshots import chart_key
 from rasmai.bot.builders.charts.index import song_for_chart, songs_by_loose_key
 
 
+IN_BEST = "in your best 50"
+
+
 def entry_note(cached: CachedAnalysis, ref: ChartRef, song: Any) -> str:
     """Where the chart stands relative to the best-50.
 
@@ -25,15 +28,15 @@ def entry_note(cached: CachedAnalysis, ref: ChartRef, song: Any) -> str:
     pool = a.best50.pool_for(is_new)
     key = chart_key(song) if song is not None else ref.key
     if key in pool.in_pool:
-        return "in your best-50"
+        return IN_BEST
     if pool.headroom() > 0:
         return "any score counts (open slot)"
     need = accuracy_for_rating(ref.constant, pool.cutoff + 1)
     if need is None or need > analysis.ACHIEVEMENT_CAP:
-        return "cannot reach your best-50"
+        return "can't enter your best 50"
     if song is not None and float(song.accuracy or 0) >= need:
-        return "in your best-50"
-    return f"needs {need:.2f}% to enter"
+        return IN_BEST
+    return f"{need:.2f}% for best 50"
 
 
 def _version_label(cached: Optional[CachedAnalysis], ref: Optional[ChartRef]) -> str:

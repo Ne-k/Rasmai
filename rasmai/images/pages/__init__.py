@@ -19,3 +19,7 @@ from rasmai.images.pages.areas import (  # noqa: F401
 from rasmai.images.pages.traits import (  # noqa: F401
     traits_image_html,
 )
+from rasmai.images.pages.plates import (  # noqa: F401
+    plates_image_html,
+    plate_detail_image_html,
+)

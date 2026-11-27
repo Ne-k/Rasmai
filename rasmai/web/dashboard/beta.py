@@ -15,6 +15,11 @@ FEATURES: Dict[str, Dict[str, str]] = {
                 "your own curve on, and nudges picks worth the same toward the ones built from what "
                 "you are good at. Measured as the better of the two; still a small sample.",
     },
+    "images": {
+        "label": "New image look",
+        "note": "Draws the bot's images in the new design, with charts as tickets on a night festival background. "
+                "Turn it off and they go back to the usual look.",
+    },
 }
 
 
@@ -95,6 +100,11 @@ def set_beta(user_id: str, wanted: Dict[str, Any]) -> Dict[str, Any]:
             on[key] = bool(value)
     settings["beta"] = on
     set_user_settings(user_id, settings)
+    if "images" in (wanted or {}):
+        from rasmai.bot.state.cache import cache_get
+        cached = cache_get(user_id)
+        if cached:
+            cached.images.clear()       # drawn in the look just left
     return beta_state(user_id)
 
 

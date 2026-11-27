@@ -8,6 +8,7 @@ import { ApiError, QUEUE_EVENT, SIGNED_OUT_EVENT, getJSON, postJSON, type ChartR
 import { Lookup } from "./Lookup";
 import { Ago, Empty, ErrorText, LoadError, day, num, type OpenChart } from "./bits";
 import { Areas } from "./Areas";
+import { Plates } from "./Plates";
 import { JudgementProfile, Traits } from "./traits";
 import { Charts } from "./Charts";
 import { NewCharts } from "./NewCharts";
@@ -361,6 +362,11 @@ export function Dash() {
               onOpen={openChart}
             />
             <JudgementProfile data={me.judgements ?? null} />
+          </div>
+        )}
+        {visited.has("plates") && (
+          <div hidden={open !== "plates"}>
+            <Plates key={me.profile?.updatedAt ?? ""} onOpen={openChart} />
           </div>
         )}
         {visited.has("areas") && (

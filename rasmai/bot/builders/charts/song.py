@@ -15,7 +15,7 @@ from rasmai.config import WIKI_VIDEOS
 from rasmai.bot.builders.charts.index import (
     chart_designer, charts_for, jacket_file, resolve_title, shared_index, song_record, version_name,
 )
-from rasmai.bot.builders.charts.ladder import _cutoffs, _version_label, chart_ladder, prediction_for
+from rasmai.bot.builders.charts.ladder import IN_BEST, _cutoffs, _version_label, chart_ladder, prediction_for
 from rasmai.bot.builders.charts.details import _chart_credit, _note_split, _pattern_field, _song_chart_line, unlock_field
 from rasmai.bot.builders.charts.page import _default_page, _page_fields, difficulty_page, ensure_play_counts, last_play
 from rasmai.bot.builders.charts.rows import _chart_rows, _song_card
@@ -102,7 +102,8 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
     flags = ("" if ref.intl else " · **Japan only**") + (" · **removed from the game**" if ref.deleted else "")
     extra = _note_split(ref) + _chart_credit(ref) + (f"\n-# {observed}" if observed else "")
     # the card's own lines about the chart it opens on, and a note count on every row
-    row["about"] = (name + flags + extra).replace("**", "").split("\n-# ")
+    row["about"] = [f"{tier} {ref.level} {ref.chart_type.upper()}", *(() if ref.intl else ("Japan only",)),
+                    *(("removed from the game",) if ref.deleted else ()), *filter(None, extra.replace("**", "").split("\n-# "))]
     if cached and not row["played"] and cached.analyzer.play_profile:
         usual = cached.analyzer.play_profile.expected_for(ref.constant, ref.difficulty)
         if usual:
@@ -112,18 +113,18 @@ async def build_song(cached: Optional[CachedAnalysis], query: str, page: Optiona
 
     forecast = prediction_for(cached, ref, row)
     if forecast:
-        forecast_text = f"a good run lands ~{forecast['expected']:.2f}% {forecast['rank']} ({forecast['low']:.1f} to {forecast['high']:.1f})"
+        forecast_parts = [f"a good run: about {forecast['expected']:.2f}% {forecast['rank']} ({forecast['low']:.1f} to {forecast['high']:.1f})"]
         if forecast.get("new_best") is not None:
-            forecast_text += f" · {forecast['new_best'] * 100:.0f}% chance of a new best next time"
+            forecast_parts.append(f"{forecast['new_best'] * 100:.0f}% odds of a new best")
         else:
-            forecast_text += " · first pass, judged from how you play this level"
+            forecast_parts.append("first pass, judged from how you play this level")
         if abs(forecast.get("tier_offset", 0.0)) >= 0.5:
-            forecast_text += f" · your {tier.title()} runs sit {forecast['tier_offset']:+.1f} against your curve"
+            forecast_parts.append(f"your {tier.title()} runs sit {forecast['tier_offset']:+.1f} against your curve")
     else:
-        forecast_text = ""
+        forecast_parts = []
     shot = await _song_card(cached, title, refs, rows, highlight=f"{ref.chart_type} {ref.difficulty}",
                             ladder=chart_ladder(cached, ref, row), ladder_label=f"{tier} {ref.level}",
-                            forecast=forecast_text)
+                            forecast=forecast_parts)
     drawn = shot is not None
     embed = discord.Embed(
         title=f"{title}",
@@ -254,9 +255,9 @@ async def build_song_details(cached: Optional[CachedAnalysis], query: str, owner
             best = max(played, key=lambda r: r["rating"])
             summary = f"**{len(played)}** of {len(rows)} charts played · best rating **{best['rating']}** on {TIER_NAMES.get(best['difficulty'], best['difficulty'].upper())}"
             if cached.analyzer.best50 is not None:
-                inside = sum(1 for r in played if "in your best-50" in str(r.get("note", "")))
+                inside = sum(1 for r in played if r.get("note") == IN_BEST)
                 if inside:
-                    summary += f" · {inside} in your best-50"
+                    summary += f" · {inside} {IN_BEST}"
         else:
             summary = "none of its charts played yet"
         embed.add_field(name="You", value=summary, inline=False)

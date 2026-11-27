@@ -18,6 +18,7 @@ from rasmai.bot.state.snapshots import compact_snapshot, snapshot_charts
 from rasmai.bot.core import try_render
 from rasmai.images.cards import compare_image_html, leaderboard_image_html
 from rasmai.images.render import cover_html_factory
+from rasmai.images.themes import themed
 from rasmai.storage.db import accounts_with_setting, get_connected_account, is_discord_id, load_play_history, load_rating_history, quiet_read_status
 from rasmai.bot.tasks.history_watch import describe_quiet_read
 from rasmai.util import _json_safe
@@ -118,7 +119,7 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
         out = []
         for gap, k in sorted(items, reverse=True)[:6]:
             ref = a.chart_index.get(k)
-            out.append({"title": source[k]["name"], "difficulty": k[2], "level": level_text(source[k]["level"], source[k].get("constant")), "gap": gap,
+            out.append({"title": source[k]["name"], "difficulty": k[2], "level": source[k]["level"], "constant": source[k].get("constant"), "gap": gap,
                         "mine": mine[k]["accuracy"], "theirs": them[k]["accuracy"], "cover": ref.cover if ref else ""})
         return out
 
@@ -129,7 +130,7 @@ async def build_compare(cached: CachedAnalysis, other: discord.abc.User) -> Tupl
             level_stats.append((level, sum(mine[k]["accuracy"] for k in keys) / len(keys), sum(them[k]["accuracy"] for k in keys) / len(keys), len(keys)))
     image_key = f"compare:{other_id}:{snapshot.get('recordedAt', '')}"
     if image_key not in cached.images:
-        cached.images[image_key] = await try_render(compare_image_html(
+        cached.images[image_key] = await try_render(themed(cached.user_id, compare_image_html)(
             stats(mine, me.name, int(me.rating or 0), a.best50.total if a.best50 else 0, int(me.total_play_count or 0), len(my_leads)),
             stats(them, their_name, their_rating, int(snapshot.get("best50") or 0), int(snapshot.get("totalPlayCount") or 0), len(their_leads)),
             level_stats, lead_rows(my_leads, mine, them), lead_rows(their_leads, them, mine), len(common),
@@ -197,7 +198,7 @@ async def build_leaderboard(guild: discord.Guild, owner_id: Optional[int] = None
         lines.append(f"{tag} {who} · **{rating}**" + (f" ({region.upper()})" if region != "intl" else ""))
     embed.description = "\n".join(lines)
     embed.set_footer(text=(f"page {page + 1}/{pages} · " if pages > 1 else "") + f"{len(rows)} opted-in players in this server · ratings from each player's last /analyze")
-    shot = await try_render(leaderboard_image_html(guild.name, rows, date_text=today(), start=start, size=LEADERBOARD_PAGE))
+    shot = await try_render(themed(owner_id, leaderboard_image_html)(guild.name, rows, date_text=today(), start=start, size=LEADERBOARD_PAGE))
     files = [discord.File(io.BytesIO(shot), filename="rasmai-leaderboard.png")] if shot else []
     if shot:
         embed.description = None

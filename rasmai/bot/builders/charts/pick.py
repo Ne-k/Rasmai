@@ -40,13 +40,13 @@ async def build_random(cached: CachedAnalysis, owner_id: int, level: Optional[st
     embed.title = ref.title
     embed.url = chart_url(ref.title, ref.chart_type, ref.difficulty, ref.cover)
     expected = a.play_profile.expected_for(ref.constant, ref.difficulty) if song is None and a.play_profile else 0.0
-    usual = f" · you'd usually land ~{expected:.1f}% here" if expected else ""
+    usual = [f"you'd usually land ~{expected:.1f}% here"] if expected else []
     # the card names the pick over its table, where the reply's text used to
     rows = _chart_rows(cached, refs)
     for other, row in zip(refs, rows):
         row["notes"] = other.notes
         if other is ref:
-            row["about"] = [f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} · {ref.chart_type.upper()}{usual}"]
+            row["about"] = [f"{TIER_NAMES.get(ref.difficulty, ref.difficulty.upper())} {ref.level} {ref.chart_type.upper()}", *usual]
     files: List[discord.File] = []
     shot = await _song_card(cached, ref.title, refs, rows, highlight=f"{ref.chart_type} {ref.difficulty}", eyebrow="Random chart")
     if shot is None:

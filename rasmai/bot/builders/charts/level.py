@@ -10,6 +10,7 @@ from rasmai.bot.ui.formatting import TIER_SHORT, _fit, add_link_run, chart_link,
 from rasmai.bot.ui.views import OwnerOnlyView
 from rasmai.images.render import cover_html_factory
 from rasmai.images.pages import level_image_html
+from rasmai.images.themes import themed
 from rasmai.bot.builders.charts.index import loose_key, songs_by_key, songs_by_loose_key
 from rasmai.bot.builders.charts.ladder import entry_note
 
@@ -86,7 +87,7 @@ async def build_level(cached: CachedAnalysis, owner_id: int, level: str, sort: s
     shot = None
     if rows:
         # the image carries this page's charts as big cards, so it is drawn again on every page turn
-        shot = await _image(cached, f"level:{level}:{sort}:{page}", lambda: level_image_html(
+        shot = await _image(cached, f"level:{level}:{sort}:{page}", lambda: themed(cached.user_id, level_image_html)(
             rows[page * LEVEL_PAGE:(page + 1) * LEVEL_PAGE], level, LEVEL_SORTS[sort], player.name, cached.start_rating,
             player.avatar_base64, cover_html_factory(a.jacket_path), len(rows), played, start=page * LEVEL_PAGE + 1, date_text=today(),
             page=page + 1, pages=pages,

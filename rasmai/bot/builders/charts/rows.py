@@ -9,7 +9,8 @@ from rasmai.bot.core import try_render
 from rasmai.images.cards import song_card_html
 from rasmai.images.render import cover_html_factory
 from rasmai.images.pages import stars_for
-from rasmai.bot.builders.charts.index import song_for_chart, songs_by_loose_key
+from rasmai.images.themes import themed
+from rasmai.bot.builders.charts.index import song_for_chart, song_record, songs_by_loose_key, version_name
 from rasmai.bot.builders.charts.ladder import _cutoffs, _version_label, entry_note
 
 logger = logging.getLogger(__name__)
@@ -47,16 +48,16 @@ def _chart_rows(cached: Optional[CachedAnalysis], refs: List[ChartRef]) -> List[
 
 async def _song_card(cached: Optional[CachedAnalysis], title: str, refs: List[ChartRef], rows: List[Dict[str, Any]],
                      highlight: Optional[str] = None, ladder: Optional[List[Dict[str, Any]]] = None,
-                     ladder_label: str = "", forecast: str = "", eyebrow: str = "Chart lookup",
+                     ladder_label: str = "", forecast: Sequence[str] = (), eyebrow: str = "Chart lookup",
                      version: str = "", facts: Sequence[str] = ()) -> Optional[bytes]:
     first = refs[0] if refs else None
     if first is None:
         return None
     jacket_path = cached.analyzer.jacket_path if cached else "otoge_cache/jackets/"
     player = cached.analyzer.player if cached else None
-    html = song_card_html(
-        title, first.artist, first.genre, version or _version_label(cached, first), first.cover, cover_html_factory(jacket_path),
-        rows, player.name if player else "", cached.start_rating if cached else 0,
+    html = themed(cached.user_id if cached else None, song_card_html)(
+        title, first.artist, first.genre, version or version_name(song_record(title)) or _version_label(cached, first), first.cover, cover_html_factory(jacket_path),
+        rows, player.name if player else "",
         player.avatar_base64 if player else "", _cutoffs(cached), date_text=today(), highlight=highlight,
         ladder=ladder or (), ladder_label=ladder_label, forecast=forecast, eyebrow=eyebrow, facts=facts,
     )

@@ -9,6 +9,7 @@ from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import _fit, message_files, progress_bar, stamp, today
 from rasmai.engine.areas import summarise_areas
 from rasmai.images.pages import area_image_html
+from rasmai.images.themes import themed
 from rasmai.scraping import wiki
 from rasmai.scraping.scraper import ensure_area_image
 from rasmai.storage.db import load_area_progress
@@ -228,7 +229,7 @@ async def build_areas(cached: CachedAnalysis) -> Tuple[discord.Embed, List[disco
         pictured_areas = pictured_areas[:9]
         for area in pictured_areas:
             area["artUri"] = area_art_uri(area)
-        shot = await _image(cached, key, lambda: area_image_html(
+        shot = await _image(cached, key, lambda: themed(cached.user_id, area_image_html)(
             pictured_areas, player.name, cached.start_rating, player.avatar_base64, summary["counts"], summary.get("pace"),
             date_text=today(), readings=summary["readings"],
         ))

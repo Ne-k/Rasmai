@@ -123,6 +123,7 @@
       "new": "New charts",
       "overview": "Overview",
       "picks": "What to play",
+      "plates": "Plates",
       "recent": "Recent",
       "traits": "Traits"
     },
@@ -502,6 +503,30 @@
     "none": "No charts with this trait at that level or difficulty. Try a different filter.",
     "neverPlayed": "never played",
     "also": " · also {tags}"
+  },
+  "platesTab": {
+    "label": "version plates",
+    "info": "You earn a plate by meeting one condition on every chart of a version, BASIC to MASTER. Mai covers every standard chart up to FiNALE, Re:MASTER included, and has a Clear plate too. Pick a bar to see what's left.",
+    "legend": "FC · SSS 100% · AP · FDX · Clear 80%",
+    "charts": "{required} charts · {played} played",
+    "done": "done",
+    "barTitle": "{name}: {met} of {required}",
+    "loading": "Checking every chart…",
+    "none": "No scores yet. Hit refresh on the Account tab or run any command in Discord.",
+    "yourPlates": "your plates",
+    "thatPlate": "that plate",
+    "maiName": "maimai to FiNALE, standard charts",
+    "detailHint": "{met}/{required} at {label} · {left} to go",
+    "yours": "Every chart meets it. Plate earned.",
+    "more": "show {n} more of {left}",
+    "unplayed": "unplayed",
+    "artCaption": "{label} on {required} charts",
+    "sort": "Sort the charts",
+    "sortLikely": "Most likely first",
+    "sortUnlikely": "Least likely first",
+    "chanceInfo": "Your chance of {label} next time you play it, from your scores at each level",
+    "chanceTitle": "Your chance of {label} next time you play it",
+    "noLamp": "no {label}"
   },
   "areasTab": {
     "km": "{n} km",
@@ -954,7 +979,6 @@
         "c01": {
           "c01_b50": {
             "name": "/b50",
-            "args": "or /top",
             "what": "The 50 charts that make up your rating, 15 from the <newpool>new pool</newpool> and 35 from the <oldpool>old pool</oldpool>."
           },
           "c02_chart": {
@@ -983,6 +1007,10 @@
           "c07_area": {
             "name": "/area",
             "what": "Your progress in each area of area travel, the next reward and how many plays until you get it."
+          },
+          "c08_plates": {
+            "name": "/plates",
+            "what": "Your version plates: FC, SSS, AP and FDX on every chart of a version. Pick a plate from the menu to see the charts it still needs, closest first."
           }
         }
       },
@@ -1023,7 +1051,7 @@
           "c05_news": {
             "name": "/news",
             "args": "subscribe · unsubscribe",
-            "what": "For server managers. Posts maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai, KING of Performai and ALL.Net on X. A post on both sites comes through once. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there and hit Save. <code>previous</code> also sends that many older posts from the accounts you just ticked (0 by default). In the menu, Maimai posts only picks which accounts send just their maimai posts (Preformai International starts that way), Add an account takes any Bluesky handle, X username or link, Remove an added account takes one out of every channel here, and Send a test post sends up to 10 of an account's latest posts. <code>/news manage</code> lists the channels that get news: pick one to change its accounts, send a test post or stop it. <code>/news unsubscribe</code> lists every channel and what it gets, and stops the ones you pick. You need Manage Webhooks for all three, and if Rasmai is missing it you get a link to add it."
+            "what": "For server managers. Posts maimai news in a channel as soon as it's out, from Preformai International on Bluesky and X, and Maimai Official, Laundromai, KING of Performai and ALL.Net on X. A post on both sites comes through once. <code>/news subscribe</code> opens a menu: pick a channel, tick the accounts you want there and hit Save. A channel that already gets news opens with its accounts ticked, so you change them here too. <code>previous</code> also sends that many older posts from the accounts you just ticked (0 by default). In the menu, Maimai posts only picks which accounts send just their maimai posts (Preformai International starts that way), Add an account takes any Bluesky handle, X username or link, Remove an added account takes one out of every channel here, and Send a test post sends up to 10 of an account's latest posts. <code>/news unsubscribe</code> lists every channel and what it gets, and stops the ones you pick. You need Manage Webhooks for both, and if Rasmai is missing it you get a link to add it."
           }
         }
       },
@@ -1094,7 +1122,7 @@
           "i13": "<b>One-time login codes</b>, stored only as hashes, with the name of the account they were made for (such as your Discord name), which the extension's approval window shows. They work once, expire after 10 minutes and are deleted within a day.",
           "i07b": "<b>Scores from Kamaitachi.</b> If you follow a Kamaitachi profile (from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>import from Kamaitachi</b> box), Rasmai sends the username you type to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores, at that point and each time your scores are refreshed. Nothing else about you is sent. Rasmai keeps the username with your account and records the bests and plays in your history. All of it is deleted with your account.",
           "i06b": "<b>Anonymous statistics.</b> Rasmai counts your best score on each chart and your rating together with every other linked account's, to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. There is no separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. A chart's page on the site and the bot show only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. They never show a name, an account ID or any one person's score, and show nothing at all for a chart too few players have played to hide who they are. The statistics change no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results.",
-          "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. Rasmai encrypts the webhook URL in the database and only decrypts it to post. Rasmai deletes all of it when the channel is stopped with <code>/news unsubscribe</code> or <code>/news manage</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept.",
+          "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. Rasmai encrypts the webhook URL in the database and only decrypts it to post. Rasmai deletes all of it when the channel is stopped with <code>/news unsubscribe</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept.",
           "i15": "<b>Apps you register.</b> If you make an app on developers.{site}, Rasmai keeps its name, description, website and privacy policy addresses, redirect addresses and picture, a one-way hash of its client secret, and your Discord handle, which players see as the app's maker. They stay until you delete the app or your account. Unlinking only maimai on the dashboard's Account tab keeps them."
         },
         "p02": "Scores are read when you run a command, press the read-now button on the dashboard, or, if you turned on <code>/settings history</code>, once a day in the background. That daily read signs in with your stored session key (for a Japan account, your stored SEGA ID) and loads only the recent-plays page, so plays aren't lost between commands. <code>/settings</code> shows when it last ran and how many plays it found."
@@ -1410,7 +1438,7 @@
     },
     "commands": {
       "analyze": "what to grind, at the difficulty you pick",
-      "b50": "your best 50 (also /top) and DX score stars",
+      "b50": "your best 50 and DX score stars",
       "chart": "look up one chart, or list charts by pattern or level",
       "compare": "you vs a friend, or a server leaderboard (opt-in)",
       "login": "link your maimai DX NET account",

@@ -87,6 +87,10 @@ def build_session(songs: Sequence[Any], profile: PlayProfile, best50: Best50, ch
     if wanted:
         options = [option for option in options if option.difficulty_type == wanted]
     simulated = Best50(best50.new_pool.clone(), best50.old_pool.clone())
+    # every credit asks each chart for its best target, so the targets are grouped by chart once
+    by_key: Dict[Tuple[str, str, str], List[PlanOption]] = {}
+    for option in options:
+        by_key.setdefault(option.key, []).append(option)
 
     def best_target(key: Tuple[str, str, str]) -> Optional[Tuple[PlanOption, int]]:
         """The target rank on this chart worth the most in expectation, against the simulated best-50.
@@ -97,9 +101,7 @@ def build_session(songs: Sequence[Any], profile: PlayProfile, best50: Best50, ch
         """
         choice: Optional[Tuple[PlanOption, int]] = None
         value = 0.0
-        for option in options:
-            if option.key != key:
-                continue
+        for option in by_key[key]:
             gain = simulated.gain_if(option.key, option.is_new, option.target_rating)
             if gain <= 0:
                 continue
@@ -108,7 +110,7 @@ def build_session(songs: Sequence[Any], profile: PlayProfile, best50: Best50, ch
                 choice, value = (option, gain), worth
         return choice
 
-    keys = list(dict.fromkeys(option.key for option in options))
+    keys = list(by_key)
     attempts: Dict[Tuple[str, str, str], int] = {}
     taken: Dict[Tuple[str, str, str], Tuple[PlanOption, int]] = {}
     plays: List[SessionPlay] = []

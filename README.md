@@ -31,7 +31,7 @@ Any play opens what it actually cost, note by note:
 - `/plan [target] [difficulty] [min_level]` full route to a rating target
 - `/session [credits]` where to spend tonight's credits
 - `/new [difficulty] [level] [focus]` unplayed charts around your level
-- `/b50` or `/top` the 50 charts that make your rating
+- `/b50` the 50 charts that make your rating
 - `/chart <title> [difficulty]` your score, the prediction, what each rank is worth, what the chart asks of you, unlock info, video; a Song button opens the whole song
 - `/charts [pattern] [level] [difficulty]` browse by pattern tag (streams, hand swaps, slow rotations, in Japanese or English) or by level, your scores beside each chart
 - `/random [level] [difficulty] [unplayed]` pick something
@@ -92,6 +92,14 @@ playwright install chromium
 copy .env.example .env          # fill in DISCORD_TOKEN
 python -m rasmai
 ```
+
+That draws the images with Chromium. The Docker image draws most of them with [Blitz](https://github.com/DioxusLabs/blitz) instead, about four times faster; `blitz/vendor` holds the patched crates as source. To use it locally too, with Rust installed:
+
+```bash
+cargo build --release --manifest-path blitz/Cargo.toml
+```
+
+and set `RASMAI_RENDERER` to `blitz/target/release/blitz` (`.exe` on Windows). Chromium still draws the classic recent board, whose columns Blitz cannot lay out, and any page Blitz fails on.
 
 The site is a Next.js app in `web/`, run as its own server:
 
@@ -165,6 +173,7 @@ Everything is in `.env`, see `.env.example` for the full list. The ones that mat
 | `MAIMAI_SNAPSHOT_MAX_AGE_HOURS` | How long a stored read is reused before a full read. Default 168. |
 | `MAIMAI_RECHECK_MINUTES` | How old an in-memory analysis gets before a command checks the site again. Default 3. |
 | `MAIMAI_MAX_CONCURRENT` | Score reads at once. Default 24. |
+| `RASMAI_RENDERER` | Where the `blitz` binary is, or `chromium` to draw every image with Chromium. The Docker image sets it to its own copy; unset elsewhere, Chromium draws everything. |
 | `MAIMAI_EMOJI` / `MAIMAI_PRESENCE` | Emoji pack upload, status tracking maintenance. Both on by default. |
 | `USER_AGENT` | How the bot names itself to the wikis and chart databases. Empty is `rasmai/1.0 (+MAIMAI_PUBLIC_URL)`; adding a contact address is the polite thing. |
 | `MAIMAI_TRANSLATE_URL` | An Ollama server that translates Japanese `/news` posts. Empty uses Google Translate. See below. |
@@ -210,6 +219,7 @@ rasmai/
   storage/      SQLite
   web/          the internal API the site calls
 web/            the Next.js site
+blitz/          the patched Blitz that draws most of the images
 brand/          avatar, icons, emoji pack 
 dev.py          set up and run both halves
 ```

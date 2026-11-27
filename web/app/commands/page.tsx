@@ -26,7 +26,7 @@ const UNFURL = embed("#21c3e3", [
     { image: `${SITE}/app/icon-512.png` }),
   say(
     "**Play**\n`/analyze` `/plan` `/session` `/new` `/random`\n\n"
-    + "**Scores**\n`/b50` `/chart` `/charts` `/recent` `/dxscore` `/progress` `/area`\n\n"
+    + "**Scores**\n`/b50` `/chart` `/charts` `/recent` `/dxscore` `/progress` `/area` `/plates`\n\n"
     + "**You**\n`/profile` `/compare` `/leaderboard`\n\n"
     + "**Account**\n`/login` `/settings` `/refresh` `/export` `/delete-account`",
   ),

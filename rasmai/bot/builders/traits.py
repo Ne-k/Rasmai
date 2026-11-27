@@ -4,11 +4,12 @@ import discord
 from rasmai.bot.ui import palette
 
 from rasmai.bot.state.cache import CachedAnalysis
-from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, message_files
+from rasmai.bot.ui.formatting import TIER_SHORT, _fit, chart_link, message_files, today
 from rasmai.engine import insights
 from rasmai.engine.judgements import judgement_profile
 from rasmai.storage.db import load_judgements
 from rasmai.images.pages import traits_image_html
+from rasmai.images.themes import themed
 from rasmai.scraping.mai_notes import english_label
 
 PRACTICE_TRAITS = 2       # weak patterns that get a practice list in the embed
@@ -70,8 +71,9 @@ async def build_traits(cached: CachedAnalysis, text_only: bool = False) -> Tuple
 
     level = [english_label(str(t["label"])) for t in even[:2]]
     among = f", {' and '.join(level)} among them" if level else ""
-    counted = (f"**{len(confirmed)}** confirmed · **{len(leaning)}** leaning · **{len(even)}** level with your usual score{among} · "
-               f"from **{sample}** scored charts and every recorded play") if weak or strong else ""
+    counts = [f"**{len(confirmed)}** confirmed", f"**{len(leaning)}** leaning", f"**{len(even)}** level with your usual score{among}",
+              f"from **{sample}** scored charts and every recorded play"] if weak or strong else []
+    counted = " · ".join(counts)
     judged = judgement_profile(load_judgements(cached.user_id))
     shot = None
     families = [{"dimension": "family", "label": f["label"], "offset": f["offset"], "count": f["charts"], "verified": f["verified"], "leaning": not f["verified"]}
@@ -79,9 +81,9 @@ async def build_traits(cached: CachedAnalysis, text_only: bool = False) -> Tuple
     wheel = families if len(families) >= 3 else insights.radar_axes(axes)
     if len(wheel) >= 3 and not text_only:
         # the judgement pages arrive in the background after the first reply, so a picture made before them is not kept for after
-        shot = await _image(cached, f"traits:{judged['plays'] if judged else 0}", lambda: traits_image_html(
-            wheel, weak, strong, player.name, cached.start_rating, player.avatar_base64, sample, date_text=cached.extras.get("date", ""),
-            summary=counted,
+        shot = await _image(cached, f"traits:{judged['plays'] if judged else 0}", lambda: themed(cached.user_id, traits_image_html)(
+            wheel, weak, strong, player.name, cached.start_rating, player.avatar_base64, sample, date_text=today(),
+            summary=counts,
             judgements=[*_judgement_lines(judged).split("\n"), f"read from **{judged['plays']}** plays' judgement pages"] if judged else (),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-traits.png")

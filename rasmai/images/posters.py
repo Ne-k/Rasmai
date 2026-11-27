@@ -2,9 +2,10 @@ import math
 from html import escape
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from rasmai.bot.ui.emoji import COMBO, RANKS, SYNC
 from rasmai.config import site_label
 from rasmai.engine.analysis.rating import rating_band, rating_step
-from rasmai.images.markup import render, render_each, styleimage, template
+from rasmai.images.markup import render, styleimage, template
 
 CoverFn = Callable[[str, str], str]
 
@@ -18,22 +19,6 @@ DIFFICULTY_STYLES = {
 }
 
 
-def lvl(level: Any, constant: Any) -> str:
-    """Level with its constant, escaped, for the image rows: `13+ · 13.8`.
-
-    :param level: A displayed level such as ``"13"`` or ``"13+"``.
-    :type level: Any
-    :param constant: The chart's internal difficulty constant.
-    :type constant: Any
-    :rtype: str
-    """
-    try:
-        value = float(constant or 0)
-    except (TypeError, ValueError):
-        value = 0.0
-    return _esc(f"{level} · {value:.1f}" if value > 0 else str(level))
-
-
 def tier(difficulty: str) -> tuple:
     return DIFFICULTY_STYLES.get(str(difficulty).strip().lower(), DIFFICULTY_STYLES["master"])
 
@@ -41,8 +26,86 @@ def tier(difficulty: str) -> tuple:
 CSS = styleimage()
 
 
+def panel(colour: str, title: str, body: str, note: str = "") -> str:
+    """A block of a board: a sheet of paper under a coloured band that carries its name and a note.
+
+    :param colour: The band's colour (``"pink"``, ``"gold"``, ``"cyan"``, ``"mint"`` or ``"purple"``), with ``" bare"`` after it for a block of tickets
+        that lies on the sky under a label and not on a sheet of paper. Any other class the block needs can follow too.
+    :type colour: str
+    :param title: The block's name, escaped here.
+    :type title: str
+    :param body: The block's markup, already escaped where it carries anyone's text.
+    :type body: str
+    :param note: A short line for the tag beside the name, escaped here.
+    :type note: str
+    :rtype: str
+    """
+    tag = f"<span>{_esc(note)}</span>" if note else ""
+    return f'<section class="panel {colour}"><div class="tabs"><h2>{_esc(title)}</h2>{tag}</div>{body}</section>'
+
+
+def mark(name: str) -> str:
+    """One of Rasmai's own marks (brand/emoji), sized by the text it sits in.
+
+    :param name: The mark's file name without its ending, such as ``"rank_sssp"``; ours, never a player's text.
+    :type name: str
+    :rtype: str
+    """
+    return f'<i class="mk mk-{name}"></i>'
+
+
+def rank_mark(rank: Any) -> str:
+    """A rank as its ticket stub, the mark the bot's messages use for it.
+
+    :param rank: The rank, such as ``"SSS+"``.
+    :type rank: Any
+    :rtype: str
+    """
+    return mark(RANKS.get(str(rank or "").upper(), "rank_low")) if rank else ""
+
+
+def lamp_marks(fc: Any, fs: Any) -> str:
+    """A chart's lamps as their marks: the full combo or all perfect it holds, then its sync. A plain sync play has no mark, and is a word.
+
+    :param fc: The combo lamp as maimai DX NET writes it (``"FC+"``), or nothing.
+    :type fc: Any
+    :param fs: The sync lamp (``"FDX"``, ``"SYNC"``), or nothing.
+    :type fs: Any
+    :rtype: str
+    """
+    marks = ""
+    for lamp, table in ((str(fc or "").upper(), COMBO), (str(fs or "").upper(), SYNC)):
+        if lamp in table:
+            marks += mark(table[lamp])
+        elif lamp not in ("", "NONE"):
+            marks += f' <span class="lamp">{_esc(lamp)}</span>'
+    return marks
+
+
+def tier_mark(difficulty: Any) -> str:
+    """A difficulty as its paper lantern; the festival lantern for one the pack has no drawing of (utage).
+
+    :param difficulty: The difficulty tier, such as ``"master"``.
+    :type difficulty: Any
+    :rtype: str
+    """
+    key = str(difficulty or "").strip().lower()
+    return mark(f"diff_{key}" if key in ("basic", "advanced", "expert", "master", "remaster") else "festival")
+
+
+def kind_mark(chart_type: Any) -> str:
+    """DX or STD as its card.
+
+    :param chart_type: ``"dx"`` or ``"std"``.
+    :type chart_type: Any
+    :rtype: str
+    """
+    return mark("type_dx" if str(chart_type or "").lower() == "dx" else "type_std")
+
+
 def _esc(text: Any) -> str:
-    return escape(str(text or ""))
+    # only nothing is nothing: a count of 0 is a figure, and prints
+    return escape("" if text is None else str(text))
 
 
 def _avatar(avatar_b64: str) -> str:
@@ -62,8 +125,8 @@ def _warm_up_line(warm: dict) -> str:
     return f" &middot; your first track of a credit runs <b>{gap:.2f}%</b> over the rest"
 
 
-def _page(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], headline_value: str,
-          headline_caption: str, body: str, foot_left: str, foot_right: str, body_class: str = "") -> str:
+def _page(eyebrow: str, name: str, avatar_b64: str, headline_value: str,
+          headline_caption: str, body: str, foot_more: str, foot_right: str, body_class: str = "") -> str:
     return render(
         "page",
         css=CSS,
@@ -71,19 +134,26 @@ def _page(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], h
         avatar=_avatar(avatar_b64),
         eyebrow=_esc(eyebrow),
         name=_esc(name),
-        # a rating counter wears its band, as the headline plate does; rating_plate reads only the number, so nothing unescaped gets in
-        counters=render_each("counter", [{"label": _esc(k), "value": rating_plate(v, small=True) if k == "Rating" else _esc(v)}
-                                         for k, v in counters]),
         headline_value=headline_value,
         headline_caption=_esc(headline_caption),
         body=body,
-        foot_left=_esc(foot_left),
+        foot_left=_esc(f"Rasmai · {site_label()} · maimai DX" + (f" · {foot_more}" if foot_more else "")),
         foot_right=_esc(foot_right),
     )
 
 
-_STAR = ('<svg class="rp-star" viewBox="0 0 128 128"><polygon points="64,13 79.9,47.2 117.3,51.7 89.7,77.3 '
-         '96.9,114.3 64,96 31.1,114.3 38.3,77.3 10.7,51.7 48.1,47.2"/></svg>')
+STAR_POINTS = "64,13 79.9,47.2 117.3,51.7 89.7,77.3 96.9,114.3 64,96 31.1,114.3 38.3,77.3 10.7,51.7 48.1,47.2"
+_STAR = f'<svg class="rp-star" viewBox="0 0 128 128"><polygon points="{STAR_POINTS}"/></svg>'
+
+
+def stats(figures: Sequence[tuple]) -> str:
+    """Figures with their names, for a banner.
+
+    :param figures: ``(name, value)`` pairs; a name is escaped here, a value is markup, already escaped where it carries anyone's text.
+    :type figures: Sequence[tuple]
+    :rtype: str
+    """
+    return '<dl class="stats">' + "".join(f'<div class="stat"><dt>{_esc(k)}</dt><dd>{v}</dd></div>' for k, v in figures) + "</dl>"
 
 
 def rating_plate(rating: Any, small: bool = False) -> str:
@@ -91,7 +161,7 @@ def rating_plate(rating: Any, small: bool = False) -> str:
 
     :param rating: The player's rating.
     :type rating: Any
-    :param small: The counter size, without the label, for a header that already says rating.
+    :param small: The small size, without the label, for a place that already says rating.
     :type small: bool
     :rtype: str
     """
@@ -115,153 +185,201 @@ def _plays(plays: int, unplayed: bool = False) -> str:
     return f"{plays} play" if plays == 1 else f"{plays} plays"
 
 
+# six tickets across leave room for a large jacket with the score lines beside it; a longer run goes eight across, as /b50 does
+ACROSS, ACROSS_LONG = 6, 8
+
+
+def _roll(plates: Sequence[str], key: str) -> str:
+    """A run of tickets in full rolls, one piece closing the spare places of the last roll.
+
+    :param plates: The run's tickets.
+    :type plates: Sequence[str]
+    :param key: What the closing piece says, already escaped.
+    :type key: str
+    :rtype: str
+    """
+    # a short run is drawn half as many across at twice the size, so a night of six credits is not one thin strip
+    across, zoom = (ACROSS // 2, 2) if len(plates) <= ACROSS else (ACROSS, 1) if len(plates) < 6 * ACROSS else (ACROSS_LONG, 1)
+    spare = -len(plates) % across
+    end = f'<div class="rs-key" style="grid-column:span {spare}">{key}</div>' if spare else ""
+    return (f'<div class="tracks rs-roll{" rs-long" if across == ACROSS_LONG else ""}" style="--across:{across};zoom:{zoom}">'
+            f'{"".join(plates)}{end}</div>')
+
+
+def _lanterns(difficulties: Sequence[Any]) -> str:
+    """A tally of the lanterns a list holds, the most held first."""
+    held = [str(d or "").lower() for d in difficulties]
+    return '<div class="tally">' + "".join(f"<span>{tier_mark(d)}{held.count(d)}</span>" for d in sorted(set(held), key=held.count, reverse=True)) + "</div>"
+
+
+def _step(option: Any, position: int, cover_html: CoverFn, flags: str, gain: int, tally: str) -> str:
+    """One chart to push, on a ticket: a step of /plan's route, a credit of /session's running order.
+
+    :param option: The chart and its target.
+    :type option: Any
+    :param position: The ticket's number, which the embed's links share.
+    :type position: int
+    :param cover_html: Draws a jacket.
+    :type cover_html: CoverFn
+    :param flags: Tags beside the rank marks, such as a warm-up or a repeat.
+    :type flags: str
+    :param gain: What the target adds to the best-50, the stub's figure.
+    :type gain: int
+    :param tally: The running figure, already worded.
+    :type tally: str
+    :rtype: str
+    """
+    label, ink = tier(option.difficulty_type)
+    constant = float(option.constant or 0)
+    new = option.is_unplayed
+    where = "never played" if new else f"from {option.current_accuracy:.2f}"
+    # a play count the site never gave says nothing, so only a known one is printed
+    last = f"{_plays(option.plays)}, {_esc(tally)}" if option.plays > 0 and not new else _esc(tally)
+    last = last[:1].upper() + last[1:]
+    return f"""
+    <div class="track" style="--tier:{ink};">
+      <div class="track-stub"><b>{position}</b>{tier_mark(option.difficulty_type)}<small>{f"{constant:.1f}" if constant > 0 else ""}</small><strong>+{gain}</strong></div>
+      <div class="track-body">
+        <div class="track-name"><b>{_esc(option.title)}</b>{kind_mark(option.chart_type)}</div>
+        {cover_html(option.cover, "track-jacket")}
+        <div class="track-score"><b>{option.target_accuracy:.2f}%</b><small>{label.title()} {_esc(option.level)}, {where}</small>
+          <small>Usually ~{option.expected:.1f}%, {option.feasibility * 100:.0f}% odds</small><small>{last}</small></div>
+        <div class="track-foot"><span>{mark("new") if new else rank_mark(option.current_rank)}<i class="rs-to"></i>{rank_mark(option.target_rank)}</span>{flags}</div>
+      </div>
+    </div>"""
+
+
+_STEP_KEY = ('<p><b>Stub:</b> place, difficulty, constant, gain</p>'
+             '<p><b>Ticket:</b> target, level, where you stand, your usual score, odds</p>'
+             f'<p><span>{mark("rank_sss")}<i class="rs-to"></i>{mark("rank_sssp")}rank now, rank reached</span>'
+             f'<span>{mark("new")}never played</span></p>')
+
+
 # ---------------------------------------------------------------- /plan
 
 def plan_poster_html(plan: Any, player_name: str, player_rating: int, avatar_b64: str,
                      cover_html: CoverFn, stretch: bool = False, date_text: str = "",
                      bolder_label: str = "", limit_label: str = "", credits: int = 0) -> str:
     steps = list(plan.steps)
-    fill = min(100.0, 100.0 * plan.total / max(1, plan.needed))
-
-    def rows(chunk: List[Any], start: int) -> str:
-        return render_each("plan-row", [
-            {
-                "ink": tier(step.option.difficulty_type)[1],
-                "row_class": "fresh" if step.option.is_unplayed else "",
-                "flag": template("new-flag") if step.option.is_unplayed else "",
-                "position": start + offset,
-                "cover": cover_html(step.option.cover, "row-cover"),
-                "title": _esc(step.option.title),
-                "tier_label": tier(step.option.difficulty_type)[0],
-                "level": lvl(step.option.level, step.option.constant),
-                "plays": _plays(step.option.plays, step.option.is_unplayed),
-                "expected": step.option.expected,
-                "now": "new" if step.option.is_unplayed else f"{step.option.current_accuracy:.2f}",
-                "target": step.option.target_accuracy,
-                "current_rank": _esc(step.option.current_rank),
-                "target_rank": _esc(step.option.target_rank),
-                "odds": step.option.feasibility * 100,
-                "gain": step.gain,
-                "cumulative": step.cumulative,
-            }
-            for offset, step in enumerate(chunk)
-        ])
-
+    needed = max(1, plan.needed)
+    share = 100 * plan.total // needed
+    after = player_rating + plan.total
+    verdict = (f'<div class="rs-verdict reached"><b>covers +{plan.needed}</b><small>the whole way to {plan.goal_rating}</small></div>' if plan.reached else
+               f'<div class="rs-verdict"><b>{plan.shortfall} short</b><small>{share}% of the way</small></div>')
+    figures = [("Steps", str(len(steps))), ("Expected", f"+{plan.expected_gain:.0f}"), ("Over your usual", f"{plan.average_stretch:+.1f}%")]
+    if credits:
+        figures.append(("Credits", f"~{credits}"))
+    bolder = (f'<p class="rs-note"><b>{_esc(bolder_label)} targets</b> cover the full +{plan.needed} on charts you already play</p>'
+              if bolder_label else "")
+    banner = (f'<div class="banner"><div class="sum"><span>{player_rating}<small>rating now</small></span><i>+</i>'
+              f'<span>{plan.total}<small>this route</small></span><i>=</i><span><b>{after}</b>'
+              f'<small>after {len(steps)} step{"" if len(steps) == 1 else "s"}</small></span></div>{verdict}{stats(figures)}{bolder}</div>')
+    # the road is the route itself, from the rating now to the rating after it; what is left to the goal is the gap beyond it
+    total = max(1, plan.total)
+    stops = "".join(f'<i style="left:{min(100.0, 100.0 * step.cumulative / total):.1f}%"></i>' for step in steps)
+    gap = ('<div class="rs-road-gap reached"><b>covers it</b></div>' if plan.reached else
+           f'<div class="rs-road-gap"><b>{plan.shortfall} short</b></div>')
+    road = (f'<div class="rs-road"><div class="rs-road-end"><small>now</small>{rating_plate(player_rating, small=True)}</div>'
+            f'<div class="rs-road-way{" stretch" if stretch else ""}">{stops}<b>+{plan.total} = {after}</b></div>{gap}'
+            f'<div class="rs-road-end"><small>goal</small><span class="rs-goal">{plan.goal_rating}</span></div></div>')
+    kind = ("stretch targets" if stretch else "grind targets, 25% odds or better") + (f" · {limit_label} only" if limit_label else "")
     if steps:
-        half = max(1, math.ceil(len(steps) / 2))
-        columns = render("plan-columns", head=template("plan-head"),
-                         left=rows(steps[:half], 1), right=rows(steps[half:], half + 1))
+        route = _roll([_step(step.option, position, cover_html, "", step.gain, f"running total {step.cumulative}")
+                       for position, step in enumerate(steps, 1)], _STEP_KEY)
     else:
-        columns = render("empty-note", message="No achievable steps yet - play a few more charts and try again.")
-
-    body = render(
-        "plan-body",
-        bolder_note=render("plan-bolder", label=_esc(bolder_label), needed=plan.needed) if bolder_label else "",
-        stretch_class=" stretch" if stretch else "",
-        fill=fill,
-        start_rating=player_rating,
-        verdict=_esc(f"covers the full +{plan.needed}" if plan.reached
-                     else f"+{plan.total} of +{plan.needed} · {100 * plan.total // max(1, plan.needed)}% · {plan.shortfall} short"),
-        goal_rating=plan.goal_rating,
-        step_count=len(steps),
-        target_kind="stretch targets" if stretch else "grind targets, 25% odds or better",
-        limit_note=f" &middot; {_esc(limit_label)} only" if limit_label else "",
-        columns=columns,
-    )
-    counters = [
-        ("Steps", str(len(steps))),
-        ("By odds", f"~+{plan.expected_gain:.0f}"),
-        ("Above usual", f"{plan.average_stretch:+.1f}%"),
-    ] + ([("Credits", f"~{credits}")] if credits else [])
-    return _page(f"Road to {plan.goal_rating}", player_name, avatar_b64, counters,
-                 f"+{plan.total}", f"of +{plan.needed} needed", body,
-                 f"Rasmai · {site_label()} · maimai DX", date_text)
+        route = '<div class="rs-empty">No achievable steps yet - play a few more charts and try again.</div>'
+    body = (banner + panel("gold run", "The road", road, "one button per step")
+            + panel("cyan run", "Route", route, f"{len(steps)} step{'' if len(steps) == 1 else 's'} · {kind}"))
+    return _page(f"Road to {plan.goal_rating}", player_name, avatar_b64,
+                 f"+{plan.total}", f"of +{plan.needed}", body,
+                 "", date_text)
 
 
 # ---------------------------------------------------------------- /session
 
-def session_poster_html(session: Any, player_name: str, player_rating: int, avatar_b64: str,
-                        cover_html: CoverFn, date_text: str = "", target_kind: str = "", limit_label: str = "") -> str:
+def session_poster_html(session: Any, player_name: str, avatar_b64: str,
+                        cover_html: CoverFn, date_text: str = "", mix: str = "", limit_label: str = "") -> str:
     plays = list(session.plays)
-
-    def rows(chunk: List[Any], start: int) -> str:
-        return render_each("plan-row", [
-            {
-                "ink": tier(play.option.difficulty_type)[1],
-                "row_class": "fresh" if play.option.is_unplayed else "",
-                "flag": (template("new-flag") if play.option.is_unplayed else "")
-                        + (render("retry-flag", attempt=play.attempt) if play.attempt > 1 else ""),
-                "position": start + offset,
-                "cover": cover_html(play.option.cover, "row-cover"),
-                "title": _esc(play.option.title),
-                "tier_label": tier(play.option.difficulty_type)[0],
-                "level": lvl(play.option.level, play.option.constant),
-                "plays": _plays(play.option.plays, play.option.is_unplayed),
-                "expected": play.option.expected,
-                "now": "new" if play.option.is_unplayed else f"{play.option.current_accuracy:.2f}",
-                "target": play.option.target_accuracy,
-                "current_rank": _esc(play.option.current_rank),
-                "target_rank": _esc(play.option.target_rank),
-                "odds": play.option.feasibility * 100,
-                "gain": play.gain,
-                "cumulative": f"+{play.expected:.1f}",
-            }
-            for offset, play in enumerate(chunk)
-        ])
-
+    any_lands = session.any_lands * 100
+    # the engine opens the night with the surest plays, at most two of those at 35% odds or better
+    warm = min(2, sum(1 for play in plays if play.option.feasibility >= 0.35))
+    figures = [("Credits", str(session.credits)), ("Charts", str(session.distinct_charts)),
+               ("Repeats", str(sum(1 for play in plays if play.attempt > 1)))]
+    figures += [(label, _esc(value)) for label, value in (("Mix", mix), ("Only", limit_label)) if value]
+    banner = (f'<div class="banner"><div class="sum rs-pair-sum"><span><b>+{session.expected_total:.0f}</b><small>expected gain</small></span>'
+              f'<span>{any_lands:.0f}%<small>odds one lands</small></span></div>{stats(figures)}'
+              f'{_lanterns([play.option.difficulty_type for play in plays]) if plays else ""}</div>')
     if plays:
-        half = max(1, math.ceil(len(plays) / 2))
-        columns = render("plan-columns", head=template("session-head"),
-                         left=rows(plays[:half], 1), right=rows(plays[half:], half + 1))
+        key = ('<p><b>Stub:</b> order, difficulty, constant, gain</p>'
+               '<p><span><span class="rs-tag rs-warm">warm-up</span>the surest plays come first</span>'
+               '<span><span class="rs-tag">try 2</span>a repeat, worth it if the first try missed</span></p>'
+               '<p>Each credit goes where gain × odds is highest.</p>')
+        plates = [_step(play.option, position, cover_html,
+                        ('<span class="rs-tag rs-warm">warm-up</span>' if position <= warm else "")
+                        + (f'<span class="rs-tag">try {play.attempt}</span>' if play.attempt > 1 else ""),
+                        play.gain, f"worth +{play.expected:.1f}")
+                  for position, play in enumerate(plays, 1)]
+        order = _roll(plates, key)
     else:
-        columns = render("empty-note", message="Nothing tonight moves your best-50 at these odds. Try bolder targets.")
-    body = render(
-        "session-body", credits=session.credits, expected=session.expected_total, any_lands=session.any_lands * 100,
-        limit_note=f" &middot; {_esc(limit_label)} only" if limit_label else "", target_kind=_esc(target_kind), columns=columns,
-    )
-    counters = [("Credits", str(session.credits)), ("Charts", str(session.distinct_charts)),
-                ("Any lands", f"{session.any_lands * 100:.0f}%")]
-    return _page("Tonight's session", player_name, avatar_b64, counters, f"+{session.expected_total:.0f}",
-                 "rating expected from these credits", body,
-                 f"Rasmai · {site_label()} · maimai DX · odds from your own history", date_text)
+        order = '<div class="rs-empty">Nothing tonight moves your best-50 at these odds. Try bolder targets.</div>'
+    body = banner + panel("pink run", "Running order", order, "warm-ups first, then by difficulty")
+    return _page("Tonight's session", player_name, avatar_b64, f"+{session.expected_total:.0f}",
+                 "expected gain", body,
+                 "odds from your own history", date_text)
 
 
 # ---------------------------------------------------------------- /new
 
 def new_poster_html(picks: Sequence[Any], player_name: str, player_rating: int, avatar_b64: str,
-                    cover_html: CoverFn, label: str, lower: float, upper: float, date_text: str = "",
+                    cover_html: CoverFn, labels: Sequence[str], lower: float, upper: float, date_text: str = "",
                     start: int = 1, note: str = "", known: int = 0) -> str:
-    cards = render_each("new-card", [
-        {
-            "ink": tier(pick.difficulty)[1],
-            "cover": cover_html(pick.cover, "card-cover"),
-            "position": position,
-            "tier_label": tier(pick.difficulty)[0],
-            "level": lvl(pick.level, pick.constant),
-            "chart_type": _esc(pick.chart_type.upper()),
-            "title": _esc(pick.title),
-            "expected": pick.expected_accuracy,
-            "expected_rank": _esc(pick.expected_rank),
-            "odds_of_s": pick.odds_of_s * 100,
-            "worth": render("new-worth", gain=pick.rating_gain) if pick.rating_gain > 0 else template("new-worth-none"),
-            "genre": _esc(pick.genre),
-        }
-        for position, pick in enumerate(picks, start)
-    ])
-    if not cards:
-        cards = render("empty-note", message="Nothing unplayed in range at this difficulty.")
-    body = render("new-body", lower=lower, upper=upper, cards=cards,
-                  note=f'<div class="session-line">{_esc(note)}</div>' if note else "")
-    counters = [("Rating", str(player_rating)), ("Range", f"{lower:.1f}–{upper:.1f}")]
-    return _page(f"New charts · {label}", player_name, avatar_b64, counters,
+    def plate(position: int, pick: Any) -> str:
+        name, ink = tier(pick.difficulty)
+        constant = float(pick.constant or 0)
+        # a chart that would add nothing now banks for later, so its loud figure is the chance of an S instead of a +0
+        loud = f"<strong>+{pick.rating_gain}</strong>" if pick.rating_gain > 0 else f'<strong class="rs-odds">{pick.odds_of_s * 100:.0f}%</strong>'
+        return f"""
+    <div class="track" style="--tier:{ink};">
+      <div class="track-stub"><b>{position}</b>{tier_mark(pick.difficulty)}<small>{f"{constant:.1f}" if constant > 0 else ""}</small>{loud}</div>
+      <div class="track-body">
+        <div class="track-name"><b>{_esc(pick.title)}</b>{kind_mark(pick.chart_type)}</div>
+        {cover_html(pick.cover, "track-jacket")}
+        <div class="track-score"><b>~{pick.expected_accuracy:.1f}%</b><small>First try, {name.title()} {_esc(pick.level)}</small>
+          <small>{pick.odds_of_s * 100:.0f}% odds of S</small><small>Genre: {_esc(pick.genre)}</small></div>
+        <div class="track-foot"><span>{rank_mark(pick.expected_rank)}{mark("new")}</span></div>
+      </div>
+    </div>"""
+
+    # the title ticket holds the difficulty; a level or a focus asked for goes in the banner, so the ticket never runs under the head's figure
+    first, *rest = labels
+    worth = sum(1 for pick in picks if pick.rating_gain > 0)
+    figures = [("To try", str(len(picks))), ("Worth rating now", str(worth)), ("Rating", str(player_rating))]
+    if known:
+        figures.append(("Charts known", str(known)))
+    banks = ("the rest bank for later: their stub shows the odds of S" if worth else
+             "all bank for later: each stub shows the odds of S") if worth < len(picks) else ""
+    asked = (f'<p class="rs-note"><b>{_esc(" · ".join(rest))}</b> {_esc(note)}</p>' if rest or note else "")
+    banner = (f'<div class="banner"><div class="sum"><span>{lower:.1f}<small>lowest level</small></span><i>to</i>'
+              f'<span><b>{upper:.1f}</b><small>highest level</small></span></div>{stats(figures)}'
+              f'{_lanterns([pick.difficulty for pick in picks]) if picks else ""}{asked}'
+              f'{f"<p class='rs-note'>{banks}</p>" if banks and not asked else ""}</div>')
+    if picks:
+        key = ('<p><b>Stub:</b> place, difficulty, constant, gain or odds of S</p>'
+               "<p><b>Ticket:</b> a first try's score, odds of S, genre</p>"
+               f'<p><span>{mark("rank_aaa")}rank a first try should reach</span><span>{mark("new")}never played</span></p>'
+               '<p>Charts that would enter your best 50 come first.</p>')
+        shelf = _roll([plate(position, pick) for position, pick in enumerate(picks, start)], key)
+    else:
+        shelf = '<div class="rs-empty">No chart you have never played is in range at this difficulty.</div>'
+    body = banner + panel("cyan run", "Never played", shelf, "first-try estimates" + (f" · {banks}" if banks and asked else ""))
+    return _page(f"New charts · {first}", player_name, avatar_b64,
                  str(len(picks)), "charts to try", body,
-                 f"Rasmai · {site_label()} · maimai DX · estimates are for a first pass"
-                 + (f" · {known} charts known" if known else ""), date_text)
+                 f"{known} charts known" if known else "", date_text)
 
 
 # ---------------------------------------------------------------- /profile
 
-def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, height: int = 700,
+def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1000, height: int = 600,
                      moved: Sequence[Any] = ()) -> str:
     """The scatter of every score against chart constant, with the fitted curve over it.
 
@@ -287,7 +405,7 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
     ]
     if not pts:
         return ""
-    ml, mr, mt, mb = 96, 30, 24, 46
+    ml, mr, mt, mb = 138, 26, 44, 66
     x0, x1 = math.floor(min(p[0] for p in pts)), math.ceil(max(p[0] for p in pts)) + 0.5
     y0, y1 = 85.0, 101.0
     pw, ph = width - ml - mr, height - mt - mb
@@ -296,23 +414,23 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
         return ml + (c - x0) / (x1 - x0) * pw
 
     def Y(a: float) -> float:
-        return mt + (y1 - min(max(a, y0), y1)) / (y1 - y0) * ph
+        # S and up gets three fifths of the height: that is where the scores crowd, and its rank lines would run together on one scale
+        a = min(max(a, y0), y1)
+        return mt + ph * ((y1 - a) / (y1 - 97.0) * 0.6 if a >= 97.0 else 0.6 + (97.0 - a) / (97.0 - y0) * 0.4)
 
     parts: List[str] = []
-    for a, name in ((97.0, "S"), (98.0, "S+"), (99.0, "SS"), (99.5, "SS+"), (100.0, "SSS"), (100.5, "SSS+")):
+    for a, name in ((90.0, ""), (97.0, "S"), (98.0, "S+"), (99.0, "SS"), (99.5, "SS+"), (100.0, "SSS"), (100.5, "SSS+")):
         y = Y(a)
-        parts.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{width - mr}" y2="{y:.1f}" stroke="#2b2924" stroke-width="1"/>')
-        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{a:g} {name}</text>')
-    for a in (90.0, 95.0):
-        y = Y(a)
-        parts.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{width - mr}" y2="{y:.1f}" stroke="#1f1d18" stroke-width="1"/>')
-        parts.append(f'<text x="{ml - 10}" y="{y + 4:.1f}" text-anchor="end" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#5f5b52">{a:g}</text>')
+        parts.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{width - mr}" y2="{y:.1f}" class="rs-ch-grid{"" if name else " minor"}"/>')
+        parts.append(f'<text x="{ml - 12}" y="{y + 7:.1f}" text-anchor="end" class="rs-ch-axis">{a:g}'
+                     + (f' <tspan class="rs-ch-rank">{name}</tspan>' if name else "") + "</text>")
     c = math.ceil(x0)
     while c <= x1:
         x = X(c)
-        parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#1f1d18" stroke-width="1"/>')
-        parts.append(f'<text x="{x:.1f}" y="{height - mb + 22}" text-anchor="middle" font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#9b968a">{c}</text>')
+        parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" class="rs-ch-grid minor"/>')
+        parts.append(f'<text x="{x:.1f}" y="{height - mb + 30}" text-anchor="middle" class="rs-ch-axis">{c}</text>')
         c += 1
+    parts.append(f'<text x="{width - mr}" y="{height - 4}" text-anchor="end" class="rs-ch-title">chart constant</text>')
 
     sigma = max(0.3, float(getattr(profile, "consistency", 0.8)))
     band_top, band_bot, line = [], [], []
@@ -323,29 +441,24 @@ def _skill_chart_svg(profile: Any, songs: Sequence[Any], width: int = 1480, heig
         line.append(f"{X(cx):.1f},{Y(e):.1f}")
         band_top.append(f"{X(cx):.1f},{Y(min(101.0, e + sigma)):.1f}")
         band_bot.append(f"{X(cx):.1f},{Y(e - sigma):.1f}")
-    parts.append(f'<polygon points="{" ".join(band_top + band_bot[::-1])}" fill="#f0c04a" opacity="0.10"/>')
-    parts.append(f'<polyline points="{" ".join(line)}" fill="none" stroke="#f0c04a" stroke-width="3"/>')
+    parts.append(f'<polygon points="{" ".join(band_top + band_bot[::-1])}" class="rs-ch-band"/>')
 
     # the ringed ones last, so a recent best is never buried under the old scores around it
     for cst, acc, dtype, recent in sorted(pts, key=lambda p: p[3]):
         _l, ink = tier(dtype)
         if recent:
-            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="6.5" fill="{ink}" stroke="#f3efe4" stroke-width="2.5"/>')
+            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="9" fill="{ink}" class="rs-ch-recent"/>')
         else:
-            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="5" fill="{ink}" opacity="{0.85 if acc >= y0 else 0.35}"/>')
+            parts.append(f'<circle cx="{X(cst):.1f}" cy="{Y(acc):.1f}" r="6" fill="{ink}" class="rs-ch-pt" opacity="{0.9 if acc >= y0 else 0.4}"/>')
+    parts.append(f'<polyline points="{" ".join(line)}" class="rs-ch-under"/><polyline points="{" ".join(line)}" class="rs-ch-line"/>')
 
     marks = [(float(getattr(profile, "comfort_constant", 0)), "comfort"), (float(getattr(profile, "reach_constant", 0)), "reach")]
-    for row, (value, name) in enumerate(m for m in marks if x0 <= m[0] <= x1):
+    for value, name in (m for m in marks if x0 <= m[0] <= x1):
         x = X(value)
-        # Each label on a row of its own, and to the left of its line near the right edge: comfort and
-        # reach are often a few tenths apart, and printed on one row they ran into each other. They sit
-        # at the foot of the plot, which only a stray low score reaches, where the top is packed with
-        # dots, and carry an outline in the background colour for the dots that are there anyway.
-        near = x > width - mr - 130
-        parts.append(f'<line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{height - mb}" stroke="#5cd3e8" stroke-width="1.5" stroke-dasharray="6 6"/>')
-        parts.append(f'<text x="{x - 6 if near else x + 6:.1f}" y="{height - mb - 10 - row * 18}" text-anchor="{"end" if near else "start"}" '
-                     f'font-family="Cascadia Mono,Consolas,monospace" font-size="14" fill="#5cd3e8" '
-                     f'stroke="#0d0c0b" stroke-width="4" paint-order="stroke">{name} {value:.1f}</text>')
+        # each label above the plot at the top of its line, comfort leaning left and reach right, so the two a few tenths apart never meet
+        right = name == "reach" and x + 135 < width
+        parts.append(f'<line x1="{x:.1f}" y1="{mt - 8}" x2="{x:.1f}" y2="{height - mb}" class="rs-ch-mark"/>')
+        parts.append(f'<text x="{x + 6 if right else x - 6:.1f}" y="{mt - 14}" text-anchor="{"start" if right else "end"}" class="rs-ch-label">{name} {value:.1f}</text>')
 
     return f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(parts)}</svg>'
 
@@ -356,117 +469,98 @@ def profile_poster_html(summary: Dict[str, Any], profile: Any, songs: Sequence[A
     p = summary.get("profile", {})
     b = summary.get("best50", {})
 
+    def swing(label: str, count: str, value: float, width: float, figure: str) -> str:
+        """A bar out from the middle, its length against the longest of its set."""
+        side = "neg" if value < 0 else ""
+        return (f'<div class="rs-swing"><span>{label}{f"<small>{count}</small>" if count else ""}</span>'
+                f'<span class="rs-swing-bar"><i class="{side}" style="width:{min(100.0, width):.0f}%"></i></span><b class="{side}">{figure}</b></div>')
+
     def bars(bias: Dict[str, float], limit: int = 7) -> str:
         items = sorted(bias.items(), key=lambda kv: kv[1], reverse=True)[:limit]
         if not items:
-            return template("bar-empty")
-        return render_each("bar-row", [
-            {
-                "label": _esc(key),
-                "negative": "" if (value - 1.0) >= 0 else "neg",
-                "width": min(100.0, abs((value - 1.0) * 100) * 2.5),
-                "percent": (value - 1.0) * 100,
-            }
-            for key, value in items
-        ])
+            return '<div class="rs-swing rs-none"><span>not enough recent plays</span></div>'
+        most = max(abs(value - 1.0) for _key, value in items) or 1.0
+        return "".join(swing(_esc(key), "", value - 1.0, abs(value - 1.0) / most * 100, f"{(value - 1.0) * 100:+.0f}%") for key, value in items)
 
     def trait_bars(traits: Sequence[Dict[str, Any]]) -> str:
         if not traits:
-            return render("bar-empty").replace("not enough recent plays", "no trait stands out yet")
+            return '<div class="rs-swing rs-none"><span>no trait stands out yet</span></div>'
         # the four each way the reply's text names when there is no image, so neither says more than the other
         ordered = ([t for t in traits if float(t["offset"]) < 0][:4]
                    + [t for t in reversed(traits) if float(t["offset"]) > 0][:4])
-        ordered.sort(key=lambda t: float(t["offset"]))
-        return render_each("trait-row", [
-            {
-                "label": _esc(t["label"]),
-                "negative": "neg" if float(t["offset"]) < 0 else "",
-                "width": min(100.0, abs(float(t["offset"])) * 30),
-                "value": float(t["offset"]),
-                "count": f"{t['count']} {'plays' if t.get('dimension') == 'judgement' else 'charts'}",
-            }
-            for t in ordered
-        ])
+        ordered.sort(key=lambda t: float(t["offset"]), reverse=True)
+        most = max((abs(float(t["offset"])) for t in ordered), default=0.0) or 1.0
+        return "".join(swing(_esc(t["label"]), f"{t['count']} {'plays' if t.get('dimension') == 'judgement' else 'charts'}",
+                             float(t["offset"]), abs(float(t["offset"])) / most * 100, f"{float(t['offset']):+.1f}") for t in ordered)
 
-    calibration = p.get("calibration") or {}
-    model_tile = ""
-    if calibration.get("plays", 0) >= 15:
-        model_tile = render(
-            "profile-model", plays=calibration.get("plays", 0), coverage=float(calibration.get("coverage", 0)) * 100,
-            predicted=float(calibration.get("newBestPredicted") or 0) * 100, actual=float(calibration.get("newBestActual") or 0) * 100,
-            scale=float(calibration.get("sigmaScale", 1.0)), shift=float(calibration.get("shift", 0.0)),
-        )
+    def deep(name: str, figure: str, line: str) -> str:
+        return f'<div><dt>{name}</dt><dd>{figure}</dd><dd class="rs-sub">{line}</dd></div>'
 
+    deeper = ""
     habits = p.get("habits") or {}
     age = habits.get("age") or {}
-    habits_tile = ""
     if age.get("plays", 0) >= 10:
         rerates, notes = habits.get("rerates") or {}, habits.get("notes") or {}
-        habits_tile = render(
-            "profile-habits",
-            age=float(age.get("medianYears", 0)), fresh=float(age.get("freshShare", 0)) * 100,
-            rerates=(f" &middot; re-rating has moved your best 50 by <b>{int(rerates['rating']):+d}</b> "
-                     f"across {int(rerates['charts'])} charts" if rerates.get("charts") else ""),
-            notes=(f" &middot; {int(notes['notes']):,} notes hit" if notes.get("notes") else "")
-                  + _warm_up_line(habits.get("warmUp") or {}),
-        )
-
-    judged_tile = ""
+        deeper += deep("How you pick", f"{float(age.get('medianYears', 0)):.1f} yr<small>median age of the charts you play</small>",
+                       f"{float(age.get('freshShare', 0)) * 100:.0f}% were less than a year old"
+                       + (f" &middot; re-rating has moved your best 50 by <b>{int(rerates['rating']):+d}</b> across {int(rerates['charts'])} charts"
+                          if rerates.get("charts") else "")
+                       + (f" &middot; {int(notes['notes']):,} notes hit" if notes.get("notes") else "")
+                       + _warm_up_line(habits.get("warmUp") or {}))
     if judged:
         top = max(judged["types"], key=lambda t: t["lossShare"])
         late = judged.get("lateShare")
-        judged_tile = render(
-            "profile-judged", plays=judged["plays"], kind=_esc(str(top["kind"]).title() + ("es" if top["kind"] == "touch" else "s")), loss=top["lossShare"] * 100,
-            share=top["share"] * 100,
-            timing=(f'<div class="s">hits land {"late" if late >= 0.6 else "early"} {max(late, 1 - late) * 100:.0f}% of the time</div>'
-                    if late is not None and (late >= 0.6 or late <= 0.4) else ""),
-        )
+        kind = _esc(str(top["kind"]).title() + ("es" if top["kind"] == "touch" else "s"))
+        deeper += deep(f"Judgements &middot; {judged['plays']} plays' judgement pages",
+                       f"{kind}<small>carry {top['lossShare'] * 100:.0f}% of what you lose on {top['share'] * 100:.0f}% of the notes</small>",
+                       f'hits land {"late" if late >= 0.6 else "early"} {max(late, 1 - late) * 100:.0f}% of the time'
+                       if late is not None and (late >= 0.6 or late <= 0.4) else "")
+    calibration = p.get("calibration") or {}
+    if calibration.get("plays", 0) >= 15:
+        deeper += deep(f"Model check &middot; {calibration.get('plays', 0)} recorded plays",
+                       f"{float(calibration.get('coverage', 0)) * 100:.0f}%<small>of plays inside the predicted range</small>",
+                       f"new-best odds said {float(calibration.get('newBestPredicted') or 0) * 100:.0f}%, "
+                       f"{float(calibration.get('newBestActual') or 0) * 100:.0f}% happened &middot; spread scaled "
+                       f"&times;{float(calibration.get('sigmaScale', 1.0)):.2f} &middot; centre shifted {float(calibration.get('shift', 0.0)):+.2f}, "
+                       f"already in the odds you see")
 
+    consistency = p.get("consistency", 0)
+    chart_type = str(p.get("favoriteChartType", "?"))
+    leans = (kind_mark(chart_type) if chart_type.lower() in ("dx", "std") else "") + _esc(chart_type.upper())
     open_slots = int(b.get("newSlotsOpen", 0)) + int(b.get("oldSlotsOpen", 0))
-    legend = render_each("legend-swatch", [
-        {"ink": ink, "label": label} for label, ink in
-        (DIFFICULTY_STYLES["expert"], DIFFICULTY_STYLES["master"], DIFFICULTY_STYLES["remaster"], DIFFICULTY_STYLES["advanced"])
-    ])
+    best = [("Cutoffs", f"{b.get('newCutoff', 0)}<small>new</small> / {b.get('oldCutoff', 0)}<small>old</small>")]
+    if open_slots:
+        best.append(("Open slots", f'<span class="hot">{open_slots}</span>'))
+    days = int(p.get("activeDays", 0) or 0)
+    banner = (f'<div class="banner"><div class="rs-style"><b>{_esc(str(p.get("style", "unknown")).title())}</b>'
+              f'<small>mostly {leans}, {_esc(p.get("favoriteGenre", "?"))} genre</small></div>'
+              + stats([("FC rate", f'{mark("lamp_fc")}{p.get("fcRate", 0) * 100:.0f}%'), ("AP rate", f'{mark("lamp_ap")}{p.get("apRate", 0) * 100:.0f}%'),
+                        ("DX score", f'{mark("dxstar")}{p.get("dxScoreRate", 0) * 100:.0f}%')])
+              + stats([("Recent", f"{recent_count}<small>plays</small>"), ("Active", f"{days}<small>day{'' if days == 1 else 's'}</small>")]
+                      + ([("Play counts known", str(p.get("playCountsKnown")))] if p.get("playCountsKnown") else []))
+              + f'<div class="sum"><span>{b.get("newTotal", 0)}<small>new</small></span><i>+</i><span>{b.get("oldTotal", 0)}<small>old</small></span>'
+                f'<i>=</i><span><b>{b.get("total", 0)}</b><small>best 50</small></span></div>' + stats(best) + "</div>")
+
+    held = {str(getattr(s, "difficulty_type", "")).lower() for s in songs}
+    legend = "".join(f"<span>{tier_mark(key)}{DIFFICULTY_STYLES[key][0].title()}</span>"
+                     for key in ("basic", "advanced", "expert", "master", "remaster") if key in held)
     if moved:
-        legend += ('<span><i style="background:transparent;border:2.5px solid #f3efe4;border-radius:50%;'
-                   'box-sizing:border-box"></i>best set in recent plays</span>')
-    body = render(
-        "profile-body",
-        chart=_skill_chart_svg(profile, songs, moved=moved),
-        consistency=p.get("consistency", 0),
-        legend=legend,
-        style=_esc(str(p.get("style", "unknown")).title()),
-        chart_type=_esc(str(p.get("favoriteChartType", "?")).upper()),
-        genre=_esc(p.get("favoriteGenre", "?")),
-        fc_rate=p.get("fcRate", 0) * 100,
-        ap_rate=p.get("apRate", 0) * 100,
-        dx_rate=p.get("dxScoreRate", 0) * 100,
-        comfort=p.get("comfortConstant", 0),
-        reach=p.get("reachConstant", 0),
-        hardest_s=p.get("hardestS", 0),
-        ceiling=p.get("playedCeiling", 0),
-        at13=p.get("expectedAt13", 0),
-        at14=p.get("expectedAt14", 0),
-        recent_count=recent_count,
-        active_days=p.get("activeDays", 0),
-        play_counts_known=p.get("playCountsKnown", 0),
-        best50=b.get("total", 0),
-        new_total=b.get("newTotal", 0),
-        old_total=b.get("oldTotal", 0),
-        new_cutoff=b.get("newCutoff", 0),
-        old_cutoff=b.get("oldCutoff", 0),
-        slots=render("profile-slots", slots=open_slots) if open_slots else "",
-        genre_bars=bars(getattr(profile, "genre_bias", {}) or {}),
-        trait_bars=trait_bars(p.get("traits") or []),
-        model_tile=model_tile,
-        habits_tile=habits_tile,
-        judged_tile=judged_tile,
-    )
-    counters = [
-        ("FC", f"{p.get('fcRate', 0) * 100:.0f}%"),
-        ("AP", f"{p.get('apRate', 0) * 100:.0f}%"),
-        ("DX score", f"{p.get('dxScoreRate', 0) * 100:.0f}%"),
-    ]
-    return _page("Play profile", player_name, avatar_b64, counters, rating_plate(player_rating),
-                 f"rating · {rating_band(player_rating)[0]}", body,
-                 f"Rasmai · {site_label()} · maimai DX · {len(songs)} charts · {recent_count} recent plays", date_text)
+        legend += '<span><i class="rs-swatch-ring"></i>best set in recent plays</span>'
+    curve = panel("pink run", "Skill curve", f'<div class="rs-curve">{_skill_chart_svg(profile, songs, moved=moved)}'
+                  f'<div class="rs-legend"><span><i class="rs-swatch-line"></i>what you usually score, &plusmn;{consistency}</span>'
+                  f'<span><i class="rs-swatch-mark"></i>comfort (SS) / reach (S)</span>{legend}</div></div>', "every chart you have a score on")
+    figures = [("SS up to", f'{rank_mark("SS")}{p.get("comfortConstant", 0)}'), ("S up to", f'{rank_mark("S")}{p.get("reachConstant", 0)}'),
+               ("Hardest S", str(p.get("hardestS", 0))), ("Usual on 13s", f"{p.get('expectedAt13', 0)}<small>% &plusmn;{consistency}</small>"),
+               ("Usual on 14s", f"{p.get('expectedAt14', 0)}<small>% &plusmn;{consistency}</small>"), ("Played up to", str(p.get("playedCeiling", 0)))]
+    reach = panel("cyan run", "Range", '<dl class="rs-figs">' + "".join(f"<div><dt>{_esc(k)}</dt><dd>{v}</dd></div>" for k, v in figures) + "</dl>",
+                  "the constants you hold, and what you usually score")
+    swings = (panel("purple run", "Points won and lost", f'<div class="rs-swings">{trait_bars(p.get("traits") or [])}</div>',
+                    "vs your curve")
+              + panel("gold run", "Genres", f'<div class="rs-swings">{bars(getattr(profile, "genre_bias", {}) or {})}</div>',
+                      "vs your average"))
+    # what the database adds when it has it sits in a strip of its own, so the columns above hold the same blocks for every player
+    body = (banner + f'<div class="rs-card">{curve}<div class="rs-side">{reach}{swings}</div></div>'
+            + (panel("gold run", "Habits and checks", f'<dl class="rs-deep">{deeper}</dl>') if deeper else ""))
+    return _page("Play profile", player_name, avatar_b64, rating_plate(player_rating),
+                 "rating", body,
+                 f"{len(songs)} charts · {recent_count} recent plays", date_text)

@@ -1,84 +1,137 @@
 from datetime import datetime
 from typing import Any, Dict, Optional, Sequence, Tuple
 
-from rasmai.images.markup import render
-from rasmai.images.posters import CoverFn, _esc, tier
+from rasmai.images.posters import (CoverFn, _avatar, _esc, kind_mark, lamp_marks, mark, panel, rank_mark, rating_plate,
+                                   stats, tier, tier_mark)
 from rasmai.images.pages import _image, star_marks
-from rasmai.images.pages.common import _fc
 
-def _card(eyebrow: str, name: str, avatar_b64: str, counters: Sequence[tuple], headline_value: str,
-          headline_caption: str, body: str, date_text: str) -> str:
-    return _image(eyebrow, name, avatar_b64, counters, headline_value, headline_caption, body, date_text, "narrow")
+
+def _card(eyebrow: str, name: str, avatar_b64: str, headline_value: str, headline_caption: str, body: str, date_text: str,
+          body_class: str = "narrow") -> str:
+    return _image(eyebrow, name, avatar_b64, headline_value, headline_caption, body, date_text, body_class)
+
+
+def _banner(*parts: str) -> str:
+    """The strip under the head that holds what the card adds up to; each part is markup, already escaped."""
+    return '<div class="banner cd-banner">' + "".join(part for part in parts if part) + "</div>"
+
+
+def _day(when: Any) -> str:
+    """A date as the cards print it, ``14 Sep 2026``, keeping the time when the text gives one; text that is not a date prints as it is."""
+    if isinstance(when, datetime):
+        return f"{when.day} {when:%b %Y}"
+    for shape, timed in (("%Y/%m/%d %H:%M", True), ("%Y/%m/%d", False)):
+        try:
+            parsed = datetime.strptime(str(when).strip(), shape)
+        except ValueError:
+            continue
+        return f"{parsed.day} {parsed:%b %Y}" + (f" {parsed:%H:%M}" if timed else "")
+    return str(when or "")
+
+
+def _sentences(parts: Sequence[str]) -> str:
+    """The builders' note and forecast as the card prints them: each clause is its own sentence."""
+    return " ".join(part[:1].upper() + part[1:] + ("" if part.endswith((".", "!", "?")) else ".") for part in parts if part)
+
+
+def _jacket(cover_html: CoverFn, cover: str, ink: str, title: str, under: str = "", foot: str = "") -> str:
+    """The chart's own ticket stood on end: the jacket large in a frame of the difficulty's colour with the title under it, and a
+    paper foot that tears off along the pink dashes.
+
+    :param cover_html: Renders a jacket as markup.
+    :type cover_html: CoverFn
+    :param cover: The jacket file name.
+    :type cover: str
+    :param ink: The frame's colour.
+    :type ink: str
+    :param title: The song title, escaped here.
+    :type title: str
+    :param under: Markup for the line under the title, already escaped.
+    :type under: str
+    :param foot: Markup for the paper foot, already escaped.
+    :type foot: str
+    :rtype: str
+    """
+    return (f'<div class="cd-jk" style="--tier:{ink};"><div class="cd-jk-frame">{cover_html(cover, "cd-jk-art")}'
+            f'<b class="cd-jk-title">{_esc(title)}</b>{under}</div>' + (f'<div class="cd-jk-foot">{foot}</div>' if foot else "") + "</div>")
 
 
 # ---------------------------------------------------------------- /chart and /random
 
 def song_card_html(title: str, artist: str, genre: str, version_label: str, cover: str, cover_html: CoverFn,
-                   rows: Sequence[Dict[str, Any]], player_name: str, rating: int, avatar_b64: str,
+                   rows: Sequence[Dict[str, Any]], player_name: str, avatar_b64: str,
                    cutoffs: str, date_text: str = "", highlight: Optional[str] = None,
-                   ladder: Sequence[Dict[str, Any]] = (), ladder_label: str = "", forecast: str = "",
+                   ladder: Sequence[Dict[str, Any]] = (), ladder_label: str = "", forecast: Sequence[str] = (),
                    eyebrow: str = "Chart lookup", facts: Sequence[str] = ()) -> str:
-    table = ""
+    tickets = ""
+    frame = tier(rows[-1]["difficulty"])[1] if rows else "var(--card)"
     for r in rows:
         label, ink = tier(r["difficulty"])
-        cls = ' class="pick"' if highlight and f'{r["chart_type"]} {r["difficulty"]}' == highlight else ""
-        notes = f'{r["notes"]:,}' if r.get("notes") else "—"
+        pick = bool(highlight) and f'{r["chart_type"]} {r["difficulty"]}' == highlight
+        if pick:
+            frame = ink
+        meta = []
+        if r.get("notes"):
+            meta.append(f'<b>{r["notes"]:,}</b> notes')
         if r.get("designer"):
-            notes += f'<br />{_esc(r["designer"])}'
+            meta.append(_esc(r["designer"]))
         if r.get("played"):
-            score = f'<span class="big">{r["accuracy"]:.4f}<small>{_esc(r["rank"])}</small></span>'
-            rate = f'<span class="big">{r["rating"]}</span>'
-            lamp = _esc(_fc(r.get("fc"), r.get("fs")) or "—")
+            score = f'<b>{r["accuracy"]:.4f}%</b>'
+            marks = rank_mark(r["rank"]) + lamp_marks(r.get("fc"), r.get("fs"))
+            worth = str(r["rating"])
             if r.get("max_dx"):
-                dx = f'{r["dx"]:,} / {r["max_dx"]:,}<br /><span class="stars">{star_marks(r["stars"])}</span>'
+                meta.append(f'DX <b>{r["dx"]:,}</b> / {r["max_dx"]:,} <span class="stars">{star_marks(r["stars"])}</span>')
             elif r.get("dx"):
-                dx = f'{r["dx"]:,}'
-            else:
-                dx = "—"
-            plays = f'{r["plays"]} play{"s" if r["plays"] != 1 else ""}' if r.get("plays") else "—"
+                meta.append(f'DX <b>{r["dx"]:,}</b>')
+            if r.get("plays"):
+                meta.append(f'{mark("plays")}<b>{r["plays"]}</b> play{"s" if r["plays"] != 1 else ""}')
         else:
-            score = '<span class="dim">never played</span>'
-            rate, lamp, dx, plays = "—", "—", "—", "—"
-        table += f"""
-        <tr style="--tier:{ink};"{cls}>
-          <td><span class="badge">{label} {_esc(r["level"])}<small>{_esc(r["chart_type"].upper())}</small></span></td>
-          <td class="num">{r["constant"]:.1f}</td>
-          <td class="num">{notes}</td>
-          <td>{score}</td>
-          <td>{rate}</td>
-          <td class="num">{lamp}</td>
-          <td class="num">{dx}</td>
-          <td class="num">{plays}</td>
-          <td class="num">{_esc(r.get("note", ""))}</td>
-        </tr>"""
-    # what the reply's text used to say about the chart it opened on, under the song's own lines, the chart's name first
-    about = "".join("<br />" + (f"<b>{_esc(line)}</b>" if index == 0 else _esc(line))
-                    for r in rows for index, line in enumerate(r.get("about", ())))
-    body = f"""
-    <div class="card-head">
-      {cover_html(cover, "song-cover")}
-      <div>
-        <div class="card-title">{_esc(title)}</div>
-        <div class="card-sub">{_esc(artist)}<br />{" · ".join(_esc(f) for f in ([genre, version_label] + list(facts)) if f)}<br />your best-50 cutoffs: <b>{_esc(cutoffs)}</b>{about}</div>
-      </div>
-    </div>
-    <table class="difftable">
-      <thead><tr><th>Chart</th><th>Const</th><th>Notes</th><th>Your score</th><th>Rating</th><th>Lamp</th><th>DX score</th><th>Plays</th><th>Best-50</th></tr></thead>
-      <tbody>{table}</tbody>
-    </table>"""
-    if ladder:
-        steps = "".join(
-            render("ladder-row", rank=_esc(step["rank"]), need=step["need"], rating=step["rating"],
-                   gain=f"+{step['gain']}" if step["gain"] > 0 else "&mdash;", odds=step["odds"] * 100)
-            for step in ladder
-        )
-        body += render("ladder", label=_esc(ladder_label), rows=steps,
-                       forecast=f'<div class="forecast">{_esc(forecast)}</div>' if forecast else "")
-
+            score, marks, worth = '<span class="cd-never">never played</span>', "", "—"
+        flag = '<em class="cd-pick">This chart</em>' if pick else ""
+        note = f'<p class="cd-diff-note">{_esc(_sentences([r["note"]]))}</p>' if r.get("note") else ""
+        tickets += f"""
+        <div class="track cd-diff{" pick" if pick else ""}" style="--tier:{ink};">
+          <div class="track-stub"><b>{_esc(r["level"])}</b>{tier_mark(r["difficulty"])}<small>{r["constant"]:.1f}</small><strong>{worth}</strong></div>
+          <div class="cd-diff-body">
+            <div class="track-name"><b>{label}</b>{kind_mark(r["chart_type"])}{flag}</div>
+            <div class="cd-diff-score">{score}<span class="cd-marks">{marks}</span></div>
+            <div class="cd-diff-meta">{"".join(f"<span>{m}</span>" for m in meta)}</div>{note}
+          </div>
+        </div>"""
+    # what the reply's text used to say about the chart it opened on, a line each; where a line lists things, commas for the embed's dots
+    lines = [line.replace(" · ", ", ") for r in rows for line in r.get("about", ()) if line]
+    about = "".join(f"<p>{_esc(line[:1].upper() + line[1:])}</p>" for line in lines)
     played = [r for r in rows if r.get("played")]
     best = max((r["rating"] for r in played), default=0)
-    counters = [("Charts", str(len(rows))), ("Played", str(len(played)))]
-    return _card(eyebrow, player_name, avatar_b64, counters, str(best) if best else "—", "best rating on this song", body, date_text)
+    banner = _banner(stats([("Charts", str(len(rows))), ("Played", str(len(played))), ("Cutoffs", _esc(cutoffs))]))
+    # the song's own facts sit on the ticket under its jacket, so the ticket is full whatever the column beside it holds
+    tags = "".join(f'<span class="cd-tag">{_esc(f)}</span>' for f in [genre or "genre unknown", version_label, *facts] if f)
+    left = _jacket(cover_html, cover, frame, title, f'<span class="cd-jk-under">{_esc(artist)}</span>',
+                   f'<div class="cd-tags">{tags}</div>' + (f'<div class="cd-about">{about}</div>' if about else ""))
+    # past five charts (a song with standard and DX charts) the tickets run in two columns so the card stays landscape
+    tall = len(rows) if len(rows) <= 5 else -(-len(rows) // 2)
+    middle = panel("pink run cd-grow", "Difficulties",
+                   f'<div class="cd-diffs{" two" if len(rows) > 5 else ""}" style="--rows:{max(1, tall)};">{tickets}</div>',
+                   "stub: rating")
+    climb = ""
+    if ladder:
+        steps = ""
+        # the top rank at the head of the ladder, the next one up at its foot
+        for step in reversed(ladder):
+            gain = f'+{step["gain"]}' if step["gain"] > 0 else "&mdash;"
+            steps += (f'<div class="track cd-step"><div class="track-stub">{rank_mark(step["rank"])}<strong>{gain}</strong></div>'
+                      f'<dl class="cd-step-figs"><div><dt>Needs</dt><dd>{step["need"]:.2f}%</dd></div>'
+                      f'<div><dt>Rating</dt><dd>{step["rating"]}</dd></div>'
+                      f'<div><dt>Your chance</dt><dd>{step["odds"] * 100:.0f}% odds</dd></div>'
+                      f'<span class="cd-odds"><i style="width:{min(100.0, step["odds"] * 100):.1f}%"></i></span></dl></div>')
+        climb = panel("gold run cd-ladder", "Rank ladder",
+                      f'<div class="cd-steps">{steps}</div>'
+                      + (f'<p class="cd-forecast">{_esc(_sentences(forecast))}</p>' if forecast else ""),
+                      f"{ladder_label} · stub: gain")
+    # with the ladder beside the difficulties the card needs the full width; without it, it is a card about one thing
+    body = banner + f'<div class="cd-sc{" wide" if ladder else ""}">{left}<div class="cd-col">{middle}</div>{climb}</div>'
+    return _card(eyebrow, player_name, avatar_b64, str(best) if best else "—", "best rating", body, date_text,
+                 "" if ladder else "narrow")
 
 
 # ---------------------------------------------------------------- /chart history
@@ -87,10 +140,10 @@ RANK_LINES = ((80.0, "A"), (90.0, "AA"), (94.0, "AAA"), (97.0, "S"), (98.0, "S+"
 
 
 def history_card_html(title: str, difficulty: str, level: str, chart_type: str, cover: str, cover_html: CoverFn,
-                      points: Sequence[Dict[str, Any]], player_name: str, rating: int, avatar_b64: str,
+                      points: Sequence[Dict[str, Any]], player_name: str, avatar_b64: str,
                       date_text: str = "", constant: float = 0.0) -> str:
-    """Achievement over time for one chart: every recorded play as a dot, the best so far as a line, and the figures
-    the reply's text used to carry as tiles beside the jacket.
+    """Achievement over time for one chart: every recorded play as a mark, a star where it set a new best, the best so far
+    as a thick line, and the figures the reply's text used to carry in the banner over it.
 
     :param title: The song title.
     :type title: str
@@ -108,8 +161,6 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
     :type points: Sequence[Dict[str, Any]]
     :param player_name: The player's name on maimai DX NET.
     :type player_name: str
-    :param rating: The player's rating.
-    :type rating: int
     :param avatar_b64: The player's avatar, base64 encoded.
     :type avatar_b64: str
     :param date_text: The date to print on the image.
@@ -120,8 +171,8 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
     """
     from rasmai.engine.analysis import rank_for
     label, ink = tier(difficulty)
-    width, height = 1480, 520
-    left, right, top, bottom = 124, 36, 28, 60
+    width, height = 1080, 600
+    left, right, top, bottom = 170, 40, 54, 62
     plot_w, plot_h = width - left - right, height - top - bottom
 
     times = [p["when"] for p in points]
@@ -143,20 +194,26 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
     def y_at(value: float) -> float:
         return top + plot_h * (1 - (min(y_max, max(y_min, value)) - y_min) / (y_max - y_min))
 
-    svg = []
+    def pin(x: float, y: float, html: str, cls: str) -> str:
+        # the marks are pictures in the stylesheet, so they sit over the graph, placed in shares of its box
+        return f'<span class="{cls}" style="left:{100 * x / width:.2f}%;top:{100 * y / height:.2f}%;">{html}</span>'
+
+    svg, pins = [], []
     last_label_y = 1e9
     for value, name in RANK_LINES:
         if y_min < value < y_max:
             y = y_at(value)
-            svg.append(f'<line class="hist-rank" x1="{left}" x2="{width - right}" y1="{y:.1f}" y2="{y:.1f}"/>')
-            if last_label_y - y >= 18:      # labels for lines that sit on top of each other would just overprint
-                svg.append(f'<text class="hist-axis" x="{left - 14}" y="{y + 4:.1f}" text-anchor="end">{_esc(name)} {value:g}</text>')
+            svg.append(f'<line class="cd-g-rank" x1="{left}" x2="{width - right}" y1="{y:.1f}" y2="{y:.1f}"/>')
+            if last_label_y - y >= 44:      # labels for lines that sit on top of each other would just overprint
+                svg.append(f'<text class="cd-g-axis" x="{left - 14}" y="{y + 7:.1f}" text-anchor="end">{value:g}</text>')
+                pins.append(pin(70, y, rank_mark(name), "cd-g-rankmk"))
                 last_label_y = y
-    svg.append(f'<line class="hist-frame" x1="{left}" x2="{width - right}" y1="{top + plot_h}" y2="{top + plot_h}"/>')
+    svg.append(f'<line class="cd-g-frame" x1="{left}" x2="{width - right}" y1="{top + plot_h}" y2="{top + plot_h}"/>')
 
     if points:
         best = 0.0
         step = []
+        fresh = set()
         for index, point in enumerate(points):
             value = float(point["achievement"])
             x = x_at(point["when"], index)
@@ -164,63 +221,72 @@ def history_card_html(title: str, difficulty: str, level: str, chart_type: str, 
                 if step:
                     step.append(f"L{x:.1f} {y_at(best):.1f}")
                 best = value
+                fresh.add(index)
                 step.append(f"{'M' if len(step) == 0 else 'L'}{x:.1f} {y_at(best):.1f}")
         step.append(f"L{x_at(points[-1]['when'], len(points) - 1):.1f} {y_at(best):.1f}")
-        svg.append(f'<path class="hist-best" d="{" ".join(step)}"/>')
+        path = " ".join(step)
+        svg.append(f'<path class="cd-g-best edge" d="{path}"/><path class="cd-g-best" d="{path}"/>')
         for index, point in enumerate(points):
             x, y = x_at(point["when"], index), y_at(float(point["achievement"]))
-            cls = "hist-dot best" if point.get("source") == "best" else "hist-dot"
-            svg.append(f'<circle class="{cls}" cx="{x:.1f}" cy="{y:.1f}" r="{7 if point.get("source") == "best" else 6}"/>')
+            cls = "cd-g-dot top" if index in fresh else "cd-g-dot"
+            # a score read off the scores page is a diamond, a play seen on the recent list a circle
+            if point.get("source") == "best":
+                svg.append(f'<rect class="{cls}" x="{x - 11:.1f}" y="{y - 11:.1f}" width="22" height="22" rx="3" transform="rotate(45 {x:.1f} {y:.1f})"/>')
+            else:
+                svg.append(f'<circle class="{cls}" cx="{x:.1f}" cy="{y:.1f}" r="{14 if index in fresh else 11}"/>')
+            if index in fresh:
+                pins.append(pin(x, y - 38, mark("pb"), "cd-g-pb"))
         # date labels at the ends and a few in between, never overlapping
         labels = [0] if len(points) == 1 else sorted({0, len(points) - 1, len(points) // 2, len(points) // 4, 3 * len(points) // 4})
         last_x = -1e9
         for index in labels:
             x = x_at(points[index]["when"], index)
-            if x - last_x < 160:
+            if x - last_x < 190:
                 continue
             last_x = x
-            anchor = "start" if index == 0 else "end" if index == len(points) - 1 else "middle"
-            svg.append(f'<text class="hist-axis" x="{x:.1f}" y="{top + plot_h + 30}" text-anchor="{anchor}">'
-                       f'{points[index]["when"].strftime("%d %b %Y")}</text>')
+            anchor = "middle" if len(points) == 1 else "start" if index == 0 else "end" if index == len(points) - 1 else "middle"
+            svg.append(f'<text class="cd-g-axis" x="{x:.1f}" y="{top + plot_h + 42}" text-anchor="{anchor}">'
+                       f'{_day(points[index]["when"])}</text>')
         peak = max(points, key=lambda p: float(p["achievement"]))
         px, py = x_at(peak["when"], points.index(peak)), y_at(float(peak["achievement"]))
-        px = min(max(px, left + 70), width - right - 70)     # the label stays inside the frame at either end
-        svg.append(f'<text class="hist-peak" x="{px:.1f}" y="{max(top + 14, py - 16):.1f}" text-anchor="middle">{float(peak["achievement"]):.4f}%</text>')
+        px = min(max(px, left + 110), width - right - 110)     # the label stays inside the frame at either end
+        label_y = py + 56 if py - 66 < 30 else py - 66
+        svg.append(f'<text class="cd-g-peak" x="{px:.1f}" y="{label_y:.1f}" text-anchor="middle">{float(peak["achievement"]):.4f}%</text>')
     else:
-        svg.append(f'<text class="hist-empty" x="{left + plot_w / 2:.0f}" y="{top + plot_h / 2:.0f}" text-anchor="middle">'
-                   'no scores recorded yet - they build up from each analysis and your recent plays</text>')
+        svg.append(f'<text class="cd-g-empty" x="{left + plot_w / 2:.0f}" y="{top + plot_h / 2 - 12:.0f}" text-anchor="middle">no scores recorded yet</text>'
+                   f'<text class="cd-g-empty small" x="{left + plot_w / 2:.0f}" y="{top + plot_h / 2 + 26:.0f}" text-anchor="middle">'
+                   'they build up from each analysis and your recent plays</text>')
 
     plays = [p for p in points if p.get("source") != "best"]
-    tiles = []
+    figures = [("Scores", str(len(points))), ("Plays seen", str(len(plays))),
+               ("Since", _day(points[0]["when"]) if points else "—")]
     if points:
-        tiles = [("Best", f"{high:.4f}<small>%</small>", rank_for(high)),
-                 ("Latest", f"{values[-1]:.4f}<small>%</small>", points[-1]["when"].strftime("%d %b %Y")),
-                 ("First", f"{values[0]:.4f}<small>%</small>", f"{high - values[0]:+.4f} to your best")]
+        figures += [("Best rank", rank_mark(rank_for(high))),
+                    ("Latest", f"{values[-1]:.4f}%<small>{_day(points[-1]['when'])}</small>"),
+                    ("First", f"{values[0]:.4f}%<small>{high - values[0]:+.4f} since</small>")]
     if plays:
         recent = [float(p["achievement"]) for p in plays[-5:]]
-        tiles.append((f"Last {len(recent)} seen", f"{sum(recent) / len(recent):.4f}<small>%</small>", "average"))
+        figures.append((f"Last {len(recent)} seen", f"{sum(recent) / len(recent):.4f}%<small>average</small>"))
     was = float(points[0].get("constant") or constant) if points else constant
     if constant:
-        tiles.append(("Constant", f"{constant:.1f}", f"{was:.1f} when first recorded" if abs(was - constant) >= 0.05 else "&nbsp;"))
-    tile_html = "".join(f'<div class="tile"><div class="k">{k}</div><div class="v">{v}</div><div class="s">{s}</div></div>' for k, v, s in tiles)
-    body = f"""
-    <div class="card-head hist-head">
-      {cover_html(cover, "song-cover")}
-      <div>
-        <div class="card-title">{_esc(title)}</div>
-        <div class="card-sub" style="--tier:{ink};"><span class="badge">{label} {_esc(level)}<small>{_esc(chart_type.upper())}</small></span></div>
-        <div class="hist-legend"><span class="sw best"></span>best so far <span class="sw play"></span>play seen in your recent list <span class="sw mark"></span>best read from your scores</div>
-        <div class="stat-row">{tile_html}</div>
-      </div>
-    </div>
-    <svg class="hist" viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">{"".join(svg)}</svg>"""
-    first = points[0]["when"].strftime("%d %b %Y") if points else "—"
-    counters = [("Scores", str(len(points))), ("Plays seen", str(len(plays))), ("Since", first)]
+        figures.append(("Constant", f"{constant:.1f}" + (f"<small>{was:.1f} when first recorded</small>" if abs(was - constant) >= 0.05 else "")))
+    key = ('<div class="cd-key"><span><i class="cd-sw line"></i>best so far</span><span>' + mark("pb") + 'a new best</span>'
+           '<span><i class="cd-sw play"></i>a recent play</span>'
+           '<span><i class="cd-sw mark"></i>your current best</span></div>')
+    chart = _jacket(cover_html, cover, ink, title,
+                    f'<span class="cd-jk-under">{tier_mark(difficulty)}{label} {_esc(level)}{kind_mark(chart_type)}</span>', key)
+    graph = (f'<div class="cd-graph"><svg viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">{"".join(svg)}</svg>'
+             f'{"".join(pins)}</div>')
+    body = (_banner(stats(figures))
+            + f'<div class="cd-hc">{panel("pink run cd-graph-panel", "Every score", graph, f"{len(points)} scores · {len(plays)} plays seen")}{chart}</div>')
     headline = f"{max(values):.4f}%" if values else "—"
-    return _card("Score history", player_name, avatar_b64, counters, headline, "best recorded", body, date_text)
+    return _card("Score history", player_name, avatar_b64, headline, "best recorded", body, date_text)
 
 
 # ---------------------------------------------------------------- /lastplay
+
+JUDGEMENTS = ("critical", "perfect", "great", "good", "miss")
+
 
 def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: CoverFn, player_name: str,
                    rating: int, avatar_b64: str, date_text: str = "") -> str:
@@ -232,51 +298,61 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
     from rasmai.engine.losses import note_losses
     stars = stars_for(dx / max_dx) if max_dx else 0
     notes = detail.get("notes") or {}
-    order = ("tap", "hold", "slide", "touch", "break")
-    totals = {"critical": 0, "perfect": 0, "great": 0, "good": 0, "miss": 0}
+    totals = dict.fromkeys(JUDGEMENTS, 0)
     lost = note_losses(notes, achievement)
+    all_lost = sum(lost.values())
+
+    def tally(name: str, counts: Dict[str, int], cost: float, cls: str = "") -> str:
+        """One note type's row: each judgement's count, then what the row cost over a bar of its share of everything lost."""
+        cells = "".join(f'<span class="cd-j-{k}{"" if counts[k] else " zero"}">{counts[k]:,}</span>' for k in JUDGEMENTS)
+        if cost < 0.005:
+            loss = '<span class="cd-j-lost zero">&mdash;</span>'
+        else:
+            loss = f'<span class="cd-j-lost"><b>-{cost:.2f}%</b><i style="width:{100 * cost / all_lost:.1f}%"></i></span>'
+        return f'<div class="cd-j-row {cls}"><b class="cd-j-kind">{name}</b>{cells}{loss}</div>'
+
     judge_rows = ""
-    for kind in order:
+    for kind in ("tap", "hold", "slide", "touch", "break"):
         n = notes.get(kind)
         if not n:
             continue
-        for k in totals:
-            totals[k] += int(n.get(k, 0))
-        cost = lost.get(kind, 0.0)
-        judge_rows += (f'<tr><td>{kind.upper()}</td><td class="crit">{n["critical"]}</td><td>{n["perfect"]}</td>'
-                       f'<td>{n["great"]}</td><td>{n["good"]}</td><td class="miss">{n["miss"]}</td>'
-                       f'<td class="{"miss" if cost >= 0.5 else ""}">{f"-{cost:.2f}%" if cost >= 0.005 else ""}</td></tr>')
-    judge = f"""
-    <table class="judge">
-      <thead><tr><th>Notes</th><th>Critical</th><th>Perfect</th><th>Great</th><th>Good</th><th>Miss</th><th>Lost</th></tr></thead>
-      <tbody>{judge_rows}<tr class="total"><td>ALL</td><td class="crit">{totals["critical"]}</td><td>{totals["perfect"]}</td><td>{totals["great"]}</td><td>{totals["good"]}</td><td class="miss">{totals["miss"]}</td><td>{f"-{sum(lost.values()):.2f}%" if lost else ""}</td></tr></tbody>
-    </table>""" if judge_rows else ""
+        counts = {k: int(n.get(k, 0)) for k in JUDGEMENTS}
+        for k in JUDGEMENTS:
+            totals[k] += counts[k]
+        judge_rows += tally(kind.upper(), counts, lost.get(kind, 0.0))
+    heads = "".join(f'<em class="cd-j-{k}">{k.title()}</em>' for k in JUDGEMENTS)
+    judge = panel("cyan run cd-grow", "Judgements", f"""
+      <div class="cd-judge">
+        <div class="cd-j-row head"><u></u>{heads}<em class="cd-j-lost">Lost</em></div>
+        {judge_rows}{tally("ALL", totals, all_lost, "all")}
+      </div>""") if judge_rows else ""
+
     change = int(detail.get("rating_change") or 0)
-    tiles = [
-        ("Achievement", f"{achievement:.4f}<small>%</small>",
-         str(play.get("rank", "")) + (f" · rating {play['chart_rating']}" if play.get("chart_rating") else "")),
-        ("DX score", f"{dx:,}<small>/ {max_dx:,}</small>", star_marks(stars) + (f" {100.0 * dx / max_dx:.1f}%" if max_dx else "")),
-        ("Combo", f"{int(detail.get('combo') or 0):,}<small>/ {int(detail.get('max_combo') or 0):,}</small>",
-         f"sync {int(detail.get('sync') or 0):,} / {int(detail.get('max_sync') or 0):,}" if detail.get("max_sync") else "&nbsp;"),
-        ("Timing", f"{int(detail.get('fast') or 0)}<small>fast</small> {int(detail.get('late') or 0)}<small>late</small>", "&nbsp;"),
-        ("Rating after", f"{int(detail.get('rating') or rating)}<small>{change:+d}</small>",
-         " · ".join(text for flag, text in ((play.get("in_b50"), "in best-50"), (play.get("pb"), "new best")) if flag) or "&nbsp;"),
+    figures = [("Rating after", f"{rating_plate(int(detail.get('rating') or rating), small=True)}<small>{change:+d}</small>")]
+    if play.get("chart_rating"):
+        figures.append(("Chart rating", f'<b class="hot">{play["chart_rating"]}</b>'))
+    figures += [
+        ("DX score", f'{dx:,}<small>/ {max_dx:,}</small> <span class="stars">{star_marks(stars)}</span>'
+                     + (f"<small>{100.0 * dx / max_dx:.1f}%</small>" if max_dx else "")),
+        ("Combo", f"{int(detail.get('combo') or 0):,}<small>/ {int(detail.get('max_combo') or 0):,}</small>"),
     ]
-    tile_html = "".join(f'<div class="tile"><div class="k">{_esc(k)}</div><div class="v">{v}</div><div class="s">{s}</div></div>' for k, v, s in tiles)
-    lamp = _fc(play.get("fc"), play.get("fs"))
-    body = f"""
-    <div class="card-head" style="--tier:{ink};">
-      {cover_html(play.get("cover", ""), "song-cover")}
-      <div>
-        <div class="card-title">{_esc(play["title"])}</div>
-        <div class="card-sub"><span class="badge">{label} {_esc(play["level"])}<small>{_esc(play["chart_type"].upper())}</small></span><br />
-          {_esc(detail.get("track") or play.get("track", ""))} · {_esc(detail.get("played_at") or play.get("day", ""))}{(" · <b>" + _esc(lamp) + "</b>") if lamp else ""}</div>
-        <div class="stat-row">{tile_html}</div>
-      </div>
-    </div>
-    {judge}"""
-    counters = [("Rating", str(rating))]
-    return _card("Play detail", player_name, avatar_b64, counters, f"{achievement:.4f}", _esc(play.get("rank", "")) + " on this play", body, date_text)
+    if detail.get("max_sync"):
+        figures.append(("Sync", f"{int(detail.get('sync') or 0):,}<small>/ {int(detail.get('max_sync') or 0):,}</small>"))
+    figures.append(("Timing", f"{int(detail.get('fast') or 0)}<small>fast</small> {int(detail.get('late') or 0)}<small>late</small>"))
+    flags = "".join(f'<span class="cd-flag">{mark(icon)}{text}</span>'
+                    for flag, icon, text in ((play.get("pb"), "pb", "new best"), (play.get("in_b50"), "best50", "in best-50")) if flag)
+    figures += [("Track", _esc(str(detail.get("track") or play.get("track", "")).title())),
+                ("Played", _esc(_day(detail.get("played_at") or play.get("day", ""))))]
+    score = (f'<div class="track cd-score"><div class="track-stub">{rank_mark(play.get("rank", ""))}</div>'
+             f'<div class="cd-score-body"><b class="cd-score-pct">{achievement:.4f}<small>%</small></b>'
+             f'<div class="cd-score-flags">{flags or "<span>this play</span>"}</div></div></div>')
+    jacket = _jacket(
+        cover_html, play.get("cover", ""), ink, play["title"],
+        f'<span class="cd-jk-under">{tier_mark(play["difficulty"])}{label} {_esc(play["level"])}{kind_mark(play["chart_type"])}</span>'
+        f'<div class="cd-jk-lamps">{lamp_marks(play.get("fc"), play.get("fs"))}</div>')
+    body = (_banner(stats(figures))
+            + f'<div class="cd-lp{"" if judge else " bare"}">{jacket}<div class="cd-col">{score}{judge}</div></div>')
+    return _card("Play detail", player_name, avatar_b64, f"{achievement:.4f}%", "this play", body, date_text)
 
 
 # ---------------------------------------------------------------- /compare
@@ -284,54 +360,97 @@ def play_card_html(play: Dict[str, Any], detail: Dict[str, Any], cover_html: Cov
 def compare_image_html(me: Dict[str, Any], them: Dict[str, Any], levels: Sequence[Tuple[str, float, float, int]],
                        my_leads: Sequence[Dict[str, Any]], their_leads: Sequence[Dict[str, Any]], common: int,
                        cover_html: CoverFn, avatar_b64: str, date_text: str = "") -> str:
-    def side(p: Dict[str, Any]) -> str:
-        return (f'<div class="tiles" style="grid-template-columns: repeat(2, 1fr)">'
-                f'<div class="tile"><div class="k">Rating</div><div class="v">{p["rating"]}</div><div class="s">best-50 {p["best50"]}</div></div>'
-                f'<div class="tile"><div class="k">Charts</div><div class="v">{p["charts"]}</div><div class="s">{p["plays"] or "?"} plays</div></div>'
-                f'<div class="tile"><div class="k">SSS / SS</div><div class="v">{p["sss"]}<small>/ {p["ss"]}</small></div><div class="s">{p["fc"]} FC</div></div>'
-                f'<div class="tile"><div class="k">Hardest S</div><div class="v">{p["hardest"]:.1f}</div><div class="s">&nbsp;</div></div></div>')
-
-    level_rows = "".join(
-        f'<div class="vs-row"><span class="{"win" if mine > theirs else ""}" style="text-align:right">{mine:.2f}</span>'
-        f'<span class="lv">{_esc(level)} · {n}</span><span class="{"win" if theirs > mine else ""}">{theirs:.2f}</span></div>'
-        for level, mine, theirs, n in levels
-    ) or '<div class="vs-row"><span></span><span class="lv">too few shared charts</span><span></span></div>'
-
     def leads(items: Sequence[Dict[str, Any]]) -> str:
-        return "".join(
-            f'<div class="lead">{cover_html(i.get("cover", ""), "")}<div><div class="t">{_esc(i["title"])}</div>'
-            f'<div class="m">{tier(i["difficulty"])[0]} {_esc(i["level"])} · {i["mine"]:.2f} vs {i["theirs"]:.2f}</div></div><div class="g">+{i["gap"]:.2f}</div></div>'
-            for i in items
-        ) or '<div class="lead"><div></div><div class="m">none</div><div></div></div>'
+        out = ""
+        for position, i in enumerate(items, 1):
+            label, _ink = tier(i["difficulty"])
+            out += (f'<div class="track" style="--tier:{_ink};">'
+                    f'<div class="track-stub"><b>{position}</b>{tier_mark(i["difficulty"])}<small>{f"{i['constant']:.1f}" if i.get("constant") else ""}</small><strong>+{i["gap"]:.2f}</strong></div>'
+                    f'<div class="track-body"><div class="track-name"><b>{_esc(i["title"])}</b></div>'
+                    f'{cover_html(i.get("cover", ""), "track-jacket")}'
+                    f'<div class="track-score"><b>{i["mine"]:.4f}%</b><small>vs {i["theirs"]:.4f}%</small><small>{label} {_esc(i["level"])}</small></div></div></div>')
+        return f'<div class="tracks cd-leads">{out}</div>' if out else '<p class="cd-none">no leads</p>'
 
-    body = f"""
-    <div class="two">
-      <div class="side"><h3>{_esc(me["name"])}</h3>{side(me)}</div>
-      <div class="side"><h3>{_esc(them["name"])}</h3>{side(them)}</div>
-    </div>
-    <div class="section-label">Average on shared charts · {common} in common</div>
-    <div class="vs-row" style="border-top:none;color:var(--paper-dim);font-size:14px"><span style="text-align:right">{_esc(me["name"])}</span><span class="lv">level</span><span>{_esc(them["name"])}</span></div>
-    {level_rows}
-    <div class="two">
-      <div class="side"><h3>Your biggest leads</h3>{leads(my_leads)}</div>
-      <div class="side"><h3>Their biggest leads</h3>{leads(their_leads)}</div>
-    </div>"""
-    counters = [("Common", str(common)), ("You lead", str(me["leads"])), ("They lead", str(them["leads"])),
-                ("Tied", str(common - me["leads"] - them["leads"]))]
+    def figures(p: Dict[str, Any]) -> str:
+        # the rating is on the side's own sheet; the best-50 total is said only where it differs from it
+        best50 = [("Best-50", _esc(p["best50"]))] if str(p["best50"]) != str(p["rating"]) else []
+        return stats(best50 + [("Charts", _esc(p["charts"])),
+                       ("Plays", _esc(p["plays"] or "?")), ("SSS", _esc(p["sss"])), ("SS", _esc(p["ss"])), ("FC", _esc(p["fc"])),
+                       ("Hardest S", f'{p["hardest"]:.1f}')])
+
+    def side(colour: str, p: Dict[str, Any], avatar: str, items: Sequence[Dict[str, Any]], heading: str) -> str:
+        return panel(f"{colour} run cd-side", p["name"], f"""
+          <div class="cd-who"><div class="emblem">{_avatar(avatar)}</div><div class="cd-who-name"><b>{_esc(p["name"])}</b>{rating_plate(p["rating"])}</div></div>
+          <h3 class="cd-h3">{heading} <small>stub: gap</small></h3>{leads(items)}""", f"leads {p['leads']}")
+
+    # the bars start below the lowest average, so a level where both are near 100 still shows who is ahead
+    averages = [value for _level, mine, theirs, _n in levels for value in (mine, theirs)]
+    floor = min(100.0, min(averages) - (101.0 - min(averages)) * 0.25) if averages else 0.0
+
+    def reach(value: float) -> float:
+        return max(4.0, min(100.0, 100.0 * (value - floor) / (101.0 - floor)))
+
+    duels = "".join(
+        f'<div class="cd-duel"><b class="cd-duel-v mine{" win" if mine > theirs else ""}">{mine:.2f}</b>'
+        f'<span class="cd-duel-bar mine{" win" if mine > theirs else ""}"><i style="width:{reach(mine):.1f}%"></i></span>'
+        f'<span class="cd-duel-lv"><b>{_esc(level)}</b><small>{n} charts</small></span>'
+        f'<span class="cd-duel-bar theirs{" win" if theirs > mine else ""}"><i style="width:{reach(theirs):.1f}%"></i></span>'
+        f'<b class="cd-duel-v theirs{" win" if theirs > mine else ""}">{theirs:.2f}</b></div>'
+        for level, mine, theirs, n in levels
+    ) or '<p class="cd-none">too few shared charts</p>'
+    tied = common - me["leads"] - them["leads"]
+    split = "".join(f'<i class="{cls}" style="flex-grow:{count};"></i>'
+                    for cls, count in (("mine", me["leads"]), ("tie", tied), ("theirs", them["leads"])) if count > 0)
+    middle = panel("gold run cd-mid", "Level by level", f"""
+      <div class="cd-vs"><b class="mine">{_esc(me["name"])}</b><i>VS</i><b class="theirs">{_esc(them["name"])}</b></div>
+      <div class="cd-split">{split}</div>
+      <h3 class="cd-h3">Average on shared charts{f" <small>bars from {floor:.1f}%</small>" if levels else ""}</h3>
+      <div class="cd-duels">{duels}</div>""", f"{common} in common")
+    banner = _banner(f'<div class="cd-bside mine">{figures(me)}</div>',
+                     stats([("Common", str(common)), ("You lead", f'<b class="hot">{me["leads"]}</b>'), ("Tied", str(tied)),
+                             ("They lead", f'<b class="cd-cool">{them["leads"]}</b>')]),
+                     f'<div class="cd-bside theirs">{figures(them)}</div>')
+    body = (banner + f'<div class="cd-cmp">{side("pink", me, avatar_b64, my_leads, "Your biggest leads")}{middle}'
+            f'{side("cyan", them, "", their_leads, "Their biggest leads")}</div>')
     diff = int(me["rating"]) - int(them["rating"])
-    return _card(f"vs {them['name']}", me["name"], avatar_b64, counters, f"{diff:+d}", "rating difference", body, date_text)
+    return _card(f"vs {them['name']}", me["name"], avatar_b64, f"{diff:+d}", "rating difference", body, date_text, "")
 
 
 # ---------------------------------------------------------------- /leaderboard
 
 def leaderboard_image_html(guild_name: str, rows: Sequence[Tuple[int, str, str, str]], date_text: str = "",
                            start: int = 0, size: int = 20) -> str:
-    """The board, `size` players from `start`: the page the reply is on, under the count and the top rating of the whole board."""
-    table = "".join(
-        f'<tr{" class=top" if position <= 3 else ""}><td class="pos">{position}</td><td>{_esc(display)}{(" <span class=dim>· " + _esc(maimai) + "</span>") if maimai and maimai != display else ""}</td>'
-        f'<td class="dim">{_esc(region.upper()) if region != "intl" else ""}</td><td class="rt">{rating}</td></tr>'
-        for position, (rating, display, maimai, region) in enumerate(rows[start:start + size], start + 1)
-    )
-    body = f'<table class="board"><tbody>{table}</tbody></table>'
-    counters = [("Opted in", str(len(rows)))]
-    return _card("Rating leaderboard", guild_name, "", counters, str(rows[0][0]) if rows else "—", "top rating", body, date_text)
+    """The board, `size` players from `start`: the page the reply is on, under the count and the top rating of the whole board.
+    The first three take the prize tickets across the top and everyone after them runs below as a roll of numbered stubs."""
+    def who(display: str, maimai: str, region: str) -> str:
+        return (f'<div class="cd-seat-who"><b>{_esc(display)}</b>'
+                + (f'<small>{_esc(maimai)}</small>' if maimai and maimai != display else "") + "</div>"
+                + (f'<span class="cd-region">{_esc(region.upper())}</span>' if region != "intl" else ""))
+
+    page = list(enumerate(rows[start:start + size], start + 1))
+    top = {position: row for position, row in page if position <= 3}
+    rest = [(position, row) for position, row in page if position > 3]
+    wide = len(page) > 8
+    body = _banner(stats([("Opted in", str(len(rows))), ("Top rating", str(rows[0][0]) if rows else "—"),
+                           ("On this page", f"{page[0][0]} to {page[-1][0]}" if page else "—")]))
+    if top:
+        prizes = "".join(
+            f'<div class="cd-prize p{position}"><div class="cd-prize-stub"><b>{position}<small>{("st", "nd", "rd")[position - 1]}</small></b></div>'
+            f'<div class="cd-prize-paper">{who(*top[position][1:])}{rating_plate(top[position][0])}</div></div>'
+            for position in (2, 1, 3) if position in top)
+        body += panel("gold run", "Top three", f'<div class="cd-prizes">{prizes}</div>')
+    if rest:
+        # the roll fills whole columns, top to bottom; a full page has the full width for four of them
+        across = 4 if wide else 1 if len(rest) <= 3 else 2
+        spare = across * -(-len(rest) // across) - len(rest)
+        seats = "".join(f'<div class="track cd-seat"><div class="track-stub"><b>{position}</b></div>'
+                        f'<div class="cd-seat-paper">{who(display, maimai, region)}{rating_plate(rating, small=True)}</div></div>'
+                        for position, (rating, display, maimai, region) in rest)
+        # the spare places at the foot of the last column hold how to join, so the roll ends square
+        if spare:
+            seats += (f'<p class="cd-seat-note" style="grid-row:span {spare};"><b>/settings leaderboard:True</b> puts you on the board.'
+                      " Ratings come from each player's last /analyze.</p>")
+        body += panel("cyan run", "The board", f'<div class="cd-seats" style="--across:{across};--rows:{-(-len(rest) // across)};">{seats}</div>',
+                      f"{rest[0][0]} to {rest[-1][0]} of {len(rows)}")
+    return _card("Rating leaderboard", guild_name.upper(), "", str(rows[0][0]) if rows else "—", "top rating", body, date_text,
+                 "" if wide else "narrow")

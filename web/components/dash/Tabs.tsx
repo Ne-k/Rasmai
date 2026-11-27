@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { type RefreshStatus } from "./api";
 
-export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "areas" | "account" | "admin";
+export type Tab = "overview" | "picks" | "new" | "traits" | "best50" | "charts" | "recent" | "chart" | "plates" | "areas" | "account" | "admin";
 
 export type Group = "overview" | "play" | "scores" | "lookup" | "account" | "admin";
 
@@ -13,7 +13,7 @@ export type Group = "overview" | "play" | "scores" | "lookup" | "account" | "adm
 const GROUPS: [Group, Tab[]][] = [
   ["overview", ["overview", "traits"]],
   ["play", ["picks", "new"]],
-  ["scores", ["best50", "charts", "recent"]],
+  ["scores", ["best50", "charts", "recent", "plates"]],
   ["lookup", ["chart", "areas"]],
   ["account", ["account"]],
 ];

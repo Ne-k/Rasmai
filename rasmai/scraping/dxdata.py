@@ -39,9 +39,13 @@ def distil(payload: Dict[str, Any]) -> Dict[str, Any]:
     :type payload: Dict[str, Any]
     :rtype: Dict[str, Any]
     """
+    from rasmai.engine.plates import version_code
     aliases: Dict[str, List[str]] = {}
     constants: Dict[str, Dict[str, float]] = {}
     sheets: Dict[str, Dict[str, Any]] = {}
+    # the version a DX chart arrived in, for songs that also have a standard chart: otoge-db files the
+    # whole song under the standard chart's version, and the plates count each chart under its own
+    editions: Dict[str, str] = {}
     for song in payload.get("songs") or []:
         title = str(song.get("title") or "")
         folded = loose_title(title)
@@ -51,11 +55,14 @@ def distil(payload: Dict[str, Any]) -> Dict[str, Any]:
         names = [str(a) for a in (song.get("searchAcronyms") or []) if a]
         if names:
             aliases.setdefault(folded, []).extend(n for n in names if n not in aliases.get(folded, []))
+        both = {"std", "dx"} <= {sheet.get("type") for sheet in song.get("sheets") or []}
         for sheet in song.get("sheets") or []:
             chart_type = str(sheet.get("type") or "")
             if chart_type not in ("std", "dx"):
                 continue
             key = f"{folded}|{chart_type}|{sheet.get('difficulty')}"
+            if both and chart_type == "dx" and version_code(sheet.get("version")):
+                editions[key] = version_code(sheet.get("version"))
             history = sheet.get("multiverInternalLevelValue") or {}
             if len(set(history.values())) > 1:
                 constants[key] = {str(v): float(c) for v, c in history.items() if c}      # only a chart whose constant moved
@@ -84,7 +91,7 @@ def distil(payload: Dict[str, Any]) -> Dict[str, Any]:
                 sheets[key] = facts
     versions = [(str(v.get("version") or ""), str(v.get("releaseDate") or ""))
                 for v in payload.get("versions") or [] if v.get("releaseDate")]
-    return {"aliases": aliases, "constants": constants, "versions": versions, "sheets": sheets}
+    return {"aliases": aliases, "constants": constants, "versions": versions, "sheets": sheets, "editions": editions}
 
 
 def fetch(etag: str = "") -> Tuple[str, Optional[Dict[str, Any]], str]:
@@ -129,7 +136,8 @@ def refresh(force: bool = False) -> bool:
                     return False
             except (ValueError, KeyError):
                 pass
-        status, data, etag = fetch(str(state.get("etag") or ""))
+        # a copy stored before the editions were kept is fetched whole, not answered "unchanged"
+        status, data, etag = fetch(str(state.get("etag") or "") if "editions" in _load(state) else "")
         if status == "changed" and data and data["aliases"]:
             source_state_set(SOURCE, etag=etag, payload=json.dumps(data, ensure_ascii=False, separators=(",", ":")))
             _forget()

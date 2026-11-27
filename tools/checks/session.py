@@ -540,7 +540,7 @@ def _curve_rings_recent_bests():
         problems.append(f"ringed {[s.name for s in moved]}; only the chart whose best came from a recent play should be")
     profile = types.SimpleNamespace(consistency=0.5, expected_accuracy=lambda c: 100.0,
                                     comfort_constant=0, reach_constant=0)
-    rings = posters._skill_chart_svg(profile, a.songs, moved=moved).count('stroke="#f3efe4"')
+    rings = posters._skill_chart_svg(profile, a.songs, moved=moved).count('class="rs-ch-recent"')
     if rings != 1:
         problems.append(f"the curve drew {rings} rings for one recent best")
     return problems
@@ -697,6 +697,71 @@ def _export_analyzer():
     return a
 
 
+def _open_rolls(html):
+    """The rolls of tickets on a page whose pieces leave a row short, each as a line saying how many places it fills."""
+    import re
+    from html.parser import HTMLParser
+
+    class Rolls(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.open, self.rolls = [], []
+
+        def handle_starttag(self, tag, attrs):
+            style, classes = dict(attrs).get("style") or "", (dict(attrs).get("class") or "").split()
+            roll = self.open[-1][1] if self.open else None
+            if roll:
+                span = lambda axis: int((re.search(rf"grid-{axis}:span (\d+)", style) or (0, 1))[1])
+                roll[1] += span("column") * span("row")
+            if tag not in ("img", "br", "hr"):
+                across = re.search(r"--across:(\d+)", style)
+                self.open.append((tag, [int(across[1]), 0] if across and "tracks" in classes else None))
+                if self.open[-1][1]:
+                    self.rolls.append(self.open[-1][1])
+
+        def handle_endtag(self, tag):
+            while tag not in ("img", "br", "hr") and self.open and self.open.pop()[0] != tag:
+                pass
+
+    page = Rolls()
+    page.feed(html)
+    return [f"{places} places in rows of {across}" for across, places in page.rolls if places % across]
+
+
+@check("every roll of tickets on an image fills its rows, whatever the number of picks, steps, plays or charts")
+def _rolls_fill_their_rows():
+    import dataclasses
+
+    from rasmai.engine.plates import plate_missing, plate_overview
+    from rasmai.images import posters
+    from rasmai.images.pages import plate_detail_image_html
+    from rasmai.images.render import generate_poster_html
+
+    problems = []
+    for n in range(1, 61):
+        problems += [f"a roll of {n} tickets: {r}" for r in _open_rolls(posters._roll(["<div></div>"] * n, ""))]
+    if not _open_rolls('<div class="tracks" style="--across:3"><div></div><div style="grid-column:span 2;grid-row:span 2"></div></div>'):
+        problems.append("a roll two places short is not noticed, so this check sees nothing")
+    a = _export_analyzer()
+    if a is None:
+        return problems
+    movers = [r for r in a.found[0] if r.category not in ("near", "try")]
+    # the picks stand beside the road, so each length of one is tried against each length of the other
+    for picks in range(1, min(len(movers), 15) + 1):
+        for steps in (0, 1, 4, 5, 9, 16):
+            plan = dataclasses.replace(a.plan, steps=a.plan.steps[:steps]) if a.plan else None
+            page = generate_poster_html(movers[:picks], "p", 14000, 0, 0, 0, plan=plan)
+            problems += [f"/analyze with {picks} picks and {len(plan.steps) if plan else 0} steps: {r}" for r in _open_rolls(page)]
+    plate = next((p for p in plate_overview(a.songs, a.chart_index) if any(g["met"] < g["required"] for g in p["goals"])), None)
+    if plate:
+        goal = next(g["goal"] for g in plate["goals"] if g["met"] < g["required"])
+        detail = plate_missing(a.songs, a.chart_index, plate["key"], goal, a.play_profile)
+        for rows in range(0, 21):
+            page = plate_detail_image_html(detail, "p", "", detail["missing"][:rows], cover_html=lambda cover, css: "")
+            problems += [f"a plate with {rows} charts listed: {r}" for r in _open_rolls(page)]
+    return problems[:8]
+
+
 @check("with its image drawn a reply's embed keeps the links to its charts and leaves the figures to the image; without one it carries them")
 def _embeds_lean_on_the_image():
     import asyncio, pathlib, re, sys, tempfile
@@ -733,6 +798,8 @@ def _embeds_lean_on_the_image():
     was = store.DATABASE_PATH
 
     async def run():
+        from rasmai.web.dashboard.beta import set_beta
+        set_beta("1", {"images": True})     # the rolls and the lean embeds belong to the new look, so this draws in it
         out = {}
         for name, build in {**results, **lists}.items():
             for bare in (False, True):
@@ -806,8 +873,9 @@ def _embeds_lean_on_the_image():
     profile = (a.analysis_summary or {}).get("profile", {})
     if any(f.name == "Style" for f in made["analyze", False].fields) or not any(f.name == "Style" for f in made["analyze", True].fields):
         problems.append("/analyze: the Style, Levels and Best-50 fields are not left to the poster when there is one, or are missing when there is none")
-    if str(profile.get("comfortConstant")) not in pages.get("analyze", "") or "cutoffs" not in pages.get("analyze", ""):
+    if str(profile.get("comfortConstant")) not in pages.get("analyze", "") or "cutoffs" not in pages.get("analyze", "").lower():
         problems.append("/analyze: the poster does not show the comfort level and best-50 cutoffs its embed no longer does")
+    problems += [f"/{name}: {r}" for name, page in pages.items() for r in _open_rolls(page)]
     return problems
 
 
@@ -1084,6 +1152,189 @@ def _japan_mid_read():
         pass
     except ValueError:
         problems.append("an International read signed out part way no longer asks for /login")
+    return problems
+
+
+@check("a reply whose waiting message was deleted while it was built goes out as a new message with its picture and buttons, and any other refusal is still an error")
+def _deleted_reply():
+    import asyncio
+    import io
+    import types
+    import discord
+    from rasmai.bot.builders.results.view import deliver
+
+    problems = []
+    answered = types.SimpleNamespace(status=404, reason="Not Found")
+
+    def interaction(code):
+        sent = []
+
+        async def edit_original_response(**options):
+            for file in options["attachments"]:
+                file.fp.read()          # a refused upload still reads the file to its end
+            raise discord.NotFound(answered, {"code": code, "message": "Unknown"})
+
+        async def send(**options):
+            sent.append({**options, "bytes": [file.fp.read() for file in options["files"]]})
+            return "new message"
+
+        return types.SimpleNamespace(edit_original_response=edit_original_response, followup=types.SimpleNamespace(send=send),
+                                     user=types.SimpleNamespace(id=1), command=types.SimpleNamespace(qualified_name="b50"), sent=sent)
+
+    embed, view = discord.Embed(title="Best 50"), discord.ui.View()
+    gone = interaction(10008)
+    landed = asyncio.run(deliver(gone, True, embed=embed, files=[discord.File(io.BytesIO(b"png"), filename="rasmai.png")], view=view))
+    if landed != "new message" or len(gone.sent) != 1:
+        problems.append(f"a deleted reply was not sent again: {landed!r}, {len(gone.sent)} sent")
+    elif gone.sent[0]["bytes"] != [b"png"] or gone.sent[0].get("embed") is not embed or gone.sent[0].get("view") is not view or gone.sent[0]["ephemeral"] is not True:
+        problems.append("the new message lost its picture, embed, buttons or privacy")
+    other = interaction(10015)
+    try:
+        asyncio.run(deliver(other, False, embed=embed, files=[], view=None))
+        problems.append("an unknown webhook was answered with a new message instead of reaching the error handling")
+    except discord.NotFound:
+        pass
+    return problems
+
+
+@check("the images keep their classic look unless the account switched the new one on at the site, every image the bot draws goes through that switch, and switching drops the images already drawn")
+def _image_theme_switch():
+    import pathlib, re, tempfile, types
+    from datetime import datetime
+
+    from rasmai.bot.state.cache import cache_get, cache_put, forget_analysis
+    from rasmai.images import cards, pages, posters, render
+    from rasmai.images.pages import best50_image_html, plates_image_html
+    from rasmai.images.themes import themed
+    from rasmai.storage.db import connection as store
+    from rasmai.web.dashboard.beta import set_beta
+
+    problems = []
+    # a call in a builder that names an image function and opens it straight away skips the switch
+    called = re.compile(r"\b(\w+_(?:image|card|poster)_html|generate_poster_html)\(")
+    switched = set()
+    for path in (ROOT / "rasmai" / "bot").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        switched |= set(re.findall(r"themed\([^,]+, (?:posters\.)?(\w+)\)", text))
+        for number, line in enumerate(text.splitlines(), 1):
+            if not line.lstrip().startswith(("from ", "import ", "def ")):
+                problems += [f"{path.relative_to(ROOT)}:{number} draws {name} without the theme switch"
+                             for name in called.findall(line) if not name.startswith("plate")]
+    # the classic copy is looked up by the new function's name, so a rename on either side would hand everyone the new look
+    drawn = [next(getattr(m, n) for m in (pages, cards, posters, render) if hasattr(m, n)) for n in sorted(switched)]
+    if len(drawn) < 17:
+        problems.append(f"only {len(drawn)} images are drawn through the theme switch: {sorted(switched)}")
+    was = store.DATABASE_PATH
+    store.DATABASE_PATH, store._database_ready = pathlib.Path(tempfile.mkdtemp()) / "themes.sqlite3", False
+    try:
+        for draw in drawn:
+            if not themed("7", draw).__module__.startswith("rasmai.images.classic."):
+                problems.append(f"{draw.__name__} is not drawn classic for an account that never switched")
+        if themed("7", plates_image_html) is not plates_image_html:
+            problems.append("the plates, which have no classic look, are not drawn new for everyone")
+        # the classic page takes the call the builders make for the new one, and still shows its own header
+        page = themed("7", best50_image_html)([], [], "p", "", lambda cover, css: "", 14000, 302)
+        if "14302" not in re.sub(r"<[^>]+>", "", page) or "rp-cells" not in page:
+            problems.append("the classic best 50 does not draw from the new look's call")
+        cache_put(types.SimpleNamespace(user_id="7", created=datetime.now(), images={"b50": b"png"}))
+        set_beta("7", {"patterns": True})
+        if not cache_get("7").images:
+            problems.append("switching another beta dropped the images already drawn")
+        set_beta("7", {"images": True})
+        if [d for d in drawn if themed("7", d) is not d]:
+            problems.append("an account that switched the new look on still gets the classic one")
+        if cache_get("7").images:
+            problems.append("switching the look keeps the images drawn in the old one")
+        if themed(None, best50_image_html) is best50_image_html:
+            problems.append("an image drawn for nobody in particular is not classic")
+    finally:
+        forget_analysis("7")
+        store.DATABASE_PATH, store._database_ready = was, False
+    return problems
+
+
+@check("the Blitz worker draws the images one page at a time through its pipe; Chromium draws the classic recent board, any page the worker fails on or dies over, and every image when the worker is missing or RASMAI_RENDERER is chromium")
+def _blitz_renderer():
+    import asyncio, pathlib, sys, tempfile
+
+    from rasmai.images import render
+
+    # a stand-in for blitz that speaks its pipe protocol: a byte count and the page in, a byte count and the "image" back
+    worker = pathlib.Path(tempfile.mkdtemp()) / "worker.py"
+    worker.write_text(
+        "import sys\n"
+        "src, out = sys.stdin.buffer, sys.stdout.buffer\n"
+        "while len(head := src.read(4)) == 4:\n"
+        "    html = src.read(int.from_bytes(head, 'little')).decode()\n"
+        "    if 'DIE' in html: sys.exit(1)\n"
+        "    reply = b'' if 'FAIL' in html else ('BLITZ %d' % len(html.encode())).encode()\n"
+        "    out.write(len(reply).to_bytes(4, 'little') + reply); out.flush()\n", encoding="utf-8")
+    spawn, chromium, kept = render.asyncio.create_subprocess_exec, render._render_with_chromium, dict(render._blitz)
+
+    async def through_python(path, *args, **kwargs):
+        return await spawn(sys.executable, str(worker), *args, **kwargs) if path == "blitz" else await spawn(path, *args, **kwargs)
+
+    async def in_chromium(html):
+        return b"CHROMIUM"
+
+    def draw(*pages):
+        async def run():
+            return [await render.render_html_to_image(page) for page in pages]
+        return asyncio.run(run())
+
+    def use(path):
+        render._stop_blitz()
+        render._blitz.update(path=path, looked=True, loop=None, lock=None, proc=None)
+
+    problems = []
+    render.asyncio.create_subprocess_exec, render._render_with_chromium = through_python, in_chromium
+    try:
+        use("blitz")
+        page = "<body>祭 best 50</body>"
+        if draw(page) != [b"BLITZ %d" % len(page.encode())]:
+            problems.append("a page is not drawn by the worker, or its size is sent in characters rather than bytes")
+        if draw('<div class="recent-flow"></div>') != [b"CHROMIUM"]:
+            problems.append("the classic recent board, whose columns Blitz cannot lay out, is not drawn by Chromium")
+        classic = (ROOT / "rasmai" / "images" / "classic" / "templates" / "rasmai.html").read_text(encoding="utf-8")
+        if not any(marker in classic for marker in render.BLITZ_UNSUPPORTED):
+            problems.append("the classic recent board's markup no longer carries the marker that sends it to Chromium")
+
+        async def failing_then_drawn():
+            first = await render.render_html_to_image("FAIL")
+            pid = render._blitz["proc"].pid
+            second = await render.render_html_to_image("<p>next</p>")
+            return first, second, pid == render._blitz["proc"].pid
+        failed, after, same = asyncio.run(failing_then_drawn())
+        if failed != b"CHROMIUM" or after != b"BLITZ 11" or not same:
+            problems.append("a page the worker cannot draw does not go to Chromium with the worker kept for the next one")
+        if draw("DIE", "<p>next</p>") != [b"CHROMIUM", b"BLITZ 11"]:
+            problems.append("a worker that dies mid-page does not hand that page to Chromium and start afresh for the next")
+
+        async def together():
+            return await asyncio.gather(*(render.render_html_to_image("x" * n) for n in range(1, 9)))
+        if asyncio.run(together()) != [b"BLITZ %d" % n for n in range(1, 9)]:
+            problems.append("pages drawn at once come back mixed up: the worker's pipe is not kept to one page at a time")
+
+        use(str(pathlib.Path(worker.parent) / "no-such-renderer"))
+        if draw("<p>a</p>", "<p>b</p>") != [b"CHROMIUM", b"CHROMIUM"] or render._blitz["path"] is not None:
+            problems.append("with no worker installed the images are not drawn by Chromium, or it is looked for again on every image")
+
+        render._blitz.update(looked=False)
+        was, render.RENDERER = render.RENDERER, "chromium"
+        try:
+            if render._blitz_path() is not None:
+                problems.append("RASMAI_RENDERER=chromium does not turn the worker off")
+            render._blitz.update(looked=False)
+            render.RENDERER = ""
+            if render._blitz_path() is not None:
+                problems.append("with RASMAI_RENDERER unset a worker is still started, so a 'blitz' on PATH could be some other program")
+        finally:
+            render.RENDERER = was
+    finally:
+        render._stop_blitz()
+        render.asyncio.create_subprocess_exec, render._render_with_chromium = spawn, chromium
+        render._blitz.clear()
+        render._blitz.update(kept)
     return problems
 
 

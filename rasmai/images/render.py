@@ -1,16 +1,15 @@
 from datetime import datetime
-from html import escape as html_escape
 from pathlib import Path
 from playwright.async_api import async_playwright
 from typing import List, Dict, Optional, Any
 import asyncio
 import base64
 import logging
+import math
 
-from rasmai.config import site_label
+from rasmai.config import RENDERER
 from rasmai.engine import analysis
-from rasmai.images.markup import styleimage
-from rasmai.images.posters import rating_plate
+from rasmai.images.posters import _esc, _page, _plays, kind_mark, mark, panel, rank_mark, rating_plate, stats, tier, tier_mark
 from rasmai.storage.models import Recommendation
 
 logger = logging.getLogger(__name__)
@@ -35,32 +34,6 @@ def _load_local_jacket(cover_url: str, jacket_path: str) -> str:
         content_type = {'.png': 'image/png', '.webp': 'image/webp'}.get(path.suffix.lower(), 'image/jpeg')
         return f'<img src="data:{content_type};base64,{jacket_data}" class="cover-img" />'
     return ""
-
-
-DIFFICULTY_STYLES = {
-    "basic":    ("BASIC",     "#4bb85f", "#151512"),
-    "advanced": ("ADVANCED",  "#e0a020", "#151512"),
-    "expert":   ("EXPERT",    "#e2455a", "#151512"),
-    "master":   ("MASTER",    "#a266e8", "#151512"),
-    "remaster": ("Re:MASTER", "#cbbbe8", "#151512"),
-    "utage":    ("UTAGE",     "#e2609a", "#151512"),
-}
-
-
-def get_difficulty_style(difficulty_type: str) -> tuple:
-    """Label, ink and wash for a chart's difficulty tier.
-
-    :param difficulty_type: The difficulty tier, such as ``"master"``.
-    :type difficulty_type: str
-    :rtype: tuple
-    """
-    return DIFFICULTY_STYLES.get(str(difficulty_type).strip().lower(), DIFFICULTY_STYLES["master"])
-
-
-def _plays_text(plays: int) -> str:
-    if plays <= 0:
-        return "plays unknown"
-    return f"{plays} play" if plays == 1 else f"{plays} plays"
 
 
 def _cover_markup(rec: "Recommendation", jacket_path: str, css_class: str) -> str:
@@ -93,224 +66,153 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
                          plan: Optional["analysis.Plan"] = None, image_gain: Optional[int] = None, scope: str = "",
                          summary: Optional[Dict[str, Any]] = None, counts: str = "") -> str:
     movers = [r for r in recommendations if r.category not in ("near", "try")]
-    scope_html = f" &middot; {scope}" if scope else ""       # our own wording ("level 13+"), never the player's text
-    near = [r for r in recommendations if r.category == "near"]
-
+    near = [r for r in recommendations if r.category == "near"][:8]
     # gains overlap once several picks land, so the headline is the simulated total when the caller has it
     total_gain = image_gain if image_gain is not None else sum(r.potential_gain for r in movers)
-    featured = movers[:3]
-    listed = movers[3:15]
-    near = near[:8]
+    featured, listed = movers[:3], movers[3:15]
+    steps = plan.steps[:16] if plan else []
+    cover = cover_html_factory(jacket_path)
 
-    avatar_html = (
-        f'<img src="data:image/png;base64,{avatar_base64}" class="avatar" />'
-        if avatar_base64 else '<div class="avatar no-cover"></div>'
-    )
+    def stub(position: int, difficulty: str, constant: float, gain: int) -> str:
+        return (f'<div class="track-stub"><b>{position}</b>{tier_mark(difficulty)}'
+                f'{f"<small>{constant:.1f}</small>" if constant else ""}<strong>+{gain}</strong></div>')
 
-    featured_html = ""
+    def name(title: str, unplayed: bool, chart_type: str) -> str:
+        return f'<div class="track-name"><b>{_esc(title)}</b>{mark("new") if unplayed else ""}{kind_mark(chart_type)}</div>'
+
+    def move(current_rank: str, target_rank: str) -> str:
+        return f'{rank_mark(current_rank)}<i class="an-to">&rarr;</i>{rank_mark(target_rank)}' if current_rank else rank_mark(target_rank)
+
+    def ticket(position: int, title: str, chart_type: str, difficulty: str, level: str, constant: float, unplayed: bool, plays: int,
+               current: float, target: float, current_rank: str, target_rank: str, odds: float, gain: int, cover_url: str,
+               place: str = "", post: str = "") -> str:
+        label, ink = tier(difficulty)
+        count = "" if unplayed or plays <= 0 else f", {_plays(plays)}"
+        return f"""
+        <div class="track" style="--tier:{ink};{place}">
+          {stub(position, difficulty, constant, gain)}
+          <div class="track-body">
+            {name(title, unplayed, chart_type)}
+            {cover(cover_url, "track-jacket")}
+            <div class="track-score"><b>{target:.2f}%</b><small>{"never played" if unplayed else f"from {current:.2f}%"}</small>
+              <small>{label.title()} {_esc(level)}</small><small>{odds * 100:.0f}% odds{count}</small></div>
+            <div class="track-foot"><span>{move(current_rank, target_rank)}</span></div>
+          </div>{post}
+        </div>"""
+
+    def key(columns: int, lines: str, rows: int = 1) -> str:
+        return f'<div class="an-key" style="grid-column:span {columns};grid-row:span {rows}">{lines}</div>'
+
+    picks = ""
     for position, rec in enumerate(featured, 1):
-        label, ink, wash = get_difficulty_style(rec.difficulty_type)
-        fresh = ' <span class="new-flag">New</span>' if rec.is_unplayed else ""
-        hero_class = "hero fresh" if rec.is_unplayed else "hero"
-        featured_html += f"""
-        <article class="{hero_class}" style="--tier:{ink}; --wash:{wash};">
-            <div class="hero-rank">{position}</div>
-            {_cover_markup(rec, jacket_path, "hero-cover")}
-            <div class="hero-body">
-                <div class="tier">{label} <span class="lv">{html_escape(rec.level)} &middot; {rec.difficulty:.1f}</span></div>
-                <h2 class="hero-title">{html_escape(rec.song)}{fresh}</h2>
-                <div class="hero-move">
-                    <span class="from">{rec.current_accuracy:.2f}%</span>
-                    <span class="arrow">&rarr;</span>
-                    <span class="to">{rec.target_accuracy:.2f}%</span>
-                    <span class="ranks">{rec.current_rank} &rarr; {rec.target_rank}</span>
-                </div>
-                <div class="hero-meta">{"never played" if rec.is_unplayed else _plays_text(rec.plays)} &middot; you usually score ~{rec.expected:.1f}% here</div>
+        label, ink = tier(rec.difficulty_type)
+        now = "never played" if rec.is_unplayed else f"now {rec.current_accuracy:.2f}% {rank_mark(rec.current_rank)}"
+        picks += f"""
+        <div class="track an-big" style="--tier:{ink};">
+          {stub(position, rec.difficulty_type, rec.difficulty, rec.potential_gain)}
+          <div class="an-big-body">
+            {name(rec.song, rec.is_unplayed, rec.chart_type)}
+            {cover(rec.cover_url, "an-big-jacket")}
+            <div class="an-big-move">
+              <small>{label.title()} {_esc(rec.level)}, <em>{rec.feasibility * 100:.0f}% odds</em></small>
+              <span class="an-big-now">{now}</span>
+              <span class="an-big-goal"><i class="an-to">&rarr;</i>{rec.target_accuracy:.2f}%{rank_mark(rec.target_rank)}</span>
+              <small>{_plays(rec.plays, rec.is_unplayed)}<br>you usually score {rec.expected:.1f}% here</small>
             </div>
-            <div class="hero-gain">
-                <div class="plus">+{rec.potential_gain}</div>
-                <div class="unit">rating</div>
-                <div class="odds">{rec.feasibility * 100:.0f}% likely</div>
-            </div>
-        </article>"""
+          </div>
+        </div>"""
 
-    rows_html = ""
-    for position, rec in enumerate(listed, len(featured) + 1):
-        label, ink, wash = get_difficulty_style(rec.difficulty_type)
-        fresh = ' <span class="new-flag">New</span>' if rec.is_unplayed else ""
-        row_class = "fresh" if rec.is_unplayed else ""
-        rows_html += f"""
-        <tr class="{row_class}" style="--tier:{ink};">
-            <td class="c-rank">{position}</td>
-            <td class="c-cover">{_cover_markup(rec, jacket_path, "row-cover")}</td>
-            <td class="c-song">
-                <span class="row-title">{html_escape(rec.song)}{fresh}</span>
-                <span class="row-tier">{label} {html_escape(rec.level)} &middot; {rec.difficulty:.1f}</span>
-                <span class="row-meta">{"never played" if rec.is_unplayed else _plays_text(rec.plays)}</span>
-            </td>
-            <td class="c-acc">{rec.current_accuracy:.2f} <span class="arrow">&rarr;</span> <b>{rec.target_accuracy:.2f}</b></td>
-            <td class="c-rank-move">{rec.current_rank} <span class="arrow">&rarr;</span> <b>{rec.target_rank}</b></td>
-            <td class="c-odds">{rec.feasibility * 100:.0f}%</td>
-            <td class="c-gain">+{rec.potential_gain}</td>
-        </tr>"""
-
-    road_html = ""
-    if plan and plan.steps:
-        road_rows = ""
-        for position, step in enumerate(plan.steps[:16], 1):
-            option = step.option
-            label, ink, _wash = get_difficulty_style(option.difficulty_type)
-            stub = Recommendation(
-                song=option.title, difficulty=option.constant, current_accuracy=option.current_accuracy,
-                target_accuracy=option.target_accuracy, current_rating=0, target_rating=option.target_rating,
-                potential_gain=step.gain, max_possible_gain=step.gain, current_rank=option.current_rank,
-                target_rank=option.target_rank, fc_status="", is_new=option.is_new, priority_score=0,
-                effort_score=0, efficiency=0, level=option.level,
-                cover_url=option.cover.split("/")[-1].split("?")[0] if option.cover else "",
-            )
-            now = "never played" if option.is_unplayed else f"{option.current_accuracy:.2f}"
-            road_rows += f"""
-            <tr class="{'fresh' if option.is_unplayed else ''}" style="--tier:{ink};">
-                <td class="c-rank">{position}</td>
-                <td class="c-cover">{_cover_markup(stub, jacket_path, "row-cover")}</td>
-                <td class="c-song">
-                    <span class="row-title">{html_escape(option.title)}{' <span class="new-flag">New</span>' if option.is_unplayed else ''}</span>
-                    <span class="row-tier">{label} {html_escape(option.level)} &middot; {option.constant:.1f}</span>
-                    <span class="row-meta">{"never played" if option.is_unplayed else _plays_text(option.plays)}</span>
-                </td>
-                <td class="c-acc">{now} <span class="arrow">&rarr;</span> <b>{option.target_accuracy:.2f}</b></td>
-                <td class="c-rank-move">{option.current_rank} <span class="arrow">&rarr;</span> <b>{option.target_rank}</b></td>
-                <td class="c-odds">{option.feasibility * 100:.0f}%</td>
-                <td class="c-gain">+{step.gain}</td>
-                <td class="c-cum">{step.cumulative}</td>
-            </tr>"""
-        verdict = (
-            f"covers the full +{plan.needed}" if plan.reached
-            else f"+{plan.total} of the +{plan.needed} needed &middot; {plan.shortfall} short"
-        )
-        fresh = plan.gap_steps
-        notes = [f"worth about +{plan.expected_gain:.0f} by odds"]
-        if fresh:
-            notes.append(f"{len(fresh)} never played, worth +{plan.gap_gain}")
-        elif not plan.reached:
-            notes.append("no unplayed chart would clear your best 50 on a first pass")
-        road_html = f"""
-        <section class="road">
-            <div class="road-head">
-                <div>
-                    <div class="section-label">Road to {plan.goal_rating}</div>
-                    <div class="road-verdict">{verdict}</div>
-                    <div class="road-note">{" &middot; ".join(notes)}</div>
-                </div>
-                <div class="road-stretch">
-                    <div class="value">{plan.average_stretch:+.1f}%</div>
-                    <div class="caption">above your usual score</div>
-                </div>
-            </div>
-            <table>
-                <thead><tr>
-                    <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
-                    <th style="text-align:right">Gain</th><th style="text-align:right">Total</th>
-                </tr></thead>
-                <tbody>{road_rows}</tbody>
-            </table>
-        </section>"""
-
-    near_html = ""
-    if near:
-        items = "".join(
-            f'<li><span class="near-name">{html_escape(r.song)}</span>'
-            f'<span class="near-need">{r.required_accuracy:.2f}%</span></li>'
-            for r in near
-        )
-        near_html = f"""
-        <section class="near">
-            <h3>Just outside your best 50</h3>
-            <p>These pay nothing yet. Reach the score shown and they start counting.</p>
-            <ul>{items}</ul>
-        </section>"""
-
-    counters = "".join(
-        f'<div class="counter"><dt>{label}</dt><dd>{value}</dd></div>'
-        for label, value in (("FC", fc), ("FC+", fc_plus), ("Clears", clears))
-        if value
-    )
-
-    tiles_html = ""
+    banner = [stats([("Rating", rating_plate(player_rating, small=True))]
+                    + [(label, _esc(value)) for label, value in (("FC", fc), ("FC+", fc_plus), ("Clears", clears)) if value])]
     if summary:
         profile, best50 = summary.get("profile", {}), summary.get("best50", {})
         open_slots = best50.get("newSlotsOpen", 0) + best50.get("oldSlotsOpen", 0)
-        tiles = (
-            ("Style", html_escape(str(profile.get("style", "unknown")).title()),
-             f"{profile.get('fcRate', 0) * 100:.0f}% FC &middot; {profile.get('apRate', 0) * 100:.0f}% AP &middot; "
-             f"{profile.get('dxScoreRate', 0) * 100:.0f}% DX score<br>leans {html_escape(str(profile.get('favoriteChartType', '?')).upper())}"),
-            ("Levels", f"{profile.get('comfortConstant', 0)}<small>comfort</small>",
-             f"reach {profile.get('reachConstant', 0)} &middot; hardest S {profile.get('hardestS', 0)}<br>"
-             f"{profile.get('expectedAt13', 0)}% on 13s &middot; {profile.get('expectedAt14', 0)}% on 14s"),
-            ("Best 50", str(best50.get("total", 0)),
-             f"{best50.get('newTotal', 0)} new + {best50.get('oldTotal', 0)} old<br>cutoffs {best50.get('newCutoff', 0)} / {best50.get('oldCutoff', 0)}"
-             + (f" &middot; {open_slots} slots empty" if open_slots else "")),
-        )
-        tiles_html = '<section class="tiles">' + "".join(
-            f'<div class="tile"><div class="k">{label}</div><div class="v">{value}</div><div class="s">{detail}</div></div>'
-            for label, value, detail in tiles) + "</section>"
+        banner.append(f'<div class="sum"><span>{_esc(best50.get("newTotal", 0))}<small>new</small></span><i>+</i>'
+                      f'<span>{_esc(best50.get("oldTotal", 0))}<small>old</small></span><i>=</i>'
+                      f'<span><b>{_esc(best50.get("total", 0))}</b><small>best 50</small></span></div>')
+        banner.append(stats([
+            ("Style", f"{_esc(str(profile.get('style', 'unknown')).title())}<small>leans {_esc(str(profile.get('favoriteChartType', '?')).upper())}</small>"),
+            ("FC · AP · DX score", f"{profile.get('fcRate', 0) * 100:.0f}% / {profile.get('apRate', 0) * 100:.0f}% / {profile.get('dxScoreRate', 0) * 100:.0f}%"),
+            ("SS up to", _esc(profile.get("comfortConstant", 0))),
+            ("S up to", _esc(profile.get("reachConstant", 0))),
+            ("Hardest S", _esc(profile.get("hardestS", 0))),
+            ("Usual on 13 / 14", f"{_esc(profile.get('expectedAt13', 0))}% / {_esc(profile.get('expectedAt14', 0))}%"),
+            ("Cutoffs", f"{_esc(best50.get('newCutoff', 0))}<small>new</small> / {_esc(best50.get('oldCutoff', 0))}<small>old</small>"),
+        ] + ([("Slots empty", _esc(open_slots))] if open_slots else [])))
+    if steps:
+        road = [("Expected", f"+{plan.expected_gain:.0f}"), ("Over your usual", f"{plan.average_stretch:+.1f}%")]
+        if plan.gap_steps:
+            road.append(("Never played", f"{len(plan.gap_steps)}<small>worth +{plan.gap_gain}</small>"))
+        elif not plan.reached:
+            road.append(("Never played", "0<small>none would enter your best 50</small>"))
+        banner.append(stats(road))
 
-    poster_css = styleimage()
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<style>{poster_css}</style>
-</head>
-<body>
-<div class="image">
-  <header>
-    {avatar_html}
-    <div class="who">
-      <div class="eyebrow">What to play next</div>
-      <h1>{html_escape(player_name)}</h1>
-    </div>
-    <div class="counters">
-      <div class="counter"><dt>Rating</dt><dd>{rating_plate(player_rating, small=True)}</dd></div>
-      {counters}
-    </div>
-    <div class="headline-figure">
-      <div class="value">+{total_gain}</div>
-      <div class="caption">rating on this image</div>
-    </div>
-  </header>
+    # the picks stand beside the road only when they run about as long; a short list goes above a full-width road
+    split = bool(listed and steps) and math.ceil(len(listed) / 3) >= math.ceil(len(steps) / 4)
+    road_across = 4 if split else 6
+    road_rows = math.ceil(len(steps) / road_across) + 1 if steps else 0
+    board = ""
+    if listed:
+        across = 3 if split else 6
+        rows = max(math.ceil(len(listed) / across), road_rows if split else 0)
+        plates = "".join(
+            ticket(position, rec.song, rec.chart_type, rec.difficulty_type, rec.level, rec.difficulty, rec.is_unplayed, rec.plays,
+                   rec.current_accuracy, rec.target_accuracy, rec.current_rank, rec.target_rank, rec.feasibility,
+                   rec.potential_gain, rec.cover_url)
+            for position, rec in enumerate(listed, len(featured) + 1))
+        reading = "<p><b>Stub:</b> place, difficulty, constant, gain. <b>Ticket:</b> target, where you are now, odds.</p>"
+        marks = ("<p>" + "".join(f"<span>{mark(sign)}{words}</span>" for sign, words in (
+            ("diff_basic", "Basic"), ("diff_advanced", "Advanced"), ("diff_expert", "Expert"), ("diff_master", "Master"),
+            ("diff_remaster", "Re:Master"), ("type_dx", "DX chart"), ("type_std", "Standard chart"), ("new", "never played")))
+            + f'<span>{rank_mark("SSS")}<i class="an-to">&rarr;</i>{rank_mark("SSS+")}rank now, rank reached</span></p>')
+        ragged, whole = (rows * across - len(listed)) % across, (rows * across - len(listed)) // across
+        # the spare places close the roll: the ragged end of its last row, and whole rows when the road beside runs longer
+        if ragged and whole:
+            plates += key(ragged, reading) + key(across, marks, whole)
+        elif ragged or whole:
+            plates += key(ragged or across, reading + marks, whole or 1)
+        board += panel("pink run an-next", "Next up", f'<div class="tracks" style="--across:{across}">{plates}</div>',
+                       f"picks {len(featured) + 1} to {len(featured) + len(listed)}" if len(listed) > 1 else f"pick {len(featured) + 1}")
+    if steps:
+        # each row of the road runs left to right like a line of text, and the total so far stands on the road after every step
+        lanes = "".join(f'<i class="an-lane" style="grid-row:{row + 1}"></i>' for row in range(road_rows - 1))
+        plates = ""
+        for index, step in enumerate(steps):
+            row, column = divmod(index, road_across)
+            option = step.option
+            plates += ticket(index + 1, option.title, option.chart_type, option.difficulty_type, option.level, option.constant,
+                             option.is_unplayed, option.plays, option.current_accuracy, option.target_accuracy, option.current_rank,
+                             option.target_rank, option.feasibility, step.gain, option.cover,
+                             f"grid-area:{row + 1}/{column + 1}", f'<em class="an-post">+{step.cumulative}</em>')
+        verdict = (f"covers the full +{plan.needed}" if plan.reached
+                   else f"+{plan.total} of +{plan.needed}, {plan.shortfall} short")
+        filled = min(100, 100 * plan.total / plan.needed) if plan.needed else 100
+        plates += (f'<div class="track head an-goal" style="--tier:var(--gold);grid-row:{road_rows};grid-column:1 / -1">'
+                   f'<div class="track-stub">{mark("dxstar")}</div><div class="track-body">'
+                   f'<b>Goal</b><strong>{plan.goal_rating}</strong>'
+                   f'<span class="an-meter"><i style="width:{filled:.0f}%"></i></span>'
+                   f'<small>{_esc(verdict)}, from {plan.start_rating}<br>Play in order. The running total follows each step.</small></div></div>')
+        board += panel("cyan run an-road", f"Road to {plan.goal_rating}",
+                       f'<div class="an-path" style="--across:{road_across}">{lanes}{plates}</div>',
+                       f"{len(steps)} step{'' if len(steps) == 1 else 's'}")
 
-  <div class="columns">
-  <div class="col">
-  <div class="section-label">Grind these &middot; {len(movers)} charts &middot; +{total_gain}{scope_html}</div>
-  <div class="heroes">{featured_html}</div>
+    body = f'<div class="banner">{"".join(banner)}</div>'
+    if picks:
+        # our own wording for the scope ("level 13+"), never the player's text
+        body += panel("gold run", "Play these first", f'<div class="tracks an-picks" style="--across:{len(featured)}">{picks}</div>',
+                      f"top {len(featured)} of {len(movers)}" + (f" · {scope}" if scope else ""))
+    if board:
+        body += f'<div class="an-board{" an-split" if split else ""}">{board}</div>'
+    if near:
+        items = "".join(
+            f'<div class="track an-near" style="--tier:{tier(r.difficulty_type)[1]}"><div class="track-stub">{tier_mark(r.difficulty_type)}</div>'
+            f'<div class="an-near-body"><b>{_esc(r.song)}</b><span>reach <em>{r.required_accuracy:.2f}%</em></span></div></div>' for r in near)
+        body += panel("purple run", "Just outside your best 50", f'<div class="tracks" style="--across:{len(near)}">{items}</div>',
+                      "these pay nothing yet · reach the score shown and they start counting")
 
-  <table>
-    <thead>
-      <tr>
-        <th></th><th></th><th>Chart</th><th>Achievement</th><th>Rank</th><th>Odds</th>
-        <th style="text-align:right">Gain</th>
-      </tr>
-    </thead>
-    <tbody>{rows_html}</tbody>
-  </table>
-
-  </div>
-  <div class="col">
-  {road_html}
-  {tiles_html}
-  </div>
-  </div>
-
-  {near_html}
-
-  <footer>
-    <span>Rasmai &middot; {html_escape(site_label())} &middot; maimai DX{" &middot; " + html_escape(counts) if counts else ""}</span>
-    <span>{datetime.now().strftime('%d %B %Y')}</span>
-  </footer>
-</div>
-</body>
-</html>"""
+    return _page("What to play next", player_name, avatar_base64, f"+{total_gain}", "possible gain",
+                 f'<div class="an">{body}</div>',
+                 counts, datetime.now().strftime("%d %B %Y"))
 
 
 CHROMIUM_ARGS = [
@@ -366,14 +268,96 @@ async def _drop_browser() -> None:
                 pass
 
 
+# The classic recent board flows its plays down CSS columns, which Blitz has no layout for, so Chromium draws it
+BLITZ_UNSUPPORTED = ('class="recent-flow"',)
+BLITZ_TIMEOUT = 30          # seconds for one page; the largest poster takes about 0.3
+
+# blitz (blitz/) is one long-lived process: started on first use, it keeps its fonts loaded between pages.
+# The process and the lock that keeps one page in its pipe at a time belong to the event loop that started them; a new
+# loop starts both afresh
+_blitz: Dict[str, Any] = {"path": None, "looked": False, "loop": None, "lock": None, "proc": None}
+
+
+def _blitz_path() -> Optional[str]:
+    """Where the blitz binary is, or None when the images are drawn with Chromium."""
+    if not _blitz["looked"]:
+        _blitz["looked"] = True
+        _blitz["path"] = None if RENDERER.lower() in ("", "chromium") else RENDERER
+    return _blitz["path"]
+
+
+def _stop_blitz() -> None:
+    proc, _blitz["proc"] = _blitz["proc"], None
+    if proc is not None and proc.returncode is None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+async def _render_with_blitz(path: str, html_content: str) -> bytes:
+    """The page drawn by blitz: its byte count and HTML in on stdin, a byte count and the PNG back on stdout.
+
+    :param path: Where the blitz binary is.
+    :type path: str
+    :param html_content: The page.
+    :type html_content: str
+    :rtype: bytes
+    """
+    loop = asyncio.get_running_loop()
+    if _blitz["loop"] is not loop:
+        _stop_blitz()
+        _blitz.update(loop=loop, lock=asyncio.Lock())
+    async with _blitz["lock"]:
+        proc = _blitz["proc"]
+        if proc is None or proc.returncode is not None:
+            try:
+                proc = _blitz["proc"] = await asyncio.create_subprocess_exec(
+                    path, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE)
+            except OSError:
+                _blitz["path"] = None       # not there or not runnable: say so once, and draw with Chromium from now on
+                raise
+        data = html_content.encode("utf-8")
+        try:
+            proc.stdin.write(len(data).to_bytes(4, "little") + data)
+            await proc.stdin.drain()
+            size = int.from_bytes(await asyncio.wait_for(proc.stdout.readexactly(4), BLITZ_TIMEOUT), "little")
+            png = await asyncio.wait_for(proc.stdout.readexactly(size), BLITZ_TIMEOUT)
+        except BaseException:
+            _stop_blitz()       # stopped mid-page, its pipe is out of step with the next one
+            raise
+    if not png:
+        raise RuntimeError("blitz could not draw the page (its reason is in the log)")
+    return png
+
+
 async def render_html_to_image(html_content: str) -> bytes:
+    """The page as a PNG, drawn by Blitz, or by Chromium where it is not installed, cannot lay the
+    page out, or fails on it.
+
+    :param html_content: The page.
+    :type html_content: str
+    :rtype: bytes
+    """
+    path = _blitz_path()
+    if path and not any(marker in html_content for marker in BLITZ_UNSUPPORTED):
+        try:
+            return await _render_with_blitz(path, html_content)
+        except Exception as error:
+            logger.warning(f"Blitz could not draw the page ({type(error).__name__}: {error}); drawing it with Chromium")
+    return await _render_with_chromium(html_content)
+
+
+async def _render_with_chromium(html_content: str) -> bytes:
     browser = await _get_browser()
     context = None
     try:
         context = await browser.new_context(viewport={"width": 2400, "height": 400}, device_scale_factor=1)
         page = await context.new_page()
-        await page.set_content(html_content, wait_until="networkidle")
-        await page.wait_for_timeout(300)
+        # everything the page shows is inside it, so it is ready once loaded and its fonts are in; waiting for the network to
+        # stay idle and then a fixed pause added most of a second to every image
+        await page.set_content(html_content, wait_until="load")
+        await page.evaluate("document.fonts.ready.then(() => 0)")
         # the body sets its own width (2400 for posters, narrower for cards), so clip to it, not the viewport
         dimensions = await page.evaluate(
             "() => ({ width: document.body.offsetWidth || Math.max(document.body.scrollWidth, document.documentElement.scrollWidth),"

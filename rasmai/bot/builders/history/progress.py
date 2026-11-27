@@ -10,6 +10,7 @@ from rasmai.bot.state.cache import CachedAnalysis
 from rasmai.bot.ui.formatting import message_files, stamp, today
 from rasmai.storage.db import load_rating_history
 from rasmai.images.pages import progress_image_html
+from rasmai.images.themes import themed
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +59,19 @@ async def build_progress(cached: CachedAnalysis) -> Tuple[discord.Embed, List[di
             forecast_lines.append(f"Your rating has held flat over the last **{forecast['spanDays']}** days. "
                                   f"`/session` or `/plan` is where the next points are.")
         else:
-            outlook.append(("Pace", pace, f"about {forecast['perMonth']:+.0f} a month, over {forecast['spanDays']} days"))
+            outlook.append(("Pace", pace, f"{forecast['perMonth']:+.0f} a month"))
             for target in forecast["targets"][:2]:
                 when = datetime.fromisoformat(target["date"])
-                outlook.append((str(target["rating"]), when.strftime("%d %b %Y"), f"about {target['days']} days at this pace"))
+                outlook.append((str(target["rating"]), f"{when.day} {when:%b %Y}", f"about {target['days']} days at this pace"))
                 forecast_lines.append(f"**{target['rating']}** around {stamp(when, 'D')} at **{pace}**")
     plan = cached.plan_for(None, False, "balanced")
     if plan.steps:
         credits = plan_credits(plan)
         forecast_lines.append(f"the balanced route to **{plan.goal_rating}** is about **{credits}** credits at its odds"
                               + ("" if plan.reached else f", and covers +{plan.total} of the +{plan.needed}"))
-        outlook.append((f"Road to {plan.goal_rating}", f"~{credits} credits", "the balanced route at its odds"
-                        + ("" if plan.reached else f", covers +{plan.total} of the +{plan.needed}")))
-    shot = await _image(cached, "progress", lambda: progress_image_html(
-        points, deltas, player.name, cached.start_rating, player.avatar_base64, date_text=today(), forecast=outlook,
+        outlook.append((f"Road to {plan.goal_rating}", f"~{credits} credits", "the balanced route at its odds" if plan.reached else f"covers +{plan.total} of +{plan.needed}"))
+    shot = await _image(cached, "progress", lambda: themed(cached.user_id, progress_image_html)(
+        points, deltas, player.name, player.avatar_base64, date_text=today(), forecast=outlook,
     ))
     files, avatar_url = message_files(player, shot, "rasmai-progress.png")
     embed.set_author(name=player.name, icon_url=avatar_url)

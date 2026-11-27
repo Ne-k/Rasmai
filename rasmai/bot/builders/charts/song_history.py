@@ -16,6 +16,7 @@ from rasmai.images.cards import history_card_html
 from rasmai.bot.ui import emoji
 from rasmai.bot.core import try_render
 from rasmai.images.render import cover_html_factory
+from rasmai.images.themes import themed
 from rasmai.bot.builders.charts.index import charts_for, jacket_file, song_for_chart, songs_by_loose_key
 from rasmai.bot.builders.charts.page import last_play
 from rasmai.bot.builders.charts.rows import _chart_rows
@@ -88,9 +89,9 @@ async def build_song_history(cached: Optional[CachedAnalysis], title: str, page:
 
     key = f"history:{title}:{page}:{len(points)}"
     if key not in cached.images:
-        html = await asyncio.to_thread(history_card_html, title, ref.difficulty, ref.level, ref.chart_type, ref.cover,
+        html = await asyncio.to_thread(themed(cached.user_id, history_card_html), title, ref.difficulty, ref.level, ref.chart_type, ref.cover,
                                        cover_html_factory(cached.analyzer.jacket_path), points, player.name,
-                                       cached.start_rating, player.avatar_base64, today(), ref.constant)
+                                       player.avatar_base64, today(), ref.constant)
         cached.images[key] = await try_render(html)
     shot = cached.images.get(key)
 

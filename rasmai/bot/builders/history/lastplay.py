@@ -20,6 +20,7 @@ from rasmai.bot.core import try_render
 from rasmai.images.cards import play_card_html
 from rasmai.images.render import cover_html_factory
 from rasmai.images.pages import stars_for
+from rasmai.images.themes import themed
 from rasmai.bot.builders.history.plays import recent_plays
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ async def build_lastplay(cached: CachedAnalysis, owner_id: int, position: int) -
 
     card_key = f"playcard:{play['idx']}"
     if card_key not in cached.images:
-        cached.images[card_key] = await try_render(play_card_html(
+        cached.images[card_key] = await try_render(themed(cached.user_id, play_card_html)(
             play, detail, cover_html_factory(a.jacket_path), player.name, cached.start_rating, player.avatar_base64, date_text=today(),
         ))
     drawn = cached.images[card_key] is not None

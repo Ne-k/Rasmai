@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 import asyncio
 import discord
 import logging
@@ -59,6 +59,47 @@ async def failure_reply(interaction: discord.Interaction, failure: str, error: E
         return {"content": None, "view": None}
     error_id = report(error, failure, await command_context(interaction))
     return {"content": f"{failure}\n-# {public_reason(error)}\n{support_line(error_id)}", "view": None}
+
+
+UNKNOWN_MESSAGE = 10008
+
+
+async def deliver(interaction: discord.Interaction, ephemeral: bool, *, embed: Optional[discord.Embed],
+                  files: Sequence[discord.File], view: Optional[discord.ui.View]) -> Optional[discord.Message]:
+    """Put a finished reply on the message the person is waiting at, or in a new one when that message is gone.
+
+    The "thinking" message can be deleted while the scores are read, and Discord then refuses the edit as an unknown message.
+    The reply goes out as a new message and is not reported as an error.
+
+    :param interaction: The command's interaction.
+    :type interaction: discord.Interaction
+    :param ephemeral: Whether the reply was deferred as the person's alone.
+    :type ephemeral: bool
+    :param embed: The reply's embed, or None for a picture alone.
+    :type embed: Optional[discord.Embed]
+    :param files: The image and avatar to attach.
+    :type files: Sequence[discord.File]
+    :param view: The buttons, or None.
+    :type view: Optional[discord.ui.View]
+    :returns: The message the reply is on, or None when it could not be put anywhere.
+    :rtype: Optional[discord.Message]
+    """
+    try:
+        return await interaction.edit_original_response(content=None, embed=embed, attachments=list(files), view=view)
+    except discord.NotFound as error:
+        if error.code != UNKNOWN_MESSAGE:
+            raise
+    logger.info("the reply to %s for %s was deleted while it was built; sending it as a new message",
+                getattr(interaction.command, "qualified_name", "?"), interaction.user.id)
+    for file in files:
+        file.reset()        # the refused edit read them to the end
+    extra = {"embed": embed} if embed is not None else {}
+    if view is not None:
+        extra["view"] = view
+    try:
+        return await interaction.followup.send(files=list(files), ephemeral=ephemeral, wait=True, **extra)
+    except discord.NotFound:
+        return None         # the interaction is gone with it: there is nowhere left to answer
 
 
 async def ensure_linked(interaction: discord.Interaction) -> bool:
@@ -324,18 +365,14 @@ async def show_results(interaction: discord.Interaction, cached: CachedAnalysis,
     view = ResultsView(interaction.user.id, mode, target=target, stretch=stretch, page=page,
                        difficulty=difficulty, output=output, challenge=challenge, min_level=min_level,
                        credits=credits, focus=focus, level=level, region=cached.region)
+    ephemeral = private_only(interaction)
     if output == "image":
         # the picture stands alone: buttons only travel with the text
-        await interaction.edit_original_response(content=None, embed=None, attachments=image_files, view=None)
+        await deliver(interaction, ephemeral, embed=None, files=image_files, view=None)
     elif output == "embed":
-        avatar_only = [f for f in files if f.filename == "avatar.png"]
-        await interaction.edit_original_response(content=None, embed=embed, attachments=avatar_only, view=view)
+        view.message = await deliver(interaction, ephemeral, embed=embed, files=[f for f in files if f.filename == "avatar.png"], view=view)
     else:
-        await interaction.edit_original_response(content=None, embed=embed, attachments=files, view=view)
-    try:
-        view.message = await interaction.original_response()
-    except discord.HTTPException:
-        pass
+        view.message = await deliver(interaction, ephemeral, embed=embed, files=files, view=view)
 
 
 async def run_view_command(interaction: discord.Interaction, mode: str, failure: str, **state) -> None:
@@ -401,7 +438,8 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
 
     :param build: Builds the reply.
     """
-    await interaction.response.defer(ephemeral=ephemeral or private_only(interaction))
+    ephemeral = ephemeral or private_only(interaction)
+    await interaction.response.defer(ephemeral=ephemeral)
     if not await ensure_linked(interaction):
         return
     try:
@@ -413,12 +451,9 @@ async def run_simple_command(interaction: discord.Interaction, failure: str, bui
             return
         embed, files, view = built
         note_read_age(embed, cached)
-        await interaction.edit_original_response(content=None, embed=embed, attachments=files or [], view=view)
+        message = await deliver(interaction, ephemeral, embed=embed, files=files or [], view=view)
         if view is not None and hasattr(view, "message"):
-            try:
-                view.message = await interaction.original_response()
-            except discord.HTTPException:
-                pass
+            view.message = message
     except Exception as error:
         try:
             await interaction.edit_original_response(**await failure_reply(interaction, failure, error), embed=None, attachments=[])

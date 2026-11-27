@@ -1,38 +1,62 @@
 /* ---------------------------------------------------------------- core */
 * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --ink: #0d0c0b; --ink-2: #16150f; --rule: #2b2924; --rule-2: #3a3730;
-    --paper: #f3efe4; --paper-dim: #9b968a; --gain: #f0c04a; --cyan: #5cd3e8; --fresh: #ff3d8f;
-    --font-display: "Bahnschrift", "DIN Alternate", "Oswald", sans-serif;
-    --font-body: "Segoe UI", "Inter", sans-serif;
-    --font-num: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+    /* the board is lit at night: the paper is dark and the ink on it is cream, so --ink, the ink every edge and word is drawn in, is cream
+       here; --on-bright is the dark ink for words that sit on a bright fill (gold, pink, cyan, a difficulty's colour) */
+    --ink: #fbf6ec; --on-bright: #1d1a2f; --sheet: #1a2448; --card: #24305c; --dim: #a8b3da; --line: #36447c; --tint: #111936;
+    --pink: #ff3d8f; --gold: #f4b400; --cyan: #21c3e3; --mint: #4bb85f; --sky: #0d1430;
+    --hot: #ff73ad; --cool: #62d6f0;      /* pink and blue as text on the dark paper */
+    --wash-gold: #4a3c12; --wash-pink: #4c1f3a;
+    --font-display: "Zen Maru Gothic", "Bahnschrift", "Segoe UI", sans-serif;
+    --font-body: "Zen Kaku Gothic New", "Segoe UI", "Inter", sans-serif;
+    --font-num: var(--font-display);     /* figures are set in the rounded face the marks are lettered in */
     --thumb: 64px;   /* every list thumbnail, on every image */
+    --drop: rgba(29, 26, 47, .16);
   }
+  /* How Rasmai's marks are cut: an ink edge round the paper, and round the head's two tickets a ring of the sheet's colour outside it. A ticket
+     paints all of it on its ::before, with no filter: the paper is the content box, the ink edge the padding round it, the ring the border, and
+     a disc of ink over each bite keeps the edge following the notch the mask cuts out of it */
+  /* The board. An image is Rasmai's festival stall after dark: a night sky with a garland strung across the top and two fireworks in it (the
+     site's CiRCLE PLUS rings and MAGiCAL magic circle), and what it shows printed on tickets, the way the bot's own marks are (brand/emoji): a
+     rank is a ticket stub, a difficulty a paper lantern, a lamp a ring of eight buttons. A chart is a ticket too: its stub wears the
+     difficulty's colour and tears off along a pink dashed line. */
   body {
-    width: 2400px; background: var(--ink); color: var(--paper); font-family: var(--font-body);
+    width: 2400px; padding: 104px 40px 26px; color: var(--ink); font-family: var(--font-body);
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 92'%3E%3Cg stroke='%2314112a' stroke-width='3.5' stroke-linejoin='round'%3E%3Cpath d='M4 10.4L56 14.9L30 66.9Z' fill='%23ff3d8f'/%3E%3Cpath d='M64 15.4L116 17.6L90 70.7Z' fill='%23f4b400'/%3E%3Cpath d='M124 17.8L176 17.8L150 72.0Z' fill='%23fbf6ec'/%3E%3Cpath d='M184 17.6L236 15.4L210 70.7Z' fill='%2321c3e3'/%3E%3Cpath d='M244 14.9L296 10.4L270 66.9Z' fill='%23a266e8'/%3E%3C/g%3E%3Cpath d='M0 10Q150 26 300 10' fill='none' stroke='%23fbf6ec' stroke-width='3'/%3E%3C/svg%3E") 0 0 / 300px 92px repeat-x,
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='0 0 480 480'%3E%3Cdefs%3E%3Cpath id='s' d='M0-10C1-2 2-1 10 0 2 1 1 2 0 10-1 2-2 1-10 0-2-1-1-2 0-10Z'/%3E%3C/defs%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(70 84) scale(1.2)' fill='%23e8b422'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(356 60) scale(.7)' fill='%233cc8e8'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(250 262) scale(.9)' fill='%23ff4fa3'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(418 392) scale(1.1)' fill='%231fb77a'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(116 400) scale(.6)' fill='%23a78bfa'/%3E%3Ccircle cx='190' cy='140' r='12' fill='none' stroke='%23a78bfa' stroke-width='2'/%3E%3Ccircle cx='190' cy='140' r='3' fill='%23a78bfa'/%3E%3Ccircle cx='386' cy='210' r='7' fill='none' stroke='%233cc8e8' stroke-width='1.5'/%3E%3Ccircle cx='300' cy='140' r='3' fill='%23e8b422'/%3E%3Ccircle cx='44' cy='258' r='3.5' fill='%23ff4fa3'/%3E%3Ccircle cx='330' cy='440' r='2.5' fill='%231fb77a'/%3E%3Ccircle cx='200' cy='360' r='2' fill='%233cc8e8'/%3E%3Cpath d='M136 250l9 8-9 8M148 250l9 8-9 8' fill='none' stroke='%233cc8e8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 0 0 / 480px,
+                linear-gradient(172deg, #0b1126, #111b40 55%, #1a2858);
     position: relative; isolation: isolate;
-    background-image: repeating-linear-gradient(to bottom, transparent 0 47px, rgba(255,255,255,0.022) 47px 48px);
   }
-  /* the site's backdrop (web/public/bg): CiRCLE PLUS rings top right, a MAGiCAL magic circle bottom left, sparkles between */
-  body::before {
-    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .12;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none'%3E%3Ccircle r='93' stroke='%23ff4fa3' stroke-width='3'/%3E%3Ccircle r='81' stroke='%23a78bfa' stroke-width='1.4' stroke-dasharray='0.1 5' stroke-linecap='round'/%3E%3Ccircle r='67' stroke='%233cc8e8' stroke-width='6'/%3E%3Ccircle r='52' stroke='%23ff4fa3' stroke-width='1'/%3E%3Ccircle r='33' stroke='%23a78bfa' stroke-width='2.5' stroke-dasharray='10 7'/%3E%3Ccircle r='16' stroke='%233cc8e8' stroke-width='1.5'/%3E%3C/g%3E%3Cg%3E%3Ccircle cx='57.3' cy='-57.3' r='5' fill='%23ff4fa3'/%3E%3Ccircle cx='-74.8' cy='31' r='3.5' fill='%233cc8e8'/%3E%3Ccircle cx='20.9' cy='78.3' r='4' fill='%23a78bfa'/%3E%3Ccircle cx='-31' cy='-74.8' r='2.5' fill='%233cc8e8'/%3E%3Ccircle cx='36' cy='37.5' r='3' fill='%23ff4fa3'/%3E%3Ccircle cx='-44' cy='-27' r='2.5' fill='%23a78bfa'/%3E%3C/g%3E%3C/svg%3E") right -420px top -400px / 1300px no-repeat,
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none'%3E%3Ccircle r='95' stroke='%231fb77a' stroke-width='2'/%3E%3Ccircle r='85' stroke='%231fb77a' stroke-width='1'/%3E%3Ccircle r='90' stroke='%23e8b422' stroke-width='7' stroke-dasharray='0.9 4.1'/%3E%3Ccircle r='62' stroke='%2314a9a0' stroke-width='1.5'/%3E%3Cpath d='M0-62L43.8 43.8-62 0 43.8-43.8 0 62-43.8-43.8 62 0-43.8 43.8Z' stroke='%231fb77a' stroke-width='1.2' stroke-linejoin='round'/%3E%3Ccircle r='25' stroke='%23e8b422' stroke-width='1.5'/%3E%3Ccircle r='20' stroke='%2314a9a0' stroke-width='1' stroke-dasharray='2 3'/%3E%3C/g%3E%3Cg fill='%23e8b422'%3E%3Cpath d='M0-12C1-2 2-1 12 0 2 1 1 2 0 12-1 2-2 1-12 0-2-1-1-2 0-12Z'/%3E%3Cpath d='M0-99l3 4-3 4-3-4ZM99 0l-4 3-4-3 4-3ZM0 99l-3-4 3-4 3 4ZM-99 0l4-3 4 3-4 3Z'/%3E%3C/g%3E%3C/svg%3E") left -330px bottom -330px / 1100px no-repeat,
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='0 0 480 480'%3E%3Cdefs%3E%3Cpath id='s' d='M0-10C1-2 2-1 10 0 2 1 1 2 0 10-1 2-2 1-10 0-2-1-1-2 0-10Z'/%3E%3C/defs%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(70 84) scale(1.2)' fill='%23e8b422'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(356 60) scale(.7)' fill='%233cc8e8'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(250 262) scale(.9)' fill='%23ff4fa3'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(418 392) scale(1.1)' fill='%231fb77a'/%3E%3Cuse href='%23s' xlink:href='%23s' transform='translate(116 400) scale(.6)' fill='%23a78bfa'/%3E%3Ccircle cx='190' cy='140' r='12' fill='none' stroke='%23a78bfa' stroke-width='2'/%3E%3Ccircle cx='190' cy='140' r='3' fill='%23a78bfa'/%3E%3Ccircle cx='386' cy='210' r='7' fill='none' stroke='%233cc8e8' stroke-width='1.5'/%3E%3Ccircle cx='300' cy='140' r='3' fill='%23e8b422'/%3E%3Ccircle cx='44' cy='258' r='3.5' fill='%23ff4fa3'/%3E%3Ccircle cx='330' cy='440' r='2.5' fill='%231fb77a'/%3E%3Ccircle cx='200' cy='360' r='2' fill='%233cc8e8'/%3E%3Cpath d='M136 250l9 8-9 8M148 250l9 8-9 8' fill='none' stroke='%233cc8e8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 0 0 / 480px;
-  }
-  .image { padding: 44px 52px 36px; }
-  header { display: flex; align-items: flex-end; gap: 22px; border-bottom: 3px solid var(--paper); padding-bottom: 18px; }
-  .avatar { width: 78px; height: 78px; object-fit: cover; border: 2px solid var(--paper); }
-  .no-cover { background: #232019; }
-  .who { flex: 1; }
-  .eyebrow { font-family: var(--font-display); font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: var(--paper-dim); }
-  h1 { font-family: var(--font-display); font-size: 46px; line-height: 1; letter-spacing: -0.5px; margin-top: 4px; }
-  .counters { display: flex; gap: 26px; }
-  .counter dt { font-size: 13px; letter-spacing: 2px; color: var(--paper-dim); text-transform: uppercase; }
-  .counter dd { font-family: var(--font-num); font-size: 20px; margin-top: 2px; }
-  .headline { text-align: right; }
-  .headline .value { font-family: var(--font-num); font-size: 62px; line-height: 0.9; color: var(--gain); font-weight: 700; }
-  .headline .caption { font-size: 14px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--paper-dim); margin-top: 6px; }
+  /* the two fireworks, dimmed so the tickets stay in front */
+  body::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .45;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none'%3E%3Ccircle r='93' stroke='%23ff4fa3' stroke-width='3'/%3E%3Ccircle r='81' stroke='%23a78bfa' stroke-width='1.4' stroke-dasharray='0.1 5' stroke-linecap='round'/%3E%3Ccircle r='67' stroke='%233cc8e8' stroke-width='6'/%3E%3Ccircle r='52' stroke='%23ff4fa3' stroke-width='1'/%3E%3Ccircle r='33' stroke='%23a78bfa' stroke-width='2.5' stroke-dasharray='10 7'/%3E%3Ccircle r='16' stroke='%233cc8e8' stroke-width='1.5'/%3E%3C/g%3E%3Cg%3E%3Ccircle cx='57.3' cy='-57.3' r='5' fill='%23ff4fa3'/%3E%3Ccircle cx='-74.8' cy='31' r='3.5' fill='%233cc8e8'/%3E%3Ccircle cx='20.9' cy='78.3' r='4' fill='%23a78bfa'/%3E%3Ccircle cx='-31' cy='-74.8' r='2.5' fill='%233cc8e8'/%3E%3Ccircle cx='36' cy='37.5' r='3' fill='%23ff4fa3'/%3E%3Ccircle cx='-44' cy='-27' r='2.5' fill='%23a78bfa'/%3E%3C/g%3E%3C/svg%3E") right -360px top -330px / 1100px no-repeat,
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none'%3E%3Ccircle r='95' stroke='%231fb77a' stroke-width='2'/%3E%3Ccircle r='85' stroke='%231fb77a' stroke-width='1'/%3E%3Ccircle r='90' stroke='%23e8b422' stroke-width='7' stroke-dasharray='0.9 4.1'/%3E%3Ccircle r='62' stroke='%2314a9a0' stroke-width='1.5'/%3E%3Cpath d='M0-62L43.8 43.8-62 0 43.8-43.8 0 62-43.8-43.8 62 0-43.8 43.8Z' stroke='%231fb77a' stroke-width='1.2' stroke-linejoin='round'/%3E%3Ccircle r='25' stroke='%23e8b422' stroke-width='1.5'/%3E%3Ccircle r='20' stroke='%2314a9a0' stroke-width='1' stroke-dasharray='2 3'/%3E%3C/g%3E%3Cg fill='%23e8b422'%3E%3Cpath d='M0-12C1-2 2-1 12 0 2 1 1 2 0 12-1 2-2 1-12 0-2-1-1-2 0-12Z'/%3E%3Cpath d='M0-99l3 4-3 4-3-4ZM99 0l-4 3-4-3 4-3ZM0 99l-3-4 3-4 3 4ZM-99 0l4-3 4 3-4 3Z'/%3E%3C/g%3E%3C/svg%3E") left -300px bottom -300px / 980px no-repeat; }
+  .image { position: relative; }
+  /* the head of a board: the player's own icon, the board's name on a gold ticket,
+     the player's name on a paper tag under it, the figures on a strip of stubs, and the one big figure on a pink ticket */
+  header { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; }
+  .emblem { flex: none; width: 140px; height: 140px; }
+  .avatar { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+  .no-cover { background: repeating-linear-gradient(135deg, #2b3768 0 10px, #232d5a 10px 20px); }
+  .who { flex: 1; min-width: 0; }
+  /* a ticket: paper with a bite out of each side and a pink dashed line where the stub tears off */
+  h1, .headline .value { position: relative; isolation: isolate; display: inline-flex; white-space: nowrap; font-family: var(--font-display); font-weight: 900; line-height: 1.1; }
+  h1::before, .headline .value::before { content: ""; position: absolute; inset: -5.5px; z-index: -1; padding: 2.5px; border: 3px solid var(--sheet); border-radius: 21.5px;
+    background: radial-gradient(circle at 5.5px 50%, var(--sheet) 10.5px, var(--ink) 10.5px 13px, #0000 13px) no-repeat,
+                radial-gradient(circle at calc(100% - 5.5px) 50%, var(--sheet) 10.5px, var(--ink) 10.5px 13px, #0000 13px) no-repeat,
+                linear-gradient(var(--paper), var(--paper)) content-box, linear-gradient(var(--ink), var(--ink)) padding-box;
+    -webkit-mask: radial-gradient(circle 7.5px at 5.5px 50%, #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 7.5px at calc(100% - 5.5px) 50%, #0000 96%, #000) right / 51% 100% no-repeat;
+            mask: radial-gradient(circle 7.5px at 5.5px 50%, #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 7.5px at calc(100% - 5.5px) 50%, #0000 96%, #000) right / 51% 100% no-repeat; }
+  h1::after, .headline .value::after { content: ""; position: absolute; left: 34px; top: 12px; bottom: 12px; border-left: 4px dashed var(--perf); }
+  h1 { --paper: var(--gold); --perf: var(--pink); padding: 5px 46px 9px 58px; font-size: 56px; letter-spacing: 1px; text-transform: uppercase; color: var(--on-bright); }
+  .nametag { width: fit-content; margin: 12px 0 0 6px; padding: 0 18px 3px; border: 3px solid var(--ink); border-radius: 10px; background: var(--sheet);
+             font-family: var(--font-display); font-size: 22px; font-weight: 900; letter-spacing: 2px; }
+  .headline { text-align: center; margin-left: 4px; }
+  .headline .value { --paper: var(--pink); --perf: var(--on-bright); padding: 6px 34px 9px 54px; font-size: 54px; color: var(--on-bright); }
+  .headline .value:has(.rplate) { padding: 0; }
+  .headline .value:has(.rplate)::before, .headline .value:has(.rplate)::after { content: none; }
+  .headline .caption { width: fit-content; margin: 9px auto 0; padding: 0 12px 2px; border: 2.5px solid var(--ink); border-radius: 8px; background: var(--sheet);
+                       font-family: var(--font-display); font-size: 15px; font-weight: 700; }
   /* the rating plate: the band's colour in an ink frame inside a cream ring, like the emoji marks, each digit in
      its own cell as the game shows them, and 1 to 4 stars for the 250-point steps of gold to kiwami */
   .rplate { display: inline-flex; align-items: center; gap: .26em; font-size: 54px; line-height: 1; vertical-align: middle;
@@ -41,321 +65,893 @@
                         repeating-linear-gradient(135deg, rgba(255,255,255,.08) 0 .05em, transparent .05em .16em), var(--band);
             border-radius: .3em; box-shadow: inset 0 -.05em 0 rgba(0,0,0,.18), 0 0 0 .07em #fbf6ec; }
   .rp-side { display: flex; flex-direction: column; align-items: center; gap: .1em; }
-  .rp-label { font-family: var(--font-display); font-size: .28em; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .rp-label { font-family: var(--font-display); font-size: .28em; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
   .rp-stars { display: flex; gap: .03em; }
   .rp-star { width: .26em; height: .26em; fill: #1d1a2f; }
   .rp-cells { display: flex; gap: .06em; }
-  .rp-cells i { font-style: normal; font-family: var(--font-num); font-weight: 700; width: .74em; padding: .1em 0 .07em; text-align: center;
+  .rp-cells i { font-style: normal; font-family: var(--font-display); font-weight: 900; width: .74em; padding: .1em 0 .07em; text-align: center;
                 background: #1d1a2f; color: #fbf6ec; border-radius: .12em; }
   .rp-cells i.off { color: #4a4560; }
   .rplate.sm { font-size: 27px; gap: .2em; padding-left: .2em; }
   .rplate.sm .rp-label { display: none; }
   .rplate.sm .rp-star { width: .42em; height: .42em; }
   .rplate.sm .rp-stars:has(> :nth-child(4)) { display: grid; grid-template-columns: repeat(2, auto); }
-  .section-label { font-family: var(--font-display); font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: var(--paper-dim); margin: 26px 0 12px; }
-  footer { margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--paper-dim); }
+  /* the foot: who drew it and when, as plain words on the sky */
+  footer { margin-top: 18px; display: flex; justify-content: space-between; font-family: var(--font-display); font-size: 15px; font-weight: 900; }
+  footer span { padding: 1px 12px 3px; border-radius: 8px; background: var(--sky); }
+  .hot { color: var(--hot); }
 
-  table { width: 100%; border-collapse: collapse; }
-  thead th { font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px; text-transform: uppercase; color: var(--paper-dim); text-align: left; padding: 0 10px 9px; border-bottom: 1px solid var(--rule); }
-  tbody tr { border-bottom: 1px solid var(--rule); }
-  tbody tr:nth-child(even) { background: rgba(255,255,255,0.018); }
-  td { padding: 7px 10px; vertical-align: middle; }
-  .c-rank { font-family: var(--font-num); font-size: 16px; color: var(--paper-dim); width: 42px; text-align: right; }
-  .c-cover { width: calc(var(--thumb) + 12px); }
-  .row-cover { width: var(--thumb); height: var(--thumb); object-fit: cover; display: block; }
-  .row-title { display: block; font-size: 17px; font-weight: 600; }
-  .row-tier { display: block; font-family: var(--font-display); font-size: 13px; letter-spacing: 2px; color: var(--tier); text-transform: uppercase; margin-top: 3px; }
-  .row-meta { display: block; font-family: var(--font-num); font-size: 13px; color: var(--paper-dim); margin-top: 3px; }
-  tr.fresh { background: rgba(255,61,143,0.07); box-shadow: inset 4px 0 0 var(--fresh); }
-  tr.fresh .c-rank { color: var(--fresh); }
-  .new-flag { display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 3px; background: var(--fresh); color: #16121a;
-              font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase; vertical-align: 3px; }
-  .hero.fresh { box-shadow: inset 5px 0 0 var(--fresh); }
-  .forecast { margin: -2px 0 12px; font-family: var(--font-num); font-size: 16px; color: var(--paper-dim); }
-  .ladder { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-  .ladder th { font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px; text-transform: uppercase;
-               color: var(--paper-dim); text-align: right; padding: 0 12px 9px; border-bottom: 1px solid var(--rule); }
-  .ladder th:first-child { text-align: left; }
-  .ladder td { padding: 11px 12px; border-bottom: 1px solid var(--rule); font-family: var(--font-num); font-size: 19px; text-align: right; }
-  .ladder tr:last-child td { border-bottom: 0; }
-  .ladder th:first-child, .ladder td:first-child { width: 18%; }
-  .ladder th:not(:first-child), .ladder td:not(:first-child) { width: 20.5%; }
-  .ladder td.lr-rank { font-family: var(--font-display); font-size: 20px; letter-spacing: 2px; color: var(--gain); text-align: left; }
-  .lr-need, .lr-rating { color: var(--paper); }
-  .lr-gain { color: var(--gain); font-weight: 700; }
-  .lr-odds { color: var(--paper-dim); }
-  .bolder { margin: -4px 0 14px; padding: 10px 16px; border-left: 4px solid var(--cyan); background: rgba(92,211,232,0.08);
-            font-family: var(--font-num); font-size: 16px; color: var(--paper); }
-  .num { font-family: var(--font-num); font-size: 16px; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
-  .num b { color: var(--paper); }
-  .arrow { color: #5f5b52; }
-  .c-gain { font-family: var(--font-num); font-size: 22px; font-weight: 700; color: var(--gain); text-align: right; width: 84px; }
-  .c-cum { font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); width: 70px; text-align: right; }
+  /* ---- the kit: what every board is built from ---- */
+  /* one of Rasmai's marks (brand/emoji/png, written into the stylesheet by markup.py as .mk-<name>), sized by the text it sits in */
+  .mk { display: inline-block; flex: none; width: 1.7em; height: 1.7em; vertical-align: -.45em; background: center / contain no-repeat; }
+  /* the banner: what a board adds up to, in one strip of paper under its head, a pink tear line between each part. Sums, averages and
+     tallies go here, so everything under it is the board itself */
+  .banner { display: flex; align-items: center; margin-bottom: 18px; border: 3px solid var(--ink); border-radius: 14px; background: var(--sheet); }
+  .banner > * { padding: 12px 26px 13px; }
+  .banner > * + * { border-left: 3px dashed var(--pink); }
+  .banner .stats { flex-wrap: nowrap; gap: 0 26px; }
+  .sum { display: flex; align-items: center; gap: 14px; font-family: var(--font-display); font-size: 40px; font-weight: 900; line-height: 1; white-space: nowrap; }
+  .sum span { display: grid; gap: 4px; }
+  .sum small { font-size: 14px; font-weight: 700; color: var(--dim); }
+  .sum i { font-style: normal; color: var(--dim); }
+  .sum b { color: var(--hot); }
+  .tally { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-family: var(--font-display); font-size: 22px; font-weight: 900; white-space: nowrap; }
+  .tally .mk { width: 36px; height: 36px; vertical-align: middle; margin-right: 4px; }
+  /* a ticket that names a run of tickets in a roll: its whole face in the run's colour, the run's figure where a chart's score would be */
+  .track.head { --paper: var(--tier); color: var(--on-bright); }
+  .track.head::after { border-color: var(--on-bright); }
+  .track.head .track-stub { align-content: center; color: var(--on-bright); }
+  .track.head .track-stub .mk { width: 46px; height: 46px; }
+  .track.head .track-body { display: grid; grid-template-columns: 1fr; align-content: center; gap: 2px; }
+  .track.head .track-body b { font-family: var(--font-display); font-size: 22px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+  .track.head .track-body small { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+  .track.head .track-body strong { font-family: var(--font-display); font-size: 38px; font-weight: 900; line-height: 1; }
+  /* a panel: a sheet of paper under a coloured band that carries its name and a note. `bare`, it is only the label, over tickets that lie on the sky */
+  .panel { --edge: var(--pink); position: relative; margin-top: 18px; padding: 58px 16px 16px; border: 3px solid var(--ink); border-radius: 16px; background: var(--sheet); }
+  .panel.gold { --edge: var(--gold); } .panel.cyan { --edge: var(--cyan); } .panel.mint { --edge: #6fcf7f; } .panel.purple { --edge: #b98cf0; }
+  .panel > .tabs { position: absolute; top: 0; left: 0; right: 0; height: 42px; display: flex; align-items: center; gap: 14px; padding: 0 18px 2px;
+                   background: var(--edge); color: var(--on-bright); border-bottom: 3px solid var(--ink); border-radius: 12px 12px 0 0; }
+  .tabs h2 { font-family: var(--font-display); font-size: 21px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+  .tabs span { font-family: var(--font-display); font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+  /* a run: a panel as a section of a board, under a tall band in its own colour and washed in it, so two sections are told apart at a glance */
+  .panel.run { margin-top: 12px; padding: 50px 10px 10px; border-width: 4px; border-color: var(--edge); background: color-mix(in srgb, var(--edge) 15%, var(--sheet)); }
+  .run > .tabs { height: 40px; border-bottom: 0; border-radius: 10px 10px 0 0; }
+  .run .tabs h2 { font-size: 25px; letter-spacing: 2px; }
+  .run .tabs span { font-size: 17px; }
+  .run .tracks { gap: 9px 0; }
 
-  .progress { margin-top: 28px; }
-  .bar { position: relative; height: 26px; background: var(--ink-2); border: 1px solid var(--rule-2); }
-  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--gain); }
-  .bar .fill.stretch { background: repeating-linear-gradient(135deg, var(--gain) 0 8px, #b58e2c 8px 16px); }
-  .bar .goal { position: absolute; right: 0; top: -6px; bottom: -6px; width: 3px; background: var(--paper); }
-  .bar-labels { display: flex; justify-content: space-between; font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); margin-top: 8px; }
-  .bar-labels b { color: var(--paper); }
+  /* a figure with its name, in a row of them */
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 26px; }
+  .stat dt { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); }
+  .stat dd { font-family: var(--font-display); font-size: 28px; font-weight: 900; }
+  .stat dd small { font-size: 15px; font-weight: 700; color: var(--dim); margin-left: 3px; }
+  /* a chart is a ticket, and a row of them is a roll: they join edge to edge and tear apart at the stubs. The stub wears the difficulty's colour
+     and holds the row's number, the difficulty's lantern and the loud figure (a rating, a gain); it tears off along the pink dashes. The paper
+     holds the title over a large jacket, with the score, its level and the rank and lamps as their marks beside it */
+  .tracks { display: grid; grid-template-columns: repeat(var(--across, 5), minmax(0, 1fr)); gap: 14px 0; }
+  .track { --stub: 58px; --on: oklch(from var(--tier) clamp(0.25, (0.69 - l) * 1000, 1) 0.03 265);
+           position: relative; isolation: isolate; display: grid; grid-template-columns: var(--stub) minmax(0, 1fr); }
+  .track::before { content: ""; position: absolute; inset: -2.5px; z-index: -1; padding: 2.5px; border-radius: 12.5px;
+    background: radial-gradient(circle at calc(var(--stub) + 2.5px) 2.5px, var(--ink) 8px, #0000 8px) no-repeat,
+                radial-gradient(circle at calc(var(--stub) + 2.5px) calc(100% - 2.5px), var(--ink) 8px, #0000 8px) no-repeat,
+                linear-gradient(90deg, var(--tier) 0 var(--stub), var(--paper, var(--sheet)) var(--stub)) content-box, linear-gradient(var(--ink), var(--ink));
+    -webkit-mask: radial-gradient(circle 5.5px at calc(var(--stub) + 2.5px) 2.5px, #0000 96%, #000) top / 100% 51% no-repeat, radial-gradient(circle 5.5px at calc(var(--stub) + 2.5px) calc(100% - 2.5px), #0000 96%, #000) bottom / 100% 51% no-repeat;
+            mask: radial-gradient(circle 5.5px at calc(var(--stub) + 2.5px) 2.5px, #0000 96%, #000) top / 100% 51% no-repeat, radial-gradient(circle 5.5px at calc(var(--stub) + 2.5px) calc(100% - 2.5px), #0000 96%, #000) bottom / 100% 51% no-repeat; }
+  .track::after { content: ""; position: absolute; left: calc(var(--stub) - 1.5px); top: 13px; bottom: 13px; border-left: 3px dashed var(--pink); }
+  .track-stub { display: grid; justify-items: center; align-content: space-between; padding: 5px 0 7px; color: var(--on); font-family: var(--font-display); font-weight: 900; }
+  .track-stub b { font-size: 18px; }
+  .track-stub small { font-size: 14px; }
+  .track-stub strong { font-size: 25px; line-height: 1; }
+  .track-stub .mk { width: 38px; height: 38px; }
+  .track-body { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 3px 10px; padding: 5px 10px 7px 12px; }
+  .track-name { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .track-name b { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track-name .mk { width: 28px; height: 28px; }
+  .track-jacket { grid-row: span 2; width: 94px; height: 94px; object-fit: cover; display: block; border: 2.5px solid var(--ink); border-radius: 10px; }
+  .track-score { min-width: 0; display: grid; align-content: start; gap: 1px; font-family: var(--font-display); white-space: nowrap; }
+  .track-score > b { font-size: 19px; font-weight: 900; line-height: 1.15; }
+  .track-score small { font-size: 13px; font-weight: 700; color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+  .track-foot { grid-column: 2; align-self: end; display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; min-width: 0; }
+  .track-foot > span { min-width: 0; white-space: nowrap; overflow: hidden; }
+  .track-foot .mk { width: 26px; height: 26px; vertical-align: bottom; }
+  .track-foot .lamp { padding: 0 3px 1px; letter-spacing: -.3px; }
+  .track-foot > b { font-family: var(--font-display); font-size: 30px; font-weight: 900; line-height: .95; color: var(--hot); }
+  .track.open { --tier: #3a487c; opacity: .7; }
+  /* words for where no mark exists: a difficulty off its ticket, a rank or lamp the pack has no drawing for */
+  .lamp { display: inline-block; padding: 0 7px 1px; background: var(--sheet); border: 2px solid var(--ink); border-radius: 7px;
+                        font-family: var(--font-display); font-size: 12px; font-weight: 900; white-space: nowrap; vertical-align: middle; }
+ 
 
-  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
-  .card { background: var(--ink-2); border: 1px solid var(--rule); padding: 18px; display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: start; }
-  .card-cover { width: 230px; height: 230px; object-fit: cover; display: block; }
-  .card .rank { font-family: var(--font-display); font-size: 34px; line-height: 1; color: var(--tier); }
-  .card .tier { font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px; color: var(--tier); text-transform: uppercase; margin-top: 8px; }
-  .card .tier span { color: var(--paper-dim); letter-spacing: 1px; }
-  .card .title { font-size: 19px; font-weight: 700; margin: 6px 0 8px; line-height: 1.2; }
-  .card .est { font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); line-height: 1.6; }
-  .card .est b { color: var(--paper); }
-  .card .worth { font-family: var(--font-num); font-size: 20px; font-weight: 700; color: var(--gain); margin-top: 10px; }
-  .card .worth.dim { color: var(--paper-dim); font-size: 15px; font-weight: 400; }
-  .card .genre { font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: #6f6a60; margin-top: 8px; }
-  .level-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
-  .level-grid .card { padding: 16px; gap: 16px; grid-template-columns: 200px 1fr; }
-  .level-grid .card-cover { width: 200px; height: 200px; }
-  .level-grid .card .rank { font-size: 30px; }
-  .level-grid .card .title { font-size: 24px; margin: 6px 0 10px; }
-  .level-grid .card .est { font-size: 19px; }
-  .level-grid .card .worth { font-size: 28px; margin-top: 8px; }
-  .level-grid .card .worth small { font-size: 15px; font-weight: 400; color: var(--paper-dim); margin-left: 6px; }
-  .level-grid .card .worth.dim { font-size: 16px; }
-  .level-grid .card .genre { font-size: 14.5px; letter-spacing: 1px; text-transform: none; color: var(--paper-dim); margin-top: 8px; }
+  /* the graphs: the skill curve, rating over time and the trait wheel share these */
+  svg text { font-family: var(--font-num); }
+  .ch-grid { stroke: var(--line); stroke-width: 1.5; fill: none; }
+  .ch-grid.minor { stroke: #332e57; }
+  .ch-grid.mid { stroke: #6a648f; stroke-width: 2.5; }
+  .ch-axis { fill: var(--dim); font-size: 14px; }
+  .ch-axis.minor { fill: #8c86ad; }
+  .ch-band { fill: var(--pink); opacity: .12; }
 
-  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .tile { background: var(--ink-2); border: 1px solid var(--rule); padding: 16px 18px; }
-  .tile .k { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--paper-dim); }
-  .tile .v { font-family: var(--font-num); font-size: 30px; font-weight: 700; margin-top: 4px; line-height: 1; }
-  .tile .v small { font-size: 15px; color: var(--paper-dim); font-weight: 400; margin-left: 6px; }
-  .tile .s { font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); margin-top: 8px; }
-  .tile.wide { grid-column: span 3; }
-  .bars { margin-top: 10px; }
-  .barrow .track i.pts { background: var(--gain); }
-  .barrow .track i.pts.neg { background: var(--fresh); }
-  .session-line { font-family: var(--font-num); font-size: 18px; color: var(--paper-dim); margin: 22px 0 4px; }
-  .session-line b { color: var(--paper); }
-  .retry-flag { display: inline-block; margin-left: 8px; padding: 1px 7px; font-family: var(--font-display); font-size: 12px;
-                letter-spacing: 2px; text-transform: uppercase; color: var(--ink); background: var(--paper-dim); vertical-align: middle; }
-  .barrow { display: grid; grid-template-columns: 220px 1fr 70px; align-items: center; gap: 12px; padding: 5px 0; border-top: 1px solid var(--rule); font-size: 15px; }
-  .barrow.counted { grid-template-columns: 220px 1fr 160px; }
-  .barrow .track { position: relative; height: 10px; background: #1f1d18; }
-  .barrow .track i { position: absolute; top: 0; bottom: 0; background: var(--cyan); }
-  .barrow .track i.neg { background: #8a5a5a; }
-  .barrow .pct { font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); text-align: right; }
-  .chart-wrap { background: var(--ink-2); border: 1px solid var(--rule); padding: 18px; }
-  .legend { display: flex; gap: 18px; font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); margin-top: 10px; flex-wrap: wrap; }
-  .legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-right: 6px; }
+  /* a card two thirds as wide: one chart, one play, a board */
+  body.narrow { width: 1600px; }
 
-/* ---------------------------------------------------------------- /analyze poster */
-@page { margin: 0; }
-  .headline-figure { text-align: right; }
-  .headline-figure .value {
-    font-family: var(--font-num); font-size: 62px; line-height: 0.9;
-    color: var(--gain); font-weight: 700;
-  }
-  .headline-figure .caption {
-    font-size: 14px; letter-spacing: 2.4px; text-transform: uppercase;
-    color: var(--paper-dim); margin-top: 6px;
-  }
+/* ---------------------------------------------------------------- /analyze */
+/* each part on its own sheet under a tall band in its own colour and washed in it: the three picks as a roll of big tickets, the gain the
+   loudest figure on each stub; under them the next twelve as rolls of three beside the road, whose sixteen steps run left to right along
+   a gold road, row after row like lines of text, with the total so far on the road after each step and the goal's ticket under them */
+  .an .banner:has(+ .run) { margin-bottom: 0; }
+  .an .banner .rplate.sm { font-size: 24px; }
+.an-big { --stub: 150px; }
+  .an-big .track-stub { padding: 12px 0 14px; }
+  .an-big .track-stub b { font-size: 34px; line-height: 1; }
+  .an-big .track-stub small { font-size: 20px; }
+  .an-big .track-stub .mk { width: 64px; height: 64px; }
+  .an-big .track-stub strong { font-size: 58px; }
+  .an-big-body { min-width: 0; display: grid; grid-template-columns: 172px minmax(0, 1fr); gap: 8px 20px; padding: 10px 22px 14px 20px; }
+  .an-big .track-name b { font-size: 28px; }
+  .an-big .track-name .mk { width: 40px; height: 40px; }
+  .an-big-jacket { width: 172px; height: 172px; object-fit: cover; display: block; border: 3px solid var(--ink); border-radius: 12px; }
+  .an-big-move { min-width: 0; display: grid; align-content: space-between; font-family: var(--font-display); font-weight: 900; white-space: nowrap; }
+  .an-big-move small { font-size: 17px; font-weight: 700; color: var(--dim); white-space: normal; line-height: 1.35; }
+  .an-big-move small:first-child { font-size: 19px; color: var(--ink); }
+  .an-big-move em { font-style: normal; color: var(--hot); }
+  .an-big-now { font-size: 22px; color: var(--dim); }
+  .an-big-now .mk { width: 40px; height: 40px; }
+  .an-big-goal { display: flex; align-items: center; gap: 6px; font-size: 46px; line-height: 1.05; }
+  .an-big-goal .mk { width: 70px; height: 70px; }
+  .an-to { font-style: normal; color: var(--dim); margin: 0 3px; }
+.an-board { --gap: 16px; --lane: 26px; display: grid; gap: 0 24px; align-items: stretch; }
+  .an-board.an-split { grid-template-columns: 910px minmax(0, 1fr); }
+  .an-board .tracks { row-gap: var(--gap); grid-auto-rows: 1fr; }
+  /* the road: a lane behind each row of steps, out past the last ticket into a short exit column, where that step's total stands */
+  .an-path { display: grid; grid-template-columns: repeat(var(--across), minmax(0, 1fr)) 10px; gap: var(--gap) 52px; }
+  .an-split .an-path { grid-auto-rows: 1fr; }
+  .an-path > .track { z-index: 1; }
+  .an-lane { grid-column: 1 / -1; position: relative; z-index: 0; }
+  .an-lane::before { content: ""; position: absolute; top: 50%; height: var(--lane); margin-top: calc(var(--lane) / -2); left: 0; right: 0;
+                     border: 3px solid var(--ink); border-left: 0; border-radius: 0 8px 8px 0;
+                     background: linear-gradient(90deg, var(--on-bright) 50%, #0000 0) center / 22px 4px repeat-x, var(--gold); }
+  .an-post { position: absolute; z-index: 2; top: calc(50% - var(--lane) / 2 - 3px); left: calc(100% + 26px); translate: -50% -100%; padding: 1px 6px 2px; border: 2.5px solid var(--ink);
+             border-radius: 7px; background: var(--sheet); color: var(--ink); font-family: var(--font-display); font-size: 15px; font-style: normal; font-weight: 900; white-space: nowrap; }
+  .track.head.an-goal .track-body { grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 4px 22px; padding: 10px 26px 12px 18px; }
+  .an-goal .track-body small { grid-column: 1 / -1; line-height: 1.4; }
+  .an-meter { height: 26px; overflow: hidden; border: 3px solid var(--on-bright); border-radius: 7px; background: color-mix(in srgb, var(--on-bright) 18%, var(--gold)); }
+  .an-meter i { display: block; height: 100%; background: var(--pink); border-right: 3px solid var(--on-bright); }
+.an-key { display: grid; align-content: center; gap: 6px; padding: 8px 18px; border: 3px dashed var(--line); border-radius: 10px; background: var(--tint);
+          font-family: var(--font-display); font-size: 15px; font-weight: 700; color: color-mix(in srgb, var(--ink) 80%, var(--sheet)); }
+  .an-key b { color: var(--ink); font-weight: 900; }
+  .an-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .an-key p:has(span) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .an-key .mk { width: 30px; height: 30px; }
+/* the near list: one roll of narrow tickets, the score to reach as the figure */
+.an-near .track-stub { align-content: center; }
+  .an-near-body { min-width: 0; display: grid; gap: 2px; padding: 8px 14px 9px; }
+  .an-near-body b { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .an-near-body span { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: color-mix(in srgb, var(--ink) 80%, var(--sheet)); }
+  .an-near-body em { font-size: 24px; font-style: normal; font-weight: 900; color: var(--ink); margin-left: 4px; }
+  .an-board .track-score small { line-height: 1.2; color: color-mix(in srgb, var(--ink) 80%, var(--sheet)); }
+  .an .banner > * { padding-inline: 20px; }
+  .an .banner .stat { white-space: nowrap; }
+  .an-board .track-stub strong { letter-spacing: -1px; }
 
-  .col .section-label { margin-top: 22px; }
-  .heroes { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 22px; }
-  .hero {
-    position: relative; display: grid;
-    grid-template-columns: auto 150px 1fr auto; align-items: center; gap: 18px;
-    padding: 18px 20px; background: var(--wash); border-top: 4px solid var(--tier);
-  }
-  .hero-rank {
-    font-family: var(--font-display); font-size: 40px; line-height: 1;
-    color: var(--tier); opacity: 0.85; width: 30px;
-  }
-  .hero-cover { width: 150px; height: 150px; object-fit: cover; }
-  .hero-body { min-width: 0; }
-  .tier {
-    font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px;
-    color: var(--tier); text-transform: uppercase;
-  }
-  .tier .lv { color: var(--paper-dim); letter-spacing: 1px; }
-  .hero-title {
-    font-size: 24px; font-weight: 700; margin: 6px 0 8px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .hero-move { font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); }
-  .hero-meta { font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); margin-top: 6px; }
-  .hero-move .to { color: var(--paper); font-weight: 700; }
-  .hero-move .ranks { margin-left: 10px; }
-  .hero-gain { text-align: right; }
-  .hero-gain .plus {
-    font-family: var(--font-num); font-size: 34px; font-weight: 700;
-    color: var(--gain); line-height: 1;
-  }
-  .hero-gain .unit { font-size: 12px; letter-spacing: 2px; color: var(--paper-dim); text-transform: uppercase; }
-  .hero-gain .odds { font-family: var(--font-num); font-size: 13px; color: var(--paper-dim); margin-top: 7px; }
-  .c-song { min-width: 0; }
-  .c-acc, .c-rank-move, .c-odds {
-    font-family: var(--font-num); font-size: 16px; color: var(--paper-dim);
-    font-variant-numeric: tabular-nums;
-  }
-  .c-acc { width: 190px; }
-  .c-rank-move { width: 130px; }
-  .c-odds { width: 70px; text-align: right; }
-  .c-acc b, .c-rank-move b { color: var(--paper); }
-  .road { margin-top: 0; }
-  .road-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
-  .road-head .section-label { color: var(--paper); margin-bottom: 4px; }
-  .road-verdict { font-family: var(--font-num); font-size: 16px; color: var(--gain); }
-  .road-note { font-size: 14px; color: var(--paper-dim); margin-top: 5px; }
-  .road-stretch { text-align: right; }
-  /* how the player plays, under the road: what the reply's text used to carry */
-  .col > .tiles { margin-top: 26px; }
-  .col > .tiles .tile .s { line-height: 1.5; }
-  .road-stretch .value { font-family: var(--font-num); font-size: 26px; font-weight: 700; }
-  .road-stretch .caption { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--paper-dim); }
+/* ---------------------------------------------------------------- /plan /session /new /profile */
+/* a section on a sheet of its own, under a tall band in its colour and washed in it, as /b50's runs are, so sections are told apart at a glance */
 
-  .near { margin-top: 34px; border-top: 1px solid var(--rule); padding-top: 18px; }
-  .near h3 { font-family: var(--font-display); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; }
-  .near p { font-size: 14px; color: var(--paper-dim); margin: 5px 0 12px; }
-  .near ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px 22px; list-style: none; }
-  .near li { display: flex; justify-content: space-between; gap: 12px; min-width: 0; font-size: 14px; border-bottom: 1px dotted var(--rule); padding-bottom: 5px; }
-  .near-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .near-need { font-family: var(--font-num); color: var(--gain); flex: none; }
-
-/* rules the poster tightens on top of the core */
-.columns { margin-top: 6px; }
-.c-cum { font-variant-numeric: tabular-nums; }
+  .banner:has(+ .run) { margin-bottom: 0; }
+  .rs-empty { padding: 30px; text-align: center; font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+/* a run six tickets across: a larger jacket, and room beside it for the score and three lines */
+.rs-roll { gap: 9px 0; }
+  .rs-roll .track-jacket { width: 112px; height: 112px; }
+  .rs-roll.rs-long .track-jacket { width: 94px; height: 94px; }
+  .rs-roll .track-score > b { font-size: 22px; }
+  .rs-roll .track-score small { font-size: 14px; }
+  .rs-roll .track-stub strong { font-size: 27px; }
+  .rs-roll .track-stub strong.rs-odds { font-size: 21px; letter-spacing: -.5px; }
+  .rs-to::before { content: "\2192"; margin: 0 3px; font-style: normal; font-family: var(--font-display); font-size: 18px; font-weight: 900; color: var(--dim); vertical-align: 4px; }
+  /* the piece that closes a ragged last roll: how to read a ticket */
+  .rs-key { display: grid; align-content: center; gap: 6px; padding: 8px 22px; border: 3px dashed var(--line); border-radius: 10px;
+            font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); overflow: hidden; }
+  .rs-key b { color: var(--ink); font-weight: 900; margin-right: 6px; }
+  .rs-key p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+  .rs-key p:not(:has(span)) { display: block; }
+  .rs-key .mk { width: 30px; height: 30px; vertical-align: middle; margin-right: 4px; }
+  .rs-key .rs-tag { margin-right: 6px; }
+  /* a paper tag beside the rank marks: a warm-up, a repeat */
+  .rs-tag { display: inline-block; padding: 0 8px 1px; border: 2px solid var(--ink); border-radius: 6px; background: var(--cyan); color: var(--on-bright);
+            font-family: var(--font-display); font-size: 14px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+  .rs-tag + .rs-tag { margin-left: 4px; }
+  .rs-warm { background: var(--gold); }
+/* the banner's parts of this family */
+.rs-verdict { display: grid; gap: 4px; font-family: var(--font-display); white-space: nowrap; }
+  .rs-verdict b { font-size: 46px; font-weight: 900; line-height: 1; color: var(--hot); text-transform: uppercase; }
+  .rs-verdict.reached b { color: var(--gold); }
+  .rs-verdict small { font-size: 15px; font-weight: 700; color: var(--dim); }
+  .rs-note { flex: 1; min-width: 0; font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--dim); }
+  .rs-note b { display: block; color: var(--ink); font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+  .rs-pair-sum { gap: 34px; }
+  .banner .stat .mk { width: 32px; height: 32px; vertical-align: -5px; margin-right: 4px; }
+/* /plan: the road is the route, gold from the rating now to the rating after it with a button at every step's running total; beyond its end
+   a dashed gap says what is left, and the goal stands on a ticket at the far side */
+.rs-road { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 0 22px; padding: 6px 10px 4px; }
+  .rs-road-end { display: grid; justify-items: center; gap: 4px; font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--dim); text-transform: uppercase; }
+  .rs-road-end .rplate { font-size: 40px; }
+  .rs-road-way { position: relative; z-index: 1; height: 72px; margin: 0 0 30px; border: 4px solid var(--ink); border-radius: 36px; background: var(--gold); }
+  .rs-road-way.stretch { background: var(--pink); }
+  .rs-road-way::before { content: ""; position: absolute; left: 30px; right: 30px; top: 50%; border-top: 4px dashed var(--on-bright); opacity: .35; }
+  .rs-road-way > i { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 3px solid var(--on-bright); border-radius: 50%; background: var(--pink); }
+  .rs-road-way > b { position: absolute; right: 18px; top: calc(100% + 2px); padding: 0 14px 2px; border: 3px solid var(--ink); border-radius: 8px; background: var(--pink); color: var(--on-bright);
+                     font-family: var(--font-display); font-size: 24px; font-weight: 900; white-space: nowrap; }
+  .rs-road-gap { position: relative; width: 300px; height: 72px; margin: 0 0 30px -40px; padding-left: 20px; border: 4px dashed var(--hot); border-left: 0; border-radius: 0 36px 36px 0;
+                 display: grid; place-items: center; }
+  .rs-road-gap b { font-family: var(--font-display); font-size: 34px; font-weight: 900; color: var(--hot); text-transform: uppercase; white-space: nowrap; }
+  .rs-road-gap.reached { border-color: var(--gold); }
+  .rs-road-gap.reached b { color: var(--gold); }
+  .rs-goal { position: relative; isolation: isolate; display: inline-flex; padding: 4px 30px 8px 50px; font-family: var(--font-display); font-size: 60px; font-weight: 900;
+             line-height: 1.05; color: var(--on-bright); }
+  .rs-goal::before { content: ""; position: absolute; inset: -2.5px; z-index: -1; padding: 2.5px; border-radius: 16.5px;
+    background: radial-gradient(circle at 2.5px 50%, var(--ink) 12px, #0000 12px) no-repeat, radial-gradient(circle at calc(100% - 2.5px) 50%, var(--ink) 12px, #0000 12px) no-repeat,
+                linear-gradient(var(--gold), var(--gold)) content-box, linear-gradient(var(--ink), var(--ink));
+    -webkit-mask: radial-gradient(circle 9.5px at 2.5px 50%, #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 9.5px at calc(100% - 2.5px) 50%, #0000 96%, #000) right / 51% 100% no-repeat;
+            mask: radial-gradient(circle 9.5px at 2.5px 50%, #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 9.5px at calc(100% - 2.5px) 50%, #0000 96%, #000) right / 51% 100% no-repeat; }
+  .rs-goal::after { content: ""; position: absolute; left: 28px; top: 12px; bottom: 12px; border-left: 4px dashed var(--pink); }
+/* /profile: who the player is in the banner; the skill curve, the centrepiece, beside the range and the two sets of bars, the genres growing to end level */
+.rs-style { display: grid; gap: 2px; font-family: var(--font-display); white-space: nowrap; }
+  .rs-style b { font-size: 44px; font-weight: 900; line-height: 1; color: var(--gold); }
+  .rs-style small { font-size: 16px; font-weight: 700; color: var(--dim); }
+  .rs-style .mk { width: 30px; height: 30px; vertical-align: -9px; }
+.rs-card { display: grid; grid-template-columns: 1180px minmax(0, 1fr); gap: 0 22px; }
+  .rs-card > .panel, .rs-side { display: flex; flex-direction: column; min-width: 0; }
+  .rs-side > .panel:last-child { flex: 1; display: flex; flex-direction: column; }
+  .rs-curve { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 12px 14px 12px 4px; border-radius: 10px; background: var(--sheet); }
+  .rs-curve svg { width: 100%; height: auto; display: block; }
+  .rs-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; margin: 10px 0 0 14px; font-family: var(--font-display); font-size: 17px; font-weight: 700; }
+  .rs-legend .mk { width: 32px; height: 32px; vertical-align: middle; margin-right: 6px; }
+  .rs-legend i { display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .rs-swatch-line { width: 34px; height: 9px; border-radius: 5px; background: var(--pink); }
+  .rs-swatch-mark { width: 30px; border-top: 4px dashed var(--cool); }
+  .rs-swatch-ring { width: 20px; height: 20px; border: 4px solid var(--ink); border-radius: 50%; background: var(--mint); }
+  .rs-ch-grid { stroke: var(--line); stroke-width: 2; }
+  .rs-ch-grid.minor { stroke-dasharray: 3 7; }
+  .rs-ch-axis { fill: var(--dim); font-size: 21px; font-weight: 900; }
+  .rs-ch-rank { fill: var(--ink); }
+  .rs-ch-title { fill: var(--dim); font-size: 17px; font-weight: 700; }
+  .rs-ch-band { fill: var(--pink); opacity: .2; }
+  .rs-ch-pt { stroke: var(--sheet); stroke-width: 1.5; }
+  .rs-ch-recent { stroke: var(--ink); stroke-width: 3.5; }
+  .rs-ch-under { fill: none; stroke: var(--sheet); stroke-width: 13; stroke-linejoin: round; stroke-linecap: round; }
+  .rs-ch-line { fill: none; stroke: var(--pink); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
+  .rs-ch-mark { stroke: var(--cool); stroke-width: 3; stroke-dasharray: 9 7; }
+  .rs-ch-label { fill: var(--cool); font-size: 21px; font-weight: 900; stroke: var(--sheet); stroke-width: 6px; paint-order: stroke; }
+  /* the range: six figures, three to a row */
+  .rs-figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; padding: 8px 14px 10px; border-radius: 10px; background: var(--sheet); }
+  .rs-figs dt { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .rs-figs dd { font-family: var(--font-display); font-size: 38px; font-weight: 900; line-height: 1.1; white-space: nowrap; }
+  .rs-figs dd small { font-size: 16px; font-weight: 700; color: var(--dim); margin-left: 3px; }
+  .rs-figs .mk { width: 40px; height: 40px; vertical-align: -6px; margin-right: 6px; }
+  /* a bar per trait or genre, drawn out from the middle: pink to the right for above the curve or the average, blue to the left for below */
+  .rs-swings { flex: 1; display: flex; flex-direction: column; padding: 4px 14px; border-radius: 10px; background: var(--sheet); }
+  .rs-swing { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 190px 70px; align-items: center; gap: 12px; min-height: 50px;
+              font-family: var(--font-display); font-size: 17px; font-weight: 700; }
+  .rs-swing + .rs-swing { border-top: 2px dashed var(--line); }
+  .rs-swing > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rs-swing small { display: block; font-size: 14px; color: var(--dim); }
+  .rs-swing-bar { position: relative; height: 26px; }
+  .rs-swing-bar::before { content: ""; position: absolute; left: 50%; top: -6px; bottom: -6px; border-left: 3px solid var(--dim); }
+  .rs-swing-bar i { position: absolute; left: 50%; top: 0; bottom: 0; max-width: 50%; min-width: 6px; border: 3px solid var(--ink); border-radius: 0 8px 8px 0; background: var(--pink); }
+  .rs-swing-bar i.neg { left: auto; right: 50%; border-radius: 8px 0 0 8px; background: var(--cyan); }
+  .rs-swing > b { font-size: 22px; font-weight: 900; text-align: right; white-space: nowrap; color: var(--hot); }
+  .rs-swing > b.neg { color: var(--cool); }
+  .rs-swing.rs-none { display: flex; color: var(--dim); }
+  /* what the database adds: up to three figures, side by side */
+  .rs-deep { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 10px 6px; border-radius: 10px; background: var(--sheet); }
+  .rs-deep > div { padding: 2px 18px; }
+  .rs-deep > div + div { border-left: 3px dashed var(--pink); }
+  .rs-deep dt { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .rs-deep dd { font-family: var(--font-display); font-size: 34px; font-weight: 900; line-height: 1.15; }
+  .rs-deep dd small { font-size: 16px; font-weight: 700; color: var(--dim); margin-left: 8px; }
+  .rs-deep .rs-sub { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--dim); }
+  .rs-deep .rs-sub b { color: var(--ink); }
 
 /* ---------------------------------------------------------------- /b50 /recent /level /dxscore /progress */
-.b50-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 12px; }
-  .b50 { background: var(--ink-2); border: 1px solid var(--rule); padding: 10px; border-top: 3px solid var(--tier); }
-  .b50 .cv { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
-  .b50 .no-cover { width: 100%; aspect-ratio: 1; }
-  .b50 .pos { font-family: var(--font-num); font-size: 13px; color: var(--paper-dim); margin-top: 8px; }
-  .b50 .t { font-size: 15px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .b50 .d { font-family: var(--font-display); font-size: 12px; letter-spacing: 1.8px; color: var(--tier); text-transform: uppercase; margin-top: 3px; }
-  .b50 .s { font-family: var(--font-num); font-size: 13px; color: var(--paper-dim); margin-top: 4px; }
-  .b50 .s b { color: var(--paper); }
-  .b50 .r { font-family: var(--font-num); font-size: 20px; font-weight: 700; color: var(--gain); margin-top: 4px; }
-  .b50 .r small { font-size: 14px; font-weight: 400; color: var(--paper-dim); margin-right: 4px; }
-  .recent-flow { columns: 4; column-gap: 46px; margin-top: 10px; }
-  .recent-head { break-inside: avoid; break-after: avoid; display: flex; justify-content: space-between; align-items: baseline;
-                 border-bottom: 2px solid var(--paper); padding-bottom: 6px; margin: 0 0 8px; }
-  .recent-head + .play { border-top: none; }
-  .recent-flow > .recent-head ~ .recent-head { margin-top: 20px; }
-  .recent-head b { font-family: var(--font-display); font-size: 15px; letter-spacing: 2.4px; text-transform: uppercase; }
-  .recent-head span { font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); }
-  .play { break-inside: avoid; display: grid; grid-template-columns: var(--thumb) minmax(0, 1fr) auto; gap: 12px; align-items: center;
-          padding: 7px 0; border-bottom: 1px solid var(--rule); }
-  .play .no-cover, .play img { width: var(--thumb); height: var(--thumb); object-fit: cover; display: block; }
-  .p-title { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .p-meta { font-family: var(--font-num); font-size: 12px; color: var(--paper-dim); margin-top: 3px; }
-  .p-meta b { color: var(--paper); font-size: 13px; }
-  .p-diff { color: var(--tier); letter-spacing: 1.4px; }
-  .p-rating { font-family: var(--font-num); font-size: 18px; font-weight: 700; color: var(--gain); text-align: right; }
-  .flag { display: inline-block; font-family: var(--font-display); font-size: 12px; letter-spacing: 1.5px; padding: 2px 6px; margin-left: 6px; border: 1px solid var(--gain); color: var(--gain); vertical-align: middle; }
-  .flag.dim { border-color: var(--cyan); color: var(--cyan); }
+/* /b50: two sheets, each under a tall band in its own colour (pink for this version, cyan for the older ones) and washed in it, so the two
+   runs are told apart at a glance. Eight tickets across: the fifteen follow their ticket and fill two rolls; the thirty-five follow theirs,
+   and the key to reading a ticket closes the last roll */
+
+  .banner:has(+ .run) { margin-bottom: 0; }
+.b50-key { display: grid; align-content: center; justify-items: center; gap: 6px; padding: 8px 22px; text-align: center; border: 3px dashed var(--line); border-radius: 10px;
+           font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .b50-key b { color: var(--ink); font-weight: 900; }
+  .b50-key p { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 16px; }
+  .b50-key .mk { width: 30px; height: 30px; vertical-align: middle; margin-right: 4px; }
+  .b50-key-stub { padding: 8px 14px; }
+/* /recent, the level page and /dxscore: a run of tickets on its own sheet, under a tall band in its colour and washed in it, as /b50's runs are */
+.sc-day { flex: 1; min-width: 0; }
+
+  .sc-day .tabs h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  .banner:has(+ .run), .banner:has(+ .sc-days) { margin-bottom: 0; }
+/* the piece that closes a ragged last roll */
+.sc-key { min-width: 0; display: grid; align-content: center; gap: 6px; padding: 8px 18px; border: 3px dashed var(--line); border-radius: 10px;
+          font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .sc-key b { color: var(--ink); font-weight: 900; }
+  .sc-key p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .sc-key .mk { width: 30px; height: 30px; vertical-align: middle; margin-right: 4px; }
+  .sc-key .stars { font-size: 15px; }
+.sc-empty { width: fit-content; padding: 14px 26px; border: 3px solid var(--ink); border-radius: 14px; background: var(--sheet);
+            font-family: var(--font-display); font-size: 24px; font-weight: 900; }
+/* /recent: the night's tickets torn off in order, a sheet for each day named by its own ticket. Days too short to fill a line share it, the
+   last on the line taking what is left; a long day runs on in rolls of eight */
+/* 56 columns, so a line can be cut into eight places or seven */
+.sc-days { display: grid; grid-template-columns: repeat(56, minmax(0, 1fr)); gap: 0 12px; }
+  .sc-sheet { display: flex; min-width: 0; }
+  .sc-play .track-score > b { font-size: 21px; }
+  .sc-play .track-foot > span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; white-space: normal; overflow: visible; }
+  .sc-play .track-score small, .sc-near .track-score small { font-size: 14px; }
+/* the level page: twelve tickets stood on end, six across, the stub across the top with the row, the lantern, the level and the rating */
+.sc-shelf { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.sc-tag { --stub: 72px; --on: oklch(from var(--tier) clamp(0.25, (0.69 - l) * 1000, 1) 0.03 265);
+          position: relative; isolation: isolate; min-width: 0; display: flex; flex-direction: column; }
+  .sc-tag::before { content: ""; position: absolute; inset: -2.5px; z-index: -1; padding: 2.5px; border-radius: 14.5px;
+    background: radial-gradient(circle at 2.5px calc(var(--stub) + 2.5px), var(--ink) 9px, #0000 9px) no-repeat,
+                radial-gradient(circle at calc(100% - 2.5px) calc(var(--stub) + 2.5px), var(--ink) 9px, #0000 9px) no-repeat,
+                linear-gradient(180deg, var(--tier) 0 var(--stub), var(--sheet) var(--stub)) content-box, linear-gradient(var(--ink), var(--ink));
+    -webkit-mask: radial-gradient(circle 6.5px at 2.5px calc(var(--stub) + 2.5px), #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6.5px at calc(100% - 2.5px) calc(var(--stub) + 2.5px), #0000 96%, #000) right / 51% 100% no-repeat;
+            mask: radial-gradient(circle 6.5px at 2.5px calc(var(--stub) + 2.5px), #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6.5px at calc(100% - 2.5px) calc(var(--stub) + 2.5px), #0000 96%, #000) right / 51% 100% no-repeat; }
+  .sc-tag::after { content: ""; position: absolute; top: calc(var(--stub) - 1.5px); left: 16px; right: 16px; border-top: 3px dashed var(--pink); }
+  .sc-tag-stub { height: var(--stub); display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 0 14px 2px;
+                 color: var(--on); font-family: var(--font-display); font-weight: 900; }
+  .sc-tag-stub b { font-size: 30px; }
+  .sc-tag-stub .mk { width: 46px; height: 46px; }
+  .sc-tag-stub span { display: grid; min-width: 0; overflow: hidden; font-size: 15px; line-height: 1.15; white-space: nowrap; text-overflow: ellipsis; }
+  .sc-tag-stub small { font-size: 15px; }
+  .sc-tag-stub strong { font-size: 40px; line-height: 1; }
+  .sc-tag-paper { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px; }
+  .sc-tag-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .sc-tag-name b { flex: 1; min-width: 0; font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-tag-name .mk { width: 34px; height: 34px; }
+  .sc-tag-jacket { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border: 3px solid var(--ink); border-radius: 12px; }
+  .sc-tag-marks { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+  .sc-tag-marks .mk { width: 40px; height: 40px; }
+  .sc-tag-marks .mk:first-child { width: 58px; height: 46px; }
+  .sc-tag-marks .lamp { font-size: 14px; }
+  .sc-tag-score { font-family: var(--font-display); font-size: 36px; font-weight: 900; line-height: 1.1; }
+  .sc-tag-note { margin-top: auto; font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sc-unplayed .sc-tag-jacket { filter: grayscale(.85); opacity: .7; }
+  .sc-unplayed .sc-tag-score { font-size: 28px; color: var(--dim); }
+/* /dxscore: the star counts as a tally of dxstar marks in the banner; a ticket's stub carries the points short, its foot the stars now over next */
+.sc-starcount { gap: 4px 30px; }
+  .sc-rung { display: inline-flex; align-items: center; gap: 8px; }
+  .sc-rung .stars { font-size: 19px; }
+  .sc-rung b { font-size: 30px; }
+  .sc-rung small { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .sc-near .sc-next { display: grid; gap: 3px; }
+  .sc-near .stars { font-size: 15px; line-height: 1; }
   .stars { white-space: nowrap; }
   /* the dxstar mark inline; the unearned ones are only an outline */
   .dxstar { width: 1.2em; height: 1.2em; vertical-align: -0.22em; margin-right: 1px; }
-  .dxstar polygon { fill: #f4b400; stroke: #1d1a2f; stroke-width: 7; stroke-linejoin: round; }
-  .dxstar .halo { fill: none; stroke: #fbf6ec; stroke-width: 16; }
-  .dxstar circle { fill: #ff3d8f; stroke: #c8206b; stroke-width: 3; }
-  .dxstar.off polygon { fill: none; stroke: #5f5b52; stroke-width: 9; }
-  .tile .k .dxstar { width: 18px; height: 18px; }
-  .chart-wrap svg { display: block; }
+  .dxstar polygon { fill: var(--gold); stroke: var(--on-bright); stroke-width: 7; stroke-linejoin: round; }
+  .dxstar .halo { fill: none; stroke: var(--ink); stroke-width: 16; }
+  .dxstar circle { fill: var(--pink); stroke: var(--on-bright); stroke-width: 3; }
+  .dxstar.off polygon { fill: none; stroke: var(--dim); stroke-width: 9; }
 
-/* ---------------------------------------------------------------- /chart /lastplay /compare /leaderboard */
-body.narrow { width: 1600px; }
-  /* the poster's rings at about 70%: at full size they crowded a card two thirds as wide */
-  body.narrow::before { background-size: 900px, 760px, 380px; background-position: right -290px top -280px, left -230px bottom -230px, 0 0; }
-  .card-head { display: grid; grid-template-columns: 300px 1fr; gap: 34px; margin-top: 28px; align-items: start; }
-  .song-cover { width: 300px; height: 300px; object-fit: cover; display: block; border: 2px solid var(--rule-2); }
-  .card-title { font-size: 44px; font-weight: 700; line-height: 1.15; }
-  .card-sub { font-family: var(--font-num); font-size: 16px; color: var(--paper-dim); margin-top: 10px; line-height: 1.7; }
-  .card-sub b { color: var(--paper); }
-  .difftable { width: 100%; border-collapse: collapse; margin-top: 26px; }
-  .difftable th { font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px; text-transform: uppercase; color: var(--paper-dim); text-align: left; padding: 0 12px 9px; border-bottom: 1px solid var(--rule); }
-  .difftable td { padding: 14px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
-  .difftable tr.pick td { background: rgba(240,192,74,0.07); }
-  .badge { display: inline-block; font-family: var(--font-display); font-size: 14px; letter-spacing: 2.4px; text-transform: uppercase; color: #0d0c0b; background: var(--tier); padding: 6px 10px; }
-  .badge small { letter-spacing: 1px; margin-left: 6px; opacity: .8; }
-  .hist-head { margin-bottom: 26px; }
-  .hist-legend { margin-top: 22px; font-size: 15px; color: var(--paper-dim); }
-  .hist-legend .sw { display: inline-block; width: 26px; height: 12px; margin: 0 8px 0 18px; vertical-align: middle; }
-  .hist-legend .sw:first-child { margin-left: 0; }
-  .hist-legend .sw.best { background: var(--gain); }
-  .hist-legend .sw.play { width: 12px; border-radius: 50%; background: #f6f0e4; border: 2px solid #2d2a33; }
-  .hist-legend .sw.mark { width: 12px; border-radius: 50%; background: var(--gain); border: 2px solid #2d2a33; }
-  .hist { display: block; width: 100%; height: auto; }
-  .hist-rank { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 4 8; }
-  .hist-frame { stroke: var(--rule-2); stroke-width: 2; }
-  .hist-axis { font-family: var(--font-num); font-size: 16px; fill: var(--paper-dim); }
-  .hist-best { fill: none; stroke: var(--gain); stroke-width: 3; stroke-linejoin: round; }
-  .hist-dot { fill: #f6f0e4; stroke: #2d2a33; stroke-width: 2.5; }
-  .hist-dot.best { fill: var(--gain); }
-  .hist-peak { font-family: var(--font-num); font-size: 20px; font-weight: 700; fill: var(--gain); }
-  .hist-empty { font-family: var(--font-num); font-size: 18px; fill: var(--paper-dim); }
-  .big { font-family: var(--font-num); font-size: 26px; font-weight: 700; }
-  .big small { font-size: 15px; color: var(--paper-dim); font-weight: 400; margin-left: 8px; }
-  .dim { color: var(--paper-dim); }
-  .stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-top: 26px; }
-  .judge { width: 100%; border-collapse: collapse; margin-top: 26px; font-family: var(--font-num); }
-  .judge th { font-family: var(--font-display); font-size: 13px; letter-spacing: 2.6px; text-transform: uppercase; color: var(--paper-dim); text-align: right; padding: 0 14px 9px; border-bottom: 1px solid var(--rule); }
-  .judge th:first-child, .judge td:first-child { text-align: left; }
-  .judge td { text-align: right; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 18px; }
-  .judge td.miss { color: #ff8a8a; } .judge td.crit { color: var(--gain); }
-  .judge tr.total td { font-weight: 700; border-top: 2px solid var(--rule-2); }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 26px; }
-  .side h3 { font-family: var(--font-display); font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 10px; }
-  .vs-row { display: grid; grid-template-columns: 1fr 140px 1fr; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); font-family: var(--font-num); font-size: 16px; }
-  .vs-row .lv { text-align: center; font-family: var(--font-display); letter-spacing: 2px; color: var(--paper-dim); }
-  .vs-row .win { color: var(--gain); font-weight: 700; }
-  .lead { display: grid; grid-template-columns: var(--thumb) 1fr 90px; gap: 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--rule); }
-  .lead img, .lead .no-cover { width: var(--thumb); height: var(--thumb); object-fit: cover; display: block; }
-  .lead .t { font-size: 16px; font-weight: 600; } .lead .m { font-family: var(--font-num); font-size: 13px; color: var(--paper-dim); }
-  .lead .g { font-family: var(--font-num); font-size: 18px; font-weight: 700; color: var(--gain); text-align: right; }
-  .board { width: 100%; border-collapse: collapse; margin-top: 26px; }
-  .board td { padding: 12px 14px; border-bottom: 1px solid var(--rule); font-size: 18px; }
-  .board td.pos { font-family: var(--font-num); color: var(--paper-dim); width: 60px; }
-  .board td.rt { font-family: var(--font-num); font-size: 24px; font-weight: 700; color: var(--gain); text-align: right; width: 140px; }
-  .board tr.top td.pos { color: var(--gain); font-weight: 700; }
+/* ---------------------------------------------------------------- /chart /random /lastplay /compare /leaderboard */
+/* each section of a card sits on its own sheet under a tall band in its colour and washed in it, as /b50's two runs do */
 
-/* ---------------------------------------------------------------- /area: cards after the map page, artwork left, banner and readout right */
-  .area-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-  .area-card { display: grid; grid-template-columns: 210px 1fr; gap: 18px; align-items: start; padding: 18px; background: var(--ink-2); border: 1px solid var(--rule); border-radius: 18px; }
-  .area-card.in_progress { border-color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(92,211,232,0.25); }
-  .area-card.not_started { opacity: 0.82; }
-  .area-art { width: 210px; height: 210px; object-fit: contain; display: block; border-radius: 12px; background: #1b1a24; }
-  .area-banner { display: inline-block; max-width: 100%; padding: 8px 26px; border-radius: 999px; background: #0d0c0b; border: 2px solid var(--cyan); box-shadow: 0 0 0 4px rgba(92,211,232,0.12); }
-  .area-banner span { display: block; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .area-english { font-family: var(--font-display); font-size: 14px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--paper-dim); margin: 8px 0 0 12px; }
-  .area-readout { position: relative; margin-top: 12px; padding: 12px 16px 12px; border-radius: 12px; background: #0d0c0b; border: 1px solid var(--rule-2); }
-  .area-readout .k { display: block; font-family: var(--font-display); font-size: 13px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--paper-dim); }
-  .area-readout .v { display: block; font-family: var(--font-num); font-size: 36px; font-weight: 700; line-height: 1.05; margin-top: 4px; }
-  .area-readout .v small { font-size: 16px; color: var(--paper-dim); font-weight: 400; margin-left: 4px; }
-  .area-readout .state { position: absolute; right: 14px; top: 12px; font-family: var(--font-display); font-size: 12px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--cyan); }
-  .area-card.completed .area-readout .state { color: var(--paper-dim); }
-  .area-next { margin-top: 10px; padding: 10px 16px; border-radius: 12px; background: rgba(240,192,74,0.10); border: 1px solid rgba(240,192,74,0.45); }
-  .area-next .k { display: block; font-family: var(--font-display); font-size: 13px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--gain); }
-  .area-next .v { display: block; font-size: 17px; margin-top: 4px; color: var(--paper); line-height: 1.3; }
-  .area-next .v b { color: var(--gain); }
-  .area-next .w { display: block; font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); margin-top: 4px; }
-  .area-next.done { background: rgba(255,255,255,0.03); border-color: var(--rule-2); }
-  .area-next.done .k { color: var(--paper-dim); }
-  .area-next.gift { background: rgba(255,61,143,0.08); border-color: rgba(255,61,143,0.45); }
-  .area-next.gift .k, .area-next.gift .v b { color: var(--fresh); }
-  .area-ends { margin-top: 8px; font-family: var(--font-num); font-size: 14px; color: var(--paper-dim); }
+  .cd-banner { margin-bottom: 0; }
+  .cd-banner > .stats { flex: 1; justify-content: space-between; }
+  .cd-banner > .stats:not(:has(> :nth-child(5))) { justify-content: flex-start; gap: 0 80px; }
+  .cd-banner .stars { font-size: 18px; }
+  .cd-banner .stat dd { display: flex; align-items: baseline; gap: 0 8px; white-space: nowrap; }
+  .cd-banner .stat dd .mk { width: 46px; height: 34px; align-self: center; }
+  .cd-banner .stat dd .rplate { align-self: center; }
+  .cd-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cd-tag { padding: 2px 14px 4px; border: 2.5px solid var(--ink); border-radius: 8px; background: var(--card); font-family: var(--font-display); font-size: 17px; font-weight: 700; }
+  .cd-cool { color: var(--cool); }
+  .cd-col { display: flex; flex-direction: column; min-width: 0; }
+  .cd-col > .cd-grow { flex: 1; display: flex; flex-direction: column; }
+  .cd-h3 { margin: 14px 0 10px; font-family: var(--font-display); font-size: 22px; font-weight: 900; }
+  .cd-h3 small { margin-left: 8px; font-size: 16px; font-weight: 700; color: var(--dim); }
+  .cd-none { flex: 1; display: grid; place-items: center; padding: 30px 0; font-family: var(--font-display); font-size: 22px; font-weight: 900; color: var(--dim); }
 
-/* ---------------------------------------------------------------- /traits: the radar and the two lists */
-  .two-col { display: grid; grid-template-columns: 720px 1fr; gap: 44px; align-items: start; }
-  .chart-wrap.radar { background: var(--ink-2); border: 1px solid var(--rule); padding: 20px; border-radius: 18px; }
-  .chart-wrap.radar svg { display: block; width: 100%; height: auto; }
-  .trait-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 16px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--rule); }
-  .trait-off { font-family: var(--font-num); font-size: 21px; font-weight: 700; text-align: right; }
-  .trait-off.down { color: var(--fresh); }
-  .trait-off.up { color: var(--gain); }
-  .trait-name { font-size: 18px; }
-  .trait-n { font-family: var(--font-num); font-size: 15px; color: var(--paper-dim); text-align: right; }
-  .trait-none { padding: 12px 4px; font-size: 17px; color: var(--paper-dim); }
+/* the chart's own ticket stood on end: the jacket large in a frame of the difficulty's colour, torn from a paper foot */
+.cd-jk { --on: oklch(from var(--tier) clamp(0.25, (0.69 - l) * 1000, 1) 0.03 265); margin-top: 12px; display: flex; flex-direction: column; min-width: 0;
+         border: 4px solid var(--ink); border-radius: 18px; overflow: hidden; background: var(--sheet); }
+  .cd-jk-frame { display: flex; flex-direction: column; padding: 16px 16px 14px; background: var(--tier); color: var(--on); }
+  .cd-jk-frame:last-child { flex: 1; }
+  .cd-jk-art { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 3px solid var(--on-bright); border-radius: 10px; }
+  .cd-jk-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-height: 2.4em; margin-top: 12px;
+                 font-family: var(--font-display); font-size: 34px; font-weight: 900; line-height: 1.2; }
+  .cd-jk-under { display: block; margin-top: 4px; font-family: var(--font-display); font-size: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-jk-under .mk { width: 38px; height: 38px; vertical-align: middle; margin: 0 6px; }
+  .cd-jk-under .mk:first-child { margin-left: 0; }
+  .cd-jk-foot { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 16px; border-top: 4px dashed var(--pink); }
+  .cd-jk-lamps { margin-top: 10px; }
+  .cd-jk-lamps:empty { display: none; }
+  .cd-jk-lamps .mk { width: 64px; height: 64px; margin-right: 6px; }
+  .cd-jk-lamps .lamp { font-size: 18px; padding: 2px 10px 3px; vertical-align: middle; color: var(--on-bright); border-color: var(--on-bright); background: none; }
+
+/* /chart: the jacket, the difficulties as tickets on a pink sheet (the rating each pays on its stub), and with a ladder the climb on a gold one */
+.cd-sc { display: grid; grid-template-columns: 490px minmax(0, 1fr); gap: 0 20px; align-items: stretch; }
+  .cd-sc.wide { grid-template-columns: 560px minmax(0, 1fr) 620px; }
+  .cd-sc.wide .cd-jk-title { font-size: 40px; }
+  .cd-sc.wide .cd-jk-under { font-size: 24px; }
+  .cd-diffs { flex: 1; display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); grid-auto-columns: minmax(0, 1fr); gap: 12px 16px; }
+  .cd-diff { --stub: 104px; }
+  .cd-diff .track-stub { align-content: center; gap: 2px; padding: 6px 0; }
+  .cd-diff .track-stub b { font-size: 22px; line-height: 1; }
+  .cd-diff .track-stub .mk { width: 44px; height: 44px; }
+  .cd-diff .track-stub small { font-size: 15px; line-height: 1; }
+  .cd-diff .track-stub strong { font-size: 38px; }
+  .cd-diff-body { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 8px 18px; }
+  .cd-diff .track-name b { flex: none; font-family: var(--font-display); font-size: 19px; font-weight: 900; color: var(--dim); }
+  .cd-diff .track-name .mk { width: 32px; height: 32px; }
+  .cd-diff-score { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+  .cd-diff-score > b { font-family: var(--font-display); font-size: 42px; font-weight: 900; line-height: 1.05; }
+  .cd-never { font-family: var(--font-body); font-size: 17px; font-weight: 700; color: var(--dim); }
+  .cd-marks { white-space: nowrap; }
+  .cd-marks .mk { width: 52px; height: 52px; vertical-align: middle; margin-left: 4px; }
+  .cd-diff-meta { display: flex; flex-wrap: wrap; gap: 2px 20px; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); }
+  .cd-diff-meta b { color: var(--ink); }
+  .cd-diff-meta .mk { width: 26px; height: 26px; margin-right: 4px; }
+  .cd-diff-note { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--hot); }
+  .cd-diff.pick { --paper: color-mix(in srgb, var(--gold) 12%, var(--sheet)); border-radius: 10px; box-shadow: 0 0 0 6.5px var(--gold); }
+  .cd-pick { margin-left: auto; padding: 1px 12px 3px; background: var(--gold); color: var(--on-bright); border: 2.5px solid var(--ink); border-radius: 8px;
+             font-family: var(--font-display); font-size: 16px; font-style: normal; font-weight: 900; }
+  .cd-sc.wide .cd-diffs:not(.two) .cd-diff-score > b { font-size: 50px; }
+  .cd-sc.wide .cd-diffs:not(.two) .cd-marks .mk { width: 62px; height: 62px; }
+  .cd-diffs.two .cd-diff { --stub: 88px; }
+  .cd-diffs.two .track-stub strong { font-size: 32px; }
+  .cd-diffs.two .track-stub .mk { width: 38px; height: 38px; }
+  .cd-diffs.two .cd-diff-score > b { font-size: 32px; }
+  .cd-diffs.two .cd-marks .mk { width: 38px; height: 38px; }
+  .cd-diffs.two .cd-diff-meta { font-size: 14px; gap: 0 12px; }
+  .cd-about { display: grid; gap: 4px; font-size: 17px; line-height: 1.45; color: var(--dim); }
+  .cd-about p:first-child { font-family: var(--font-display); font-size: 24px; font-weight: 900; color: var(--ink); }
+  /* the ladder: each rank's stub (its mark and what it adds to best-50), the top rank at the head, and under the figures how likely it is */
+  .cd-ladder { display: flex; flex-direction: column; }
+  .cd-steps { flex: 1; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 12px; }
+  .cd-step { --stub: 118px; --tier: var(--gold); }
+  .cd-step .track-stub { align-content: center; gap: 2px; color: var(--on-bright); }
+  .cd-step .track-stub .mk { width: 84px; height: 62px; }
+  .cd-step .track-stub strong { font-size: 32px; }
+  .cd-step-figs { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; align-content: center; gap: 6px 12px; padding: 8px 18px 10px; }
+  .cd-step-figs dt { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); white-space: nowrap; }
+  .cd-step-figs dd { font-family: var(--font-display); font-size: 30px; font-weight: 900; line-height: 1.1; }
+  .cd-odds { grid-column: 1 / -1; position: relative; height: 12px; border: 2px solid var(--line); border-radius: 6px; background: var(--tint); overflow: hidden; }
+  .cd-odds i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cyan); }
+  .cd-forecast { margin-top: 14px; padding: 10px 14px 12px; border: 3px dashed var(--line); border-radius: 10px; font-family: var(--font-display); font-size: 18px; font-weight: 700; line-height: 1.4; }
+
+/* /chart history: the graph on a pink sheet is the card, the chart's ticket and the key beside it */
+.cd-hc { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 0 20px; align-items: stretch; }
+  .cd-graph-panel { display: flex; flex-direction: column; justify-content: center; }
+  .cd-graph { position: relative; border-radius: 10px; background: var(--sheet); }
+  .cd-graph svg { display: block; width: 100%; height: auto; }
+  .cd-g-rank { stroke: var(--line); stroke-width: 2.5; stroke-dasharray: 8 8; }
+  .cd-g-frame { stroke: var(--ink); stroke-width: 3; }
+  .cd-g-axis { fill: var(--dim); font-size: 21px; font-weight: 700; }
+  .cd-g-best { fill: none; stroke: var(--pink); stroke-width: 10; stroke-linejoin: round; stroke-linecap: round; }
+  .cd-g-best.edge { stroke: var(--ink); stroke-width: 16; }
+  .cd-g-dot { fill: var(--card); stroke: var(--ink); stroke-width: 4; }
+  .cd-g-dot.top { fill: var(--pink); }
+  .cd-g-peak { fill: var(--hot); font-size: 32px; font-weight: 900; stroke: var(--sheet); stroke-width: 8px; paint-order: stroke; }
+  .cd-g-empty { fill: var(--ink); font-size: 32px; font-weight: 900; stroke: var(--sheet); stroke-width: 10px; paint-order: stroke; }
+  .cd-g-empty.small { fill: var(--dim); font-size: 21px; font-weight: 700; }
+  .cd-g-rankmk, .cd-g-pb { position: absolute; transform: translate(-50%, -50%); line-height: 0; }
+  .cd-g-rankmk .mk { width: 66px; height: 44px; }
+  .cd-g-pb .mk { width: 42px; height: 42px; }
+  .cd-hc .cd-jk-title { font-size: 28px; }
+  .cd-key { display: grid; gap: 8px; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); }
+  .cd-key span { display: flex; align-items: center; gap: 10px; }
+  .cd-key .mk { width: 30px; height: 30px; }
+  .cd-sw { flex: none; width: 30px; height: 30px; display: grid; place-items: center; }
+  .cd-sw::before { content: ""; display: block; }
+  .cd-sw.line::before { width: 30px; height: 8px; border-radius: 4px; background: var(--pink); outline: 3px solid var(--ink); }
+  .cd-sw.play::before { width: 18px; height: 18px; border-radius: 50%; background: var(--card); border: 3.5px solid var(--ink); }
+  .cd-sw.mark::before { width: 16px; height: 16px; rotate: 45deg; background: var(--card); border: 3.5px solid var(--ink); }
+
+/* /lastplay: the jacket beside the score, which is the headline (its rank mark on the stub), over the judgements as a bold tally */
+.cd-lp { display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 0 20px; align-items: stretch; }
+  .cd-lp .cd-jk-title { font-size: 30px; }
+  .cd-score { --stub: 200px; --tier: var(--gold); margin-top: 12px; }
+  .cd-score .track-stub { align-content: center; gap: 6px; padding: 14px 0; color: var(--on-bright); }
+  .cd-score .track-stub .mk { width: 150px; height: 110px; }
+  .cd-score-body { display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 18px 30px; min-width: 0; }
+  .cd-score-pct { font-family: var(--font-display); font-size: 128px; font-weight: 900; line-height: .95; letter-spacing: -1px; }
+  .cd-score-pct small { font-size: 60px; margin-left: 6px; color: var(--dim); }
+  .cd-score-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 22px; font-weight: 900; color: var(--dim); }
+  .cd-flag { display: inline-flex; align-items: center; gap: 8px; padding: 3px 16px 5px 8px; border: 3px solid var(--ink); border-radius: 10px; background: var(--card); color: var(--ink); }
+  .cd-flag .mk { width: 38px; height: 38px; }
+  .cd-lp.bare { grid-template-columns: 340px minmax(0, 1fr); }
+  .cd-lp.bare .cd-jk-title { font-size: 24px; }
+  .cd-lp.bare .cd-score { flex: 1; --stub: 260px; }
+  .cd-lp.bare .cd-score .track-stub .mk { width: 200px; height: 150px; }
+  .cd-lp.bare .cd-score-pct { font-size: 170px; }
+  .cd-judge { --critical: var(--gold); --perfect: color-mix(in srgb, var(--gold) 45%, var(--ink)); --great: var(--pink); --good: var(--mint); --miss: var(--dim);
+              flex: 1; display: grid; grid-template-rows: auto; grid-auto-rows: minmax(52px, 1fr); gap: 8px; }
+  .cd-j-row { display: grid; grid-template-columns: 116px repeat(5, minmax(0, 1fr)) minmax(0, 1.5fr); gap: 8px; }
+  .cd-j-row > * { position: relative; overflow: hidden; display: grid; place-items: center; border: 3px solid var(--ink); border-radius: 10px;
+                  background: var(--sheet); font-family: var(--font-display); font-size: 30px; font-weight: 900; }
+  .cd-j-row.head > * { padding: 2px 0 4px; font-size: 16px; font-style: normal; color: var(--on-bright); }
+  .cd-j-row.head > u { border: 0; background: none; }
+  .cd-j-row.head .cd-j-critical { background: var(--critical); } .cd-j-row.head .cd-j-perfect { background: var(--perfect); }
+  .cd-j-row.head .cd-j-great { background: var(--great); } .cd-j-row.head .cd-j-good { background: var(--good); }
+  .cd-j-row.head .cd-j-miss { background: var(--miss); } .cd-j-row.head .cd-j-lost { background: var(--pink); }
+  .cd-j-kind { background: var(--card); font-size: 20px; }
+  .cd-j-row:not(.head) .cd-j-great:not(.zero) { background: color-mix(in srgb, var(--great) 40%, var(--sheet)); }
+  .cd-j-row:not(.head) .cd-j-good:not(.zero) { background: color-mix(in srgb, var(--good) 40%, var(--sheet)); }
+  .cd-j-row:not(.head) .cd-j-miss:not(.zero) { background: color-mix(in srgb, var(--miss) 40%, var(--sheet)); }
+  .cd-j-row:not(.head) .cd-j-perfect:not(.zero) { background: color-mix(in srgb, var(--gold) 22%, var(--sheet)); }
+  .cd-j-row > .zero { border-color: var(--line); color: var(--dim); }
+  .cd-j-lost b { position: relative; color: var(--hot); }
+  .cd-j-lost i { position: absolute; left: 0; bottom: 0; height: 9px; background: var(--pink); }
+  .cd-j-row.all > * { border-width: 4px; }
+  .cd-j-row.all .cd-j-kind { background: var(--gold); color: var(--on-bright); }
+
+/* /compare: a versus board, my sheet in pink against theirs in cyan and the level-by-level contest on gold between them */
+.cd-bside { display: flex; align-items: center; }
+  .cd-bside .stats { flex-wrap: wrap; gap: 4px 22px; }
+  .cd-bside.mine { background: color-mix(in srgb, var(--pink) 15%, var(--sheet)); border-radius: 11px 0 0 11px; }
+  .cd-bside.theirs { background: color-mix(in srgb, var(--cyan) 15%, var(--sheet)); border-radius: 0 11px 11px 0; }
+  .cd-banner:has(.cd-bside) > * { flex: 1; }
+  .cd-banner:has(.cd-bside) > .stats { flex: none; }
+.cd-cmp { display: grid; grid-template-columns: 700px minmax(0, 1fr) 700px; gap: 0 20px; align-items: stretch; }
+  .cd-side, .cd-mid { display: flex; flex-direction: column; }
+  .cd-who { display: flex; align-items: center; gap: 22px; }
+  .cd-who .emblem { width: 130px; height: 130px; }
+  .cd-who-name { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+  .cd-who-name b { max-width: 100%; font-family: var(--font-display); font-size: 34px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-leads .track { --stub: 76px; }
+  .cd-leads .track-stub strong { font-size: 20px; }
+  .cd-leads { --across: 2; flex: 1; align-content: start; gap: 10px 0; zoom: 1.18; }
+  .cd-leads > .track:last-child:nth-child(odd) { grid-column: span 2; }
+  .cd-vs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; }
+  .cd-vs b { padding: 4px 16px 6px; border: 3px solid var(--ink); border-radius: 10px; font-family: var(--font-display); font-size: 26px; font-weight: 900;
+             text-align: center; color: var(--on-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-vs b.mine { background: var(--pink); } .cd-vs b.theirs { background: var(--cyan); }
+  .cd-vs i { font-family: var(--font-display); font-size: 58px; font-style: normal; font-weight: 900; line-height: 1; color: var(--gold); }
+  .cd-split { display: flex; height: 26px; margin-top: 14px; border: 3px solid var(--ink); border-radius: 10px; overflow: hidden; }
+  .cd-split i.mine { background: var(--pink); } .cd-split i.tie { background: var(--card); } .cd-split i.theirs { background: var(--cyan); }
+  .cd-split i + i { border-left: 3px solid var(--ink); }
+  .cd-duels { flex: 1; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 10px; }
+  .cd-duel { display: grid; grid-template-columns: 96px minmax(0, 1fr) 112px minmax(0, 1fr) 96px; align-items: center; gap: 0 10px; }
+  .cd-duel-v { font-family: var(--font-display); font-size: 26px; font-weight: 900; color: var(--ink); }
+  .cd-duel-v.mine { text-align: right; }
+  .cd-duel-v.win { font-size: 32px; } .cd-duel-v.mine.win { color: var(--hot); } .cd-duel-v.theirs.win { color: var(--cool); }
+  .cd-duel-bar { position: relative; align-self: stretch; min-height: 44px; }
+  .cd-duel-bar i { position: absolute; top: 0; bottom: 0; border: 3px solid var(--ink); }
+  .cd-duel-bar.mine i { right: 0; border-radius: 12px 0 0 12px; background: var(--pink); }
+  .cd-duel-bar.theirs i { left: 0; border-radius: 0 12px 12px 0; background: var(--cyan); }
+  .cd-duel-lv { display: grid; place-items: center; padding: 3px 0 5px; background: var(--gold); color: var(--on-bright); border: 3px solid var(--ink); border-radius: 10px;
+                font-family: var(--font-display); font-weight: 900; }
+  .cd-duel-lv b { font-size: 28px; line-height: 1.05; }
+  .cd-duel-lv small { font-size: 14px; }
+
+/* /leaderboard: the top three on prize tickets stood on end, the rest as a roll of numbered stubs */
+.cd-prizes { display: flex; justify-content: center; align-items: flex-end; gap: 22px; }
+  .cd-prize { flex: 1 1 0; max-width: 640px; min-width: 0; display: flex; flex-direction: column; border: 4px solid var(--ink); border-radius: 18px; overflow: hidden; background: var(--sheet); }
+  .cd-prize.p1 { --prize: var(--gold); } .cd-prize.p2 { --prize: var(--cyan); } .cd-prize.p3 { --prize: var(--pink); }
+  .cd-prize-stub { display: flex; align-items: baseline; justify-content: center; gap: 12px; padding: 6px 0 10px; background: var(--prize); color: var(--on-bright);
+                   border-bottom: 4px dashed var(--on-bright); font-family: var(--font-display); font-weight: 900; }
+  .cd-prize-stub b { font-size: 76px; line-height: 1; }
+  .cd-prize.p1 .cd-prize-stub b { font-size: 100px; }
+  .cd-prize-stub small { font-size: .45em; margin-left: 2px; }
+  .cd-prize-paper { flex: 1; display: grid; justify-items: center; align-content: center; gap: 14px; padding: 18px; text-align: center; }
+  .cd-prize.p1 .cd-prize-paper { padding: 30px 18px; }
+  .cd-prize .cd-seat-who { max-width: 100%; }
+  .cd-prize .cd-seat-who b { font-size: 34px; }
+  .cd-prize .cd-seat-who small { font-size: 20px; }
+  .cd-prize .rplate { font-size: 50px; }
+  .cd-seats { display: grid; grid-auto-flow: column; grid-template-columns: repeat(var(--across), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), auto); gap: 10px 20px; }
+  .cd-seat { --stub: 76px; --tier: var(--cyan); }
+  .cd-seat .track-stub { align-content: center; color: var(--on-bright); }
+  .cd-seat .track-stub b { font-size: 30px; }
+  .cd-seat-paper { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 16px; }
+  .cd-seat-who { flex: 1; min-width: 0; }
+  .cd-seat-who b { display: block; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-seat-who small { display: block; font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-seat-note { display: grid; align-content: center; gap: 4px; padding: 8px 20px; border: 3px dashed var(--line); border-radius: 10px;
+                  font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); }
+  .cd-seat-note b { color: var(--ink); font-weight: 900; }
+  .cd-region { padding: 0 8px 2px; border: 2.5px solid var(--ink); border-radius: 6px; font-family: var(--font-display); font-size: 15px; font-weight: 900; color: var(--cool); }
+
+/* ---------------------------------------------------------------- /area /progress traits */
+/* a ticket of this part: paper with a bite out of the top and bottom where the stub joins, and the pink dashes it tears along. --at is where the
+   stub joins, --l and --r the colours either side of it; the ink edge follows the bites, as the kit's tickets do */
+  .pg-tk { --l: var(--sheet); --r: var(--sheet); position: relative; isolation: isolate; }
+  .pg-tk::before { content: ""; position: absolute; inset: -2.5px; z-index: -1; padding: 2.5px; border-radius: 16.5px;
+    background: radial-gradient(circle at calc(var(--at) + 2.5px) 2.5px, var(--ink) 11px, #0000 11px) no-repeat,
+                radial-gradient(circle at calc(var(--at) + 2.5px) calc(100% - 2.5px), var(--ink) 11px, #0000 11px) no-repeat,
+                linear-gradient(90deg, var(--l) 0 var(--at), var(--r) 0) content-box, linear-gradient(var(--ink), var(--ink));
+    -webkit-mask: radial-gradient(circle 8.5px at calc(var(--at) + 2.5px) 2.5px, #0000 96%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8.5px at calc(var(--at) + 2.5px) calc(100% - 2.5px), #0000 96%, #000) bottom / 100% 51% no-repeat;
+            mask: radial-gradient(circle 8.5px at calc(var(--at) + 2.5px) 2.5px, #0000 96%, #000) top / 100% 51% no-repeat, radial-gradient(circle 8.5px at calc(var(--at) + 2.5px) calc(100% - 2.5px), #0000 96%, #000) bottom / 100% 51% no-repeat; }
+  .pg-tk::after { content: ""; position: absolute; left: calc(var(--at) - 2px); top: 16px; bottom: 16px; border-left: 4px dashed var(--pink); }
+  .banner:has(+ .run), .banner:has(+ .pg-rise), .banner:has(+ .pg-traits) { margin-bottom: 0; }
+  .pg-banner { flex-wrap: wrap; }
+  /* the reward fewest plays away, in the /area banner */
+  .pg-near { flex: 1; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 16px; }
+  .pg-near small { grid-column: 1 / -1; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); }
+  .pg-near > b { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 34px; font-weight: 900; line-height: 1; color: var(--gold); white-space: nowrap; }
+  .pg-near > b .mk { width: 38px; height: 38px; }
+  .pg-near span { min-width: 0; font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- /area: the map. An area under way is a large ticket: the distance travelled is the loud figure on the stub, in its run's colour; the
+   paper holds the area's names over its artwork, the largest thing on the ticket, and the next reward on a prize tag with its eyelet beside
+   it. Finished and untouched areas are small tickets of the same cut in runs of their own under them */
+  .pg-row { display: grid; grid-template-columns: repeat(var(--across, 3), minmax(0, 1fr)); gap: 10px; }
+  .pg-row + .pg-row { margin-top: 10px; }
+  .pg-trip { --stub: 150px; --at: var(--stub); --l: var(--edge); display: grid; grid-template-columns: var(--stub) minmax(0, 1fr); }
+  .pg-stub { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 12px 8px; color: var(--on-bright);
+             font-family: var(--font-display); font-weight: 900; text-align: center; }
+  .pg-stub strong { font-size: 44px; line-height: 1; white-space: nowrap; }
+  .pg-stub small { font-size: 18px; }
+  .pg-paper { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px 16px; padding: 12px 16px 16px 22px; }
+  .pg-paper.bare { grid-template-columns: minmax(0, 1fr); }
+  .pg-name { grid-column: 1 / -1; min-width: 0; }
+  .pg-name b { display: block; font-family: var(--font-display); font-size: 27px; font-weight: 900; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pg-name span { display: block; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* the artwork is drawn for a light page, so it sits on a light backing */
+  .pg-art { width: 200px; height: 200px; object-fit: contain; display: block; background: var(--ink); border: 3px solid var(--ink); border-radius: 10px; }
+  .pg-side { min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 10px; }
+  .pg-ends { padding: 0 12px 2px; border: 2.5px solid var(--ink); border-radius: 8px; background: var(--tint);
+             font-family: var(--font-display); font-size: 15px; font-weight: 900; white-space: nowrap; }
+  /* the prize: a gold paper tag, cut like the marks, hung by its eyelet */
+  .pg-prize { position: relative; align-self: stretch; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 5px;
+              padding: 14px 18px 16px; border-radius: 12px; background: var(--gold); color: var(--on-bright); box-shadow: 0 0 0 2.5px var(--ink); }
+  .pg-prize::before { content: ""; position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; border-radius: 50%; background: var(--sky); border: 3px solid var(--on-bright); }
+  .pg-prize .k { font-family: var(--font-display); font-size: 16px; font-weight: 900; }
+  .pg-prize .v { max-width: 100%; max-height: 2.5em; font-size: 19px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere;
+                 display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .pg-prize .v b { font-weight: 900; }
+  .pg-prize .w { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+  .pg-go { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-family: var(--font-display); font-size: 31px; font-weight: 900; line-height: 1.05; white-space: nowrap; }
+  .pg-go .mk { width: 40px; height: 40px; }
+  .pg-prize.ready { background: var(--pink); }
+  .pg-prize.none { background: var(--tint); color: var(--ink); }
+  .pg-prize.none::before { border-color: var(--ink); }
+  .pg-prize.none .w { color: var(--dim); }
+  .pg-none { width: fit-content; padding: 14px 28px; border: 3px solid var(--ink); border-radius: 12px; background: var(--sheet); font-size: 22px; font-weight: 700; color: var(--dim); }
+  /* the small ticket, for an area that is finished or not begun */
+  .pg-trip.mini { --stub: 104px; }
+  .pg-trip.mini .pg-stub strong { font-size: 26px; }
+  .pg-trip.mini .pg-stub small { font-size: 14px; }
+  .pg-trip.mini .pg-paper { gap: 6px 12px; padding: 8px 14px 12px 18px; }
+  .pg-trip.mini .pg-name b { font-size: 18px; }
+  .pg-trip.mini .pg-name span { font-size: 14px; }
+  .pg-trip.mini .pg-art { width: 72px; height: 72px; border-width: 2.5px; border-radius: 8px; }
+  .pg-trip.mini .pg-side { gap: 6px; }
+  .pg-trip.mini .pg-ends { font-size: 14px; }
+  .pg-note { max-width: 100%; max-height: 3.9em; font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere;
+             display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  .pg-note b { font-weight: 900; color: var(--hot); }
+  .pg-row.one .pg-art { width: 280px; height: 280px; }
+  .pg-row.one .pg-stub strong { font-size: 60px; }
+  .pg-row.one .pg-prize .v { font-size: 24px; }
+  .pg-row.one .pg-go { font-size: 40px; }
+  .pg-rest { display: grid; gap: 0 18px; align-items: stretch; }
+
+/* ---- /progress: the banner holds the figures, the changes and the forecast; the graph is the board, drawn bold across the whole width */
+  .pg-graph { position: relative; }
+  .pg-graph svg { display: block; width: 100%; height: auto; }
+  .pg-graph .ch-axis { font-size: 21px; font-weight: 700; }
+  .pg-graph .ch-grid { stroke: var(--line); stroke-width: 2; }
+  .pg-graph .ch-band { fill: var(--pink); opacity: .14; }
+  .pg-line { fill: none; stroke: var(--pink); stroke-width: 10; stroke-linejoin: round; stroke-linecap: round; }
+  .pg-key { fill: none; stroke: var(--ink); stroke-width: 17; stroke-linejoin: round; stroke-linecap: round; }
+  .pg-total { fill: none; stroke: var(--cyan); stroke-width: 4; stroke-dasharray: 2 11; stroke-linecap: round; }
+  .pg-dot { fill: var(--sheet); stroke: var(--ink); stroke-width: 5; }
+  .pg-pip { fill: var(--pink); }
+  .pg-thousand { stroke: var(--gold); stroke-width: 3.5; stroke-dasharray: 16 10; }
+  .pg-tag { fill: var(--gold); stroke: var(--ink); stroke-width: 3; }
+  .pg-tag-text { font-size: 21px; font-weight: 900; fill: var(--on-bright); }
+  .pg-now { position: absolute; translate: 0 -50%; }
+  .pg-now .rplate.sm { font-size: 42px; }
+  .pg-legend { display: flex; justify-content: center; gap: 34px; margin-top: 4px; font-family: var(--font-display); font-size: 17px; font-weight: 700; }
+  .pg-legend i { display: inline-block; width: 40px; height: 0; margin-right: 10px; vertical-align: 5px; border-top: 8px solid var(--pink); border-radius: 4px; }
+  .pg-legend i.total { border-top: 4px dotted var(--cyan); border-radius: 0; }
+  .pg-legend i.mark { border-top: 4px dashed var(--gold); border-radius: 0; }
+  .pg-banner .stat dd .rplate { vertical-align: middle; }
+  /* the changes: a rise pink with the up mark, a fall blue with the down mark */
+  .pg-shifts { flex: 1; display: flex; justify-content: space-around; gap: 0 30px; }
+  .pg-shift { display: grid; gap: 2px; }
+  .pg-shift span { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); }
+  .pg-shift b { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 40px; font-weight: 900; line-height: 1; }
+  .pg-shift b .mk { width: 36px; height: 36px; }
+  .pg-shift.up b { color: var(--hot); }
+  .pg-shift.down b { color: var(--cool); }
+  /* the forecast takes the banner's second line, a figure to a target */
+  .pg-aheads { flex: 1 0 100%; display: flex; align-items: center; gap: 0 70px; border-top: 3px dashed var(--pink); }
+  .banner > .pg-aheads { border-left: 0; }
+  .pg-aheads h3 { font-family: var(--font-display); font-size: 21px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); white-space: nowrap; }
+  .pg-ahead { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 0 12px; }
+  .pg-ahead span { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .pg-ahead b { font-family: var(--font-display); font-size: 32px; font-weight: 900; line-height: 1.1; white-space: nowrap; }
+  .pg-ahead small { grid-column: 1 / -1; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); }
+
+/* ---- traits: the wheel in the middle, drawn as Rasmai's ring, with what costs points on its left in blue and what gains them on its right in
+   pink, the bars of each growing away from it; what was measured sits in the banner over them */
+  .pg-traits { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr) minmax(0, 640px); gap: 0 20px; }
+  .pg-traits > .panel, .pg-lists > .panel { display: flex; flex-direction: column; margin-top: 14px; }
+  /* a few traits in all: both lists stacked beside the wheel, the two sheets sharing the height left over */
+  .pg-traits.pg-stacked { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-lists { display: flex; flex-direction: column; }
+  .pg-lists > .panel { flex: 1 1 auto; }
+  .pg-stacked .pg-wheel svg { max-height: 800px; }
+  .pg-wheel { flex: 1; display: flex; align-items: center; }
+  .pg-wheel svg { display: block; width: 100%; height: auto; }
+  .pg-rim { fill: var(--card); stroke: var(--ink); stroke-width: 22; stroke-linejoin: round; }
+  .pg-rim-in { fill: none; stroke: var(--sheet); stroke-width: 8; stroke-linejoin: round; }
+  .pg-ring { fill: none; stroke: var(--line); stroke-width: 2.5; }
+  .pg-ring.mid { stroke: var(--dim); stroke-width: 4; stroke-dasharray: 2 11; stroke-linecap: round; }
+  .pg-shape { fill: color-mix(in srgb, var(--gold) 62%, transparent); stroke: var(--ink); stroke-width: 6; stroke-linejoin: round; }
+  .pg-vertex { fill: var(--dim); stroke: var(--ink); stroke-width: 5; }
+  .pg-vertex.up { fill: var(--pink); }
+  .pg-vertex.down { fill: var(--cyan); }
+  .pg-vertex.hollow { fill: var(--sheet); }
+  .pg-axis-name { font-family: var(--font-display); font-size: 23px; font-weight: 900; fill: var(--ink); }
+  .pg-axis-value { font-size: 22px; font-weight: 900; fill: var(--dim); }
+  .pg-axis-value.up { fill: var(--hot); }
+  .pg-axis-value.down { fill: var(--cool); }
+  .pg-wheel-key { display: grid; justify-items: center; gap: 8px; margin-top: 6px; font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); }
+  .pg-wheel-key p { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 12px; }
+  .pg-wheel-key .pg-bar { width: 80px; height: 22px; margin-top: 0; }
+  .pg-wheel-key .pg-bar i { width: 70%; background: var(--cyan); border-right: 3px solid var(--ink); }
+  .pg-wheel-key .pg-bar.unsure i { background: repeating-linear-gradient(135deg, var(--cyan) 0 9px, var(--tint) 9px 18px); }
+  .pg-list { gap: 12px; }
+  /* a trait is a ticket: the points off on the stub that faces the wheel, the name, its sample and a bar as long as the points on the paper.
+     An unconfirmed one has a hatched bar */
+  .pg-trait { flex: 1 1 112px; display: grid; align-items: center; min-height: 112px; }
+  .pg-trait.up { --at: 156px; --l: var(--pink); grid-template-columns: 156px minmax(0, 1fr); }
+  .pg-trait.down { --at: calc(100% - 156px); --r: var(--cyan); grid-template-columns: minmax(0, 1fr) 156px; }
+  .pg-trait > b { text-align: center; font-family: var(--font-display); font-size: 46px; font-weight: 900; line-height: 1; color: var(--on-bright); }
+  .pg-trait.down > b { order: 2; }
+  .pg-trait-what { min-width: 0; display: grid; gap: 4px; padding: 12px 24px 14px; }
+  .pg-trait-what span { font-size: 22px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+  .pg-trait-what small { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); }
+  .pg-bar { display: flex; height: 26px; margin-top: 4px; background: var(--tint); border: 3px solid var(--ink); border-radius: 6px; overflow: hidden; }
+  .pg-bar i { display: block; min-width: 14px; background: var(--edge); }
+  .pg-trait.up .pg-bar i { border-right: 3px solid var(--ink); }
+  .pg-trait.down .pg-bar { justify-content: flex-end; }
+  .pg-trait.down .pg-bar i { border-left: 3px solid var(--ink); }
+  .pg-trait.unsure .pg-bar i { background: repeating-linear-gradient(135deg, var(--edge) 0 9px, var(--tint) 9px 18px); }
+  .pg-trait.none { --at: 0px; display: flex; justify-content: center; font-size: 20px; font-weight: 700; color: var(--dim); }
+  .pg-trait.none::after { content: none; }
+  /* what was counted and what the judgement pages say, in the banner */
+  .pg-facts { flex: 1 1 0; min-width: 520px; font-size: 18px; line-height: 1.5; }
+  .pg-facts b { font-family: var(--font-display); font-size: 28px; font-weight: 900; color: var(--hot); }
+  .pg-judged { flex: 1.3 1 0; min-width: 0; }
+  .pg-judged h3 { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); }
+  .pg-judged p { padding: 2px 0; font-size: 17px; line-height: 1.35; }
+  .pg-judged b { font-family: var(--font-display); font-weight: 900; color: var(--hot); }
+
+/* ---------------------------------------------------------------- /plates: the prize wall. A plate is a ticket stood on end in its version's two
+   colours: the kanji and the version's tag on the face, a ring per condition below the pink tear, filling as charts meet it. An earned condition
+   is stamped with the mark the bot gives that lamp or rank. Each section lies on a sheet of its own under a tall band in its colour, washed
+   in it: the plates up to FiNALE (pink) beside Mai (gold), and the DX plates (cyan) under them */
+
+  .banner:has(+ .run, + .pl-top) { margin-bottom: 0; }
+  .pl-top { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 0 14px; }
+  .pl-mai { display: flex; flex-direction: column; }
+  .pl-mai > .pl-prize { flex: 1; }
+  /* the banner: the count, the earned conditions as their marks, and the nearest plate's own nameplate */
+  .pl-tally { flex: 1; justify-content: space-evenly; font-size: 28px; }
+  .pl-tally .mk { width: 46px; height: 46px; }
+  .pl-tally em { display: inline-block; font-style: normal; font-size: 17px; margin-right: 6px; padding: 2px 10px 4px; background: var(--mint); color: var(--on-bright); border: 2px solid var(--ink); border-radius: 7px; vertical-align: middle; }
+  .pl-near { display: flex; align-items: center; gap: 18px; min-width: 0; }
+  .pl-near > span { display: grid; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--dim); white-space: nowrap; }
+  .pl-near > span b { font-size: 40px; font-weight: 900; line-height: 1; color: var(--hot); }
+  .pl-near .plate-hero { flex: none; width: 600px; font-size: 34px; }
+  .pl-wall { display: grid; grid-template-columns: repeat(var(--across, 7), minmax(0, 1fr)); gap: 18px 14px; }
+  .pl-prize { --face: 96px; position: relative; isolation: isolate; display: grid; grid-template-rows: var(--face) 1fr; min-width: 0; }
+  .pl-prize::before { content: ""; position: absolute; inset: -2.5px; z-index: -1; padding: 2.5px; border-radius: 14.5px;
+    background: radial-gradient(circle at 2.5px calc(var(--face) + 2.5px), var(--ink) 9px, #0000 9px) no-repeat,
+                radial-gradient(circle at calc(100% - 2.5px) calc(var(--face) + 2.5px), var(--ink) 9px, #0000 9px) no-repeat,
+                linear-gradient(115deg, var(--p1) 58%, var(--p2) 58%) top / 100% var(--face) no-repeat content-box,
+                linear-gradient(var(--sheet), var(--sheet)) content-box, linear-gradient(var(--ink), var(--ink));
+    -webkit-mask: radial-gradient(circle 6.5px at 2.5px calc(var(--face) + 2.5px), #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6.5px at calc(100% - 2.5px) calc(var(--face) + 2.5px), #0000 96%, #000) right / 51% 100% no-repeat;
+            mask: radial-gradient(circle 6.5px at 2.5px calc(var(--face) + 2.5px), #0000 96%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6.5px at calc(100% - 2.5px) calc(var(--face) + 2.5px), #0000 96%, #000) right / 51% 100% no-repeat; }
+  .pl-prize::after { content: ""; position: absolute; left: 16px; right: 16px; top: calc(var(--face) - 1.5px); border-top: 3px dashed var(--pink); }
+  .pl-face { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 12px 0 14px; }
+  .pl-kanji, .pl-word { flex: none; font-family: var(--font-display); font-weight: 900; line-height: 1; color: var(--ink); -webkit-text-stroke: 8px var(--on-bright); paint-order: stroke fill; }
+  .pl-kanji { font-size: 62px; }
+  .pl-word { font-size: 22px; -webkit-text-stroke-width: 6px; }
+  .pl-tag { flex: 1; min-width: 0; display: grid; padding: 3px 11px 5px; background: var(--sheet); border: 2.5px solid var(--ink); border-radius: 9px; }
+  .pl-tag b { font-family: var(--font-display); font-size: 17px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-tag small { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-conds { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); align-items: center; padding: 12px 6px; }
+  .pl-cond { --lit: var(--cyan); display: grid; justify-items: center; gap: 5px; min-width: 0; }
+  .pl-cond.c-clear { --lit: var(--mint); } .pl-cond.c-sss { --lit: var(--gold); } .pl-cond.c-ap { --lit: var(--pink); } .pl-cond.c-fdx { --lit: #a266e8; }
+  /* a condition's ring: the share met fills it clockwise in the condition's colour, its name in the hole */
+  .pl-ring { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--ink);
+             background: radial-gradient(circle, var(--sheet) 0 55%, var(--ink) 55% 61%, #0000 61%), conic-gradient(var(--lit) var(--p, 0%), var(--tint) 0); }
+  .pl-ring span { font-family: var(--font-display); font-size: 13px; font-weight: 900; }
+  .pl-cond > small { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--dim); white-space: nowrap; }
+  .pl-cond > small b { font-size: 17px; font-weight: 900; color: var(--ink); }
+  .pl-cond.won .mk { width: 62px; height: 62px; margin: -3px 0; }
+  .pl-cond.won > small b { color: var(--gold); }
+  .pl-cond.near .pl-ring { position: relative; }
+  .pl-cond.near .pl-ring::after { content: ""; position: absolute; inset: -10px; border: 3px dashed var(--hot); border-radius: 50%; }
+  .pl-cond.none .pl-ring { border-style: dashed; border-color: var(--line); background: none; }
+  .pl-cond.none .pl-ring span, .pl-cond.none > small { color: var(--dim); }
+  /* the nearest unearned plate wears a pink tag over its face */
+  .pl-next { position: absolute; right: 10px; top: -13px; padding: 1px 10px 3px; background: var(--pink); color: var(--on-bright); border: 2.5px solid var(--ink); border-radius: 8px;
+             font-family: var(--font-display); font-size: 14px; font-weight: 900; white-space: nowrap; }
+  .pl-next b { font-size: 17px; }
+  /* the odd plate out takes two places */
+  .pl-prize.wide { grid-column: span 2; }
+  .pl-prize.wide .pl-word { font-size: 34px; }
+  /* Mai fills its own sheet two rows tall: a bigger face, its five conditions down the paper with their figures beside them */
+  .pl-prize.tall { --face: 150px; }
+  .pl-prize.tall .pl-face { flex-direction: column; justify-content: center; gap: 8px; padding: 10px 14px; }
+  .pl-prize.tall .pl-kanji { font-size: 80px; -webkit-text-stroke-width: 10px; }
+  .pl-prize.tall .pl-tag { flex: none; width: 100%; }
+  .pl-prize.tall .pl-tag b { white-space: normal; font-size: 16px; line-height: 1.2; }
+  .pl-prize.tall .pl-conds { grid-template-columns: 1fr; align-content: space-evenly; padding: 10px 18px; }
+  .pl-prize.tall .pl-cond { grid-template-columns: auto 1fr; justify-items: start; align-items: center; gap: 14px; }
+  .pl-prize.tall .pl-ring, .pl-prize.tall .pl-cond.won .mk { width: 48px; height: 48px; margin: 0; }
+  .pl-prize.tall .pl-cond > small { justify-self: end; font-size: 15px; }
+  .pl-prize.tall .pl-cond > small b { font-size: 24px; }
+
+/* ---------------------------------------------------------------- the plate nameplate (/plates, one plate) */
+  /* Rasmai's nameplate: the version's two colours under a cabinet ring and a few sparkles, the kanji on a cream chip, the plate's
+     name in its condition's finish (FC ice, SSS gold, AP gold and pink foil, FDX the kiwami rainbow, Clear silver). Sized in em */
+  .pa { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .7em; aspect-ratio: 720 / 116;
+        padding: 0 1em 0 .5em; border-radius: .62em; border: .12em solid #151512; box-shadow: 0 0 0 .09em #fbf6ec, inset 0 0 0 .08em rgba(255,255,255,.4);
+        overflow: hidden; isolation: isolate; color: #fbf6ec;
+        background:
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none' stroke='%23fff'%3E%3Ccircle r='84' stroke-width='7' opacity='.32'/%3E%3Ccircle r='64' stroke-width='1.5' stroke-dasharray='2 5' opacity='.5'/%3E%3Ccircle r='40' stroke-width='3' opacity='.22'/%3E%3C/g%3E%3Cg fill='%23fff' opacity='.42'%3E%3Ccircle cx='77.6' cy='-32.1' r='8'/%3E%3Ccircle cx='32.1' cy='-77.6' r='8'/%3E%3Ccircle cx='-32.1' cy='-77.6' r='8'/%3E%3Ccircle cx='-77.6' cy='-32.1' r='8'/%3E%3Ccircle cx='-77.6' cy='32.1' r='8'/%3E%3Ccircle cx='-32.1' cy='77.6' r='8'/%3E%3Ccircle cx='32.1' cy='77.6' r='8'/%3E%3Ccircle cx='77.6' cy='32.1' r='8'/%3E%3C/g%3E%3C/svg%3E") right -1.4em center / 7.4em no-repeat,
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 116'%3E%3Cg fill='%23fff'%3E%3Cpath opacity='.7' transform='translate(118 26)' d='M0-9C1-2 2-1 9 0 2 1 1 2 0 9-1 2-2 1-9 0-2-1-1-2 0-9Z'/%3E%3Cpath opacity='.5' transform='translate(196 88) scale(.7)' d='M0-9C1-2 2-1 9 0 2 1 1 2 0 9-1 2-2 1-9 0-2-1-1-2 0-9Z'/%3E%3Cpath opacity='.6' transform='translate(262 22) scale(.55)' d='M0-9C1-2 2-1 9 0 2 1 1 2 0 9-1 2-2 1-9 0-2-1-1-2 0-9Z'/%3E%3Ccircle cx='160' cy='60' r='2' opacity='.6'/%3E%3Ccircle cx='238' cy='54' r='1.6' opacity='.5'/%3E%3Ccircle cx='300' cy='96' r='2.2' opacity='.45'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat,
+          repeating-linear-gradient(115deg, rgba(255,255,255,.09) 0 .14em, transparent .14em .5em),
+          linear-gradient(100deg, rgba(21,21,18,.45), transparent 42%),
+          linear-gradient(100deg, var(--p1), var(--p2)); }
+  .pa-chip { display: flex; align-items: center; justify-content: center; height: 2.3em; aspect-ratio: 1; border-radius: .5em; background: #fbf6ec; color: #151512;
+             border: .09em solid #151512; box-shadow: 0 0 0 .07em rgba(251,246,236,.7); font-size: 1em; font-weight: 900; line-height: 1; }
+  .pa-chip:not(.word) { font-size: 1.5em; height: 1.53em; border-radius: .33em; }
+  .pa-chip.word { font-size: .34em; height: 6.8em; letter-spacing: .04em; border-width: .26em; box-shadow: 0 0 0 .2em rgba(251,246,236,.7); }
+  .pa-mid { min-width: 0; display: grid; gap: .1em; text-shadow: 0 .04em .12em rgba(21,21,18,.7); }
+  .pa-mid b { font-size: .5em; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-mid small { font-size: .32em; letter-spacing: .06em; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pa-title { font-size: 1.62em; font-weight: 900; line-height: 1; letter-spacing: -.02em; white-space: nowrap; padding: 0 .04em;
+              background: var(--fill); -webkit-background-clip: text; background-clip: text; color: transparent;
+              filter: drop-shadow(.035em 0 0 #151512) drop-shadow(-.035em 0 0 #151512) drop-shadow(0 .035em 0 #151512) drop-shadow(0 -.035em 0 #151512) drop-shadow(0 .07em 0 rgba(21,21,18,.55)); }
+  .pa.g-fc { --fill: linear-gradient(180deg, #f2fdff, #8fe6f5 45%, #2f9be8); }
+  .pa.g-sss { --fill: linear-gradient(180deg, #fff8dc, #f5c94e 50%, #c9861a); }
+  .pa.g-ap { --fill: linear-gradient(180deg, #fffdf2, #ffe27a 38%, #ff9fcf 70%, #f0b23a); }
+  .pa.g-fdx { --fill: linear-gradient(120deg, #c070f4, #ff6cc8 18%, #ffd23a 36%, #62e070 54%, #3cc8f5 72%, #9a7cff); }
+  .pa.g-clear { --fill: linear-gradient(180deg, #ffffff, #d6dce6 50%, #8e97a8); }
+  .pa.locked { filter: grayscale(.8) brightness(.78); }
+  /* one plate: a banner of how far along it is, then one sheet with the nameplate as the hero in the first two places of the first two rolls
+     and the charts it still needs after it as tickets. The chance is the loud figure on the stub: a mint chip when likely, gold for maybe,
+     plain for a long shot */
+  .pl-meter { flex: 1; position: relative; align-self: stretch; margin: 14px 0; padding: 0; background: var(--tint); border: 3px solid var(--ink); border-radius: 8px; overflow: hidden; }
+  .banner > .pl-meter { padding: 0; margin: 18px 26px; }
+  .pl-meter i { position: absolute; left: 0; top: 0; bottom: 0; min-width: 6px; background: var(--gold); border-right: 3px solid var(--ink); }
+  .pl-meter span { position: absolute; right: 12px; top: 50%; translate: 0 -50%; font-family: var(--font-display); font-size: 18px; font-weight: 900; }
+  .pl-key { display: flex; gap: 10px; }
+  .pl-key span { display: grid; justify-items: center; padding: 3px 14px 5px; background: var(--pl-odds); color: var(--pl-ink); border: 2.5px solid var(--ink); border-radius: 8px;
+                 font-family: var(--font-display); font-size: 22px; font-weight: 900; line-height: 1.05; }
+  .pl-key small { font-size: 13px; font-weight: 700; }
+  .pl-key .likely, .pl-ticket strong.likely { --pl-odds: var(--mint); --pl-ink: var(--on-bright); }
+  .pl-key .maybe, .pl-ticket strong.maybe { --pl-odds: var(--gold); --pl-ink: var(--on-bright); }
+  .pl-key .long { --pl-odds: var(--card); --pl-ink: var(--ink); }
+  .pl-roll { list-style: none; gap: 10px 0; }
+  .pl-hero { align-self: center; padding: 0 22px 0 6px; font-size: 64px; }
+  .pl-hero.alone { width: 1500px; justify-self: center; padding: 10px 0; font-size: 86px; }
+  .pl-ticket { --stub: 76px; }
+  .pl-ticket .track-stub { padding: 4px 0 6px; }
+  .pl-ticket .track-stub b { font-size: 19px; line-height: 1.1; }
+  .pl-ticket .track-stub small { line-height: 1.1; }
+  .pl-ticket .track-stub .mk { width: 34px; height: 34px; }
+  .pl-ticket .track-stub strong { min-width: 64px; padding: 2px 4px 3px; border-radius: 7px; text-align: center; font-size: 22px; }
+  .pl-ticket .track-stub strong.likely, .pl-ticket .track-stub strong.maybe { background: var(--pl-odds); color: var(--pl-ink); border: 2px solid var(--on-bright); }
+  .pl-ticket .track-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-content: center; gap: 6px; padding: 8px 16px 10px; }
+  .pl-ticket .track-name b { font-size: 21px; }
+  .pl-jacketed .track-body { grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; padding: 6px 16px 8px 12px; }
+  .pl-jacketed .track-jacket { grid-row: auto; width: 120px; height: 120px; }
+  .pl-ticket .track-name .mk { width: 34px; height: 34px; }
+  .pl-ticket .track-score { align-content: center; gap: 4px; }
+  .pl-ticket .track-score > b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; }
+  .pl-ticket .track-score > b.dim { color: var(--dim); font-weight: 700; }
+  .pl-ticket .track-score small { font-size: 15px; }
+  .pl-closer { display: grid; align-content: center; gap: 6px; padding: 8px 22px; border: 3px dashed var(--line); border-radius: 10px;
+               font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--dim); }
+  .pl-closer b { color: var(--ink); font-weight: 900; }

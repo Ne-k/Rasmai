@@ -30,6 +30,35 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=20s --retries=3 \
 USER node
 CMD ["node", "server.js"]
 
+# ---------------------------------------------------------------- image renderer
+# Builds blitz/ (Blitz plus the patched crates in blitz/vendor) into the blitz binary, which draws most images in place of
+# Chromium. It builds on the runner's own platform and cross-compiles for the target, since compiling Stylo under
+# emulation takes hours.
+# fontconfig is opened at run time rather than linked, so the cross build needs no target libraries: the bot image has
+# fontconfig, with Playwright's CJK fonts for the characters the site's typefaces lack.
+FROM --platform=$BUILDPLATFORM rust:1.98-bookworm AS blitz
+ARG TARGETARCH
+ENV RUST_FONTCONFIG_DLOPEN=1
+RUN case "$TARGETARCH" in \
+      amd64) target=x86_64-unknown-linux-gnu; gnu=x86_64-linux-gnu ;; \
+      arm64) target=aarch64-unknown-linux-gnu; gnu=aarch64-linux-gnu ;; \
+      *) echo "no blitz build for $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+ && echo "$target" > /rust-target \
+ && rustup target add "$target" \
+ && if [ "$(uname -m)" != "${gnu%%-*}" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends "gcc-$(echo "$gnu" | tr _ -)" "libc6-dev-$TARGETARCH-cross" \
+      && rm -rf /var/lib/apt/lists/* \
+      && echo "$gnu-gcc" > /rust-linker; \
+    fi
+WORKDIR /src
+COPY blitz/ ./
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    target="$(cat /rust-target)" \
+ && if [ -f /rust-linker ]; then export "CARGO_TARGET_$(echo "$target" | tr a-z- A-Z_)_LINKER=$(cat /rust-linker)"; fi \
+ && cargo build --release --locked --target "$target" \
+ && cp "target/$target/release/blitz" /usr/local/bin/blitz
+
 # ---------------------------------------------------------------- bot
 FROM python:3.12-slim-bookworm AS bot
 
@@ -58,6 +87,10 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install -r requirements.txt
 
+# rasmai/images/render.py runs the binary RASMAI_RENDERER names; Chromium stays for the pages blitz cannot draw or fails on
+COPY --from=blitz /usr/local/bin/blitz /usr/local/bin/blitz
+ENV RASMAI_RENDERER=/usr/local/bin/blitz
+
 # The bot and the headless Chromium it drives (launched with --no-sandbox, see images/render.py) run
 # as this user rather than root, so a renderer exploit lands in an account that can write the data
 # folders and nothing else. The ids are build args because a bind mount on a Linux host keeps the
@@ -78,6 +111,8 @@ RUN mkdir -p /app/data /app/otoge_cache /app/simai_cache /app/debug \
  && chown -R bot:bot /app/data /app/otoge_cache /app/simai_cache /app/debug
 
 COPY rasmai/ ./rasmai/
+# the images are set in the site's typefaces (rasmai/images/markup.py reads them from here)
+COPY web/app/fonts/ ./web/app/fonts/
 COPY brand/emoji/png/ ./brand/emoji/png/
 
 VOLUME ["/app/data", "/app/otoge_cache", "/app/simai_cache", "/app/debug"]

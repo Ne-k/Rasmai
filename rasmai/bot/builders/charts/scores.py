@@ -10,6 +10,7 @@ from rasmai.bot.state.snapshots import chart_key
 from rasmai.images.render import cover_html_factory
 from rasmai.bot.ui.emoji import dx_stars
 from rasmai.images.pages import STAR_STEPS, best50_image_html, dxscore_image_html, stars_for
+from rasmai.images.themes import themed
 from rasmai.bot.builders.charts.index import songs_by_key
 from rasmai.bot.ui.views import PagedView, from_cache
 
@@ -61,8 +62,8 @@ async def build_dxscore(cached: CachedAnalysis, owner_id: Optional[int] = None, 
     page = max(0, min(page, pages - 1))
     shot = None
     if rows or any(tiles.values()):
-        shot = await _image(cached, "dxscore", lambda: dxscore_image_html(
-            tiles, rows[:DRAWN], player.name, cached.start_rating, player.avatar_base64,
+        shot = await _image(cached, "dxscore", lambda: themed(cached.user_id, dxscore_image_html)(
+            tiles, rows[:DRAWN], player.name, player.avatar_base64,
             cover_html_factory(a.jacket_path), average, date_text=today(),
         ))
     files, avatar_url = message_files(player, shot, "rasmai-dxscore.png")
@@ -132,8 +133,8 @@ async def build_b50(cached: CachedAnalysis, owner_id: Optional[int] = None, page
     b50 = a.best50
     pages = max(1, math.ceil(max(len(new_entries), len(old_entries)) / PAGE))
     page = max(0, min(page, pages - 1))
-    shot = await _image(cached, "b50", lambda: best50_image_html(
-        new_entries, old_entries, player.name, cached.start_rating, player.avatar_base64,
+    shot = await _image(cached, "b50", lambda: themed(cached.user_id, best50_image_html)(
+        new_entries, old_entries, player.name, player.avatar_base64,
         cover_html_factory(a.jacket_path), b50.new_pool.total, b50.old_pool.total, date_text=today(),
     ))
     files, avatar_url = message_files(player, shot, "rasmai-b50.png")
@@ -159,7 +160,7 @@ async def build_b50(cached: CachedAnalysis, owner_id: Optional[int] = None, page
     def span(entries: List[Dict[str, Any]]) -> str:
         return f" · {start + 1}-{min(start + PAGE, len(entries))} of {len(entries)}" if len(entries) > PAGE and len(entries) > start else ""
 
-    for name, entries in (("New version", new_entries), ("Older versions", old_entries)):
+    for name, entries in (("New charts", new_entries), ("Old charts", old_entries)):
         if drawn:
             add_link_run(embed, name + span(entries), lines(entries).split("\n"))
         else:
