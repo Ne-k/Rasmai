@@ -391,6 +391,12 @@ class InternalApiServer:
                             status, answer = self._link_own(answer["login"], payload)
                         self._send_json(status, answer)
                         return
+                    if path.startswith("/internal/kamaitachi/"):
+                        if path == "/internal/kamaitachi/callback":
+                            dashboard.kamaitachi_callback(self, payload)
+                        else:
+                            self._send_json(404, {"ok": False, "error": "not_found"})
+                        return
                     if path == "/internal/verify":
                         self._verify(payload)
                         return

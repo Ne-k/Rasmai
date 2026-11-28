@@ -221,7 +221,7 @@ def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[
     :rtype: Optional[Dict[str, Any]]
     """
     columns = ("user_id, region, token, official_profile, avatar, created_at, updated_at, session_expired, "
-               "share_slug, seen_at, kamaitachi" + (", latest_snapshot" if with_snapshot else ""))
+               "share_slug, seen_at, kamaitachi, kamaitachi_key != '' AS kamaitachi_keyed" + (", latest_snapshot" if with_snapshot else ""))
     connection = get_database_connection()
     try:
         row = connection.execute(
@@ -248,19 +248,30 @@ def get_connected_account(user_id: str, with_snapshot: bool = True) -> Optional[
         "shareSlug": row["share_slug"] or "",
         "seenAt": row["seen_at"] or "",
         "kamaitachi": row["kamaitachi"] or "",
+        # whether the profile was linked through Kamaitachi's own sign-in; the key itself never leaves the row
+        "kamaitachiKeyed": bool(row["kamaitachi_keyed"]),
     }
     if with_snapshot:
         account["latestSnapshot"] = _load_json_column(row["latest_snapshot"])
     return account
 
 
-def follow_kamaitachi(user_id: str, username: str, region: str) -> None:
+def follow_kamaitachi(user_id: str, username: str, region: str, key: str = "") -> None:
     """Attach a Kamaitachi profile to an account, making the account under ``region`` when there is none.
 
     An account with a working maimai sign-in keeps it and gains the profile. One whose sign-in has expired gives the dead
     sign-in up, and the count towards deletion with it, since the profile is where its scores come from now; its region and
     everything stored stay. A new account has no sign-in at all. No sign-in is an empty token written as it is, not sealed,
     so a query can tell such an account apart.
+
+    :param user_id: The Discord or site user id.
+    :type user_id: str
+    :param username: The Kamaitachi username.
+    :type username: str
+    :param region: The region a new account is kept under.
+    :type region: str
+    :param key: The API key Kamaitachi gave for the profile; empty for one followed by name alone.
+    :type key: str
     """
     now = datetime.now().isoformat()
     connection = get_database_connection()
@@ -268,18 +279,92 @@ def follow_kamaitachi(user_id: str, username: str, region: str) -> None:
         with connection:
             connection.execute(
                 """
-                INSERT INTO connected_accounts (user_id, region, token, official_profile, created_at, updated_at, kamaitachi)
-                VALUES (?, ?, '', ?, ?, ?, ?)
+                INSERT INTO connected_accounts (user_id, region, token, official_profile, created_at, updated_at, kamaitachi, kamaitachi_key)
+                VALUES (?, ?, '', ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     kamaitachi      = excluded.kamaitachi,
+                    kamaitachi_key  = excluded.kamaitachi_key,
                     token           = CASE WHEN connected_accounts.session_expired != '' THEN '' ELSE connected_accounts.token END,
                     session_expired = '',
                     deletion_warned = ''
                 """,
-                (user_id, region, _dump_json_column({"name": username}), now, now, username),
+                (user_id, region, _dump_json_column({"name": username}), now, now, username, encrypt_token(key, user_id) if key else ""),
             )
     finally:
         connection.close()
+
+
+def kamaitachi_key(user_id: str) -> str:
+    """The API key Kamaitachi gave for the profile this account follows; "" for a profile followed by its name alone.
+
+    :param user_id: The Discord or site user id.
+    :type user_id: str
+    :rtype: str
+    """
+    connection = get_database_connection()
+    try:
+        row = connection.execute("SELECT kamaitachi_key FROM connected_accounts WHERE user_id = ?", (user_id,)).fetchone()
+    finally:
+        connection.close()
+    return decrypt_token(str(row["kamaitachi_key"] or ""), user_id) if row else ""
+
+
+def drop_kamaitachi_key(user_id: str) -> None:
+    """Forget the key Kamaitachi stopped accepting; the profile stays followed, by name.
+
+    :param user_id: The Discord or site user id.
+    :type user_id: str
+    """
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute("UPDATE connected_accounts SET kamaitachi_key = '' WHERE user_id = ?", (user_id,))
+    finally:
+        connection.close()
+
+
+def issue_kamaitachi_state(user_id: str) -> str:
+    """A single-use state for one Kamaitachi link; Kamaitachi hands it back with the code, and it names the account the link is for.
+
+    :param user_id: The Discord or site user id.
+    :type user_id: str
+    :rtype: str
+    """
+    state = secrets.token_urlsafe(24)
+    now = datetime.now()
+    connection = get_database_connection()
+    try:
+        with connection:
+            connection.execute("DELETE FROM kamaitachi_states WHERE created_at < ?", ((now - LOGIN_CODE_TTL).isoformat(),))
+            connection.execute("INSERT INTO kamaitachi_states (state_hash, user_id, created_at) VALUES (?, ?, ?)",
+                               (_hash_code(state), user_id, now.isoformat()))
+    finally:
+        connection.close()
+    return state
+
+
+def consume_kamaitachi_state(state: str) -> Optional[str]:
+    """Whose link this is, spending the state; None when it is unknown, already used, or older than a login code's lifetime.
+
+    :param state: What Kamaitachi handed back as ``context``.
+    :type state: str
+    :rtype: Optional[str]
+    """
+    if not isinstance(state, str) or not re.fullmatch(r"[A-Za-z0-9_-]{20,64}", state):
+        return None
+    connection = get_database_connection()
+    try:
+        with connection:
+            row = connection.execute("SELECT user_id, created_at FROM kamaitachi_states WHERE state_hash = ?", (_hash_code(state),)).fetchone()
+            if row is None or not connection.execute("DELETE FROM kamaitachi_states WHERE state_hash = ?", (_hash_code(state),)).rowcount:
+                return None
+    finally:
+        connection.close()
+    try:
+        fresh = datetime.now() - datetime.fromisoformat(row["created_at"]) <= LOGIN_CODE_TTL
+    except ValueError:
+        fresh = False
+    return str(row["user_id"]) if fresh else None
 
 
 def unfollow_kamaitachi(user_id: str) -> bool:
@@ -287,7 +372,7 @@ def unfollow_kamaitachi(user_id: str) -> bool:
     connection = get_database_connection()
     try:
         with connection:
-            return connection.execute("UPDATE connected_accounts SET kamaitachi = '' WHERE user_id = ? AND token != ''", (user_id,)).rowcount > 0
+            return connection.execute("UPDATE connected_accounts SET kamaitachi = '', kamaitachi_key = '' WHERE user_id = ? AND token != ''", (user_id,)).rowcount > 0
     finally:
         connection.close()
 

@@ -172,8 +172,9 @@ def _merge(connection: sqlite3.Connection, source: str, target: str, keep: Optio
             return {"status": "needs_choice", "from": source, "to": target,
                     "fromSummary": _summary(connection, source), "toSummary": _summary(connection, target)}
         _clear_data(connection, target if keep == "from" else source)
-    held = connection.execute("SELECT token FROM connected_accounts WHERE user_id = ?", (source,)).fetchone()
+    held = connection.execute("SELECT token, kamaitachi_key FROM connected_accounts WHERE user_id = ?", (source,)).fetchone()
     opened = decrypt_token(str(held["token"] or ""), source) if held else ""
+    key = decrypt_token(str(held["kamaitachi_key"] or ""), source) if held else ""
     for table in _account_tables(connection):
         if table not in _NOT_DATA:
             connection.execute(f'UPDATE OR IGNORE "{table}" SET user_id = ? WHERE user_id = ?', (target, source))
@@ -181,7 +182,8 @@ def _merge(connection: sqlite3.Connection, source: str, target: str, keep: Optio
     if held:
         # sealed against its owner's id, so a row moved to another id would no longer open
         # no sign-in stays an empty token, unsealed, which is how an account that follows Kamaitachi alone is told apart
-        connection.execute("UPDATE connected_accounts SET token = ? WHERE user_id = ?", (encrypt_token(opened, target) if opened else "", target))
+        connection.execute("UPDATE connected_accounts SET token = ?, kamaitachi_key = ? WHERE user_id = ?",
+                           (encrypt_token(opened, target) if opened else "", encrypt_token(key, target) if key else "", target))
     mine = connection.execute("SELECT * FROM people WHERE user_id = ?", (source,)).fetchone()
     theirs = connection.execute("SELECT * FROM people WHERE user_id = ?", (target,)).fetchone()
     if mine and (not theirs or mine["created_at"] < theirs["created_at"]):

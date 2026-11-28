@@ -53,6 +53,7 @@ export function Dash() {
   const t = useTranslations("dash");
   const auth = useTranslations("auth");
   const acct = useTranslations("account");
+  const kamai = useTranslations("kamaitachi");
   const [me, setMe] = useState<Overview | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   // /me/?setup=1 is where a brand-new account lands, to be walked through linking maimai
@@ -61,6 +62,8 @@ export function Dash() {
   const [google, setGoogle] = useState(false);
   const [turnstile, setTurnstile] = useState("");
   const [error, setError] = useState("");
+  // back from approving Rasmai on Kamaitachi, which may be in a browser that never signed in here
+  const [connected, setConnected] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
   const [charts, setCharts] = useState<ChartRow[] | null>(null);
   const [chartsError, setChartsError] = useState("");
@@ -147,6 +150,12 @@ export function Dash() {
     const kind = params.get("error");
     if (kind && t.has(`signInErrors.${kind}` as never)) setError(t(`signInErrors.${kind}` as never));
     else if (kind && auth.has(`errors.${kind}` as never)) setError(auth(`errors.${kind}` as never));
+    if (params.get("kamaitachi") === "connected") {
+      setConnected(true);
+      // said once: a reload or a copied address should not say it again
+      params.delete("kamaitachi");
+      window.history.replaceState(null, "", `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`);
+    }
     applyLocation();
   }, [load, applyLocation, t, auth]);
 
@@ -224,7 +233,7 @@ export function Dash() {
   if (signedOut) {
     return (
       <Frame>
-        <SignInGate oauth={oauth} google={google} turnstile={turnstile} error={error} onError={setError} />
+        <SignInGate oauth={oauth} google={google} turnstile={turnstile} error={error} onError={setError} notice={connected ? kamai("connectedSignedOut") : ""} />
       </Frame>
     );
   }
@@ -238,6 +247,10 @@ export function Dash() {
   const banner = error ? (
     <div className="notice" role="alert">
       <ErrorText message={error} />
+    </div>
+  ) : connected && me.kamaitachi ? (
+    <div className="notice ok" role="status">
+      <span>{kamai.rich("connected", { name: me.kamaitachi, b: (c) => <b>{c}</b> })}</span>
     </div>
   ) : null;
   if (!me.linked) {

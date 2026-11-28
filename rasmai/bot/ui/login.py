@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Dict, Optional, Tuple
 import asyncio
 import logging
 
 import discord
 
-from rasmai.bot.ui.formatting import build_login_done_embed, build_login_walkthrough_pages
+from rasmai.bot.ui.formatting import build_kamaitachi_card, build_kamaitachi_done_embed, build_login_done_embed, build_login_walkthrough_pages
 from rasmai.bot.ui.views import LoginView
 from rasmai.security import LOGIN_CODE_TTL
 from rasmai.storage.db import get_connected_account, is_discord_id
@@ -120,3 +120,58 @@ async def dm_login_card(bot: discord.Client, user_id: str, region: str, intro: s
     view.message = message
     asyncio.create_task(watch_login(user_id, view, message.edit))
     return True
+
+
+# Kamaitachi cards still waiting on their link, by Discord id; the site's callback finishes the link, so it tells the card
+_kamaitachi_cards: Dict[str, Tuple[discord.Interaction, datetime]] = {}
+
+
+async def send_kamaitachi_card(interaction: discord.Interaction, url: str) -> None:
+    """Reply with the card that links a Kamaitachi profile, and remember it so it can say when the link lands.
+
+    :param interaction: The Discord interaction the command arrived on.
+    :type interaction: discord.Interaction
+    :param url: Kamaitachi's approval page for this person's link.
+    :type url: str
+    """
+    now = datetime.now()
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Connect Kamaitachi", url=url))
+    await interaction.response.send_message(embed=build_kamaitachi_card(now + LOGIN_CODE_TTL), view=view, ephemeral=True)
+    for user_id, (_, sent) in list(_kamaitachi_cards.items()):
+        if now - sent > LOGIN_CODE_TTL:
+            _kamaitachi_cards.pop(user_id, None)
+    _kamaitachi_cards[str(interaction.user.id)] = (interaction, now)
+
+
+def kamaitachi_card_waiting(user_id: str) -> bool:
+    """Whether this person has a Kamaitachi card whose link could still be the one just used."""
+    held = _kamaitachi_cards.get(user_id)
+    return bool(held) and datetime.now() - held[1] <= LOGIN_CODE_TTL
+
+
+async def kamaitachi_linked(user_id: str, username: str, counts: Dict[str, int]) -> None:
+    """Turn a waiting Kamaitachi card into "Connected", or say so by direct message when the card is gone.
+
+    Nothing here can undo the link: with the card dismissed and direct messages closed, the site's own notice is what is left.
+
+    :param user_id: The Discord user id the link was made for.
+    :type user_id: str
+    :param username: The Kamaitachi username now followed.
+    :type username: str
+    :param counts: What the first read found, as ``record_pbs`` returns it.
+    :type counts: Dict[str, int]
+    """
+    if not kamaitachi_card_waiting(user_id):
+        return
+    interaction, _ = _kamaitachi_cards.pop(user_id)
+    embed = build_kamaitachi_done_embed(username, counts)
+    try:
+        await interaction.edit_original_response(embed=embed, view=None)
+        return
+    except discord.HTTPException as error:
+        logger.info("Kamaitachi card could not be updated: %s", error)
+    try:
+        await interaction.user.send(embed=embed)
+    except discord.HTTPException as error:
+        logger.info("could not tell %s by direct message that Kamaitachi is connected: %s", user_id, error)

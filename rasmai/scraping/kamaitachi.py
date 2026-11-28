@@ -1,5 +1,5 @@
-from typing import Any, Dict, List
-from urllib.parse import quote
+from typing import Any, Dict, List, Tuple
+from urllib.parse import quote, urlencode
 import json
 import logging
 import re
@@ -8,7 +8,7 @@ import time
 import requests
 
 from rasmai.bot.builders.kamaitachi import DIFFICULTY, JUDGEMENTS, LAMP_FOR
-from rasmai.config import USER_AGENT
+from rasmai.config import KAMAITACHI_CLIENT_ID, KAMAITACHI_CLIENT_SECRET, PUBLIC_URL, USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,13 @@ TIERS = {name: tier for tier, name in DIFFICULTY.items()}
 FC_FOR = {lamp: fc for fc, lamp in LAMP_FOR.items()}
 
 
+# the client's redirect URI as registered on Kamaitachi; the token exchange is refused unless it matches exactly
+CALLBACK = f"{PUBLIC_URL}/auth/kamaitachi/callback/"
+RELINK = "Kamaitachi stopped letting Rasmai read your profile. Connect it again with `/login region:Kamaitachi`, or from the Account tab on your dashboard."
+
+
 class KamaitachiError(Exception):
-    """What went wrong reading a profile: ``kind`` is ``no_such_user`` or ``kamaitachi``, and the message is for the person."""
+    """What went wrong reading a profile: ``kind`` is ``no_such_user``, ``relink`` or ``kamaitachi``, and the message is for the person."""
 
     def __init__(self, kind: str, message: str = "") -> None:
         super().__init__(message)
@@ -37,13 +42,15 @@ def valid_username(username: Any) -> bool:
     return isinstance(username, str) and USERNAME.fullmatch(username) is not None
 
 
-def _read(url: str) -> Dict[str, Any]:
-    """The parsed answer; raises KamaitachiError for anything wrong, a 404 included."""
+def _read(url: str, key: str = "") -> Dict[str, Any]:
+    """The parsed answer; raises KamaitachiError for anything wrong, a 404 included, and ``relink`` when the key is refused."""
     started = time.monotonic()
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     try:
         # a redirect could lead anywhere, so none is followed; this host answers where it is asked
-        response = requests.get(HOST + url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-                                timeout=TIMEOUT, allow_redirects=False, stream=True)
+        response = requests.get(HOST + url, headers=headers, timeout=TIMEOUT, allow_redirects=False, stream=True)
     except requests.RequestException as error:
         logger.info("Kamaitachi unreachable: %s", error)
         raise KamaitachiError("kamaitachi", "Kamaitachi could not be reached.")
@@ -67,6 +74,8 @@ def _read(url: str) -> Dict[str, Any]:
         answer = json.loads(b"".join(chunks))
     except ValueError:
         answer = None
+    if key and response.status_code in (401, 403):
+        raise KamaitachiError("relink", RELINK)
     if not isinstance(answer, dict):
         raise KamaitachiError("kamaitachi", f"Kamaitachi answered {response.status_code} with something unreadable.")
     if response.status_code == 404:
@@ -81,18 +90,70 @@ def _read(url: str) -> Dict[str, Any]:
     return answer["body"]
 
 
-def fetch_pbs(username: str) -> Dict[str, Any]:
-    """Every personal best of a public maimai DX profile, with its songs and charts; no key is needed for a public profile.
+def fetch_pbs(username: str, key: str = "") -> Dict[str, Any]:
+    """Every personal best of a maimai DX profile, with its songs and charts.
+
+    With a key, this reads the profile the key belongs to, even after a rename; without one, it reads the public profile
+    by that name, as accounts linked before the Kamaitachi sign-in do until they connect again.
 
     :param username: A Kamaitachi username, checked here against the allowed characters before it reaches a URL.
     :type username: str
+    :param key: The API key Kamaitachi gave when the person linked.
+    :type key: str
     :returns: The ``pbs``, ``songs`` and ``charts`` Kamaitachi sent.
     :rtype: Dict[str, Any]
-    :raises KamaitachiError: When the user does not exist, has no maimai DX scores, or Kamaitachi could not be read.
+    :raises KamaitachiError: When the user does not exist or has no maimai DX scores, when Kamaitachi refuses the key, or when Kamaitachi could not be read.
     """
+    if key:
+        return _read(PATH.format("me"), key)
     if not valid_username(username):
         raise KamaitachiError("no_such_user")
     return _read(PATH.format(quote(username, safe="")))
+
+
+def link_ready() -> bool:
+    return bool(KAMAITACHI_CLIENT_ID and KAMAITACHI_CLIENT_SECRET)
+
+
+def authorize_url(state: str) -> str:
+    """Kamaitachi's approval page for one link.
+
+    :param state: Sent as ``context``; Kamaitachi hands it back with the code, so the callback knows whose link it is.
+    :type state: str
+    :rtype: str
+    """
+    return f"{HOST}/oauth/request-auth?{urlencode({'clientID': KAMAITACHI_CLIENT_ID, 'context': state})}"
+
+
+def exchange_code(code: str) -> Tuple[str, str]:
+    """Trade the code Kamaitachi handed back for the person's API key, and read whose profile it opens.
+
+    :param code: The ``code`` from the callback.
+    :type code: str
+    :returns: The profile's username and the key.
+    :rtype: Tuple[str, str]
+    :raises KamaitachiError: ``kamaitachi`` when the code is refused or the answer cannot be read.
+    """
+    if not isinstance(code, str) or not 0 < len(code) <= 512:
+        raise KamaitachiError("kamaitachi", "Kamaitachi sent no code back.")
+    try:
+        response = requests.post(f"{HOST}/api/v1/oauth/token", json={
+            "client_id": KAMAITACHI_CLIENT_ID, "client_secret": KAMAITACHI_CLIENT_SECRET, "grant_type": "authorization_code",
+            "redirect_uri": CALLBACK, "code": code,
+        }, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout=TIMEOUT, allow_redirects=False)
+        answer = response.json()
+    except (requests.RequestException, ValueError) as error:
+        logger.info("Kamaitachi token exchange failed: %s", type(error).__name__)
+        raise KamaitachiError("kamaitachi", "Kamaitachi could not be reached.")
+    body = answer.get("body") if isinstance(answer, dict) else None
+    key = body.get("token") if isinstance(body, dict) else None
+    if response.status_code != 200 or not isinstance(key, str) or not key:
+        logger.info("Kamaitachi refused the code: %s", response.status_code)
+        raise KamaitachiError("kamaitachi", "Kamaitachi did not accept the link. Try connecting again.")
+    username = _read("/api/v1/users/me", key).get("username")
+    if not valid_username(username):
+        raise KamaitachiError("kamaitachi", "Kamaitachi did not say whose profile this is.")
+    return username, key
 
 
 def pb_rows(body: Dict[str, Any]) -> List[Dict[str, Any]]:

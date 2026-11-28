@@ -510,9 +510,11 @@ def _seam_addresses():
         problems.append("the site no longer allow-lists which writes under /api/me it will forward")
     else:
         site_posts = set(re.findall(r'"([a-z/-]+)"', allowed.group(1)))
+        # a site route can post to the bot directly, as /auth/kamaitachi does
+        direct = set(re.findall(r'internal\(\s*[`"]/internal/me/([a-z/-]+)', web))
         for name in sorted(site_posts - posts):
             problems.append(f"the site forwards a write to /api/me/{name} that the bot does not accept")
-        for name in sorted(posts - site_posts):
+        for name in sorted(posts - site_posts - direct):
             problems.append(f"the bot accepts a write at /internal/me/{name} that the site will not forward")
     return problems
 

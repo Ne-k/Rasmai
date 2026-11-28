@@ -443,6 +443,7 @@ html[data-standalone] .masthead-nav a.tag[href="/invite"] { display: none; }
 /* the servers are down: one amber band under the masthead, the page still works from the last read */
 .notice { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0 0; padding: 10px 14px; border: 2px solid var(--gold-edge); border-radius: 12px; background: color-mix(in srgb, var(--gold) 14%, transparent); color: var(--ink); font-size: 14px; line-height: 1.45; }
 .notice b { font-weight: 700; }
+.notice.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .notice-lamp { flex: 0 0 auto; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--gold); border: 2px solid var(--gold-edge); animation: throb 1.6s ease-in-out infinite; }
 
 /* whatever the site has been told to say: one band above everything, on every page, until it is closed */

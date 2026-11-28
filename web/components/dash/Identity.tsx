@@ -19,7 +19,7 @@ export function LinkMaimai({ guided = false, kamaitachi = true }: { guided?: boo
   // the region being opened, so only that button says so
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
-  // the third way in: a Kamaitachi profile's public scores, for someone with no maimai DX NET sign-in to give, or whose sign-in has expired
+  // the third way in: a connected Kamaitachi account's scores, for someone with no maimai DX NET sign-in to give, or whose sign-in has expired
   const [kamai, setKamai] = useState(false);
   const go = (chosen: string) => {
     setBusy(chosen);

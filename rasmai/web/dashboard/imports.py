@@ -6,7 +6,7 @@ import re
 from rasmai.bot.state.snapshots import play_rows
 from rasmai.scraping.kamaitachi import REGION, KamaitachiError, fetch_pbs, pb_rows
 from rasmai.storage.db import (
-    best_recorded_scores, follow_kamaitachi, get_connected_account, import_rating_points, load_judgements, load_play_counts,
+    best_recorded_scores, drop_kamaitachi_key, follow_kamaitachi, get_connected_account, kamaitachi_key, import_rating_points, load_judgements, load_play_counts,
     load_recorded_plays, record_chart_scores, save_play_counts,
 )
 
@@ -222,8 +222,8 @@ def record_pbs(user_id: str, entries: List[Dict[str, Any]], seen: int, analyzer:
             "unmatched": seen - matched, "seen": seen}
 
 
-def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str, int]]:
-    """Follow a public Kamaitachi profile, or read again the one already followed, whatever else the account has.
+def kamaitachi_account(user_id: str, username: str = "", key: str = "") -> Tuple[Any, Dict[str, int]]:
+    """Follow a Kamaitachi profile, or read again the one already followed, whatever else the account has.
 
     An account with a working maimai sign-in goes on reading maimai DX NET: the profile's bests are merged into its history,
     which is all an import ever did, and the profile is remembered so every refresh merges it again.
@@ -232,12 +232,15 @@ def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str,
     better of what is stored and what the profile holds, so nothing read from maimai earlier is lost, and since no in-game
     rating can be read the rating is the best 50 of the result.
 
-    Whoever types a public profile's name gets its scores: this is a way to see them, not proof of whose they are.
+    Kamaitachi's own sign-in hands over a key for the profile; a profile followed by name before that sign-in existed
+    is still read by name until the person connects it again.
 
     :param user_id: The Discord or site user id.
     :type user_id: str
     :param username: The Kamaitachi username; left out, the profile the account already follows.
     :type username: str
+    :param key: The API key from a link just made; left out, the one stored for the account.
+    :type key: str
     :returns: The analysis now in memory, or None for an account that still reads maimai; and what :func:`record_pbs` returns.
     :rtype: Tuple[Any, Dict[str, int]]
     :raises KamaitachiError: As :func:`rasmai.scraping.kamaitachi.fetch_pbs` raises; ``kamaitachi`` when the profile has no
@@ -250,7 +253,13 @@ def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str,
     from rasmai.storage.models import PlayerInfo, SongInfo
     held = get_connected_account(user_id)
     username = username or str((held or {}).get("kamaitachi") or "")
-    body = fetch_pbs(username)
+    key = key or kamaitachi_key(user_id)
+    try:
+        body = fetch_pbs(username, key)
+    except KamaitachiError as error:
+        if error.kind == "relink":
+            drop_kamaitachi_key(user_id)       # revoked on Kamaitachi: the account goes back to reading by name and is asked to connect again
+        raise
     entries = pb_rows(body)
     if not entries:
         raise KamaitachiError("kamaitachi", "That Kamaitachi profile has no maimai DX scores.")
@@ -259,7 +268,7 @@ def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str,
         cached = cache_get(user_id)
         counts = record_pbs(user_id, entries, seen, cached.analyzer if cached else MaimaiRatingAnalyzer(),
                             cached.analyzer.chart_index if cached else shared_index())
-        follow_kamaitachi(user_id, username, REGION)
+        follow_kamaitachi(user_id, username, REGION, key)
         if counts["bests"] or counts["plays"]:
             forget_analysis(user_id)        # rebuilt on the next ask, with the new scores in its history
         return None, counts
@@ -268,15 +277,15 @@ def kamaitachi_account(user_id: str, username: str = "") -> Tuple[Any, Dict[str,
     best = {_chart_key(song.name, song.chart_type, song.difficulty_type): song for song in analyzer.songs}
     for entry, ref, accuracy in _matches(entries, index):
         name = analyzer._normalize_official_song_name(ref.title)
-        key = _chart_key(name, entry["type"], entry["tier"])
-        if key not in best or accuracy > best[key].accuracy:
-            best[key] = SongInfo(name=name, chart_type=entry["type"], difficulty_type=entry["tier"], accuracy=accuracy, level=ref.level,
+        chart = _chart_key(name, entry["type"], entry["tier"])
+        if chart not in best or accuracy > best[chart].accuracy:
+            best[chart] = SongInfo(name=name, chart_type=entry["type"], difficulty_type=entry["tier"], accuracy=accuracy, level=ref.level,
                                  difficulty=ref.constant, fc_status=_text(entry["fc"], 8), dx_score=_dx_score(entry["judgements"] or {}),
                                  is_new=False)
     if not best:
         raise KamaitachiError("kamaitachi", "That profile has no maimai DX scores Rasmai recognises.")
     # the row first: the plays, the rating point and the snapshot are all stored against it
-    follow_kamaitachi(user_id, username, REGION)
+    follow_kamaitachi(user_id, username, REGION, key)
     counts = record_pbs(user_id, entries, seen, analyzer, index)
     analyzer.user_id = user_id
     analyzer.songs = list(best.values())

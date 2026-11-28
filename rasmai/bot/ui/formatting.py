@@ -372,6 +372,42 @@ def build_login_done_embed(name: str, region: str) -> discord.Embed:
     return embed
 
 
+def build_kamaitachi_card(expires: datetime) -> discord.Embed:
+    """The /login card for Kamaitachi, laid out as the maimai one is.
+
+    :param expires: When the link under it stops working.
+    :type expires: datetime
+    :rtype: discord.Embed
+    """
+    embed = discord.Embed(title="Connect your Kamaitachi account", description="Press the button below to open Kamaitachi.", color=palette.WAIT)
+    embed.add_field(name="What you'll do there", inline=False, value=(
+        "1. Sign in to Kamaitachi, if it asks\n"
+        "2. Approve Rasmai\n"
+        "3. That's it: Rasmai reads the maimai DX scores on your profile, beside your maimai account or without one"))
+    embed.add_field(name="Keep this link to yourself", inline=False,
+                    value="It works once. Whoever approves through it connects their Kamaitachi profile to your Rasmai account.")
+    embed.add_field(name="Link expires", value=stamp(expires, "R"), inline=True)
+    embed.set_footer(text="This card updates itself once you are connected")
+    return embed
+
+
+def build_kamaitachi_done_embed(username: str, counts: Dict[str, int]) -> discord.Embed:
+    """What the Kamaitachi card turns into once the profile is linked and read.
+
+    :param username: The Kamaitachi username.
+    :type username: str
+    :param counts: What the read found, as ``record_pbs`` returns it.
+    :type counts: Dict[str, int]
+    :rtype: discord.Embed
+    """
+    seen, new = int(counts.get("seen") or 0), int(counts.get("bests") or 0) + int(counts.get("plays") or 0)
+    read = f"Read **{seen}** {'score' if seen == 1 else 'scores'}; " + (f"**{new}** were new to Rasmai." if new else "none were new to Rasmai.")
+    embed = discord.Embed(title="Connected", description=f"Following **{discord.utils.escape_markdown(username)}** on Kamaitachi.\n{read}", color=palette.OK)
+    embed.add_field(name="Next", value="`/analyze` for what to play, `/b50` for your best 50, `/refresh` to read Kamaitachi again.", inline=False)
+    embed.set_footer(text="Rasmai only reads your Kamaitachi scores; /delete-account removes everything at any time")
+    return embed
+
+
 def today() -> str:
     """Today's date as the images print it.
 

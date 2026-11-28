@@ -81,12 +81,22 @@ def get_database_connection() -> sqlite3.Connection:
                                "seen_at TEXT",                             # last time the person used the bot or the site
                                "avatar BLOB",                              # the profile picture's PNG, kept out of official_profile's JSON
                                "deletion_warned TEXT NOT NULL DEFAULT ''",  # when the DM saying it will be deleted went out
-                               "kamaitachi TEXT NOT NULL DEFAULT ''"):      # the Kamaitachi profile followed, beside the sign-in or instead of one
+                               "kamaitachi TEXT NOT NULL DEFAULT ''",       # the Kamaitachi profile followed, beside the sign-in or instead of one
+                               "kamaitachi_key TEXT NOT NULL DEFAULT ''"):  # the API key Kamaitachi gave for it, sealed like the token
                     try:
                         setup.execute(f"ALTER TABLE connected_accounts ADD COLUMN {column}")
                     except sqlite3.OperationalError:
                         pass      # already there
                 setup.execute("CREATE UNIQUE INDEX IF NOT EXISTS connected_accounts_share ON connected_accounts(share_slug)")
+                setup.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS kamaitachi_states (
+                        state_hash TEXT PRIMARY KEY,
+                        user_id    TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
                 setup.execute(
                     """
                     CREATE TABLE IF NOT EXISTS login_codes (

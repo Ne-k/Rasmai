@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+import asyncio
 import json
 import logging
 import mimetypes
@@ -9,7 +10,8 @@ from rasmai.bot.builders.charts.index import search_titles
 from rasmai.bot.builders.kamaitachi import kamaitachi_file
 from rasmai.security import import_limiter, kamaitachi_limiter, public_reason, refresh_limiter
 from rasmai.storage.db import (
-    account_exists, delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id, unfollow_kamaitachi,
+    account_exists, consume_kamaitachi_state, delete_connected_account, delete_form_feedback, get_connected_account, is_discord_id, is_web_id,
+    issue_kamaitachi_state, unfollow_kamaitachi,
 )
 from rasmai.bot.state import cohort
 from rasmai.bot.state.prefs import set_speeds
@@ -45,7 +47,7 @@ READS_SNAPSHOT = ("/internal/me", "/internal/me/", "/internal/me/areas")
 # which is how beta feedback went unanswered while the site forwarded it
 WRITES = ("/internal/me/refresh", "/internal/me/unlink", "/internal/me/import", "/internal/me/sharing",
           "/internal/me/beta", "/internal/me/beta/feedback", "/internal/me/admin/update", "/internal/me/admin/delete-feedback",
-          "/internal/me/kamaitachi/import", "/internal/me/kamaitachi/unfollow", "/internal/me/settings",
+          "/internal/me/kamaitachi/connect", "/internal/me/kamaitachi/unfollow", "/internal/me/settings",
           "/internal/me/apps", "/internal/me/apps/update", "/internal/me/apps/secret", "/internal/me/apps/review", "/internal/me/apps/delete", "/internal/me/apps/icon",
           "/internal/me/admin/control")
 
@@ -321,27 +323,17 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         cohort.drop(user["id"])
         handler._send_json(200, {"ok": True})
         return True
-    if path == "/internal/me/kamaitachi/import":
+    if path == "/internal/me/kamaitachi/connect":
         # before the linked-account check: with no maimai account linked, or one whose sign-in has expired, the profile is how the account gets its scores
-        from rasmai.scraping.kamaitachi import KamaitachiError, valid_username
-        username = str((payload or {}).get("username") or "").strip()
-        if not valid_username(username):
-            handler._send_json(400, {"ok": False, "error": "bad_username"})
+        from rasmai.scraping.kamaitachi import authorize_url, link_ready
+        if not link_ready():
+            handler._send_json(503, {"ok": False, "error": "kamaitachi_unconfigured"})
             return True
         if not account_exists(user["id"]):
-            # this makes the account when there is none, so a session that outlived a deleted one must not bring it back
+            # the link makes the account when there is none, so a session that outlived a deleted one must not bring it back
             handler._send_json(404, {"ok": False, "error": "not_found"})
             return True
-        if not kamaitachi_limiter.allow(user["id"]):
-            handler._send_json(429, {"ok": False, "error": "rate_limited", "message": "Five reads from Kamaitachi per quarter hour."})
-            return True
-        try:
-            _cached, result = kamaitachi_account(user["id"], username)
-        except KamaitachiError as error:
-            handler._send_json(404 if error.kind == "no_such_user" else 502,
-                               {"ok": False, "error": error.kind, **({} if error.kind == "no_such_user" else {"message": str(error)})})
-            return True
-        handler._send_json(200, {"ok": True, **result})
+        handler._send_json(200, {"ok": True, "url": authorize_url(issue_kamaitachi_state(user["id"]))})
         return True
     account = get_connected_account(user["id"])
     if account is None:
@@ -412,3 +404,47 @@ def handle_post(handler: Any, path: str, user: Dict[str, Any], payload: Optional
         handler._send_json(200 if stopped else 409, {"ok": True} if stopped else {"ok": False, "error": "only_link"})
         return True
     return False
+
+
+def kamaitachi_callback(handler: Any, payload: Any) -> None:
+    """Finish a Kamaitachi link: the state says whose account it is, and the code is traded for the profile's key.
+
+    No session is asked for, since a link started from Discord comes back to a browser that may never have signed in here.
+
+    :param handler: The request being answered.
+    :type handler: Any
+    :param payload: ``code`` and ``state`` as Kamaitachi handed them back.
+    :type payload: Any
+    """
+    from rasmai.scraping.kamaitachi import KamaitachiError, exchange_code, link_ready
+    body = payload if isinstance(payload, dict) else {}
+    if not link_ready():
+        handler._send_json(503, {"ok": False, "error": "kamaitachi_unconfigured"})
+        return
+    user_id = consume_kamaitachi_state(body.get("state"))
+    # a Discord id needs nothing stored to be someone; a site id names a person who may since have deleted the account
+    if user_id is None or not (is_discord_id(user_id) or account_exists(user_id)):
+        handler._send_json(400, {"ok": False, "error": "expired"})
+        return
+    if not kamaitachi_limiter.allow(user_id):
+        handler._send_json(429, {"ok": False, "error": "rate_limited"})
+        return
+    try:
+        username, key = exchange_code(body.get("code"))
+        _cached, result = kamaitachi_account(user_id, username, key)
+    except KamaitachiError as error:
+        handler._send_json(502, {"ok": False, "error": "kamaitachi", "message": str(error)})
+        return
+    handler._send_json(200, {"ok": True, "username": username, **result})
+    _tell_discord(user_id, username, result)
+
+
+def _tell_discord(user_id: str, username: str, counts: Dict[str, int]) -> None:
+    """Have the bot say the link landed when it started from a /login card; the link is already made, so nothing here may raise."""
+    try:
+        from rasmai.bot.core import bot
+        from rasmai.bot.ui.login import kamaitachi_card_waiting, kamaitachi_linked
+        if kamaitachi_card_waiting(user_id) and bot.is_ready():
+            asyncio.run_coroutine_threadsafe(kamaitachi_linked(user_id, username, counts), bot.loop)
+    except Exception:
+        logger.exception("could not tell Discord that a Kamaitachi link landed")

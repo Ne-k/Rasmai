@@ -15,4 +15,5 @@ from rasmai.web.dashboard.auth import handle_auth  # noqa: F401
 from rasmai.web.dashboard.routes import (  # noqa: F401
     handle_get,
     handle_post,
+    kamaitachi_callback,
 )

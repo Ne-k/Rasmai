@@ -10,10 +10,10 @@ import { Ring } from "@/components/Ring";
 import { RatingPlate } from "./RatingPlate";
 import "./signin-gate.css";
 
-type Props = { oauth: boolean; google: boolean; turnstile: string; error: string; onError: (message: string) => void };
+type Props = { oauth: boolean; google: boolean; turnstile: string; error: string; onError: (message: string) => void; notice?: string };
 
 /** The dashboard for someone who is not signed in: the way in with Discord or Google, which also makes a new account. */
-export function SignInGate({ oauth, google, turnstile, error, onError }: Props) {
+export function SignInGate({ oauth, google, turnstile, error, onError, notice }: Props) {
   const t = useTranslations("dash");
   const auth = useTranslations("auth");
   const [human, setHuman] = useState("");
@@ -56,6 +56,11 @@ export function SignInGate({ oauth, google, turnstile, error, onError }: Props) 
           </div>
         ) : (
           <p className="notice">{t("notSetUp")}</p>
+        )}
+        {notice && !error && (
+          <div className="notice ok sg-error" role="status">
+            <span>{notice}</span>
+          </div>
         )}
         {error && (
           <div className="notice sg-error" role="alert">

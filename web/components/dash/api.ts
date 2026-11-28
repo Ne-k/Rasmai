@@ -80,6 +80,8 @@ export type Overview = {
   /** The two links an account can have at once: a maimai DX NET sign-in, and a Kamaitachi profile it follows. */
   maimai?: boolean;
   kamaitachi?: string;
+  /** Whether the profile was linked through Kamaitachi's own sign-in, rather than followed by its name alone. */
+  kamaitachiKeyed?: boolean;
   /** Whether a map of the areas was ever read for the account. */
   hasAreas?: boolean;
   profile?: { name: string; rating: number; dan: string; title: string; totalPlayCount: number; updatedAt: string; nameplate?: string };

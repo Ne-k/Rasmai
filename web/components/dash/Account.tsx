@@ -15,9 +15,9 @@ import { Sharing } from "./Sharing";
 
 /** A section that opens on demand, so the tab shows what is there without showing all of it. Closed, the row to press is its
  * heading; open, the section's own heading says it, with its note, and the row is only the way to close it again. */
-function Fold({ title, children }: { title: string; children: React.ReactNode }) {
+function Fold({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
   return (
-    <details className="fold">
+    <details className="fold" open={open}>
       <summary>
         <span>{title}</span>
       </summary>
@@ -190,7 +190,8 @@ export function Account({ me, refresh, onRefresh }: { me: Overview; refresh: Ref
         <SignIns me={me} />
       </Fold>
 
-      <Fold title={kamai("title")}>
+      {/* open for a profile followed by name alone, so the prompt to connect again is in view */}
+      <Fold title={kamai("title")} open={Boolean(me.kamaitachi) && !me.kamaitachiKeyed}>
         <Kamaitachi me={me} />
       </Fold>
 

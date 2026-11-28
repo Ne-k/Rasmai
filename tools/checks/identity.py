@@ -159,7 +159,8 @@ def _merge_needs_choice():
 @check("joining moves everything to the Discord id and re-seals the stored sign-in so the Discord id can open it")
 def _merge_moves_data():
     from rasmai.bot.state.prefs import get_prefs
-    from rasmai.storage.db import (create_person, get_connected_account, load_chart_scores, merge_accounts,
+    from rasmai.security import encrypt_token
+    from rasmai.storage.db import (create_person, get_connected_account, kamaitachi_key, load_chart_scores, merge_accounts,
                                    record_chart_scores, set_user_settings)
 
     problems = []
@@ -169,12 +170,18 @@ def _merge_moves_data():
         _link_maimai(web, "web player", token)
         record_chart_scores(web, [("song|dx|master", "2026-09-29T20:00:00+09:00", 97.0, 900, "", "", "play", 1000, 1)])
         set_user_settings(web, {"notify": True})
+        connection = store.get_database_connection()
+        with connection:
+            connection.execute("UPDATE connected_accounts SET kamaitachi_key = ? WHERE user_id = ?", (encrypt_token("kamai-key", web), web))
+        connection.close()
         done = merge_accounts(web, DISCORD, "to", _discord())
         if done.get("status") != "merged":
             problems.append(f"the merge did not go through: {done}")
         moved = get_connected_account(DISCORD) or {}
         if moved.get("token") != f"cookie://{token}":
             problems.append("the sign-in could not be read under the Discord id after the move: it was not re-sealed")
+        if kamaitachi_key(DISCORD) != "kamai-key":
+            problems.append("the Kamaitachi key could not be opened under the Discord id after the move: it was not re-sealed")
         if not load_chart_scores(DISCORD, ["song|dx|master"]):
             problems.append("the recorded plays did not move to the Discord id")
         if not get_prefs(DISCORD).get("notify"):

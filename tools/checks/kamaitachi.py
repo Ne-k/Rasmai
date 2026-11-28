@@ -250,6 +250,68 @@ def _network(*answers):
         yield asked
 
 
+class _Handler:
+    def __init__(self):
+        self.sent = []
+
+    def _send_json(self, status, body):
+        self.sent.append((status, body))
+
+
+@contextmanager
+def _configured():
+    """A client id and secret for the check, whatever this machine's .env holds; nothing here sends them anywhere."""
+    from rasmai.scraping import kamaitachi
+    kept = kamaitachi.KAMAITACHI_CLIENT_ID, kamaitachi.KAMAITACHI_CLIENT_SECRET
+    kamaitachi.KAMAITACHI_CLIENT_ID, kamaitachi.KAMAITACHI_CLIENT_SECRET = "CIcheck", "check-secret"
+    try:
+        yield
+    finally:
+        kamaitachi.KAMAITACHI_CLIENT_ID, kamaitachi.KAMAITACHI_CLIENT_SECRET = kept
+
+
+@contextmanager
+def _posting(answer):
+    """requests.post answering with `answer`, remembering what was sent."""
+    from unittest.mock import patch
+
+    from rasmai.scraping import kamaitachi
+    sent = []
+
+    def post(url, **kwargs):
+        sent.append((url, kwargs))
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    with patch.object(kamaitachi.requests, "post", post):
+        yield sent
+
+
+class _Posted:
+    def __init__(self, status, body):
+        self.status_code, self._body = status, body
+
+    def json(self):
+        return self._body
+
+
+def _connect(user, username="someone", key="check-key", state=None):
+    """Finish a link the way the site's callback does, with Kamaitachi's side of the code exchange stood in for."""
+    from rasmai.scraping import kamaitachi
+    from rasmai.storage.db import issue_kamaitachi_state
+    from rasmai.web.dashboard import routes
+    handler = _Handler()
+    kept = kamaitachi.exchange_code
+    kamaitachi.exchange_code = lambda code: (username, key)
+    try:
+        with _configured():
+            routes.kamaitachi_callback(handler, {"code": "c0de", "state": issue_kamaitachi_state(user) if state is None else state})
+    finally:
+        kamaitachi.exchange_code = kept
+    return handler.sent[0]
+
+
 @check("a Kamaitachi profile is read with a checked username, one host, no redirects and a size limit")
 def _client():
     import requests
@@ -387,73 +449,155 @@ def _round_trip():
     return problems
 
 
-@check("the Kamaitachi routes are registered, refuse a bad username before asking anyone, and limit how often a profile is read")
-def _routes():
-    from rasmai.bot.builders import charts as charts_package
-    from rasmai.scraping.kamaitachi import KamaitachiError
-    from rasmai.security import kamaitachi_limiter
-    from rasmai.storage.db import upsert_connected_account
-    from rasmai.web.dashboard import routes
+@check("a keyed read goes to users/me with the key, a refused key asks to connect again, and the code exchange sends the "
+       "client's secret and callback without following a redirect")
+def _keyed_client():
+    import requests
+    from rasmai.scraping import kamaitachi
+    from rasmai.scraping.kamaitachi import KamaitachiError, exchange_code, fetch_pbs
 
     problems = []
-    if "/internal/me/kamaitachi" not in routes.DOWNLOADS or "/internal/me/kamaitachi/import" not in routes.WRITES:
-        problems.append("the download or the import is not in the route tables")
+    with _network(_Answer(body=_tachi([]))) as asked:
+        fetch_pbs("ignored", "the-key")
+    url, kwargs = asked[0]
+    if url != "https://kamai.tachi.ac/api/v1/users/me/games/maimaidx/pbs/all" or kwargs["headers"].get("Authorization") != "Bearer the-key":
+        problems.append(f"a keyed read did not go to users/me with the key: {url} {kwargs['headers'].get('Authorization')}")
+    with _network(_Answer(body=_tachi([]))) as asked:
+        fetch_pbs("someone")
+    if "Authorization" in asked[0][1]["headers"]:
+        problems.append("a read by name sent a key")
+    for status in (401, 403):
+        with _network(_Answer(status, {"success": False, "description": "Invalid token."})):
+            try:
+                fetch_pbs("", "revoked")
+                problems.append(f"a {status} was taken as a read")
+            except KamaitachiError as error:
+                if error.kind != "relink" or "/login region:Kamaitachi" not in str(error):
+                    problems.append(f"a {status} on a keyed read did not ask to connect again: {error.kind} {error}")
 
-    class Handler:
-        def __init__(self):
-            self.sent = []
-
-        def _send_json(self, status, body):
-            self.sent.append((status, body))
-
-    def post(user, payload):
-        handler = Handler()
-        routes.handle_post(handler, "/internal/me/kamaitachi/import", {"id": user}, payload)
-        return handler.sent[0]
-
-    index = _index()
-    kept = charts_package.shared_index
-    charts_package.shared_index = lambda: index
-    kamaitachi_limiter._events.clear()
-    try:
-        with _scratch():
-            upsert_connected_account(USER, "intl", "cookie://" + "a" * 64, {"name": "Someone", "rating": 12000})
-            with _network(_Answer(body=_tachi([("Oshama Scramble!", [], "DX Master", "13", 100.9, "ALL PERFECT", None)]))) as asked:
-                for bad in ({}, {"username": ""}, {"username": "no good"}, {"username": ["x"]}, None):
-                    if post(USER, bad) != (400, {"ok": False, "error": "bad_username"}):
-                        problems.append(f"{bad} was not refused as a bad username: {post(USER, bad)}")
-                if asked:
-                    problems.append("a bad username reached Kamaitachi")
-                status, body = post(USER, {"username": "someone"})
-                if (status, body) != (200, {"ok": True, "bests": 1, "plays": 0, "unmatched": 0, "seen": 1}):
-                    problems.append(f"a good import answered {status} {body}")
-            with _network(_Answer(404, {"success": False, "description": "The user nobody does not exist."})):
-                if post(USER, {"username": "nobody"}) != (404, {"ok": False, "error": "no_such_user"}):
-                    problems.append("an unknown user was not a 404 no_such_user")
-            with _network(_Answer(500, {"success": False})):
-                status, body = post(USER, {"username": "someone"})
-                if status != 502 or body.get("error") != "kamaitachi" or not body.get("message"):
-                    problems.append(f"a Kamaitachi failure was not a 502 with a message: {status} {body}")
-            with _network(_Answer(body=_tachi([]))):
-                status, body = post(USER, {"username": "someone"})
-                if status != 502 or "no maimai DX scores" not in body.get("message", ""):
-                    problems.append(f"a profile with no scores was not told clearly: {status} {body}")
-            kamaitachi_limiter.allow(USER)          # the fifth of five
-            with _network(_Answer(404, {"success": False, "description": "The user someone does not exist."})) as asked:
-                status, body = post(USER, {"username": "someone"})
-                if status != 429 or body.get("error") != "rate_limited" or asked:
-                    problems.append(f"the sixth read in a quarter hour was not limited: {status} {body} {asked}")
-                if post("100000000000000009", {"username": "someone"})[0] == 429:
-                    problems.append("one person's reads used up another's")
-    finally:
-        charts_package.shared_index = kept
-        kamaitachi_limiter._events.clear()
-    if KamaitachiError("no_such_user").kind != "no_such_user":
-        problems.append("the error does not carry its kind")
+    me = _Answer(body={"success": True, "body": {"id": 7, "username": "Some_One"}})
+    with _configured(), _network(me) as asked, _posting(_Posted(200, {"success": True, "body": {"userID": 7, "token": "new-key"}})) as posted:
+        got = exchange_code("the-code")
+    sent = posted[0][1] if posted else {}
+    if got != ("Some_One", "new-key"):
+        problems.append(f"the exchange gave {got}")
+    if not posted or posted[0][0] != "https://kamai.tachi.ac/api/v1/oauth/token" or sent.get("allow_redirects") is not False or not sent.get("timeout") \
+            or sent.get("json") != {"client_id": "CIcheck", "client_secret": "check-secret", "grant_type": "authorization_code",
+                                    "redirect_uri": kamaitachi.CALLBACK, "code": "the-code"}:
+        problems.append("the code was not traded with the client's own details at the fixed address")
+    if not kamaitachi.CALLBACK.endswith("/auth/kamaitachi/callback/"):
+        problems.append(f"the registered address is {kamaitachi.CALLBACK}, not the site's callback with its trailing slash")
+    if not asked or asked[0][0] != "https://kamai.tachi.ac/api/v1/users/me" or asked[0][1]["headers"].get("Authorization") != "Bearer new-key":
+        problems.append("users/me was not asked with the new key")
+    for answer in (_Posted(400, {"success": False, "description": "Invalid code."}), _Posted(200, {"success": True, "body": {}}),
+                   _Posted(200, ["not", "a", "dict"]), requests.ConnectionError("down")):
+        with _configured(), _network(me), _posting(answer):
+            try:
+                exchange_code("the-code")
+                problems.append(f"{answer!r} gave a key")
+            except KamaitachiError as error:
+                if error.kind != "kamaitachi":
+                    problems.append(f"{answer!r} raised {error.kind}")
+    with _posting(_Posted(200, {"success": True, "body": {"token": "k"}})) as posted:
+        for bad in ("", None, "x" * 513, 5):
+            try:
+                exchange_code(bad)
+                problems.append(f"{bad!r} was sent as a code")
+            except KamaitachiError:
+                pass
+        if posted:
+            problems.append("a refused code still reached Kamaitachi")
+    with _configured():
+        url = kamaitachi.authorize_url("st4te")
+    if url != "https://kamai.tachi.ac/oauth/request-auth?clientID=CIcheck&context=st4te":
+        problems.append(f"the approval link is {url}")
     return problems
 
 
-@check("a public Kamaitachi profile can be all an account has, with its bests the stored scores and the rating and nothing reading maimai DX NET, "
+@check("connecting Kamaitachi hands out a single-use link that expires, the callback refuses a state it did not issue, stores the key "
+       "sealed, and limits how often a profile is read")
+def _routes():
+    from datetime import datetime, timedelta
+
+    from rasmai.bot.builders import charts as charts_package
+    from rasmai.scraping import kamaitachi
+    from rasmai.security import kamaitachi_limiter
+    from rasmai.storage.db import issue_kamaitachi_state, kamaitachi_key, upsert_connected_account
+    from rasmai.web.dashboard import routes
+
+    problems = []
+    if "/internal/me/kamaitachi" not in routes.DOWNLOADS or "/internal/me/kamaitachi/connect" not in routes.WRITES:
+        problems.append("the download or the connect link is not in the route tables")
+
+    def connect_link(user):
+        handler = _Handler()
+        routes.handle_post(handler, "/internal/me/kamaitachi/connect", {"id": user}, None)
+        return handler.sent[0]
+
+    index = _index()
+    kept = charts_package.shared_index, kamaitachi.KAMAITACHI_CLIENT_ID
+    charts_package.shared_index = lambda: index
+    kamaitachi_limiter._events.clear()
+    profile = _tachi([("Oshama Scramble!", [], "DX Master", "13", 100.9, "ALL PERFECT", None)])
+    try:
+        with _scratch() as store:
+            upsert_connected_account(USER, "intl", "cookie://" + "a" * 64, {"name": "Someone", "rating": 12000})
+            kamaitachi.KAMAITACHI_CLIENT_ID = ""
+            if connect_link(USER) != (503, {"ok": False, "error": "kamaitachi_unconfigured"}):
+                problems.append("an instance with no client handed out a link")
+            kamaitachi.KAMAITACHI_CLIENT_ID = kept[1]
+            with _configured():
+                status, body = connect_link(USER)
+            state = body.get("url", "").partition("&context=")[2]
+            if status != 200 or not body.get("url", "").startswith("https://kamai.tachi.ac/oauth/request-auth?clientID=CIcheck&context=") or len(state) < 20:
+                problems.append(f"the connect link answered {status} {body}")
+            with _network(_Answer(body=profile)) as asked:
+                for bad in ("", "not-issued-by-us-0000000000", ["x"], 5):
+                    if _connect(USER, state=bad) != (400, {"ok": False, "error": "expired"}):
+                        problems.append(f"the state {bad!r} was accepted")
+                if asked:
+                    problems.append("a refused state still read Kamaitachi")
+                status, body = _connect(USER, state=state)
+                if (status, body) != (200, {"ok": True, "username": "someone", "bests": 1, "plays": 0, "unmatched": 0, "seen": 1}):
+                    problems.append(f"a good link answered {status} {body}")
+                if _connect(USER, state=state) != (400, {"ok": False, "error": "expired"}):
+                    problems.append("a state was used twice")
+            if not asked or asked[0][1]["headers"].get("Authorization") != "Bearer check-key":
+                problems.append("the profile was not read with the key just given")
+            connection = store.get_database_connection()
+            sealed = connection.execute("SELECT kamaitachi_key FROM connected_accounts WHERE user_id = ?", (USER,)).fetchone()[0]
+            old = issue_kamaitachi_state(USER)
+            connection.execute("UPDATE kamaitachi_states SET created_at = ?", ((datetime.now() - timedelta(minutes=11)).isoformat(),))
+            connection.commit()
+            connection.close()
+            if "check-key" in sealed or kamaitachi_key(USER) != "check-key":
+                problems.append("the key is stored in the clear, or does not open again")
+            if _connect(USER, state=old) != (400, {"ok": False, "error": "expired"}):
+                problems.append("a state older than ten minutes was accepted")
+            with _network(_Answer(500, {"success": False})):
+                status, body = _connect(USER)
+            if status != 502 or body.get("error") != "kamaitachi" or not body.get("message"):
+                problems.append(f"a Kamaitachi failure was not a 502 with a message: {status} {body}")
+            with _network(_Answer(body=_tachi([]))):
+                status, body = _connect(USER)
+            if status != 502 or "no maimai DX scores" not in body.get("message", ""):
+                problems.append(f"a profile with no scores was not told clearly: {status} {body}")
+            kamaitachi_limiter._events.clear()
+            for _ in range(5):
+                kamaitachi_limiter.allow(USER)
+            with _network(_Answer(body=profile)) as asked:
+                status, body = _connect(USER)
+                if status != 429 or asked:
+                    problems.append(f"the sixth read in a quarter hour was not limited: {status} {body}")
+                if _connect("100000000000000009")[0] == 429:
+                    problems.append("one person's reads used up another's")
+    finally:
+        charts_package.shared_index, kamaitachi.KAMAITACHI_CLIENT_ID = kept
+        kamaitachi_limiter._events.clear()
+    return problems
+
+
+@check("a connected Kamaitachi profile can be all an account has, with its bests the stored scores and the rating and nothing reading maimai DX NET, "
        "or be followed beside a working maimai sign-in, which it never replaces; an expired sign-in is given up for it with every stored score kept")
 def _link():
     from datetime import timedelta
@@ -462,7 +606,8 @@ def _link():
     from rasmai.scraping import scraper
     from rasmai.scraping.kamaitachi import REGION, KamaitachiError
     from rasmai.security import kamaitachi_limiter
-    from rasmai.storage.db import best_recorded_scores, get_connected_account, mark_session_expired, quiet_reads_due, set_user_settings, upsert_connected_account
+    from rasmai.storage.db import (best_recorded_scores, get_connected_account, kamaitachi_key, mark_session_expired, quiet_reads_due, set_user_settings,
+                                   upsert_connected_account)
     from rasmai.storage.db.cohort import cohort_accounts
     from rasmai.web.dashboard import imports, routes
 
@@ -479,16 +624,10 @@ def _link():
     scraper.MaimaiRatingAnalyzer = sample
     kamaitachi_limiter._events.clear()
 
-    class Handler:
-        def __init__(self):
-            self.sent = []
-
-        def _send_json(self, status, body):
-            self.sent.append((status, body))
-
-    def post(user, payload, what="import"):
-        handler = Handler()
-        routes.handle_post(handler, f"/internal/me/kamaitachi/{what}", {"id": user}, payload)
+    def post(user, payload, what):
+        handler = _Handler()
+        with _configured():
+            routes.handle_post(handler, f"/internal/me/kamaitachi/{what}", {"id": user}, payload)
         return handler.sent[0]
     profile = _tachi([
         ("Oshama Scramble!", [], "DX Master", "13", 100.5, "FULL COMBO", 1790458048000),
@@ -505,20 +644,17 @@ def _link():
                 connection.executemany("INSERT INTO people (user_id, created_at, terms_version, terms_accepted_at) VALUES (?, ?, ?, ?)",
                                        [(who, "2026-11-01T00:00:00", "2026-10-27", "2026-11-01T00:00:00") for who in (USER, other)])
             connection.close()
-            with _network(_Answer(body=profile)) as asked:
-                if post(gone, {"username": "someone"}) != (404, {"ok": False, "error": "not_found"}) or asked or get_connected_account(gone) is not None:
-                    problems.append("a session that outlived its account made an account again")
+            if post(gone, None, "connect") != (404, {"ok": False, "error": "not_found"}) or get_connected_account(gone) is not None:
+                problems.append("a session that outlived its account was handed a link that would make the account again")
             # somebody with no maimai account, which is who this is for
-            with _network(_Answer(body=profile)) as asked:
-                if post(USER, {"username": "no good"}) != (400, {"ok": False, "error": "bad_username"}) or asked:
-                    problems.append("a bad username was not refused before Kamaitachi was asked")
-                status, body = post(USER, {"username": "someone"})
+            with _network(_Answer(body=profile)):
+                status, body = _connect(USER)
             if status != 200 or not body.get("ok") or body.get("seen") != 4 or body.get("unmatched") != 1:
                 problems.append(f"linking a profile answered {status} {body}")
             account = get_connected_account(USER) or {}
             charts = {(c["name"], c["chart_type"], c["difficulty_type"]): c for c in snapshot_charts(account.get("latestSnapshot"))}
             rating = int((account.get("officialProfile") or {}).get("rating") or 0)
-            if account.get("region") != REGION or account.get("token") or account.get("kamaitachi") != "someone" \
+            if account.get("region") != REGION or account.get("token") or account.get("kamaitachi") != "someone" or kamaitachi_key(USER) != "check-key" \
                     or (account.get("officialProfile") or {}).get("name") != "someone":
                 problems.append(f"the account is not kept under kamaitachi, with no sign-in, following the profile: {account.get('region')!r}, "
                                 f"token {bool(account.get('token'))}, follows {account.get('kamaitachi')!r}")
@@ -539,12 +675,21 @@ def _link():
                 _cached, again = imports.kamaitachi_account(USER)       # no name given: the profile it follows
             if again["bests"] or again["plays"] or (get_connected_account(USER) or {}).get("region") != REGION:
                 problems.append(f"reading the profile again added {again} or changed the account")
+            with _network(_Answer(401, {"success": False, "description": "Invalid token."})):
+                try:
+                    imports.kamaitachi_account(USER)
+                    problems.append("a revoked key was taken as a read")
+                except KamaitachiError as error:
+                    if error.kind != "relink" or kamaitachi_key(USER) or not (get_connected_account(USER) or {}).get("kamaitachi"):
+                        problems.append("a revoked key was kept, or cost the followed profile, so the dashboard still shows it connected")
+            with _network(_Answer(body=profile)):
+                _connect(USER)
             # a profile that is gone leaves what is stored, and one with nothing to match links nobody
             with _network(_Answer(404, {"success": False, "description": "The user someone does not exist."})):
-                if post(USER, {"username": "someone"}) != (404, {"ok": False, "error": "no_such_user"}) or not snapshot_charts((get_connected_account(USER) or {}).get("latestSnapshot")):
-                    problems.append("a profile that no longer exists was not a 404, or cost the stored scores")
+                if _connect(USER)[0] != 502 or not snapshot_charts((get_connected_account(USER) or {}).get("latestSnapshot")):
+                    problems.append("a profile that no longer exists was not refused, or cost the stored scores")
             with _network(_Answer(body=_tachi([("Never Heard Of It", [], "DX Master", "13", 99.0, "CLEAR", None)]))):
-                status, body = post(other, {"username": "someone"})
+                status, body = _connect(other)
             if status != 502 or get_connected_account(other) is not None:
                 problems.append(f"a profile with no chart Rasmai knows linked an account: {status} {body}")
             if post(USER, None, "unfollow") != (409, {"ok": False, "error": "only_link"}) or (get_connected_account(USER) or {}).get("kamaitachi") != "someone":
@@ -553,18 +698,18 @@ def _link():
             linked = "100000000000000003"
             upsert_connected_account(linked, "intl", "cookie://" + "a" * 64, {"name": "Real", "rating": 12000})
             with _network(_Answer(body=profile)):
-                status, body = post(linked, {"username": "someone"})
+                status, body = _connect(linked)
             held = get_connected_account(linked) or {}
             if status != 200 or held.get("region") != "intl" or not held.get("token") or held.get("kamaitachi") != "someone" \
                     or (held.get("officialProfile") or {}).get("name") != "Real" or best_recorded_scores(linked).get("oshamascramble!|dx|master") != 100.5:
                 problems.append(f"following a profile beside a maimai sign-in answered {status} {body}, or cost the sign-in, or kept no scores")
             with _network(_Answer(body=profile)) as asked:
                 imports.merge_followed(linked)          # what a refresh does after reading maimai
-            if len(asked) != 1 or not (get_connected_account(linked) or {}).get("token"):
+            if len(asked) != 1 or asked[0][1]["headers"].get("Authorization") != "Bearer check-key" or not (get_connected_account(linked) or {}).get("token"):
                 problems.append("a refresh did not read the followed profile once, or it cost the sign-in")
             with _network(_Answer(500, {"success": False})):
                 imports.merge_followed(linked)          # Kamaitachi down: the refresh that called this goes on
-            if post(linked, None, "unfollow") != (200, {"ok": True}) or (get_connected_account(linked) or {}).get("kamaitachi"):
+            if post(linked, None, "unfollow") != (200, {"ok": True}) or (get_connected_account(linked) or {}).get("kamaitachi") or kamaitachi_key(linked):
                 problems.append("a maimai account could not stop following its profile")
             # a sign-in that expired is given up for the profile: no deletion clock, the region and every stored score kept, each chart at its better score
             expired = "100000000000000004"
@@ -575,7 +720,7 @@ def _link():
             upsert_connected_account(expired, "jp", "segaid://x", {"name": "ＥＸＰ", "rating": 14000}, stored)
             mark_session_expired(expired)
             with _network(_Answer(body=profile)):
-                status, body = post(expired, {"username": "someone"})
+                status, body = _connect(expired)
             held = get_connected_account(expired) or {}
             kept_charts = {(c["name"], c["difficulty_type"]): c["accuracy"] for c in snapshot_charts(held.get("latestSnapshot"))}
             if status != 200 or held.get("token") or held.get("sessionExpired") or held.get("region") != "jp" or held.get("kamaitachi") != "someone":
@@ -590,4 +735,72 @@ def _link():
     finally:
         scraper.MaimaiRatingAnalyzer = kept
         kamaitachi_limiter._events.clear()
+    return problems
+
+
+@check("the Kamaitachi /login card warns its link is personal, turns into Connected or a direct message when the link lands, and raises "
+       "nothing when neither works; an account shows whether it has a key, never the key")
+def _card():
+    import asyncio
+    from datetime import datetime, timedelta
+
+    import discord
+
+    from rasmai.bot.ui import login
+    from rasmai.bot.ui.formatting import build_kamaitachi_card
+    from rasmai.storage.db import follow_kamaitachi, get_connected_account
+    from rasmai.web.dashboard import routes
+
+    problems = []
+    card = build_kamaitachi_card(datetime.now())
+    if not any("to yourself" in field.name and "your Rasmai account" in field.value for field in card.fields):
+        problems.append("the card no longer says to keep the link private")
+    gone = discord.HTTPException(SimpleNamespace(status=404, reason="Not Found"), "gone")
+    counts = {"bests": 2, "plays": 1, "unmatched": 0, "seen": 9}
+
+    class Card:
+        def __init__(self, editable, messages):
+            self.edits, self.sent, self.user = [], [], SimpleNamespace(send=self.send)
+            self.editable, self.messages = editable, messages
+
+        async def edit_original_response(self, **kwargs):
+            if not self.editable:
+                raise gone
+            self.edits.append(kwargs)
+
+        async def send(self, **kwargs):
+            if not self.messages:
+                raise gone
+            self.sent.append(kwargs)
+
+    def land(editable, messages, age=timedelta(0)):
+        made = Card(editable, messages)
+        login._kamaitachi_cards[USER] = (made, datetime.now() - age)
+        asyncio.run(login.kamaitachi_linked(USER, "some_one", counts))
+        return made
+    try:
+        made = land(True, True)
+        said = made.edits[0]["embed"].description if made.edits else ""
+        if made.sent or "some\\_one" not in said or "**9**" not in said or "**3**" not in said or made.edits[0].get("view") is not None:
+            problems.append(f"a landed link did not turn the card into Connected: {said!r}")
+        made = land(False, True)
+        if len(made.sent) != 1:
+            problems.append("a dismissed card was not followed by a direct message")
+        land(False, False)
+        if USER in login._kamaitachi_cards:
+            problems.append("a card was kept after its link landed")
+        made = land(True, True, timedelta(minutes=11))
+        if made.edits or made.sent:
+            problems.append("a card older than its link answered for a later one")
+        login._kamaitachi_cards.clear()
+        routes._tell_discord(USER, "someone", counts)
+        with _scratch():
+            follow_kamaitachi(USER, "someone", "kamaitachi")
+            named = get_connected_account(USER)
+            follow_kamaitachi(USER, "someone", "kamaitachi", "check-key")
+            keyed = get_connected_account(USER)
+        if named.get("kamaitachiKeyed") is not False or keyed.get("kamaitachiKeyed") is not True or "check-key" in repr(keyed):
+            problems.append("an account does not say whether its profile has a key, or says the key")
+    finally:
+        login._kamaitachi_cards.clear()
     return problems

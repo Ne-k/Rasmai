@@ -84,6 +84,9 @@
     "signInDiscord": "sign in with Discord",
     "signInErrors": {
       "discord": "Discord didn't confirm the sign-in. Try again.",
+      "kamaitachi": "Kamaitachi didn't finish connecting, and nothing on your account changed. Connect again in a few minutes. If it keeps failing, check that your Kamaitachi profile has maimai DX scores.",
+      "kamaitachi_expired": "That Kamaitachi link is more than 10 minutes old or was already used. Connect again from the Account tab, or run /login region:Kamaitachi in Discord for a new link.",
+      "kamaitachi_unconfigured": "Connecting Kamaitachi isn't set up on this server yet.",
       "oauth_unconfigured": "Sign-in isn't set up on this server yet.",
       "state": "That sign-in link expired. Try again.",
       "verify": "The human check failed. Try again."
@@ -927,7 +930,7 @@
         "c01": {
           "c01_login": {
             "name": "/login",
-            "what": "Links your maimai account. Every other command needs it, and you only do it once. You get a link to a setup page, and it takes about a minute. International accounts link on a computer: with the Aime sign-in helper extension, or by pasting one value from the Aime gateway. For a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. For Kamaitachi scores, run <code>/login region:Kamaitachi username:yourname</code>. Chinese version accounts can't be linked yet."
+            "what": "Links your maimai account. Every other command needs it, and you only do it once. You get a link to a setup page, and it takes about a minute. International accounts link on a computer: with the Aime sign-in helper extension, or by pasting one value from the Aime gateway. For a Japan account, run <code>/login region:Japan</code> and sign in with your SEGA ID. For Kamaitachi scores, run <code>/login region:Kamaitachi</code> and press the button in its reply to approve Rasmai on Kamaitachi. Chinese version accounts can't be linked yet."
           },
           "c02_help": {
             "name": "/help",
@@ -1120,7 +1123,7 @@
           "i11": "<b>Beta feedback.</b> If you tell Rasmai whether a beta feature was better, the same or worse, it keeps that answer and the short note you may add (500 characters at most). The site's owner can read it, and it is not shown to anyone else.",
           "i12": "<b>Your settings</b> from <code>/settings</code>: default layout, default targets and difficulty, the note and touch speeds for chart videos, and opt-ins that are <b>off unless you turn them on</b>: letting other people run <code>/compare</code> against your stored scores, appearing on <code>/leaderboard</code> in servers you share with the bot, a public profile link (below), a daily read of your recent-plays page (below) and a Discord message about what that read found. With the compare, leaderboard and profile options off, nobody else can see anything about your account through Rasmai.",
           "i13": "<b>One-time login codes</b>, stored only as hashes, with the name of the account they were made for (such as your Discord name), which the extension's approval window shows. They work once, expire after 10 minutes and are deleted within a day.",
-          "i07b": "<b>Scores from Kamaitachi.</b> If you follow a Kamaitachi profile (from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>import from Kamaitachi</b> box), Rasmai sends the username you type to Kamaitachi (kamai.tachi.ac) to read that profile's public maimai DX scores, at that point and each time your scores are refreshed. Nothing else about you is sent. Rasmai keeps the username with your account and records the bests and plays in your history. All of it is deleted with your account.",
+          "i07b": "<b>Scores from Kamaitachi.</b> If you connect Kamaitachi (from the link step, <code>/login region:Kamaitachi</code> or the dashboard's <b>connect Kamaitachi</b> button), you approve Rasmai on Kamaitachi (kamai.tachi.ac) and Kamaitachi gives Rasmai a key for your profile. Rasmai keeps the key encrypted with your account, beside your Kamaitachi username, and uses it only to read your maimai DX scores, when you connect and each time your scores are refreshed. Nothing else about you is sent. A profile followed by username before connecting existed is still read from its public scores until you connect it. The bests and plays go into your history. Stopping following removes the key, you can revoke it on Kamaitachi at any time, and all of it is deleted with your account.",
           "i06b": "<b>Anonymous statistics.</b> Rasmai counts your best score on each chart and your rating together with every other linked account's, to work out how often the people who play a chart get an SS compared with players of their rating on charts of the same level. This is on for every linked account unless you switch off <b>Count my scores in anonymous statistics</b> in the public profile box on the dashboard's Account tab. Your choice is kept with your settings. There is no separate copy on disk: the bot reads your stored scores into memory and rebuilds the count once an hour. A chart's page on the site and the bot show only totals: how many players have played the chart, how many of them got an SS and how many would be expected to. They never show a name, an account ID or any one person's score, and show nothing at all for a chart too few players have played to hide who they are. The statistics change no recommendation, plan or rating. Switching it off only stops your scores counting toward other people's results.",
           "i14": "<b>Server news subscriptions.</b> When a server manager sets up <code>/news subscribe</code>, Rasmai keeps the server and channel IDs, which accounts that channel gets (including any public Bluesky or X account a manager added), and the webhook URL it made there. Rasmai encrypts the webhook URL in the database and only decrypts it to post. Rasmai deletes all of it when the channel is stopped with <code>/news unsubscribe</code> or has every account unticked, when the webhook or channel gets deleted, or when the bot leaves the server. Nothing about the people in the server is kept.",
           "i15": "<b>Apps you register.</b> If you make an app on developers.{site}, Rasmai keeps its name, description, website and privacy policy addresses, redirect addresses and picture, a one-way hash of its client secret, and your Discord handle, which players see as the app's maker. They stay until you delete the app or your account. Unlinking only maimai on the dashboard's Account tab keeps them."
@@ -1179,7 +1182,7 @@
           "i04": "<b>Nobody else.</b> Rasmai does not sell your data or use it for advertising, and shares it only as listed here. There is no other analytics or telemetry.",
           "i03b": "<b>The support server.</b> If you join Rasmai's support server on Discord, what you post there can be read by its members and is subject to <discord>Discord's privacy policy</discord>. Don't post your login link, SEGA ID or password. Rasmai itself sends that server nothing about you.",
           "i03c": "<b>Apps you approve.</b> When you approve an app in the extension's approval window, the app gets your maimai sign-in and can use it as you on maimai DX NET. What it does with it is up to the app and its own privacy policy, which the window links to when the app has one. Rasmai sends it only the sign-in, when that runs out, and an ID that is different for every app.",
-          "i02c": "<b>Kamaitachi</b>, only if you use its import or upload its file yourself. The username you import is sent to <kamaitachi>kamai.tachi.ac</kamaitachi>. Scores you upload there are under Kamaitachi's own policy, not this one.",
+          "i02c": "<b>Kamaitachi</b>, only if you connect it or upload its file yourself. Connecting sends you to <kamaitachi>kamai.tachi.ac</kamaitachi> to approve Rasmai, and Rasmai then reads your scores there with the key Kamaitachi gives it. Scores you upload there are under Kamaitachi's own policy, not this one.",
           "i02d": "<b>The news sources.</b> <code>/news</code> reads public posts from Bluesky, and from X through public Nitter mirrors. Japanese posts are translated by a model running on the bot's own machine if one is set up, or by Google Translate if not. Nothing about you or your server is sent to any of them."
         }
       },
@@ -1254,7 +1257,7 @@
         "u01": {
           "i01": "If you turn on a public profile, <code>/compare</code> or <code>/leaderboard</code>, you choose what other people can see. Anyone with your profile link can see it, so only share the link with people you are happy to show it to.",
           "i02": "Rasmai keeps beta feedback you send with your account, and the operator reads it to improve Rasmai. Keep notes free of anything you would not want read.",
-          "i03": "A file you download for Kamaitachi is yours to do with as you like. Once you upload it to Kamaitachi, or import a Kamaitachi profile into Rasmai, that service's own rules apply to its side. Only import a profile you are entitled to use.",
+          "i03": "A file you download for Kamaitachi is yours to do with as you like. Once you upload it to Kamaitachi, or connect your Kamaitachi account to Rasmai, that service's own rules apply to its side. Only connect a Kamaitachi account that is yours.",
           "i04": "Unless you switch off <b>Count my scores in anonymous statistics</b> on the dashboard, your best scores and rating are counted, without your name, with other players' to work out how often charts get cleared. Other people see only totals from them, never your scores or who you are. The <privacy>privacy page</privacy> says exactly what is used and shown."
         }
       },
@@ -1526,7 +1529,7 @@
     "step3Title": "Start grinding",
     "step3": "Back in Discord, run <code>/analyze</code> to see what to play or <code>/plan</code> to plan your next thousand.",
     "japan": "<b>Japan account?</b> Run <code>/login region:Japan</code> and sign in with your SEGA ID.",
-    "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi username:yourname</code>, or pick Kamaitachi on <dash>your dashboard</dash>.",
+    "kamaitachi": "<b>Scores on Kamaitachi?</b> Run <code>/login region:Kamaitachi</code> and approve Rasmai on Kamaitachi, or pick Kamaitachi on <dash>your dashboard</dash>.",
     "already": "<b>Already linked?</b> <dash>Open your dashboard</dash> and sign in with Discord."
   },
   "extension": {
@@ -1728,7 +1731,7 @@
     "errors": {
       "google": "Google didn't confirm the sign-in. Try again.",
       "identity_taken": "That Discord or Google sign-in already belongs to a different account, so it can't be linked here.",
-      "rate_limited": "Too many sign-in attempts. Wait a few minutes and try again.",
+      "rate_limited": "Too many attempts. Wait a few minutes and try again.",
       "signin": "The sign-in didn't finish. Try again."
     },
     "signInGoogle": "sign in with Google"
@@ -1758,7 +1761,7 @@
     "regionJp": "Japan",
     "regionJpHow": "Enter your SEGA ID once. It's stored encrypted.",
     "regionKamai": "Kamaitachi",
-    "regionKamaiHow": "Enter your Kamaitachi username. No maimai sign-in needed.",
+    "regionKamaiHow": "Connect your Kamaitachi account and approve Rasmai there. No maimai sign-in needed.",
     "kamaiUpgrade": "Your scores come from Kamaitachi. Link maimai to get your real rating, recent plays and areas. Your scores stay.",
     "regionNote": "International: you sign in at the Aime gateway and paste one value from your browser. Japan: you type your SEGA ID once, and it's kept encrypted.",
     "setupLede": "Your account is ready. Choose your region to link your maimai account. It takes about a minute.",
@@ -1771,28 +1774,22 @@
   },
   "kamaitachi": {
     "title": "Kamaitachi",
-    "info": "Kamaitachi (kamai.tachi.ac) is a score tracker for rhythm games. Send your Rasmai scores there, or bring a profile's scores here. maimai DX only.",
+    "info": "Kamaitachi (kamai.tachi.ac) is a score tracker for rhythm games. Send your Rasmai scores there, or connect your account to bring its scores here. maimai DX only.",
     "toSub": "to Kamaitachi",
     "download": "download for Kamaitachi",
     "downloadHint": "On Kamaitachi choose Import Scores, then Batch Manual, and pick the file. It holds your best scores and every play Rasmai has stored.",
     "fromSub": "from Kamaitachi",
-    "username": "Kamaitachi username",
-    "import": "import",
-    "importing": "importing…",
-    "following": "Following <b>{name}</b>. Its scores are added every time you refresh.",
+    "connectHint": "This opens kamai.tachi.ac, where you approve Rasmai, and brings you back here. Rasmai reads the maimai DX scores on your profile and keeps the ones that beat what it has. Nothing is overwritten, and your Kamaitachi password never reaches Rasmai.",
+    "following": "Following <b>{name}</b>",
     "stop": "stop following",
-    "link": "link",
-    "linking": "reading your scores…",
-    "linkHint": "Reads that profile's public scores. Your rating becomes your best 50. You can link maimai later.",
-    "importHint": "Reads that profile's public maimai DX scores and keeps whatever beats what Rasmai has. Nothing is overwritten.",
-    "added": "Added {bests, plural, one {# best score} other {# best scores}} and {plays, plural, one {# play} other {# plays}} from Kamaitachi. Reloading…",
-    "nothingNew": "Read {seen, plural, one {# score} other {# scores}}, but Rasmai already has all of them or better.",
-    "empty": "That profile has no maimai DX scores on Kamaitachi.",
-    "unmatched": "{n, plural, one {# score} other {# scores}} couldn't be matched to a Rasmai chart and {n, plural, one {was} other {were}} skipped.",
-    "badUsername": "That isn't a Kamaitachi username. Use 2 to 30 letters, numbers, - or _.",
-    "noSuchUser": "Kamaitachi has no user with that name.",
-    "rateLimited": "You've imported a few times just now. Try again in about 15 minutes.",
-    "unreachable": "Kamaitachi didn't give a usable answer. Try again in a few minutes."
+    "connect": "connect Kamaitachi",
+    "reconnect": "connect again",
+    "linkedBadge": "connected",
+    "followingHint": "Rasmai reads this profile again every time you refresh. Connect again to follow a different Kamaitachi account, or if Rasmai can no longer read this one.",
+    "byName": "<b>{name}</b> was linked by username, before Kamaitachi sign-in was available. Connect again so Rasmai reads your scores with your approval instead of from your public profile.",
+    "connected": "Kamaitachi is connected. Rasmai has read <b>{name}</b>'s scores and reads them again every time you refresh.",
+    "connectedSignedOut": "Kamaitachi is connected to your Rasmai account, and Rasmai has read your scores. Sign in to see them here, or go back to Discord.",
+    "linkHint": "This opens kamai.tachi.ac, where you approve Rasmai, and brings you back here with your scores. Your rating becomes your best 50. You can link maimai later."
   },
   "cohort": {
     "observed": "SS or better by {rate} of {n, plural, one {# player} other {# players}}, {expected} expected for its level",
