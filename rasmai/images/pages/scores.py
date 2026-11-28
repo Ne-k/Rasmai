@@ -11,7 +11,7 @@ def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequen
     def tickets(entries: Sequence[Dict[str, Any]], size: int) -> str:
         out = ""
         for position, e in enumerate(entries, 1):
-            label, ink = tier(e["difficulty"])
+            _label, ink = tier(e["difficulty"])
             constant = f'<small>{e["constant"]:.1f}</small>' if e.get("constant") else ""
             out += f"""
             <div class="track" style="--tier:{ink};">
@@ -19,7 +19,7 @@ def best50_image_html(new_entries: Sequence[Dict[str, Any]], old_entries: Sequen
               <div class="track-body">
                 <div class="track-name"><b title="{_esc(e["title"])}">{_esc(e["title"])}</b>{kind_mark(e["chart_type"])}</div>
                 {cover_html(e.get("cover", ""), "track-jacket")}
-                <div class="track-score"><b>{e["accuracy"]:.4f}%</b><small>{label} {_esc(e["level"])}</small></div>
+                <div class="track-score"><b>{e["accuracy"]:.4f}%</b><small>{_esc(e["level"])}</small></div>
                 <div class="track-foot"><span>{rank_mark(e["rank"])}{lamp_marks(e.get("fc"), e.get("fs"))}</span></div>
               </div>
             </div>"""
@@ -83,7 +83,6 @@ def _tally(rows: Sequence[Dict[str, Any]]) -> str:
 
 
 _ACROSS = 8
-_DAY_ACROSS = 11
 _RUNS = ("pink", "cyan", "gold")
 
 
@@ -112,43 +111,56 @@ def recent_image_html(days: Sequence[Tuple[str, Sequence[Dict[str, Any]]]], play
                        f"<b>{score}</b><small>{label} {_esc(p['level'])}</small>{dx}",
                        f'<span>{rank_mark(p.get("rank"))}{lamp_marks(p.get("fc"), p.get("fs"))}</span>', flags, " sc-play")
 
-    def pack() -> List[List[List[int]]]:
+    def pack(across: int) -> List[List[List[int]]]:
         lines: List[List[List[int]]] = []
         for at, (_label, group) in enumerate(days):
             cells = len(group)
-            wide = min(cells, _DAY_ACROSS)
-            # the gap between days takes room, so a line shared by several days holds one tile fewer than _DAY_ACROSS
-            if not lines or sum(day[1] for day in lines[-1]) + wide > _DAY_ACROSS - 1:
+            wide = min(cells, across)
+            # the gap between days takes room, so a line shared by several days holds one tile fewer than `across`
+            if not lines or sum(day[1] for day in lines[-1]) + wide > across - 1:
                 lines.append([])
             lines[-1].append([at, wide, cells])
         for line in lines:
             # the last day on a line takes the room the line leaves, so every line of days ends level
-            line[-1][1] += _DAY_ACROSS - (len(line) > 1) - sum(day[1] for day in line)
+            line[-1][1] += across - (len(line) > 1) - sum(day[1] for day in line)
         return lines
 
+    def tall(lines: List[List[List[int]]], across: int) -> float:
+        # a day's heading is 87px tall, and its rows of 5:4 tiles have 14px between them (rasmai.css .run .tracks); a line shared by
+        # several days holds one tile fewer, so its tiles are wider and taller
+        return sum(87 + max(-(-cells // wide) for _at, wide, cells in line) * (0.8 * (2320 - 14 * (n - 1)) / n + 14) - 14
+                   for line in lines for n in [across - (len(line) > 1)])
+
     plays = [p for _d, group in days for p in group]
-    lines = pack()
-    placed = [(at, wide, len(line)) for line in lines for at, wide, _cells in line]
+    # the fewest tiles across from 11 whose days fit the 1026px between banner and footer (measured); past 16 the page grows.
+    # shortcut: two days of 8 to 10 plays never share a line below 17 across, so six or more such days still run past 1350px; raise the
+    # range if that turns out common, once the tiles' text has a smaller size to go to
+    across = next((a for a in range(11, 17) if tall(pack(a), a) <= 1026), 16)
     sheets = ""
-    for at, wide, shared in placed:
-        label, group = days[at]
-        colour = _RUNS[at % len(_RUNS)]
-        new = sum(1 for p in group if p.get("pb"))
-        body = "".join(play(p) for p in group)
-        # a day's figures go in its heading's note: a day two tiles wide or less has room for the count alone
-        figures = [count(len(group), "play"), count(new, "new best") if new else "", f"average {average(group)}"]
-        note = ", ".join(f for f in figures if f) if wide > 2 else figures[0]
-        if at == 0:
-            note = ", ".join(n for n in (note, "times in JST") if n)
-        sheets += (f'<div class="sc-sheet" style="grid-column:span {wide * 110 // (_DAY_ACROSS - (shared > 1))}">'
-                   + panel(f"{colour} run sc-day", date(label, wide > 1), f'<div class="tracks" style="--across:{wide}">{body}</div>', note)
-                   + "</div>")
+    for line in pack(across):
+        sheets += '<div class="sc-line">'
+        for at, wide, _cells in line:
+            label, group = days[at]
+            colour = _RUNS[at % len(_RUNS)]
+            new = sum(1 for p in group if p.get("pb"))
+            body = "".join(play(p) for p in group)
+            # a day's figures go in its heading's note: a day two tiles wide or less has room for the count alone
+            figures = [count(len(group), "play"), count(new, "new best") if new else "", f"average {average(group)}"]
+            note = ", ".join(f for f in figures if f) if wide > 2 else figures[0]
+            if at == 0:
+                note = ", ".join(n for n in (note, "times in JST") if n)
+            # the day's inner gaps go in its basis, so every tile on the line comes out the same width
+            sheets += (f'<div class="sc-sheet" style="flex:{wide} 1 {14 * (wide - 1)}px">'
+                       + panel(f"{colour} run sc-day", date(label, wide > 1), f'<div class="tracks" style="--across:{wide}">{body}</div>', note)
+                       + "</div>")
+        sheets += "</div>"
     days_tally = ("".join(f"<span>{mark('plays')}{len(group)} on {_esc(date(label, False))}</span>" for label, group in days[:6])
                   + (f"<span>+{len(days) - 6} more days</span>" if len(days) > 6 else ""))
     banner = (f'<div class="banner">{stats([("Days", str(len(days))), ("Plays", str(len(plays))), ("Average", average(plays))])}'
               f'<div class="tally"><span>{mark("pb")}{pbs}</span><span>{mark("best50")}{sum(1 for p in plays if p.get("in_b50"))}</span>{days_tally}</div>'
               f'<div class="tally">{_tally(plays)}</div></div>')
-    body = banner + f'<div class="sc-days">{sheets}</div>' if plays else '<p class="sc-empty">No recent plays yet.</p>'
+    # from 13 across a tile has no room for the chart rating beside the score or the constant beside the marks, so both are dropped
+    body = banner + f'<div class="sc-days{" dense" if across >= 13 else ""}">{sheets}</div>' if plays else '<p class="sc-empty">No recent plays yet.</p>'
     return _image("Recent plays", player_name, avatar_b64, rating_plate(rating), "rating", body, date_text)
 
 

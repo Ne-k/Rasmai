@@ -129,8 +129,8 @@
   .track:has(> .track-body > .track-jacket) > .track-body,
   .track:has(> .track-body > .track-jacket) .track-score { display: contents; }
   .track:has(> .track-body > .track-jacket) .track-jacket { grid-row: 1 / -1; grid-column: 1 / -1; align-self: stretch; width: 100%; height: 100%; border-radius: 0; }
-  .track:has(> .track-body > .track-jacket)::after { content: ""; grid-row: 2 / -1; grid-column: 1 / -1; align-self: stretch; margin-top: -34px;
-           background: linear-gradient(rgb(8 11 28 / 0), rgb(8 11 28 / .86) 34px, rgb(8 11 28 / .94)); }
+  .track:has(> .track-body > .track-jacket)::after { content: ""; grid-row: 2 / -1; grid-column: 1 / -1; align-self: stretch; margin-top: -26px;
+           background: linear-gradient(rgb(8 11 28 / 0), rgb(8 11 28 / .72) 26px, rgb(8 11 28 / .88)); }
   .track:has(> .track-body > .track-jacket) > .track-stub > *, .track:has(> .track-body > .track-jacket) .track-name, .track:has(> .track-body > .track-jacket) .track-score > *, .track:has(> .track-body > .track-jacket) .track-foot { z-index: 1; }
   .track:has(> .track-body > .track-jacket) .track-stub > b {
            grid-area: top; align-self: start; justify-self: start; padding: 1px 9px 3px 7px; border-radius: 0 0 8px 0;
@@ -144,6 +144,11 @@
   .track:has(> .track-body > .track-jacket) .track-stub > small { grid-area: cs; padding: 0 0 7px 6px; color: #c4cbe6; font-family: var(--font-body); font-size: 13px; font-weight: 700; }
   .track:has(> .track-body > .track-jacket) .track-foot { grid-area: ft; justify-self: end; padding: 0 8px 6px 6px; }
   .track:has(> .track-body > .track-jacket) .track-foot .mk { width: 22px; height: 22px; }
+  /* /b50's tiles are the largest, so their text is bigger and the small lines brighter */
+  .b50-pair .track:has(> .track-body > .track-jacket) .track-name b { font-size: 18px; }
+  .b50-pair .track:has(> .track-body > .track-jacket) .track-score > b { font-size: 24px; }
+  .b50-pair .track:has(> .track-body > .track-jacket) .track-stub > strong { font-size: 34px; }
+  .b50-pair .track:has(> .track-body > .track-jacket) .track-score small, .b50-pair .track:has(> .track-body > .track-jacket) .track-stub > small { font-size: 14px; color: #e2e6f6; }
   .track.open { --tier: var(--rule); opacity: .6; }
   /* a tile that names a run of tiles: framed in the run's colour, the run's figure where a chart's score would be */
   .track.head .track-stub { align-content: center; }
@@ -172,7 +177,7 @@
 /* ---------------------------------------------------------------- /analyze */
 /* /analyze: the three picks as big tiles, the gain the loudest figure; under them the next picks beside the road, whose steps run left to
    right along a gold lane, row after row like lines of text, with the total so far after each step and the goal under them */
-  .an .banner:has(+ .run) { margin-bottom: 0; }
+  .an .banner:has(+ .run, + .an-top) { margin-bottom: 0; }
   .an .banner .rplate.sm { font-size: 24px; }
 .an-big { --stub: 150px; }
   .an-big .track-stub { padding: 12px 0 14px; }
@@ -208,10 +213,29 @@
                      background: linear-gradient(90deg, var(--on-bright) 50%, #0000 0) center / 22px 4px repeat-x, var(--gold); }
   .an-post { position: absolute; z-index: 2; top: calc(50% - var(--lane) / 2 - 3px); left: calc(100% + 26px); translate: -50% -100%; padding: 1px 6px 2px; border: 2px solid var(--rule);
              border-radius: 7px; background: var(--sheet); color: var(--ink); font-family: var(--font-display); font-size: 15px; font-style: normal; font-weight: 900; white-space: nowrap; }
-  .track.head.an-goal .track-body { grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 4px 22px; padding: 10px 26px 12px 18px; }
-  .an-goal .track-body small { grid-column: 1 / -1; line-height: 1.4; }
+  /* the goal: label, figure, meter and verdict in one row, the verdict dropping under the meter on a narrow road */
+  .track.head.an-goal .track-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; padding: 8px 26px 8px 18px; }
+  .an-goal .an-meter { flex: 1 1 160px; }
+  .an-goal .track-body small { flex: 1 1 300px; max-width: 620px; line-height: 1.3; }
+  .track.head.an-goal .track-stub .mk { width: 36px; height: 36px; }
   .an-meter { height: 26px; overflow: hidden; border-radius: 7px; background: color-mix(in srgb, var(--on-bright) 18%, var(--gold)); }
   .an-meter i { display: block; height: 100%; background: var(--pink); border-right: 3px solid var(--on-bright); }
+/* the near list beside the picks, its tiles two across: smaller pick cards, and near rows stretched to the cards' height */
+.an-top { display: grid; grid-template-columns: minmax(0, 1fr) 680px; gap: 0 24px; align-items: stretch; }
+  .an-top > .panel { display: flex; flex-direction: column; }
+  .an-top > .panel > .tracks { flex: 1; }
+  .an-top .an-big { --stub: 112px; }
+  .an-top .an-big-body { grid-template-columns: 104px minmax(0, 1fr); gap: 6px 16px; padding: 10px 16px 12px; }
+  .an-top .an-big-jacket { width: 104px; height: 104px; }
+  .an-top .an-big .track-name b { font-size: 24px; }
+  .an-top .an-big-goal { font-size: 34px; }
+  .an-top .an-big-goal .mk { width: 48px; height: 48px; }
+  .an-outside .tracks { grid-auto-rows: 1fr; gap: 10px 14px; }
+  .an-outside .an-near { --stub: 56px; }
+  .an-outside .an-near .track-stub .mk { width: 34px; height: 34px; }
+  .an-outside .an-near-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 14px; }
+  .an-outside .an-near-body span { flex: none; }
+  .an-outside .an-near-body em { font-size: 20px; }
 /* the near list: one roll of narrow tiles, the score to reach as the figure */
 .an-near .track-stub { align-content: center; }
   .an-near-body { min-width: 0; display: grid; gap: 2px; padding: 8px 14px 9px; }
@@ -327,14 +351,18 @@
 .sc-day { flex: 1; min-width: 0; }
 
   .sc-day .tabs h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* the note gives way before the date does */
+  .sc-day .tabs span { flex: 1 1 0; min-width: 0; }
 
   .banner:has(+ .run), .banner:has(+ .sc-days) { margin-bottom: 0; }
 .sc-empty { width: fit-content; padding: 14px 26px; border: 2px solid var(--rule); border-radius: 14px; background: var(--sheet);
             font-family: var(--font-display); font-size: 24px; font-weight: 900; }
-/* /recent: the plays in order, a section for each day under its date. Days too short to fill a line share it, the
-   last on the line taking what is left; a long day runs on in rolls of eleven */
-/* 110 columns, so a line can be cut into eleven places or ten */
-.sc-days { display: grid; grid-template-columns: repeat(110, minmax(0, 1fr)); gap: 0 12px; }
+/* /recent: the plays in order, a section for each day under its date. Days too short to fill a line share it, the last on
+   the line taking what is left; a long day runs on in rows of 11 to 16 tiles, the fewest that keep the page 1350px tall, or 16
+   when none does. A day's share of its line is its width in tiles */
+.sc-line { display: flex; gap: 0 12px; }
+  .sc-days.dense .track.sc-play:has(> .track-body > .track-jacket) .track-stub > strong, .sc-days.dense .track.sc-play:has(> .track-body > .track-jacket) .track-stub > small { display: none; }
+  .sc-days.dense .track.sc-play:has(> .track-body > .track-jacket) .track-foot .mk { width: 18px; height: 18px; }
   .sc-sheet { display: flex; min-width: 0; }
   .sc-play .track-score > b { font-size: 21px; }
   .sc-play .track-foot > span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; white-space: normal; overflow: visible; }
@@ -343,6 +371,7 @@
   .track.sc-play:has(> .track-body > .track-jacket) .track-score small { display: none; }
   .track.sc-play:has(> .track-body > .track-jacket) .track-foot > span { flex-wrap: nowrap; gap: 1px; }
   .track.sc-play:has(> .track-body > .track-jacket) .track-foot .mk { width: 20px; height: 20px; }
+  .track.sc-play:has(> .track-body > .track-jacket) .track-name .mk { width: 22px; height: 22px; }
 .sc-unplayed .track-jacket { filter: grayscale(.85); opacity: .7; }
 /* /dxscore: the star counts as a tally of dxstar marks in the banner; a tile's stub carries the points short, its foot the stars now over next */
 .sc-starcount { gap: 4px 30px; }

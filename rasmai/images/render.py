@@ -146,15 +146,18 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
     split = bool(listed and steps) and math.ceil(len(listed) / 3) >= math.ceil(len(steps) / 4)
     across, road_across, left = 8, 8, 0
     if split:
-        # picks and road share one tile width (5:4) so their rows line up; take the most rows that fit under the head at 16:9
-        # 2296px is the width less the gaps: 14px between picks, 52px per step for the road's lane, 10px at its end
-        room = 960 - (270 if picks else 0) - (120 if near else 0) - 170
-        for rows in range(2, 7):
+        # picks and road share one tile width (5:4) so their rows line up; take the most rows that fit under the head at 16:9; when not even
+        # one row fits, the picks go above a full-width road, which fits a list that short. 2296px is the width less the gaps: 14px between picks, 52px per step for the road's lane, 10px at its
+        # end. 521px is 1350 less the head, banner and footer, the picks row and the board's heading, goal and gap; a split always has
+        # picks, and their row is as tall with the near list beside them as without it
+        room = 521
+        for rows in range(1, 7):
             a, b = math.ceil(len(listed) / rows), math.ceil(len(steps) / rows)
             tile = (2296 - 14 * (a - 1) - 52 * b - 10) / (a + b)
-            if left and rows * (0.8 * tile + 16) > room:
+            if rows * (0.8 * tile + 16) > room:
                 break
             across, road_across, left = a, b, round(a * tile + 14 * (a - 1))
+        split = bool(left)
     road_rows = math.ceil(len(steps) / road_across) + 1 if steps else 0
     board = ""
     if listed:
@@ -187,18 +190,26 @@ def generate_poster_html(recommendations: List[Recommendation], player_name: str
                        f"{len(steps)} step{'' if len(steps) == 1 else 's'}")
 
     body = f'<div class="banner">{"".join(banner)}</div>'
+    top = ""
     if picks:
         # our own wording for the scope ("level 13+"), never the player's text
-        body += panel("gold run", "Play these first", f'<div class="tracks an-picks" style="--across:{len(featured)}">{picks}</div>',
+        top = panel("gold run", "Play these first", f'<div class="tracks an-picks" style="--across:{len(featured)}">{picks}</div>',
                       f"top {len(featured)} of {len(movers)}" + (f" · {scope}" if scope else ""))
-    if board:
-        body += f'<div class="an-board{" an-split" if split else ""}" style="--left:{left}px">{board}</div>'
+    outside = ""
     if near:
         items = "".join(
             f'<div class="track an-near" style="--tier:{tier(r.difficulty_type)[1]}"><div class="track-stub">{tier_mark(r.difficulty_type)}</div>'
-            f'<div class="an-near-body"><b>{_esc(r.song)}</b><span>reach <em>{r.required_accuracy:.2f}%</em></span></div></div>' for r in near)
-        body += panel("purple run", "Just outside your best 50", f'<div class="tracks" style="--across:{len(near)}">{items}</div>',
-                      "these pay nothing yet · reach the score shown and they start counting")
+            f'<div class="an-near-body"><b>{_esc(r.song)}</b><span>{"" if top else "reach "}<em>{r.required_accuracy:.2f}%</em></span></div></div>'
+            for r in near)
+        # beside the picks the near list sits two across in their height, leaving the rows below to the board
+        outside = panel("purple run" + (" an-outside" if top else ""), "Just outside your best 50",
+                        f'<div class="tracks" style="--across:{2 if top else len(near)}">{items}</div>',
+                        "they count at the score shown" if top else "these pay nothing yet · reach the score shown and they start counting")
+    body += f'<div class="an-top">{top}{outside}</div>' if top and outside else top
+    if board:
+        body += f'<div class="an-board{" an-split" if split else ""}" style="--left:{left}px">{board}</div>'
+    if outside and not top:
+        body += outside
 
     return _page("What to play next", player_name, avatar_base64, f"+{total_gain}", "possible gain",
                  f'<div class="an">{body}</div>',
