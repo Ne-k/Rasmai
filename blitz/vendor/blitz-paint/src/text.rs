@@ -501,8 +501,8 @@ fn line_ellipsis(line: &Line<'_, TextBrush>, limit: f32) -> Option<LineEllipsis>
     let end = glyph_runs(line)
         .map(|run| run.offset() + run.advance())
         .fold(0.0, f32::max);
-    // a line that fits, to within rounding, keeps every glyph
-    if end <= limit + 0.5 {
+    // a line that fits keeps every glyph: layout rounds a box's edges to whole pixels, so its width can come out up to a pixel short of its text
+    if end <= limit + 1.0 {
         return None;
     }
     let (index, overflowing) = glyph_runs(line)
