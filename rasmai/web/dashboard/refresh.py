@@ -15,7 +15,7 @@ from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.errors import expected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
-    load_judgements, load_play_counts, load_recorded_plays, mark_session_expired, save_play_counts,
+    judgement_pages, load_judgements, load_play_counts, load_recorded_plays, mark_session_expired, save_play_counts,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,6 +133,7 @@ class RefreshJobs:
                 if region not in MAIMAI_BASE_URLS:
                     region = "intl"
                 analyzer = MaimaiRatingAnalyzer()
+                analyzer.stored_details = judgement_pages(user_id)
                 snapshot = analyzer.fetch_official_maimai_snapshot(str(account["token"]), region, tell)
                 analyzer.player = snapshot["player"]
                 analyzer.songs = snapshot["songs"]

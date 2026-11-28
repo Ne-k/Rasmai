@@ -41,6 +41,8 @@ class MaimaiRatingAnalyzer(ScorePages, AreaPages, PlaylogPages, ProfilePages):
         self.play_counts: Dict[Tuple[str, str, str], int] = {}
         self.recorded_plays: List[Dict[str, Any]] = []     # stored plays with the best held before each, for calibration
         self.judgements: List[Dict[str, Any]] = []        # stored judgement pages, for the note-type traits
+        # judgement pages already read, by play id: a read reuses them and adds the ones it fetches, so the background store skips a second fetch
+        self.stored_details: Dict[str, Dict[str, Any]] = {}
         self.events_data: Dict[str, Any] = {"areaEvents": [], "eventAreaEvents": []}   # the map pages, as last read
         self.events_read_at: Optional[datetime] = None
         self.plan_stretch: bool = False

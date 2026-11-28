@@ -16,7 +16,7 @@ from rasmai.config import MAIMAI_BASE_URLS, PRESENCE_REGION
 from rasmai.scraping.scraper import MaimaiRatingAnalyzer, SessionRejected
 from rasmai.security import public_reason
 from rasmai.storage.db import (
-    best_recorded_scores, get_connected_account, is_discord_id, mark_session_expired, session_deletes_at, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
+    best_recorded_scores, get_connected_account, is_discord_id, judgement_pages, mark_session_expired, session_deletes_at, notified_rating, quiet_read_done, quiet_read_status, quiet_reads_due,
     record_chart_scores, set_notified_rating,
 )
 
@@ -48,6 +48,7 @@ class HistoryWatch:
             region = "intl"
         user_id = str(account["userId"])
         analyzer = MaimaiRatingAnalyzer()
+        analyzer.stored_details = judgement_pages(user_id)
         player, plays = analyzer.fetch_official_check(str(account["token"]), region, with_areas=False)
         rows = play_rows(analyzer, plays)
         known = best_recorded_scores(user_id)

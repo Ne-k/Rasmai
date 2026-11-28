@@ -181,7 +181,8 @@ def collect_judgements(user_id: str, analyzer: Any, recent: List[Dict[str, Any]]
         if stored >= limit:
             break
         try:
-            detail = analyzer.fetch_playlog_detail(idx, region)
+            # the read that produced this list has usually fetched this page already
+            detail = analyzer.stored_details.get(idx) or analyzer.fetch_playlog_detail(idx, region)
             key, played_at = judgement_key(analyzer, record)
             save_judgement(user_id, idx, key, played_at, detail)
             stored += 1

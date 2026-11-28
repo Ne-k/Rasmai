@@ -14,16 +14,27 @@ class PlaylogPages:
     """Reading the recent plays, the playlog detail pages and the play counts."""
 
     def enrich_recent_play_judgements(self, recent: List[Dict[str, Any]], region: str = "intl") -> None:
-        """Attach compact judgement data to imported recent plays when available."""
+        """Attach compact judgement data to imported recent plays when available.
+
+        It reuses pages already in ``stored_details`` and adds each page it fetches there, so a check that finds two new
+        plays fetches two pages rather than the whole list.
+
+        :param recent: The recent-plays list from maimai DX NET.
+        :type recent: List[Dict[str, Any]]
+        :param region: ``"intl"``, ``"jp"`` or ``"cn"``.
+        :type region: str
+        """
         for record in recent:
             idx = str(record.get("idx") or "")
             if not idx:
                 continue
-            try:
-                detail = self.fetch_playlog_detail(idx, region)
-            except Exception as error:
-                logger.info("Playlog detail unavailable for %s: %s", idx, error)
-                continue
+            detail = self.stored_details.get(idx)
+            if detail is None:
+                try:
+                    detail = self.stored_details[idx] = self.fetch_playlog_detail(idx, region)
+                except Exception as error:
+                    logger.info("Playlog detail unavailable for %s: %s", idx, error)
+                    continue
             record["judgement"] = {
                 "fast": int(detail.get("fast") or 0),
                 "late": int(detail.get("late") or 0),

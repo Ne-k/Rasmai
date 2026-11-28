@@ -106,6 +106,24 @@ def load_judgements(user_id: str) -> List[Dict[str, Any]]:
     return [page for page in (_row(row) for row in rows) if page]
 
 
+def judgement_pages(user_id: str) -> Dict[str, Dict[str, Any]]:
+    """A player's newest stored judgement pages, by the site's play id, for a read to take instead of fetching them again.
+
+    maimai lists only the last fifty plays, so older pages could never be asked for; a page that misses the cut costs one fetch.
+
+    :param user_id: The Discord user id.
+    :type user_id: str
+    :rtype: Dict[str, Dict[str, Any]]
+    """
+    connection = get_database_connection()
+    try:
+        rows = connection.execute(
+            f"SELECT {_COLUMNS} FROM play_judgements WHERE user_id = ? ORDER BY played_at DESC LIMIT 100", (user_id,)).fetchall()
+    finally:
+        connection.close()
+    return {page["idx"]: page for page in map(_row, rows) if page}
+
+
 def judged_ids(user_id: str) -> set:
     """The play ids whose judgement page is already stored.
 

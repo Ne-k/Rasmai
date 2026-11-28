@@ -14,7 +14,7 @@ from rasmai.scraping.kamaitachi import KamaitachiError
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
 from rasmai.config import DEBUG_EXPORT_JSON, MAIMAI_BASE_URLS
 from rasmai.storage.db import (
-    get_connected_account, load_judgements, load_play_counts, load_recorded_plays, save_play_counts,
+    get_connected_account, judgement_pages, load_judgements, load_play_counts, load_recorded_plays, save_play_counts,
 )
 from rasmai.storage.models import Recommendation
 from rasmai.util import export_debug_payload
@@ -163,19 +163,22 @@ async def _fresh_analysis(interaction: discord.Interaction, user_id: str, force:
         await interaction.edit_original_response(content=f"{down} Try again once it is back; `/ping` shows the schedule.",
                                                  embed=None, attachments=[], view=None)
         return None
-    if not force:
-        stored = await _stored_analysis(interaction, user_id, account, token, region)
-        if stored is not None:
-            return stored
-
-    # the constructor may refresh the chart database, which is minutes of git and image work
-    analyzer = await asyncio.to_thread(MaimaiRatingAnalyzer)
+    # show the bar before the new-play check, which signs in to maimai DX NET and can take a while
     progress = Progress(interaction)
-    if SCRAPE_SEMAPHORE.locked():
-        # every read slot is taken: a bar standing still at 0% looked stuck, so say what it's waiting for
-        progress.waiting = "I'm reading a lot of scores right now, so yours is waiting for a free slot. It starts on its own as soon as one opens up."
-    await progress.flush(force=True)
     try:
+        if not force:
+            progress.waiting = "I'm checking maimai DX NET for new plays."
+            await progress.flush(force=True)
+            stored = await _stored_analysis(interaction, user_id, account, token, region)
+            if stored is not None:
+                return stored
+        progress.waiting = ""
+        analyzer = await asyncio.to_thread(MaimaiRatingAnalyzer)
+        analyzer.stored_details = await asyncio.to_thread(judgement_pages, user_id)
+        if SCRAPE_SEMAPHORE.locked():
+            # every read slot is taken: a bar standing still at 0% looked stuck, so say what it's waiting for
+            progress.waiting = "I'm reading a lot of scores right now, so yours is waiting for a free slot. It starts on its own as soon as one opens up."
+        await progress.flush(force=True)
         try:
             snapshot = await fetch_snapshot_limited(analyzer, token, region, progress.from_thread())
         except SessionRejected as error:

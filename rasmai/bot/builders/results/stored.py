@@ -14,7 +14,7 @@ from rasmai.bot.state.snapshots import analyzer_from_snapshot, collect_judgement
 from rasmai.scraping.scraper import SessionRejected, MaimaiRatingAnalyzer
 from rasmai.config import MAIMAI_BASE_URLS, PRESENCE_REGION, SNAPSHOT_MAX_AGE
 from rasmai.security import public_reason
-from rasmai.storage.db import get_connected_account, mark_session_expired, record_area_progress
+from rasmai.storage.db import get_connected_account, judgement_pages, mark_session_expired, record_area_progress
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,7 @@ async def _light_check(user_id: str, account: Dict[str, Any], token: str, region
     :rtype: Tuple[Any, List[Dict[str, Any]]]
     """
     probe = await asyncio.to_thread(MaimaiRatingAnalyzer)
+    probe.stored_details = await asyncio.to_thread(judgement_pages, user_id)
     player, plays = await asyncio.to_thread(probe.fetch_official_check, token, region)
     added = await asyncio.to_thread(record_plays, user_id, probe, plays)
     # the judgement pages of new plays are read behind the command, not in front of it

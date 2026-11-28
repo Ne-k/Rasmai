@@ -463,6 +463,45 @@ def _stored_judgements():
     return problems
 
 
+@check("a read fetches judgement pages only for plays not stored yet, and the background store reuses what it fetched")
+def _judgements_fetched_once():
+    import time
+    from rasmai.bot.state.snapshots import collect_judgements
+    from rasmai.scraping.scraper.plays import PlaylogPages
+    from rasmai.storage.db import judged_ids, judgement_pages, save_judgement
+
+    page = {"achievement": 99.0, "fast": 2, "late": 4, "notes": {"tap": {"critical": 9, "perfect": 1, "great": 0, "good": 0, "miss": 0}}}
+    user = f"speedcheck-{time.monotonic_ns()}"      # a rerun on the same database starts with nothing stored
+    save_judgement(user, "old", "song|dx|master", "2026-01-01T00:00:00", page)
+
+    class Analyzer(PlaylogPages):
+        def __init__(self):
+            self.stored_details = judgement_pages(user)
+            self.fetched = []
+
+        def fetch_playlog_detail(self, idx, region="intl"):
+            self.fetched.append(idx)
+            return dict(page)
+
+        def _normalize_official_song_name(self, name):
+            return name
+
+    analyzer = Analyzer()
+    recent = [{"idx": "old", "songName": "song"}, {"idx": "new", "songName": "song"}]
+    problems = []
+    analyzer.enrich_recent_play_judgements(recent)
+    if analyzer.fetched != ["new"]:
+        problems.append(f"the read fetched {analyzer.fetched}, expected only the play not stored")
+    if any(record.get("judgement", {}).get("late") != 4 for record in recent):
+        problems.append("a play did not get its judgement counts")
+    collect_judgements(user, analyzer, recent)
+    if analyzer.fetched != ["new"]:
+        problems.append(f"the background store fetched again: {analyzer.fetched}")
+    if judged_ids(user) != {"old", "new"}:
+        problems.append(f"stored {sorted(judged_ids(user))}, expected both plays")
+    return problems
+
+
 @check("the one account can update either chart database by hand, and nobody else can")
 def _manual_updates():
     import json as _json
